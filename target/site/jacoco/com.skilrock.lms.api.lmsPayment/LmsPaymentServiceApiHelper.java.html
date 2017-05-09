@@ -1,0 +1,542 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LmsPaymentServiceApiHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.api.lmsPayment</a> &gt; <span class="el_source">LmsPaymentServiceApiHelper.java</span></div><h1>LmsPaymentServiceApiHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.api.lmsPayment;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.api.beans.DrawDetailsBean;
+import com.skilrock.lms.api.beans.PWTApiBean;
+import com.skilrock.lms.api.common.TPBoPwtProcessHelper;
+import com.skilrock.lms.api.common.TpUtilityHelper;
+import com.skilrock.lms.api.lmsPayment.beans.LmsCashPaymentBean;
+import com.skilrock.lms.api.lmsPayment.beans.LmsCashPaymentResponseBean;
+import com.skilrock.lms.api.lmsPayment.beans.LmsOrgInfoBean;
+import com.skilrock.lms.beans.PlayerBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.coreEngine.accMgmt.common.AgentBankDepositHelper;
+import com.skilrock.lms.coreEngine.accMgmt.common.DebitNoteAgentHelper;
+import com.skilrock.lms.coreEngine.accMgmt.common.DebitNoteBoHelper;
+import com.skilrock.lms.coreEngine.accMgmt.common.RetailerPaymentSubmitHelper;
+import com.skilrock.lms.dge.beans.MainPWTDrawBean;
+
+
+<span class="nc" id="L32">public class LmsPaymentServiceApiHelper {</span>
+<span class="nc" id="L33">     static Log logger=LogFactory.getLog(LmsPaymentServiceApiHelper.class);</span>
+	public LmsCashPaymentResponseBean depositCashPayment(LmsCashPaymentBean cashPaymentBean,int tpSystemId) throws LMSException {
+<span class="nc" id="L35">		LmsCashPaymentResponseBean cashResponseBean=new LmsCashPaymentResponseBean();</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">		if(TpUtilityHelper.checkDuplicateSystemRefTransId(cashPaymentBean.getRefTransId(),tpSystemId)){</span>
+<span class="nc" id="L37">			throw new LMSException(&quot;118&quot;);</span>
+		}
+		
+		
+<span class="nc" id="L41">		PreparedStatement cashPstmt=null;</span>
+<span class="nc" id="L42">		Connection con=null;</span>
+<span class="nc" id="L43">		ResultSet cashRs=null;</span>
+<span class="nc" id="L44">		PreparedStatement bankPstmt=null;</span>
+<span class="nc" id="L45">		ResultSet bankRs=null;</span>
+		
+<span class="nc" id="L47">		String autoGeneRecieptNo = null;</span>
+		try{
+<span class="nc" id="L49">			int agentOrgId=0;</span>
+<span class="nc" id="L50">			String lmsTransId=null;</span>
+<span class="nc" id="L51">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L52">			con.setAutoCommit(false);</span>
+<span class="nc" id="L53">			cashPstmt=con.prepareStatement(&quot;select om.organization_id retOrgId ,om.organization_type,user.user_id,user.organization_id,user.organization_type parent_user_type from st_lms_organization_master om inner join st_lms_user_master user on om.parent_id=user.organization_id where org_code = ? and om.organization_type='RETAILER' and isrolehead='Y' AND organization_status &lt;&gt; 'TERMINATE'&quot;);</span>
+<span class="nc" id="L54">			cashPstmt.setString(1, cashPaymentBean.getOrganizationCode());</span>
+<span class="nc" id="L55">			logger.debug(&quot;Get Retailer Detail For Cash Deposit=&quot;+cashPstmt);</span>
+<span class="nc" id="L56">			cashRs=cashPstmt.executeQuery();</span>
+<span class="nc" id="L57">			RetailerPaymentSubmitHelper retailerPaymentHelper=new RetailerPaymentSubmitHelper();</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">			if(cashRs.next()){</span>
+<span class="nc" id="L59">				agentOrgId=cashRs.getInt(&quot;organization_id&quot;);</span>
+				
+<span class="nc" id="L61">				UserInfoBean userBean=null;</span>
+				
+<span class="nc" id="L63">				bankPstmt=con.prepareStatement(&quot;select om.name,om.organization_type,user.user_id,user.organization_id,user.organization_type parent_user_type from st_lms_organization_master om inner join st_lms_user_master user on om.parent_id=user.organization_id where om.organization_id=? and om.organization_type='AGENT' and isrolehead='Y' and role_id=1  AND organization_status &lt;&gt; 'TERMINATE'&quot;);</span>
+<span class="nc" id="L64">				bankPstmt.setInt(1, agentOrgId);</span>
+<span class="nc" id="L65">				logger.debug(&quot;Get Agent Detail For Bank Deposit=&quot;+bankPstmt);</span>
+<span class="nc" id="L66">				bankRs=bankPstmt.executeQuery();</span>
+<span class="nc" id="L67">				AgentBankDepositHelper helper=new AgentBankDepositHelper();</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">				if(bankRs.next()){</span>
+<span class="nc" id="L69">					java.util.Date current_date = new java.sql.Date(new java.util.Date().getTime());</span>
+<span class="nc" id="L70">					String depositDate=current_date.toString();</span>
+<span class="nc" id="L71">					userBean=new UserInfoBean();</span>
+<span class="nc" id="L72">					userBean.setUserId(bankRs.getInt(&quot;user_id&quot;));</span>
+<span class="nc" id="L73">					userBean.setUserOrgId(bankRs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L74">					userBean.setUserType(bankRs.getString(&quot;parent_user_type&quot;));</span>
+<span class="nc" id="L75">					autoGeneRecieptNo=helper.submitBankDepositAmt(agentOrgId, bankRs.getString(&quot;organization_type&quot;),  cashPaymentBean.getAmount(),</span>
+						cashPaymentBean.getRefTransId(), cashPaymentBean.getBankName(), cashPaymentBean.getBranchName(), depositDate, userBean,con);
+<span class="nc" id="L77">					logger.info(autoGeneRecieptNo);</span>
+<span class="nc" id="L78">				}else{</span>
+<span class="nc" id="L79">					throw new LMSException(&quot;103&quot;);</span>
+				}
+					
+<span class="nc" id="L82">				String autoGeneRecieptNoAndId=retailerPaymentHelper.retailerCashPaySubmit(0, cashRs.getString(&quot;organization_type&quot;), cashRs.getInt(&quot;retOrgId&quot;), cashPaymentBean.getAmount(),cashRs.getInt(&quot;user_id&quot;),agentOrgId,cashRs.getString(&quot;parent_user_type&quot;),con);</span>
+<span class="nc" id="L83">			System.out.println(autoGeneRecieptNoAndId);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">			if(&quot;ERROR&quot;.equals(autoGeneRecieptNoAndId)){</span>
+<span class="nc" id="L85">				throw new LMSException(&quot;107&quot;);</span>
+			}
+<span class="nc" id="L87">			lmsTransId=autoGeneRecieptNoAndId.split(&quot;#&quot;)[2];</span>
+<span class="nc" id="L88">			}else{</span>
+<span class="nc" id="L89">				throw new LMSException(&quot;103&quot;);</span>
+			}
+			
+			
+<span class="nc" id="L93">			TpUtilityHelper.storeTpSystemTxnId(tpSystemId, lmsTransId, cashPaymentBean.getRefTransId(), con);</span>
+<span class="nc" id="L94">			TpUtilityHelper.storeTpSystemTxnIdDetail(autoGeneRecieptNo.split(&quot;Nxt&quot;)[2], lmsTransId, cashPaymentBean, con);</span>
+<span class="nc" id="L95">			cashResponseBean.setLmsTranxId(lmsTransId);</span>
+<span class="nc" id="L96">			cashResponseBean.setAmount(cashPaymentBean.getAmount());</span>
+<span class="nc" id="L97">			con.commit();</span>
+<span class="nc" id="L98">		}catch (SQLException se) {</span>
+<span class="nc" id="L99">          se.printStackTrace();</span>
+<span class="nc" id="L100">          throw new LMSException(&quot;500&quot;);</span>
+		}finally{
+<span class="nc" id="L102">			try{</span>
+<span class="nc" id="L103">				con.close();</span>
+<span class="nc" id="L104">			}catch (SQLException se) {</span>
+<span class="nc" id="L105">				se.printStackTrace();</span>
+<span class="nc" id="L106">				throw new LMSException(&quot;500&quot;);</span>
+<span class="nc" id="L107">			}</span>
+		}
+<span class="nc" id="L109">		return cashResponseBean;</span>
+	}
+
+	
+	public LmsCashPaymentResponseBean depositDebitNotePayment(LmsCashPaymentBean cashPaymentBean,int tpSystemId) throws LMSException {
+<span class="nc" id="L114">		LmsCashPaymentResponseBean cashResponseBean=new LmsCashPaymentResponseBean();</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">		if(TpUtilityHelper.checkDuplicateSystemRefTransId(cashPaymentBean.getRefTransId(),tpSystemId)){</span>
+<span class="nc" id="L116">			throw new LMSException(&quot;118&quot;);</span>
+		}
+		
+		
+<span class="nc" id="L120">		PreparedStatement cashPstmt=null;</span>
+<span class="nc" id="L121">		Connection con=null;</span>
+<span class="nc" id="L122">		ResultSet cashRs=null;</span>
+<span class="nc" id="L123">		PreparedStatement debitPstmt=null;</span>
+<span class="nc" id="L124">		ResultSet debitRs=null;</span>
+		
+<span class="nc" id="L126">		String autoGeneRecieptNo = null;</span>
+		try{
+<span class="nc" id="L128">			int agentOrgId=0;</span>
+<span class="nc" id="L129">			String lmsTransId=null;</span>
+<span class="nc" id="L130">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L131">			con.setAutoCommit(false);</span>
+<span class="nc" id="L132">			cashPstmt=con.prepareStatement(&quot;select om.organization_id retOrgId,om.organization_type,user.user_id,user.organization_id,user.organization_type parent_user_type from st_lms_organization_master om inner join st_lms_user_master user on om.parent_id=user.organization_id where om.org_code = ? and om.organization_type='RETAILER' and isrolehead='Y' AND organization_status &lt;&gt; 'TERMINATE'&quot;);</span>
+<span class="nc" id="L133">			cashPstmt.setString(1, cashPaymentBean.getOrganizationCode());</span>
+<span class="nc" id="L134">			logger.debug(&quot;Get Retailer Detail For Debit Note=&quot;+cashPstmt);</span>
+<span class="nc" id="L135">			String remarks=&quot;API#&quot;+cashPaymentBean.getBankName()+&quot;#&quot;+cashPaymentBean.getBranchName();</span>
+<span class="nc" id="L136">			cashRs=cashPstmt.executeQuery();</span>
+<span class="nc" id="L137">			DebitNoteAgentHelper retailerDebitHelper=new DebitNoteAgentHelper();</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">			if(cashRs.next()){</span>
+<span class="nc" id="L139">				agentOrgId=cashRs.getInt(&quot;organization_id&quot;);</span>
+				
+<span class="nc" id="L141">				debitPstmt=con.prepareStatement(&quot;select om.organization_id agtOrgId,om.organization_type,user.user_id,user.organization_id,user.organization_type parent_user_type from st_lms_organization_master om inner join st_lms_user_master user on om.parent_id=user.organization_id where om.organization_id=? and om.organization_type='AGENT' and isrolehead='Y' and role_id=1 AND organization_status &lt;&gt; 'TERMINATE'&quot;);</span>
+<span class="nc" id="L142">				debitPstmt.setInt(1, agentOrgId);</span>
+<span class="nc" id="L143">				logger.debug(&quot;Get Agent Detail For Debit Note=&quot;+debitPstmt);</span>
+<span class="nc" id="L144">				debitRs=debitPstmt.executeQuery();</span>
+<span class="nc" id="L145">				DebitNoteBoHelper boHelper=new DebitNoteBoHelper();</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				if(debitRs.next()){</span>
+						
+<span class="nc" id="L148">					autoGeneRecieptNo = boHelper.doDebitNoteBoHelper(debitRs.getInt(&quot;agtOrgId&quot;), cashPaymentBean.getAmount()*-1, remarks, &quot;OTHERS&quot;, debitRs.getInt(&quot;organization_id&quot;), debitRs.getInt(&quot;user_id&quot;), debitRs.getString(&quot;parent_user_type&quot;), con);</span>
+<span class="nc" id="L149">					logger.info(autoGeneRecieptNo);</span>
+				}else{
+<span class="nc" id="L151">					throw new LMSException(&quot;103&quot;);</span>
+				}
+				
+<span class="nc" id="L154">				String autoGeneRecieptNoAndId=retailerDebitHelper.doDebitNoteAgtHelper(cashRs.getInt(&quot;retOrgId&quot;), cashPaymentBean.getAmount()*-1,remarks , agentOrgId, cashRs.getInt(&quot;user_id&quot;), cashRs.getString(&quot;parent_user_type&quot;), con);</span>
+				//String autoGeneRecieptNoAndId=retailerPaymentHelper.retailerCashPaySubmit(0, cashRs.getString(&quot;organization_type&quot;), cashRs.getString(&quot;name&quot;), cashPaymentBean.getAmount(),cashRs.getInt(&quot;user_id&quot;),agentOrgId,cashRs.getString(&quot;parent_user_type&quot;),con);
+<span class="nc" id="L156">			System.out.println(autoGeneRecieptNoAndId);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">			if(&quot;LOGIN&quot;.equals(autoGeneRecieptNoAndId)){</span>
+<span class="nc" id="L158">				throw new LMSException(&quot;108&quot;);</span>
+			}
+<span class="nc" id="L160">			lmsTransId=autoGeneRecieptNoAndId.split(&quot;#&quot;)[2];</span>
+<span class="nc" id="L161">			}else{</span>
+<span class="nc" id="L162">				throw new LMSException(&quot;103&quot;);</span>
+			}
+			
+<span class="nc" id="L165">			TpUtilityHelper.storeTpSystemTxnId(tpSystemId, lmsTransId, cashPaymentBean.getRefTransId(), con);</span>
+<span class="nc" id="L166">			TpUtilityHelper.storeTpSystemTxnIdDetail(autoGeneRecieptNo.split(&quot;#&quot;)[2], lmsTransId, cashPaymentBean, con);</span>
+<span class="nc" id="L167">			cashResponseBean.setLmsTranxId(lmsTransId);</span>
+<span class="nc" id="L168">			cashResponseBean.setAmount(cashPaymentBean.getAmount());</span>
+<span class="nc" id="L169">			con.commit();</span>
+<span class="nc" id="L170">		}catch (SQLException se) {</span>
+<span class="nc" id="L171">          se.printStackTrace();</span>
+<span class="nc" id="L172">          throw new LMSException(&quot;500&quot;);</span>
+		}finally{
+<span class="nc" id="L174">			try{</span>
+<span class="nc" id="L175">				con.close();</span>
+<span class="nc" id="L176">			}catch (SQLException se) {</span>
+<span class="nc" id="L177">				se.printStackTrace();</span>
+<span class="nc" id="L178">				throw new LMSException(&quot;500&quot;);</span>
+<span class="nc" id="L179">			}</span>
+		}
+<span class="nc" id="L181">		return cashResponseBean;</span>
+	}
+	
+	
+	public LmsOrgInfoBean getOrgInfo(String organizationCode,String orgType) throws LMSException {
+<span class="nc" id="L186">		LmsOrgInfoBean orgInfoBean=new LmsOrgInfoBean();</span>
+<span class="nc" id="L187">		PreparedStatement orgPstmt=null;</span>
+<span class="nc" id="L188">		ResultSet orgRs=null;</span>
+<span class="nc" id="L189">		Connection con=null;</span>
+		try{
+<span class="nc" id="L191">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L192">			orgPstmt=con.prepareStatement(&quot;select name agt_name,org_code agt_org_code ,retTlb.ret_org_name,retTlb.ret_org_code,retTlb.current_bal,retTlb.user_name from (select name ret_org_name,org_code ret_org_code, available_credit-claimable_bal current_bal,parent_id,user_name from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type=? and org_code= ? and isrolehead='Y' AND om.organization_status&lt;&gt;'TERMINATE') retTlb inner join st_lms_organization_master mas on retTlb.parent_id=mas.organization_id&quot;);</span>
+<span class="nc" id="L193">			orgPstmt.setString(1, orgType);</span>
+<span class="nc" id="L194">			orgPstmt.setString(2, organizationCode);</span>
+<span class="nc" id="L195">			logger.debug(&quot;Get Org Info =&quot;+orgPstmt);</span>
+<span class="nc" id="L196">			orgRs=orgPstmt.executeQuery();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">			if(orgRs.next()){</span>
+<span class="nc" id="L198">				orgInfoBean.setAgtOrgCode(orgRs.getString(&quot;agt_org_code&quot;));</span>
+<span class="nc" id="L199">				orgInfoBean.setAgtOrgName(orgRs.getString(&quot;agt_org_code&quot;)+&quot;-&quot;+orgRs.getString(&quot;agt_name&quot;));</span>
+<span class="nc" id="L200">				orgInfoBean.setRetCurrentBal(orgRs.getDouble(&quot;current_bal&quot;));</span>
+<span class="nc" id="L201">				orgInfoBean.setRetOrgCode(orgRs.getString(&quot;ret_org_code&quot;));</span>
+<span class="nc" id="L202">				orgInfoBean.setRetOrgName(orgRs.getString(&quot;ret_org_code&quot;)+&quot;-&quot;+orgRs.getString(&quot;ret_org_name&quot;));</span>
+<span class="nc" id="L203">				orgInfoBean.setRetUserName(orgRs.getString(&quot;user_name&quot;));</span>
+				
+			}else{
+<span class="nc" id="L206">				throw new LMSException(&quot;103&quot;);</span>
+			}
+			
+<span class="nc" id="L209">		}catch (SQLException se) {</span>
+<span class="nc" id="L210">          se.printStackTrace();</span>
+<span class="nc" id="L211">          throw new LMSException(&quot;500&quot;);</span>
+		}finally{
+<span class="nc" id="L213">			try{</span>
+<span class="nc" id="L214">				con.close();</span>
+<span class="nc" id="L215">			}catch (SQLException se) {</span>
+<span class="nc" id="L216">				se.printStackTrace();</span>
+<span class="nc" id="L217">				throw new LMSException(&quot;500&quot;);</span>
+<span class="nc" id="L218">			}</span>
+		}
+<span class="nc" id="L220">		return orgInfoBean;</span>
+	}
+
+	public LmsCashPaymentResponseBean getPaymentStatus(String refTransId,int tpSystemId) throws LMSException {
+<span class="nc" id="L224">		LmsCashPaymentResponseBean cashResponseBean=new LmsCashPaymentResponseBean();</span>
+		
+<span class="nc" id="L226">		String lmsTransIdAndType=TpUtilityHelper.getLmsTransIdFromTpTransId(refTransId,tpSystemId);</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">		if(lmsTransIdAndType== null){</span>
+<span class="nc" id="L228">			throw new LMSException(&quot;118&quot;);</span>
+		}
+<span class="nc" id="L230">		String lmsTransId=lmsTransIdAndType.split(&quot;#&quot;)[0];</span>
+<span class="nc" id="L231">		String userType=lmsTransIdAndType.split(&quot;#&quot;)[1];</span>
+<span class="nc" id="L232">		PreparedStatement pstmt=null;</span>
+<span class="nc" id="L233">		ResultSet rs=null;</span>
+<span class="nc" id="L234">		PreparedStatement transPstmt=null;</span>
+<span class="nc" id="L235">		ResultSet transRs=null;</span>
+<span class="nc" id="L236">		Connection con=null;</span>
+		try{
+<span class="nc" id="L238">			con=DBConnect.getConnection();</span>
+			
+<span class="nc bnc" id="L240" title="All 2 branches missed.">			if(&quot;AGENT&quot;.equals(userType)){</span>
+<span class="nc" id="L241">				String transactionType=&quot;&quot;;</span>
+<span class="nc" id="L242">				transPstmt=con.prepareStatement(&quot;select transaction_type from st_lms_agent_transaction_master where transaction_id=?&quot;);</span>
+<span class="nc" id="L243">				transPstmt.setString(1, lmsTransId);</span>
+<span class="nc" id="L244">				transRs=transPstmt.executeQuery();</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">				if(transRs.next()){</span>
+<span class="nc" id="L246">					transactionType=transRs.getString(&quot;transaction_type&quot;);</span>
+				}else{
+<span class="nc" id="L248">					throw new LMSException(&quot;101&quot;);</span>
+				}
+				
+<span class="nc bnc" id="L251" title="All 2 branches missed.">				if(&quot;CASH&quot;.equals(transactionType)){</span>
+<span class="nc" id="L252">			pstmt=con.prepareStatement(&quot;select amount from st_lms_agent_cash_transaction cash inner join st_lms_agent_transaction_master atm on cash.transaction_id=atm.transaction_id where atm.transaction_id=? and transaction_type=?&quot;);</span>
+				}else{
+<span class="nc" id="L254">					pstmt=con.prepareStatement(&quot;select -(amount) amount from st_lms_agent_debit_note debit inner join st_lms_agent_transaction_master atm on debit.transaction_id=atm.transaction_id where atm.transaction_id=? and atm.transaction_type=?&quot;);</span>
+
+				}
+			
+<span class="nc" id="L258">			pstmt.setString(1, lmsTransId);</span>
+<span class="nc" id="L259">			pstmt.setString(2, transactionType);</span>
+<span class="nc" id="L260">			logger.debug(&quot;Get Transaction Detail =&quot;+pstmt);</span>
+<span class="nc" id="L261">			rs=pstmt.executeQuery();</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L263">				cashResponseBean.setLmsTranxId(lmsTransId);</span>
+<span class="nc" id="L264">				cashResponseBean.setAmount(rs.getDouble(&quot;amount&quot;));</span>
+				
+			}
+			}
+<span class="nc" id="L268">		}catch (SQLException se) {</span>
+<span class="nc" id="L269">	          se.printStackTrace();</span>
+<span class="nc" id="L270">	          throw new LMSException(&quot;500&quot;);</span>
+			}finally{
+<span class="nc" id="L272">				try{</span>
+<span class="nc" id="L273">					con.close();</span>
+<span class="nc" id="L274">				}catch (SQLException se) {</span>
+<span class="nc" id="L275">					se.printStackTrace();</span>
+<span class="nc" id="L276">					throw new LMSException(&quot;500&quot;);</span>
+<span class="nc" id="L277">				}</span>
+			}
+<span class="nc" id="L279">		return cashResponseBean;</span>
+	}
+	
+	public PWTApiBean verifyTicketNo(UserInfoBean userInfoBean,String ticketNbr) throws LMSException{
+<span class="nc" id="L283">		PWTApiBean  verifyTicketBean = new PWTApiBean();</span>
+		try{
+<span class="nc" id="L285">			String pwtAmtForMasterApproval = (String) LMSUtility.sc.getAttribute(&quot;PWT_APPROVAL_LIMIT&quot;);</span>
+			//String highPrizeScheme = (String) LMSUtility.sc.getAttribute(&quot;DRAW_GAME_HIGH_PRIZE_SCHEME&quot;);
+<span class="nc" id="L287">			String refMerchantId = (String) LMSUtility.sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L288">			MainPWTDrawBean  mainPwtBean = new MainPWTDrawBean();</span>
+<span class="nc" id="L289">			mainPwtBean.setInpType(Integer.parseInt((String) LMSUtility.sc.getAttribute(&quot;InpType&quot;)));</span>
+<span class="nc" id="L290">			mainPwtBean.setTicketNo(ticketNbr.trim());</span>
+<span class="nc" id="L291">			verifyTicketBean.setTicketNo(ticketNbr.trim());</span>
+<span class="nc" id="L292">			logger.info(&quot;Inside Verification*****ticketNbr***&quot; +ticketNbr);</span>
+<span class="nc" id="L293">			TPBoPwtProcessHelper pwtHelper = new TPBoPwtProcessHelper();</span>
+<span class="nc" id="L294">			mainPwtBean = pwtHelper.verifyPwt(mainPwtBean, userInfoBean,pwtAmtForMasterApproval,refMerchantId);</span>
+			
+<span class="nc bnc" id="L296" title="All 2 branches missed.">			if (&quot;ERROR_INVALID&quot;.equalsIgnoreCase(mainPwtBean.getStatus())) {</span>
+<span class="nc" id="L297">				verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L298">				verifyTicketBean.setErrorCode(&quot;200&quot;);//Can Not Verify.Invalid PWT</span>
+<span class="nc" id="L299">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 200 Invalid Ticket&quot;);</span>
+<span class="nc" id="L300">				return verifyTicketBean;				</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">			} else if (&quot;ERROR&quot;.equalsIgnoreCase(mainPwtBean.getStatus())) {</span>
+<span class="nc" id="L302">				verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L303">				verifyTicketBean.setErrorCode(&quot;101&quot;);</span>
+<span class="nc" id="L304">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 101 Invalid Inputs&quot;);//Can Not Verify.Invalid PWT</span>
+<span class="nc" id="L305">				return verifyTicketBean;	</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">			} else if (&quot;MAS_APP_REQ&quot;</span>
+					.equalsIgnoreCase(mainPwtBean.getStatus())) {
+<span class="nc" id="L308">				DrawDetailsBean  drawBean= new DrawDetailsBean();</span>
+<span class="nc" id="L309">				drawBean.setDrawDateTime(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime().split(&quot;\\*&quot;)[0]);</span>
+<span class="nc" id="L310">				drawBean.setDrawName(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime().split(&quot;\\*&quot;)[1]);</span>
+<span class="nc" id="L311">				List&lt;DrawDetailsBean&gt; drawBeanList=new ArrayList&lt;DrawDetailsBean&gt;();</span>
+<span class="nc" id="L312">				drawBeanList.add(drawBean);</span>
+<span class="nc" id="L313">				verifyTicketBean.setDrawBeanList(drawBeanList);				</span>
+<span class="nc" id="L314">				verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L315">				verifyTicketBean.setErrorCode(&quot;103&quot;);//Invalid Ticket.</span>
+<span class="nc" id="L316">				verifyTicketBean.setTotalWinning(mainPwtBean.getTotlticketAmount()+&quot;&quot;);</span>
+<span class="nc" id="L317">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 103 High Prize Ticket Back Office Approval Required&quot;);</span>
+<span class="nc" id="L318">				return verifyTicketBean;	</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">			} else if(&quot;NonWin&quot;.equalsIgnoreCase(mainPwtBean.getStatus())){</span>
+<span class="nc" id="L320">				verifyTicketBean.setSuccess(false);	</span>
+<span class="nc" id="L321">				verifyTicketBean.setErrorCode(&quot;104&quot;);// Non Win</span>
+<span class="nc" id="L322">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 104 No Winning In this Ticket&quot;);</span>
+<span class="nc" id="L323">				return verifyTicketBean;	</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">			}else if(mainPwtBean.getStatus().equalsIgnoreCase(&quot;CLAIMED&quot;)){</span>
+<span class="nc" id="L325">				verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L326">				verifyTicketBean.setErrorCode(&quot;105&quot;);</span>
+<span class="nc" id="L327">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 105 PWT Claimed Already &quot;);</span>
+<span class="nc" id="L328">				return verifyTicketBean;</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">			} else if(mainPwtBean.getStatus().equalsIgnoreCase(&quot;RES_AWAITED&quot;)){</span>
+<span class="nc" id="L330">				verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L331">				verifyTicketBean.setErrorCode(&quot;106&quot;);</span>
+<span class="nc" id="L332">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 106 ResultAwaited &quot;);</span>
+<span class="nc" id="L333">				return verifyTicketBean;</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">			}else if(mainPwtBean.getStatus().equalsIgnoreCase(&quot;DRAW_EXPIRED&quot;)){</span>
+<span class="nc" id="L335">				verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L336">				verifyTicketBean.setErrorCode(&quot;120&quot;);</span>
+<span class="nc" id="L337">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 120 DRAW_EXPIRED &quot;);</span>
+<span class="nc" id="L338">				return verifyTicketBean;</span>
+<span class="nc bnc" id="L339" title="All 2 branches missed.">			}else if(&quot;SUCCESS&quot;</span>
+					.equalsIgnoreCase(mainPwtBean.getStatus())){
+				/*//if(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime())
+				System.out.println(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime());
+				System.out.println(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime().split(&quot;\\*&quot;)[0]);
+				//Dater d = mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime().split(&quot;*&quot;)[0];
+				SimpleDateFormat frmt = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);
+				Date d = frmt.parse(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime().split(&quot;\\*&quot;)[0]);
+				Calendar cal = Calendar.getInstance();
+				cal.setTime(d);				
+				Calendar calCurrent = Calendar.getInstance();
+				System.out.println(&quot;Current day: &quot; + calCurrent.get(Calendar.DAY_OF_YEAR));
+				System.out.println(&quot;Draw day: &quot; + cal.get(Calendar.DAY_OF_YEAR));
+				
+				if((calCurrent.get(Calendar.DAY_OF_YEAR) - cal.get(Calendar.DAY_OF_YEAR)) &lt;=7){
+					verifyTicketBean.setSuccess(true);	
+					verifyTicketBean.setErrorCode(&quot;120&quot;);
+					verifyTicketBean.setTotalWinning(mainPwtBean.getTotlticketAmount()+&quot;&quot;);
+					logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot; Amount&quot;+mainPwtBean.getTotlticketAmount()+&quot; Error Code 120&quot;);
+					return verifyTicketBean;
+				}else{	*/
+<span class="nc" id="L360">				DrawDetailsBean  drawBean= new DrawDetailsBean();</span>
+<span class="nc" id="L361">				drawBean.setDrawDateTime(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime().split(&quot;\\*&quot;)[0]);</span>
+				//drawBean.setSymbols(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getWinResult());
+<span class="nc" id="L363">				drawBean.setDrawName(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getDrawDateTime().split(&quot;\\*&quot;)[1]);</span>
+<span class="nc" id="L364">				drawBean.setDrawId(mainPwtBean.getWinningBeanList().get(0).getDrawWinList().get(0).getEventId());</span>
+<span class="nc" id="L365">				List&lt;DrawDetailsBean&gt; drawBeanList=new ArrayList&lt;DrawDetailsBean&gt;();</span>
+<span class="nc" id="L366">				drawBeanList.add(drawBean);</span>
+<span class="nc" id="L367">				verifyTicketBean.setDrawBeanList(drawBeanList);</span>
+<span class="nc" id="L368">				verifyTicketBean.setSuccess(true);	</span>
+<span class="nc" id="L369">				verifyTicketBean.setErrorCode(&quot;100&quot;);</span>
+<span class="nc" id="L370">				verifyTicketBean.setTotalWinning(String.valueOf(mainPwtBean.getTotlticketAmount() - mainPwtBean.getGovtTaxAmount()));</span>
+<span class="nc" id="L371">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot; Amount&quot;+mainPwtBean.getTotlticketAmount()+&quot; Error Code 100&quot;);</span>
+<span class="nc" id="L372">				return verifyTicketBean;</span>
+				//}
+			}else{
+<span class="nc" id="L375">				verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L376">				verifyTicketBean.setErrorCode(&quot;500&quot;);//Can Not Verify.Invalid PWT</span>
+<span class="nc" id="L377">				logger.info(&quot;verifyPwt Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 500&quot;);</span>
+<span class="nc" id="L378">				return verifyTicketBean;	</span>
+			}
+				
+	
+<span class="nc" id="L382">		}catch (Exception e) {</span>
+<span class="nc" id="L383">			e.printStackTrace();</span>
+<span class="nc" id="L384">			verifyTicketBean.setSuccess(false);</span>
+<span class="nc" id="L385">			verifyTicketBean.setErrorCode(&quot;500&quot;);</span>
+<span class="nc" id="L386">			logger.info(&quot;Error during Verification : Check Your Inputs&quot;);</span>
+<span class="nc" id="L387">			throw new LMSException(&quot;Error during Verification : Check Your Inputs&quot;);</span>
+		}
+	
+	}
+
+
+	public PWTApiBean pwtVerifyAndPay(UserInfoBean userInfoBean,
+			String ticketNbr, double amount, String refTransId,
+			PlayerBean plrInfoBean,int tpSystemId ) throws LMSException {
+<span class="nc" id="L396">		PWTApiBean pwtApiBean = new PWTApiBean();</span>
+		try {
+			// check for Duplicate Tp RefTransId
+<span class="nc" id="L399">			boolean isDuplicate=TpUtilityHelper.checkDuplicateSystemRefTransId(refTransId, tpSystemId);</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">			if(isDuplicate){</span>
+<span class="nc" id="L401">					pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L402">					pwtApiBean.setErrorCode(&quot;118 &quot;);</span>
+					//pwtApiBean.setMessage(&quot;PWT Payment is already done With This Ref Trans Id&quot;);
+<span class="nc" id="L404">					logger.info(&quot;PWT Payment is already done With This Ref Trans Id  Error Code 118&quot;);// Can Not Verify.Invalid PWT</span>
+<span class="nc" id="L405">					return pwtApiBean;</span>
+				
+			}
+			
+<span class="nc" id="L409">			String pwtAmtForMasterApproval = (String) LMSUtility.sc.getAttribute(&quot;PWT_APPROVAL_LIMIT&quot;);</span>
+			//String pwtAmtForMasterApproval = &quot;5000000&quot;;
+			// String highPrizeScheme = (String)
+			// LMSUtility.sc.getAttribute(&quot;DRAW_GAME_HIGH_PRIZE_SCHEME&quot;);
+<span class="nc" id="L413">			String refMerchantId = (String) LMSUtility.sc</span>
+					.getAttribute(&quot;REF_MERCHANT_ID&quot;);
+<span class="nc" id="L415">			String highPrizeAmt = (String) LMSUtility.sc</span>
+					.getAttribute(&quot;HIGH_PRIZE_AMT&quot;);			
+<span class="nc" id="L417">			MainPWTDrawBean mainPwtBean = new MainPWTDrawBean();</span>
+<span class="nc" id="L418">			mainPwtBean.setInpType(Integer.parseInt((String) LMSUtility.sc.getAttribute(&quot;InpType&quot;)));</span>
+<span class="nc" id="L419">			mainPwtBean.setTicketNo(ticketNbr.trim());</span>
+<span class="nc" id="L420">			pwtApiBean.setTicketNo(ticketNbr.trim());</span>
+<span class="nc" id="L421">			logger.debug(&quot;Inside Verification*****ticketNbr***&quot; + ticketNbr);</span>
+<span class="nc" id="L422">			TPBoPwtProcessHelper pwtHelper = new TPBoPwtProcessHelper();</span>
+<span class="nc" id="L423">			mainPwtBean = pwtHelper.verifyPwt(mainPwtBean, userInfoBean,</span>
+					pwtAmtForMasterApproval, refMerchantId);
+
+<span class="nc bnc" id="L426" title="All 2 branches missed.">			if (&quot;ERROR_INVALID&quot;.equalsIgnoreCase(mainPwtBean.getStatus())) {</span>
+<span class="nc" id="L427">				pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L428">				pwtApiBean.setErrorCode(&quot;200&quot;);// Can Not Verify.Invalid PWT</span>
+<span class="nc" id="L429">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 200 Invalid Ticket&quot;);</span>
+<span class="nc" id="L430">				return pwtApiBean;</span>
+<span class="nc bnc" id="L431" title="All 2 branches missed.">			} else if (&quot;ERROR&quot;.equalsIgnoreCase(mainPwtBean.getStatus())) {</span>
+<span class="nc" id="L432">				pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L433">				pwtApiBean.setErrorCode(&quot;101&quot;);</span>
+<span class="nc" id="L434">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 101 Invalid Inputs&quot;);// Can Not Verify.Invalid PWT</span>
+<span class="nc" id="L435">				return pwtApiBean;</span>
+<span class="nc bnc" id="L436" title="All 2 branches missed.">			} else if (&quot;MAS_APP_REQ&quot;.equalsIgnoreCase(mainPwtBean.getStatus())) {</span>
+<span class="nc" id="L437">				pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L438">				pwtApiBean.setErrorCode(&quot;103&quot;);</span>
+<span class="nc" id="L439">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 103 Back Office Approval Required For Payment&quot;);// Back Office Approval Required</span>
+<span class="nc" id="L440">				return pwtApiBean;</span>
+<span class="nc bnc" id="L441" title="All 2 branches missed.">			}else if(&quot;NonWin&quot;.equalsIgnoreCase(mainPwtBean.getStatus())){</span>
+<span class="nc" id="L442">				pwtApiBean.setSuccess(false);	</span>
+<span class="nc" id="L443">				pwtApiBean.setErrorCode(&quot;104&quot;);// Non Win</span>
+<span class="nc" id="L444">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 104 No Winning In this Ticket&quot;);</span>
+<span class="nc" id="L445">				return pwtApiBean;</span>
+<span class="nc bnc" id="L446" title="All 2 branches missed.">			}else if(mainPwtBean.getStatus().equalsIgnoreCase(&quot;CLAIMED&quot;)){</span>
+<span class="nc" id="L447">				pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L448">				pwtApiBean.setErrorCode(&quot;105&quot;);</span>
+<span class="nc" id="L449">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 105 PWT Claimed Already &quot;);</span>
+<span class="nc" id="L450">				return pwtApiBean;</span>
+<span class="nc bnc" id="L451" title="All 2 branches missed.">			}  else if((mainPwtBean.getTotlticketAmount() - mainPwtBean.getGovtTaxAmount()) != amount){</span>
+<span class="nc" id="L452">				pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L453">				pwtApiBean.setErrorCode(&quot;101&quot;);// Invalid Amount</span>
+<span class="nc" id="L454">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 101 Invalid Amount&quot;);</span>
+<span class="nc" id="L455">				return pwtApiBean;</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">			} else if(mainPwtBean.getStatus().equalsIgnoreCase(&quot;DRAW_EXPIRED&quot;)){</span>
+<span class="nc" id="L457">				pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L458">				pwtApiBean.setErrorCode(&quot;120&quot;);</span>
+<span class="nc" id="L459">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 120 DRAW_EXPIRED &quot;);</span>
+<span class="nc" id="L460">				return pwtApiBean;</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">			}else if (&quot;SUCCESS&quot;.equalsIgnoreCase(mainPwtBean.getStatus())) {</span>
+<span class="nc" id="L462">				Connection con = DBConnect.getConnection();</span>
+				try {
+<span class="nc" id="L464">					con.setAutoCommit(false);</span>
+<span class="nc" id="L465">					boolean isAnonymous = false;</span>
+<span class="nc bnc" id="L466" title="All 2 branches missed.">					if (mainPwtBean.getTotlticketAmount() &lt; Double</span>
+							.parseDouble(highPrizeAmt)) {
+<span class="nc" id="L468">						isAnonymous = true;</span>
+					}
+
+					// Ticket Verified Payment Process Started
+<span class="nc" id="L472">					logger.debug(&quot;Inside payemnt*****ticketNbr***&quot;</span>
+							+ pwtApiBean.getTotalWinning());
+<span class="nc" id="L474">					int plrId = pwtHelper.playerRegistration(plrInfoBean,</span>
+							isAnonymous, con);
+<span class="nc" id="L476">					logger.debug(&quot;Player id is &quot; + plrId</span>
+							+ &quot; for that approval required&quot;);
+<span class="nc bnc" id="L478" title="All 2 branches missed.">					if (plrId &lt;= 0) {</span>
+<span class="nc" id="L479">						pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L480">						pwtApiBean.setErrorCode(&quot;500&quot;);</span>
+						//pwtApiBean.set send approval request;
+<span class="nc" id="L482">						logger.info(&quot;Error while player registration process player id is &quot;+plrId);</span>
+<span class="nc" id="L483">						throw new LMSException(</span>
+								&quot;Error while player registration process player id is&quot;
+										+ plrId);
+					} else {
+						// make PWT Payment
+<span class="nc" id="L488">						mainPwtBean.setPwtStatus(&quot;Error&quot;);</span>
+<span class="nc" id="L489">						mainPwtBean =pwtHelper.pwtPayment(mainPwtBean, con, userInfoBean, isAnonymous, plrId,refTransId,tpSystemId);</span>
+<span class="nc bnc" id="L490" title="All 2 branches missed.">						if(mainPwtBean.getPwtStatus().equalsIgnoreCase(&quot;success&quot;)){</span>
+<span class="nc" id="L491">							pwtApiBean.setSuccess(true);</span>
+<span class="nc" id="L492">							pwtApiBean.setErrorCode(&quot;100&quot;);</span>
+<span class="nc" id="L493">							pwtApiBean.setTotalWinning(String.valueOf(mainPwtBean.getTotlticketAmount() - mainPwtBean.getGovtTaxAmount()));</span>
+<span class="nc" id="L494">							pwtApiBean.setLmsTranxIdList(mainPwtBean.getTransactionIdList());</span>
+<span class="nc" id="L495">							logger.debug(&quot;PWT of Amount&quot; +mainPwtBean.getTotlticketAmount()</span>
+									+ &quot; Paid Successfully&quot;+mainPwtBean.getTransactionIdList());
+							
+						}else{
+<span class="nc" id="L499">							pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L500">							pwtApiBean.setErrorCode(&quot;500&quot;);</span>
+<span class="nc" id="L501">							logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 500pay&quot;);</span>
+						}
+						
+					}
+<span class="nc" id="L505">				} catch (Exception e) {</span>
+<span class="nc" id="L506">					e.printStackTrace();</span>
+				} finally {
+<span class="nc bnc" id="L508" title="All 6 branches missed.">					if (con != null) {</span>
+						try {
+<span class="nc" id="L510">							con.close();</span>
+<span class="nc" id="L511">						} catch (SQLException e) {</span>
+<span class="nc" id="L512">							logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L513">							e.printStackTrace();</span>
+<span class="nc" id="L514">							throw new LMSException(e);</span>
+<span class="nc" id="L515">						}</span>
+					}
+				}
+
+<span class="nc" id="L519">			} else {</span>
+<span class="nc" id="L520">				pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L521">				pwtApiBean.setErrorCode(&quot;500&quot;);</span>
+<span class="nc" id="L522">				logger.info(&quot;pwtVerifyAndPay Response Status &quot; +mainPwtBean.getStatus()+&quot;Error Code 500pay&quot;);// Can Not Verify.Invalid PWT</span>
+<span class="nc" id="L523">				return pwtApiBean;</span>
+			}
+
+<span class="nc" id="L526">		} catch (Exception e) {</span>
+
+<span class="nc" id="L528">			e.printStackTrace();</span>
+<span class="nc" id="L529">			pwtApiBean.setSuccess(false);</span>
+<span class="nc" id="L530">			pwtApiBean.setErrorCode(&quot;500&quot;);</span>
+<span class="nc" id="L531">			throw new LMSException(&quot;Error during Payment : Check Your Inputs&quot;);</span>
+
+<span class="nc" id="L533">		}</span>
+
+<span class="nc" id="L535">		return pwtApiBean;</span>
+	}
+
+
+	
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,735 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RetailerDetailedCollectionReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">RetailerDetailedCollectionReportHelper.java</span></div><h1>RetailerDetailedCollectionReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.text.ParseException;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.CollectionReportOverAllBean;
+import com.skilrock.lms.beans.ReportStatusBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.DBConnectReplica;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+import com.skilrock.ola.reportsMgmt.controllerImpl.OlaRetailerReportControllerImpl;
+import com.skilrock.ola.reportsMgmt.javaBeans.OlaOrgReportRequestBean;
+import com.skilrock.ola.reportsMgmt.javaBeans.OlaOrgReportResponseBean;
+
+<span class="nc" id="L33">public class RetailerDetailedCollectionReportHelper {</span>
+<span class="nc" id="L34">	private Timestamp newStartDate=null;</span>
+<span class="nc" id="L35">	private Timestamp newEndDate=null;</span>
+<span class="nc" id="L36">	Log logger = LogFactory.getLog(RetailerDetailedCollectionReportHelper.class.getName());</span>
+
+	public Map&lt;String, CollectionReportOverAllBean&gt; getRetailerDetailedCollection(Timestamp deployDate, Timestamp startDate, Timestamp endDate, ReportStatusBean reportStatusBean) throws Exception {
+<span class="nc" id="L39">		Map&lt;String, CollectionReportOverAllBean&gt; retailerMap = new LinkedHashMap&lt;String, CollectionReportOverAllBean&gt;();</span>
+<span class="nc" id="L40">		CollectionReportOverAllBean reportBean = null;</span>
+<span class="nc" id="L41">		Connection connection = null;</span>
+<span class="nc" id="L42">		Statement stmt = null;</span>
+<span class="nc" id="L43">		ResultSet rs = null;</span>
+<span class="nc" id="L44">		String retOrgQry = null;</span>
+<span class="nc" id="L45">		String terminateOrgQry = null;</span>
+<span class="nc" id="L46">		String clXclQuery = null;</span>
+		try {
+<span class="nc bnc" id="L48" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L49">				connection = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L51">				connection = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L53">			retOrgQry = &quot;SELECT SQL_CACHE  concat(a.org_code,'_',a.name)  orgCode  , a.organization_id, b.name parent_name FROM st_lms_organization_master a inner join st_lms_organization_master b on a.parent_id = b.organization_id  WHERE a.organization_type='RETAILER' and a.organization_status &lt;&gt; 'TERMINATE' ORDER BY orgCode ASC ;&quot;;</span>
+<span class="nc" id="L54">			logger.info(&quot;Get All Retailer Query - &quot;+retOrgQry);</span>
+<span class="nc" id="L55">			stmt = connection.createStatement();</span>
+<span class="nc" id="L56">			rs = stmt.executeQuery(retOrgQry);</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L58">				reportBean = new CollectionReportOverAllBean();</span>
+<span class="nc" id="L59">				reportBean.setAgentName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L60">				reportBean.setParentName(rs.getString(&quot;parent_name&quot;));</span>
+<span class="nc" id="L61">				retailerMap.put(rs.getString(&quot;organization_id&quot;), reportBean);</span>
+			}
+			
+<span class="nc" id="L64">			terminateOrgQry = &quot;SELECT organization_id FROM st_lms_user_master WHERE (termination_date&lt;'&quot;+startDate+&quot;' OR registration_date&gt;'&quot;+endDate+&quot;') AND organization_type='RETAILER';&quot;;</span>
+<span class="nc" id="L65">			logger.info(&quot;Get Terminated Retailer Query - &quot;+terminateOrgQry);</span>
+<span class="nc" id="L66">			rs = stmt.executeQuery(terminateOrgQry);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L68">				retailerMap.remove(rs.getString(&quot;organization_id&quot;));</span>
+			}
+
+<span class="nc" id="L71">			boolean isDataFromArch = ReportUtility.checkDateLessThanArchiveDate(new Timestamp(startDate.getTime()-1000), connection);</span>
+<span class="nc" id="L72">			Date lastArchDate = null;</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">			if(isDataFromArch) {</span>
+<span class="nc" id="L74">				Calendar cal1 = Calendar.getInstance();</span>
+<span class="nc" id="L75">				cal1.setTimeInMillis(startDate.getTime()-1000);</span>
+<span class="nc" id="L76">				cal1.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc" id="L77">				ReportUtility.clearTimeFromDate(cal1);</span>
+
+<span class="nc" id="L79">				rs = stmt.executeQuery(&quot;SELECT organization_id, opening_bal_cl_inc FROM st_rep_org_bal_history WHERE finaldate='&quot;+(new Date(cal1.getTimeInMillis()))+&quot;' AND organization_type='RETAILER';&quot;);</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">				while(rs.next()){</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L82">						reportBean = retailerMap.get(rs.getString(&quot;organization_id&quot;));</span>
+<span class="nc" id="L83">						reportBean.setOpeningBal(-rs.getDouble(&quot;opening_bal_cl_inc&quot;));</span>
+					}
+				}
+
+<span class="nc" id="L87">				collectionRetailerWise(startDate, endDate, connection, retailerMap);</span>
+
+<span class="nc" id="L89">				clXclQuery = &quot;SELECT organization_id, IFNULL(SUM(amount),0.0) AS amount FROM (SELECT organization_id, amount FROM st_lms_cl_xcl_update_history WHERE date_time&gt;='&quot;+startDate+&quot;' AND date_time&lt;'&quot;+endDate+&quot;' UNION ALL SELECT organization_id, (cl+xcl) clXcl FROM st_rep_org_bal_history WHERE finaldate&gt;='&quot;+startDate+&quot;' AND finaldate&lt;='&quot;+endDate+&quot;' AND organization_type='RETAILER')aa GROUP BY organization_id;&quot;;</span>
+<span class="nc" id="L90">				logger.info(&quot;clXcl Query - &quot;+clXclQuery);</span>
+<span class="nc" id="L91">				rs = stmt.executeQuery(clXclQuery);</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">				while(rs.next()) {</span>
+<span class="nc" id="L93">					reportBean = retailerMap.get(rs.getString(&quot;organization_id&quot;));</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">					if(reportBean != null) {</span>
+<span class="nc" id="L95">						reportBean.setClLimit(rs.getDouble(&quot;amount&quot;));</span>
+					}
+				}
+
+<span class="nc" id="L99">				return retailerMap;</span>
+			} else {
+<span class="nc" id="L101">				lastArchDate = ReportUtility.getLastArchDateInDateFormat(connection);</span>
+<span class="nc" id="L102">				rs = stmt.executeQuery(&quot;SELECT organization_id, (opening_bal_cl_inc+net_amount_transaction) opening_bal FROM st_rep_org_bal_history WHERE finaldate='&quot;+lastArchDate+&quot;' AND organization_type='RETAILER';&quot;);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">				while(rs.next()) {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L105">						retailerMap.get(rs.getString(&quot;organization_id&quot;)).setOpeningBal(-rs.getDouble(&quot;opening_bal&quot;));</span>
+					}
+				}
+			}
+			
+<span class="nc" id="L110">			collectionRetailerWise(new Timestamp(lastArchDate.getTime()), startDate, connection, retailerMap);</span>
+			
+<span class="nc" id="L112">			clXclQuery = &quot;SELECT organization_id, IFNULL(SUM(amount),0.0) AS amount FROM st_lms_cl_xcl_update_history WHERE date_time&gt;='&quot;+new Timestamp(lastArchDate.getTime())+&quot;' AND date_time&lt;'&quot;+startDate+&quot;' GROUP BY organization_id;&quot;;</span>
+<span class="nc" id="L113">			logger.info(&quot;clXcl Query - &quot;+clXclQuery);</span>
+<span class="nc" id="L114">			rs = stmt.executeQuery(clXclQuery);</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">				if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null)</span>
+<span class="nc" id="L117">					retailerMap.get(rs.getString(&quot;organization_id&quot;)).setClLimit(rs.getDouble(&quot;amount&quot;));</span>
+			}
+
+<span class="nc" id="L120">			double openingBal = 0.0;</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">			for(String retOrgId : retailerMap.keySet()) {</span>
+<span class="nc" id="L122">				reportBean = retailerMap.get(retOrgId);</span>
+<span class="nc" id="L123">				openingBal = reportBean.getOpeningBal() - reportBean.getClLimit() + reportBean.getDgSale() - reportBean.getDgCancel() - reportBean.getDgPwt()</span>
+							+ reportBean.getSeSale() - reportBean.getSePwt()
+							+ reportBean.getCSSale() - reportBean.getCSCancel()
+							+ reportBean.getDeposit() - reportBean.getWithdrawal()
+							+ reportBean.getSleSale() - reportBean.getSleCancel() - reportBean.getSlePwt()
+							- (reportBean.getCash() + reportBean.getCheque() + reportBean.getCredit() - reportBean.getDebit() - reportBean.getChequeReturn() + reportBean.getBankDep());
+<span class="nc" id="L129">				reportBean.setOpeningBal(openingBal);</span>
+<span class="nc" id="L130">				reportBean.setClLimit(0.0);</span>
+<span class="nc" id="L131">				reportBean.setDgSale(0.0);</span>
+<span class="nc" id="L132">				reportBean.setDgCancel(0.0);</span>
+<span class="nc" id="L133">				reportBean.setDgPwt(0.0);</span>
+<span class="nc" id="L134">				reportBean.setSeSale(0.0);</span>
+<span class="nc" id="L135">				reportBean.setSePwt(0.0);</span>
+<span class="nc" id="L136">				reportBean.setCSSale(0.0);</span>
+<span class="nc" id="L137">				reportBean.setCSCancel(0.0);</span>
+<span class="nc" id="L138">				reportBean.setDeposit(0.0);</span>
+<span class="nc" id="L139">				reportBean.setWithdrawal(0.0);</span>
+<span class="nc" id="L140">				reportBean.setSleSale(0.0);</span>
+<span class="nc" id="L141">				reportBean.setSleCancel(0.0);</span>
+<span class="nc" id="L142">				reportBean.setSlePwt(0.0);</span>
+<span class="nc" id="L143">				reportBean.setCash(0.0);</span>
+<span class="nc" id="L144">				reportBean.setCheque(0.0);</span>
+<span class="nc" id="L145">				reportBean.setChequeReturn(0.0);</span>
+<span class="nc" id="L146">				reportBean.setCredit(0.0);</span>
+<span class="nc" id="L147">				reportBean.setDebit(0.0);</span>
+<span class="nc" id="L148">				reportBean.setBankDep(0.0);</span>
+<span class="nc" id="L149">			}</span>
+<span class="nc" id="L150">			collectionRetailerWise(startDate, endDate, connection, retailerMap);</span>
+			
+<span class="nc" id="L152">			clXclQuery = &quot;SELECT organization_id, IFNULL(SUM(amount),0.0) AS amount FROM st_lms_cl_xcl_update_history WHERE date_time&gt;='&quot;+startDate+&quot;' AND date_time&lt;'&quot;+endDate+&quot;' GROUP BY organization_id;&quot;;</span>
+<span class="nc" id="L153">			logger.info(&quot;clXcl Query - &quot;+clXclQuery);</span>
+<span class="nc" id="L154">			rs = stmt.executeQuery(clXclQuery);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">				if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null)</span>
+<span class="nc" id="L157">					retailerMap.get(rs.getString(&quot;organization_id&quot;)).setClLimit(rs.getDouble(&quot;amount&quot;));</span>
+			}
+<span class="nc" id="L159">		} catch (Exception e) {</span>
+<span class="nc" id="L160">			e.printStackTrace();</span>
+<span class="nc" id="L161">			throw new LMSException(&quot;Error in Report getRetailerDetailedCollection&quot;);</span>
+		} finally {
+<span class="nc" id="L163">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L164">		}</span>
+<span class="nc" id="L165">		return retailerMap;</span>
+	}
+
+	public void collectionRetailerWise(Timestamp startDate, Timestamp endDate, Connection connection, Map&lt;String, CollectionReportOverAllBean&gt; retailerMap) throws LMSException {
+<span class="nc" id="L169">		Statement stmt = null;</span>
+<span class="nc" id="L170">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L173">			String cashQry = &quot;SELECT retailer_org_id, amount cash, 0.0 cheque, 0.0 cheque_ret, 0.0 debit, 0.0 credit, 0.0 bank FROM st_lms_agent_cash_transaction cash INNER JOIN st_lms_agent_transaction_master atm ON cash.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;'&quot;;</span>
+<span class="nc" id="L174">			String chqQry = &quot;SELECT retailer_org_id, 0.0 cash, cheque_amt cheque, 0.0 cheque_ret, 0.0 debit, 0.0 credit, 0.0 bank FROM st_lms_agent_sale_chq chq INNER JOIN st_lms_agent_transaction_master atm ON chq.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND chq.transaction_type IN ('CHEQUE','CLOSED')&quot;;</span>
+<span class="nc" id="L175">			String chqRetQry = &quot;SELECT retailer_org_id, 0.0 cash, 0.0 cheque, cheque_amt cheque_ret, 0.0 debit, 0.0 credit, 0.0 bank FROM st_lms_agent_sale_chq chq INNER JOIN st_lms_agent_transaction_master atm ON chq.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND chq.transaction_type IN ('CHQ_BOUNCE')&quot;;</span>
+<span class="nc" id="L176">			String debitQry = &quot;SELECT retailer_org_id, 0.0 cash, 0.0 cheque, 0.0 cheque_ret, amount debit, 0.0 credit, 0.0 bank FROM st_lms_agent_debit_note dbt INNER JOIN st_lms_agent_transaction_master atm ON dbt.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND dbt.transaction_type IN ('DR_NOTE_CASH','DR_NOTE')&quot;;</span>
+<span class="nc" id="L177">			String creditQry = &quot;SELECT retailer_org_id, 0.0 cash, 0.0 cheque, 0.0 cheque_ret, 0.0 debit, amount credit, 0.0 bank FROM st_lms_agent_credit_note crd INNER JOIN st_lms_agent_transaction_master atm ON crd.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND crd.transaction_type IN ('CR_NOTE_CASH','CR_NOTE')&quot;;</span>
+<span class="nc" id="L178">			String bankQry = &quot;SELECT retailer_org_id, 0.0 cash, 0.0 cheque, 0.0 cheque_ret, 0.0 debit, 0.0 credit, amount bank FROM st_lms_agent_bank_deposit_transaction bd INNER JOIN st_lms_agent_transaction_master atm ON bd.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;'&quot;;</span>
+<span class="nc" id="L179">			String repQry = &quot;SELECT retailer_org_id, cash_amt, cheque_amt, cheque_bounce_amt, debit_note, credit_note, bank_deposit FROM st_rep_agent_payments WHERE finaldate&gt;=DATE('&quot;+startDate+&quot;') AND finaldate&lt;=DATE('&quot;+endDate+&quot;')&quot;;</span>
+<span class="nc" id="L180">			String accQry = &quot;SELECT retailer_org_id, IFNULL(SUM(cash),0.0) cash, IFNULL(SUM(cheque),0.0) cheque, IFNULL(SUM(cheque_ret),0.0) cheque_ret, IFNULL(SUM(debit),0.0) debit, IFNULL(SUM(credit),0.0) credit, IFNULL(SUM(bank),0.0) bank FROM (&quot;</span>
+					+ cashQry
+					+ &quot; UNION ALL &quot;
+					+ chqQry
+					+ &quot; UNION ALL &quot;
+					+ chqRetQry
+					+ &quot; UNION ALL &quot;
+					+ debitQry
+					+ &quot; UNION ALL &quot;
+					+ creditQry
+					+ &quot; UNION ALL &quot;
+					+ bankQry
+					+ &quot; UNION ALL &quot;
+					+ repQry
+					+&quot;)main GROUP BY retailer_org_id;&quot;;
+<span class="nc" id="L195">			logger.info(&quot;Account Detail Query - &quot; + accQry);</span>
+
+<span class="nc" id="L197">			stmt = connection.createStatement();</span>
+<span class="nc" id="L198">			rs = stmt.executeQuery(accQry);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L200">				String agtOrgId = rs.getString(&quot;retailer_org_id&quot;);</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">				if(retailerMap.get(agtOrgId) != null) {</span>
+<span class="nc" id="L202">					retailerMap.get(agtOrgId).setCash(rs.getDouble(&quot;cash&quot;));</span>
+<span class="nc" id="L203">					retailerMap.get(agtOrgId).setCheque(rs.getDouble(&quot;cheque&quot;));</span>
+<span class="nc" id="L204">					retailerMap.get(agtOrgId).setChequeReturn(rs.getDouble(&quot;cheque_ret&quot;));</span>
+<span class="nc" id="L205">					retailerMap.get(agtOrgId).setDebit(rs.getDouble(&quot;debit&quot;));</span>
+<span class="nc" id="L206">					retailerMap.get(agtOrgId).setCredit(rs.getDouble(&quot;credit&quot;));</span>
+<span class="nc" id="L207">					retailerMap.get(agtOrgId).setBankDep(rs.getDouble(&quot;bank&quot;));</span>
+				}
+<span class="nc" id="L209">			}</span>
+
+<span class="nc bnc" id="L211" title="All 2 branches missed.">			if (ReportUtility.isDG) {</span>
+<span class="nc" id="L212">				String gameQry = ReportUtility.getDrawGameMapQuery(startDate);</span>
+<span class="nc" id="L213">				StringBuilder saleQry = new StringBuilder(&quot;SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_sale, IFNULL(SUM(net_amt),0.0) net_sale FROM (&quot;);</span>
+<span class="nc" id="L214">				StringBuilder cancelQry = new StringBuilder(&quot;SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_cancel, IFNULL(SUM(net_amt),0.0) net_cancel FROM (&quot;);</span>
+<span class="nc" id="L215">				StringBuilder pwtQry = new StringBuilder(&quot;SELECT retailer_org_id, IFNULL(SUM(pwt_amt),0.0) net_pwt FROM (&quot;);</span>
+
+<span class="nc" id="L217">				ResultSet gameRs = stmt.executeQuery(gameQry);</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">				while (gameRs.next()) {</span>
+<span class="nc" id="L219">					int gameId = gameRs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L220">					saleQry.append(&quot;SELECT rs.retailer_org_id, mrp_amt, net_amt FROM st_dg_ret_sale_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_SALE','DG_SALE_OFFLINE') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL SELECT organization_id, sale_mrp mrp_amt, sale_net net_amt FROM st_rep_dg_retailer WHERE game_id=&quot;).append(gameId).append(&quot; AND finaldate&gt;=DATE('&quot;).append(startDate).append(&quot;') AND finaldate&lt;=DATE('&quot;).append(endDate).append(&quot;') UNION ALL &quot;);</span>
+<span class="nc" id="L221">					cancelQry.append(&quot;SELECT rs.retailer_org_id, mrp_amt, net_amt FROM st_dg_ret_sale_refund_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_REFUND_CANCEL','DG_REFUND_FAILED') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL SELECT organization_id, ref_sale_mrp mrp_cancel, ref_net_amt net_cancel FROM st_rep_dg_retailer WHERE game_id=&quot;).append(gameId).append(&quot; AND finaldate&gt;=DATE('&quot;).append(startDate).append(&quot;') AND finaldate&lt;=DATE('&quot;).append(endDate).append(&quot;') UNION ALL &quot;);</span>
+<span class="nc" id="L222">					pwtQry.append(&quot;SELECT rs.retailer_org_id, (pwt_amt + ifnull(retailer_claim_comm, 0.00) - ifnull(govt_claim_comm, 0.00)) pwt_amt FROM st_dg_ret_pwt_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL SELECT organization_id, pwt_net_amt net_pwt FROM st_rep_dg_retailer WHERE game_id=&quot;).append(gameId).append(&quot; AND finaldate&gt;=DATE('&quot;).append(startDate).append(&quot;') AND finaldate&lt;=DATE('&quot;).append(endDate).append(&quot;') UNION ALL &quot;);</span>
+<span class="nc" id="L223">				}</span>
+
+<span class="nc" id="L225">				saleQry.delete(saleQry.lastIndexOf(&quot; UNION ALL &quot;), saleQry.length());</span>
+<span class="nc" id="L226">				cancelQry.delete(cancelQry.lastIndexOf(&quot; UNION ALL &quot;), cancelQry.length());</span>
+<span class="nc" id="L227">				pwtQry.delete(pwtQry.lastIndexOf(&quot; UNION ALL &quot;), pwtQry.length());</span>
+
+<span class="nc" id="L229">				saleQry.append(&quot;)main GROUP BY retailer_org_id;&quot;);</span>
+<span class="nc" id="L230">				cancelQry.append(&quot;)main GROUP BY retailer_org_id;&quot;);</span>
+<span class="nc" id="L231">				pwtQry.append(&quot;)main GROUP BY retailer_org_id;&quot;);</span>
+
+				// Draw Sale Query
+<span class="nc" id="L234">				logger.info(&quot;Draw Sale Query - &quot; + saleQry.toString());</span>
+<span class="nc" id="L235">				rs = stmt.executeQuery(saleQry.toString());</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L238">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setDgSale(rs.getDouble(&quot;net_sale&quot;));</span>
+				}
+
+				// Draw Cancel Query
+<span class="nc" id="L242">				logger.info(&quot;Draw Cancel Query - &quot; + cancelQry.toString());</span>
+<span class="nc" id="L243">				rs = stmt.executeQuery(cancelQry.toString());</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L246">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setDgCancel(rs.getDouble(&quot;net_cancel&quot;));</span>
+				}
+				// Draw Pwt Query
+<span class="nc" id="L249">				logger.info(&quot;Draw Pwt Query - &quot; + pwtQry.toString());</span>
+<span class="nc" id="L250">				rs = stmt.executeQuery(pwtQry.toString());</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L253">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setDgPwt(rs.getDouble(&quot;net_pwt&quot;));</span>
+				}
+			}
+
+<span class="nc bnc" id="L257" title="All 2 branches missed.">			if (ReportUtility.isSE) {</span>
+<span class="nc" id="L258">				String saleQry = null, purchaseQuery=null;</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">				if (&quot;BOOK_WISE&quot;.equals(LMSFilterDispatcher.seSaleReportType)) {</span>
+<span class="nc" id="L260">					saleQry = &quot;SELECT organization_id, IFNULL(SUM(mrp_amt),0.00) mrp_amt, IFNULL(SUM(net_amt),0.00) net_amt FROM (SELECT lbt.retailer_org_id organization_id, lbt.mrp_amt, lbt.net_amt FROM st_se_agent_ret_loose_book_transaction lbt INNER JOIN st_se_agent_retailer_transaction trans ON lbt.transaction_id=trans.transaction_id INNER JOIN st_lms_agent_transaction_master atm ON atm.transaction_id=trans.transaction_id AND atm.transaction_type='LOOSE_SALE' AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' UNION ALL SELECT lbt.retailer_org_id organization_id, -lbt.mrp_amt, -lbt.net_amt FROM st_se_agent_ret_loose_book_transaction lbt INNER JOIN st_se_agent_retailer_transaction trans ON lbt.transaction_id=trans.transaction_id INNER JOIN st_lms_agent_transaction_master atm ON atm.transaction_id=trans.transaction_id AND atm.transaction_type='LOOSE_SALE_RET' AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;')main GROUP BY organization_id;&quot;;</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">				} else if (&quot;TICKET_WISE&quot;.equals(LMSFilterDispatcher.seSaleReportType)) {</span>
+<span class="nc" id="L262">					saleQry = &quot;SELECT organization_id, IFNULL(mrpAmt,0.0) mrp_amt, IFNULL(netAmt,0.0) net_amt FROM st_lms_organization_master LEFT OUTER JOIN (SELECT current_owner_id,SUM(soldTkt*ticket_price) mrpAmt,SUM((soldTkt*ticket_price)-(soldTkt*ticket_price*transacrion_sale_comm_rate*0.01)) netAmt FROM st_se_game_master gm, st_se_game_inv_detail gid,(SELECT game_id,book_nbr,SUM(sold_tickets) soldTkt FROM st_se_game_ticket_inv_history WHERE DATE&gt;='&quot;+startDate+&quot;' AND DATE&lt;='&quot;+endDate+&quot;' AND current_owner='RETAILER' GROUP BY book_nbr) TktTlb WHERE gm.game_id=TktTlb.game_id AND TktTlb.book_nbr=gid.book_nbr AND gid.current_owner='RETAILER' GROUP BY current_owner_id) saleTlb ON organization_id=current_owner_id WHERE organization_type='RETAILER';&quot;;</span>
+				}
+				
+<span class="nc" id="L265">				logger.info(&quot;Scratch Sale Query - &quot;+saleQry);</span>
+<span class="nc" id="L266">				rs = stmt.executeQuery(saleQry);</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null)</span>
+<span class="nc" id="L269">						retailerMap.get(rs.getString(&quot;organization_id&quot;)).setSeSale(rs.getDouble(&quot;net_amt&quot;));</span>
+				}
+				
+<span class="nc bnc" id="L272" title="All 2 branches missed.">				if (&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;SE_LAST_SOLD_TKT_ENTRY&quot;))) {</span>
+<span class="nc" id="L273">					purchaseQuery = &quot;select retailer_org_id as organization_id, ifnull(mrp_amt,0)as mrpPur, ifnull(net_amt,0)as netPur from st_se_agent_retailer_transaction sart, st_lms_agent_transaction_master atm where sart.transaction_type='SALE' and (atm.transaction_date)&gt;='&quot;+startDate+&quot;' and (atm.transaction_date)&lt;='&quot;+endDate+&quot;' and sart.transaction_id = atm.transaction_id group by retailer_org_id&quot;;								</span>
+<span class="nc" id="L274">					logger.info(&quot;Scratch Purchase Query - &quot;+purchaseQuery);</span>
+<span class="nc" id="L275">					rs = stmt.executeQuery(purchaseQuery);</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">						if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null)</span>
+<span class="nc" id="L278">							retailerMap.get(rs.getString(&quot;organization_id&quot;)).setSeSale(retailerMap.get(rs.getString(&quot;organization_id&quot;)).getSeSale()+rs.getDouble(&quot;netPur&quot;));</span>
+					}
+				}
+				// Scratch Pwt Query
+<span class="nc" id="L282">				String pwtQuery = &quot;SELECT retailer_org_id, IFNULL(SUM(pwt),0.0) pwt_amt FROM (SELECT retailer_org_id, SUM(pwt_amt+(pwt_amt*agt_claim_comm*0.01)) pwt FROM st_se_retailer_pwt WHERE transaction_id IN (SELECT transaction_id FROM st_lms_retailer_transaction_master WHERE transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND transaction_type='PWT' AND retailer_org_id IN (SELECT organization_id FROM st_lms_organization_master WHERE organization_type='RETAILER')) GROUP BY retailer_org_id UNION ALL SELECT retailer_org_id,SUM(pwt_amt+(pwt_amt*claim_comm*0.01)) pwt FROM st_se_agent_pwt WHERE STATUS!='DONE_UNCLM' AND transaction_id IN (SELECT transaction_id FROM st_lms_agent_transaction_master WHERE transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+startDate+&quot;' AND transaction_type='PWT' AND retailer_org_id IN (SELECT organization_id FROM st_lms_organization_master WHERE organization_type='RETAILER')) GROUP BY retailer_org_id)main GROUP BY retailer_org_id;&quot;;</span>
+<span class="nc" id="L283">				logger.info(&quot;Scratch Pwt Query - &quot;+pwtQuery);</span>
+<span class="nc" id="L284">				rs = stmt.executeQuery(pwtQuery);</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L287">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setSePwt(rs.getDouble(&quot;pwt_amt&quot;));</span>
+				}
+			}
+
+<span class="nc bnc" id="L291" title="All 2 branches missed.">			if (ReportUtility.isCS) {</span>
+<span class="nc" id="L292">				String catQry = &quot;SELECT category_id FROM st_cs_product_category_master WHERE status='ACTIVE';&quot;;</span>
+<span class="nc" id="L293">				StringBuilder saleQry = new StringBuilder(&quot;SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_sale, IFNULL(SUM(net_amt),0.0) net_sale FROM (&quot;);</span>
+<span class="nc" id="L294">				StringBuilder cancelQry = new StringBuilder(&quot;SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_cancel, IFNULL(SUM(net_amt),0.0) net_cancel FROM (&quot;);</span>
+
+<span class="nc" id="L296">				ResultSet catRs = stmt.executeQuery(catQry);</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">				while (catRs.next()) {</span>
+<span class="nc" id="L298">					int catId = catRs.getInt(&quot;category_id&quot;);</span>
+<span class="nc" id="L299">					saleQry.append(&quot;SELECT cs.retailer_org_id, mrp_amt, net_amt FROM st_cs_sale_&quot;).append(catId).append(&quot; cs INNER JOIN st_lms_retailer_transaction_master rtm ON rtm.transaction_id=cs.transaction_id WHERE transaction_type IN('CS_SALE') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL &quot;);</span>
+<span class="nc" id="L300">					cancelQry.append(&quot;SELECT cs.retailer_org_id, mrp_amt, net_amt FROM st_cs_refund_&quot;).append(catId).append(&quot; cs INNER JOIN st_lms_retailer_transaction_master rtm ON rtm.transaction_id=cs.transaction_id WHERE transaction_type IN('CS_CANCEL_SERVER','CS_CANCEL_RET') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL &quot;);</span>
+<span class="nc" id="L301">				}</span>
+<span class="nc" id="L302">				saleQry.delete(saleQry.lastIndexOf(&quot; UNION ALL &quot;), saleQry.length());</span>
+<span class="nc" id="L303">				cancelQry.delete(cancelQry.lastIndexOf(&quot; UNION ALL &quot;), cancelQry.length());</span>
+
+<span class="nc" id="L305">				saleQry.append(&quot;)main GROUP BY retailer_org_id;&quot;);</span>
+<span class="nc" id="L306">				cancelQry.append(&quot;)main GROUP BY retailer_org_id;&quot;);</span>
+
+				// CS Sale Query
+<span class="nc" id="L309">				logger.info(&quot;CS Sale Query - &quot; + saleQry.toString());</span>
+<span class="nc" id="L310">				rs = stmt.executeQuery(saleQry.toString());</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L313">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setCSSale(rs.getDouble(&quot;net_sale&quot;));</span>
+				}
+
+				// CS Cancel Query
+<span class="nc" id="L317">				logger.info(&quot;CS Cancel Query - &quot; + cancelQry.toString());</span>
+<span class="nc" id="L318">				rs = stmt.executeQuery(cancelQry.toString());</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L321">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setCSCancel(rs.getDouble(&quot;net_cancel&quot;));</span>
+				}
+			}
+
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			if(ReportUtility.isOLA){</span>
+<span class="nc" id="L326">				OlaOrgReportRequestBean requestBean = new OlaOrgReportRequestBean();</span>
+<span class="nc" id="L327">				SimpleDateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L328">				requestBean.setFromDate(dateFormat.format(startDate));</span>
+<span class="nc" id="L329">				requestBean.setToDate(dateFormat.format(endDate));</span>
+<span class="nc" id="L330">				Map&lt;Integer, OlaOrgReportResponseBean&gt; olaMap = OlaRetailerReportControllerImpl.fetchDepositWithdrawlMultipleRetailer(requestBean, connection);</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">				for(Integer retOrgId : olaMap.keySet()) {</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">					if(retailerMap.get(String.valueOf(retOrgId)) != null) {</span>
+<span class="nc" id="L333">						retailerMap.get(String.valueOf(retOrgId)).setDeposit(olaMap.get(retOrgId).getNetDepositAmt());</span>
+<span class="nc" id="L334">						retailerMap.get(String.valueOf(retOrgId)).setWithdrawal(olaMap.get(retOrgId).getNetWithdrawalAmt());</span>
+					}
+<span class="nc" id="L336">				}</span>
+			}
+
+<span class="nc bnc" id="L339" title="All 2 branches missed.">			if (ReportUtility.isSLE) {</span>
+				// SLE Sale Query
+<span class="nc" id="L341">				String saleQuery = &quot;SELECT retailer_org_id, SUM(mrp_sale) mrp_sale, SUM(net_sale) net_sale FROM (SELECT retailer_org_id, mrp_amt mrp_sale, retailer_net_amt net_sale FROM st_sle_ret_sale WHERE transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' UNION ALL SELECT organization_id, sale_mrp, sale_net FROM st_rep_sle_retailer WHERE finaldate&gt;=DATE('&quot;+startDate+&quot;') AND finaldate&lt;=DATE('&quot;+endDate+&quot;'))aa GROUP BY retailer_org_id;&quot;;</span>
+<span class="nc" id="L342">				logger.info(&quot;SLE Sale Query - &quot; + saleQuery);</span>
+<span class="nc" id="L343">				rs = stmt.executeQuery(saleQuery);</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L346">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setSleSale(rs.getDouble(&quot;net_sale&quot;));</span>
+				}
+
+				// SLE Cancel Query
+<span class="nc" id="L350">				String cancelQuery = &quot;SELECT retailer_org_id, SUM(mrp_cancel) mrp_cancel, SUM(net_cancel) net_cancel FROM (SELECT retailer_org_id, mrp_amt mrp_cancel, retailer_net_amt net_cancel FROM st_sle_ret_sale_refund WHERE transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' UNION ALL SELECT organization_id, ref_sale_mrp, ref_net_amt FROM st_rep_sle_retailer WHERE finaldate&gt;=DATE('&quot;+startDate+&quot;') AND finaldate&lt;=DATE('&quot;+endDate+&quot;'))aa GROUP BY retailer_org_id;&quot;;</span>
+<span class="nc" id="L351">				logger.info(&quot;SLE Cancel Query - &quot; + cancelQuery);</span>
+<span class="nc" id="L352">				rs = stmt.executeQuery(cancelQuery);</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L355">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setSleCancel(rs.getDouble(&quot;net_cancel&quot;));</span>
+				}
+				// SLE Pwt Query
+<span class="nc" id="L358">				String pwtQuery = &quot;SELECT retailer_org_id, SUM(net_pwt) net_pwt FROM (SELECT retailer_org_id, (pwt_amt+retailer_claim_comm-govt_claim_comm) net_pwt FROM st_sle_ret_pwt WHERE transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' UNION ALL SELECT organization_id, pwt_net_amt FROM st_rep_sle_retailer WHERE finaldate&gt;=DATE('&quot;+startDate+&quot;') AND finaldate&lt;=DATE('&quot;+endDate+&quot;'))aa GROUP BY retailer_org_id;&quot;;</span>
+<span class="nc" id="L359">				logger.info(&quot;SLE Pwt Query - &quot; + pwtQuery);</span>
+<span class="nc" id="L360">				rs = stmt.executeQuery(pwtQuery);</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L363">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setSlePwt(rs.getDouble(&quot;net_pwt&quot;));</span>
+				}
+			}
+<span class="nc" id="L366">		} catch (Exception e) {</span>
+<span class="nc" id="L367">			e.printStackTrace();</span>
+<span class="nc" id="L368">			throw new LMSException(&quot;Error in Retailer Detailed Collection Report&quot;);</span>
+<span class="nc" id="L369">		}</span>
+<span class="nc" id="L370">	}</span>
+	//for all retailer coresponding to a single agent
+	public Map&lt;String, CollectionReportOverAllBean&gt; getRetailerWiseClosingBalance(Timestamp deployDate, Timestamp startDate, Timestamp endDate,int agentOrgId) throws Exception {
+<span class="nc" id="L373">		Map&lt;String, CollectionReportOverAllBean&gt; retailerMap = new LinkedHashMap&lt;String, CollectionReportOverAllBean&gt;();</span>
+<span class="nc" id="L374">		CollectionReportOverAllBean reportBean = null;</span>
+<span class="nc" id="L375">		Connection connection = null;</span>
+<span class="nc" id="L376">		Statement stmt = null;</span>
+<span class="nc" id="L377">		ResultSet rs = null;</span>
+<span class="nc" id="L378">		String retOrgQry = null;</span>
+<span class="nc" id="L379">		String terminateOrgQry = null;</span>
+		//String clXclQuery = null;
+		try {
+<span class="nc" id="L382">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L383">			retOrgQry = &quot;SELECT SQL_CACHE &quot;+QueryManager.getOrgCodeQuery()+&quot;, organization_id FROM st_lms_organization_master WHERE organization_type='RETAILER' AND organization_status&lt;&gt;'TERMINATE'   and parent_id='&quot;+agentOrgId+&quot;' ORDER BY &quot;+QueryManager.getAppendOrgOrder()+&quot;;&quot;;</span>
+<span class="nc" id="L384">			logger.info(&quot;Get All Retailer Query - &quot;+retOrgQry);</span>
+<span class="nc" id="L385">			stmt = connection.createStatement();</span>
+<span class="nc" id="L386">			rs = stmt.executeQuery(retOrgQry);</span>
+<span class="nc bnc" id="L387" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L388">				reportBean = new CollectionReportOverAllBean();</span>
+<span class="nc" id="L389">				reportBean.setAgentName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L390">				retailerMap.put(rs.getString(&quot;organization_id&quot;), reportBean);</span>
+			}
+	
+<span class="nc" id="L393">			terminateOrgQry = &quot;SELECT organization_id FROM st_lms_user_master WHERE (termination_date&lt;'&quot;+startDate+&quot;' OR registration_date&gt;'&quot;+endDate+&quot;') AND organization_type='RETAILER' AND parent_user_id='&quot;+agentOrgId+&quot;';&quot;;</span>
+<span class="nc" id="L394">			logger.info(&quot;Get Terminated Retailer Query - &quot;+terminateOrgQry);</span>
+<span class="nc" id="L395">			rs = stmt.executeQuery(terminateOrgQry);</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L397">				retailerMap.remove(rs.getString(&quot;organization_id&quot;));</span>
+			}
+
+<span class="nc" id="L400">			boolean isDataFromArch = ReportUtility.checkDateLessThanLastRunDate(new Timestamp(startDate.getTime()-1000), agentOrgId, &quot;RETAILER&quot;, connection);</span>
+<span class="nc" id="L401">			Date lastArchDate = null;</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">			if(isDataFromArch) {</span>
+<span class="nc" id="L403">				Calendar cal1 = Calendar.getInstance();</span>
+<span class="nc" id="L404">				cal1.setTimeInMillis(startDate.getTime()-1000);</span>
+<span class="nc" id="L405">				cal1.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc" id="L406">				ReportUtility.clearTimeFromDate(cal1);</span>
+
+<span class="nc" id="L408">				rs = stmt.executeQuery(&quot;SELECT organization_id, opening_bal_cl_inc FROM st_rep_org_bal_history WHERE finaldate='&quot;+(new Date(cal1.getTimeInMillis()))+&quot;' AND organization_type='RETAILER' AND parent_id='&quot;+agentOrgId+&quot;';&quot;);</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">				while(rs.next()){</span>
+<span class="nc bnc" id="L410" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L411">						reportBean = retailerMap.get(rs.getString(&quot;organization_id&quot;));</span>
+<span class="nc" id="L412">						reportBean.setOpeningBal(-rs.getDouble(&quot;opening_bal_cl_inc&quot;));</span>
+					}
+				}
+
+<span class="nc" id="L416">				collectionRetailerWiseNew(startDate, endDate, connection, retailerMap,agentOrgId);</span>
+
+			/*	clXclQuery = &quot;SELECT organization_id, IFNULL(SUM(amount),0.0) AS amount FROM (SELECT organization_id, amount FROM st_lms_cl_xcl_update_history WHERE date_time&gt;='&quot;+startDate+&quot;' AND date_time&lt;'&quot;+endDate+&quot;' UNION ALL SELECT organization_id, (cl+xcl) clXcl FROM st_rep_org_bal_history WHERE finaldate&gt;='&quot;+startDate+&quot;' AND finaldate&lt;='&quot;+endDate+&quot;' AND organization_type='RETAILER')aa GROUP BY organization_id;&quot;;
+				logger.info(&quot;clXcl Query - &quot;+clXclQuery);
+				rs = stmt.executeQuery(clXclQuery);
+				while(rs.next()) {
+					reportBean = retailerMap.get(rs.getString(&quot;organization_id&quot;));
+					if(reportBean != null) {
+						reportBean.setClLimit(rs.getDouble(&quot;amount&quot;));
+					}
+				}
+*/
+<span class="nc" id="L428">				return retailerMap;</span>
+			} else {
+<span class="nc" id="L430">				lastArchDate = ReportUtility.getLastArchDateInDateFormat(connection);</span>
+<span class="nc" id="L431">				rs = stmt.executeQuery(&quot;SELECT organization_id, (opening_bal_cl_inc+net_amount_transaction) opening_bal FROM st_rep_org_bal_history WHERE finaldate='&quot;+lastArchDate+&quot;' AND organization_type='RETAILER' AND parent_id='&quot;+agentOrgId+&quot;';&quot;);</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">				while(rs.next()) {</span>
+<span class="nc bnc" id="L433" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L434">						retailerMap.get(rs.getString(&quot;organization_id&quot;)).setOpeningBal(-rs.getDouble(&quot;opening_bal&quot;));</span>
+					}
+				}
+			}
+
+<span class="nc" id="L439">			collectionRetailerWiseNew(new Timestamp(lastArchDate.getTime()), startDate, connection, retailerMap,agentOrgId);</span>
+
+<span class="nc" id="L441">			double openingBal = 0.0;</span>
+<span class="nc bnc" id="L442" title="All 2 branches missed.">			for(String retOrgId : retailerMap.keySet()) {</span>
+<span class="nc" id="L443">				reportBean = retailerMap.get(retOrgId);</span>
+<span class="nc" id="L444">				openingBal = reportBean.getOpeningBal()/* - reportBean.getClLimit()*/ + reportBean.getDgSale() - reportBean.getDgCancel() - reportBean.getDgPwt()</span>
+							+ reportBean.getSeSale() - reportBean.getSePwt()
+							+ reportBean.getCSSale() - reportBean.getCSCancel()
+							+ reportBean.getDeposit() - reportBean.getWithdrawal()
+							- (reportBean.getCash() + reportBean.getCheque() + reportBean.getCredit()+reportBean.getBankDep() - reportBean.getDebit() - reportBean.getChequeReturn());
+<span class="nc" id="L449">				reportBean.setOpeningBal(openingBal);</span>
+<span class="nc" id="L450">				reportBean.setClLimit(0.0);</span>
+<span class="nc" id="L451">				reportBean.setDgSale(0.0);</span>
+<span class="nc" id="L452">				reportBean.setDgCancel(0.0);</span>
+<span class="nc" id="L453">				reportBean.setDgPwt(0.0);</span>
+<span class="nc" id="L454">				reportBean.setSeSale(0.0);</span>
+<span class="nc" id="L455">				reportBean.setSePwt(0.0);</span>
+<span class="nc" id="L456">				reportBean.setCSSale(0.0);</span>
+<span class="nc" id="L457">				reportBean.setCSCancel(0.0);</span>
+<span class="nc" id="L458">				reportBean.setDeposit(0.0);</span>
+<span class="nc" id="L459">				reportBean.setWithdrawal(0.0);</span>
+<span class="nc" id="L460">				reportBean.setCash(0.0);</span>
+<span class="nc" id="L461">				reportBean.setCheque(0.0);</span>
+<span class="nc" id="L462">				reportBean.setChequeReturn(0.0);</span>
+<span class="nc" id="L463">				reportBean.setCredit(0.0);</span>
+<span class="nc" id="L464">				reportBean.setDebit(0.0);</span>
+<span class="nc" id="L465">				reportBean.setBankDep(0.0);</span>
+<span class="nc" id="L466">			}</span>
+<span class="nc" id="L467">			collectionRetailerWiseNew(startDate, endDate, connection, retailerMap,agentOrgId);</span>
+
+			/*clXclQuery = &quot;SELECT organization_id, IFNULL(SUM(amount),0.0) AS amount FROM st_lms_cl_xcl_update_history WHERE date_time&gt;='&quot;+startDate+&quot;' AND date_time&lt;'&quot;+endDate+&quot;' GROUP BY organization_id;&quot;;
+			logger.info(&quot;clXcl Query - &quot;+clXclQuery);
+			rs = stmt.executeQuery(clXclQuery);
+			while(rs.next()) {
+				if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null)
+					retailerMap.get(rs.getString(&quot;organization_id&quot;)).setClLimit(rs.getDouble(&quot;amount&quot;));
+			}*/
+<span class="nc" id="L476">			String retOrgQuery=&quot;select organization_id,  name orgCode  from st_lms_organization_master where parent_id='&quot;+agentOrgId+&quot;' AND organization_status&lt;&gt;'TERMINATE' order by orgCode ASC;&quot;; </span>
+<span class="nc" id="L477">			PreparedStatement pstmt = connection.prepareStatement(retOrgQuery);</span>
+<span class="nc" id="L478">			ResultSet retclos = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L479" title="All 2 branches missed.">			while(retclos.next()){</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">				if(ReportUtility.isDG){</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">					if(retailerMap.get(retclos.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L482">					CollectionReportOverAllBean retBean=retailerMap.get(retclos.getString(&quot;organization_id&quot;));</span>
+<span class="nc" id="L483">					retBean.setClosingBalance(retBean.getOpeningBal()+((retBean.getDgSale()-retBean.getDgCancel())-retBean.getDgPwt())-(retBean.getCash()+retBean.getCheque()-retBean.getChequeReturn()-retBean.getDebit()+retBean.getCredit()+retBean.getBankDep()));	</span>
+					}
+				}
+<span class="nc bnc" id="L486" title="All 2 branches missed.">				if(ReportUtility.isSE){</span>
+<span class="nc bnc" id="L487" title="All 2 branches missed.">					if(retailerMap.get(retclos.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L488">					CollectionReportOverAllBean retBean=retailerMap.get(retclos.getString(&quot;organization_id&quot;));</span>
+<span class="nc" id="L489">					retBean.setClosingBalance(retBean.getOpeningBal()+(retBean.getSeSale()-retBean.getSePwt())-(retBean.getCash()+retBean.getCheque()-retBean.getChequeReturn()-retBean.getDebit()+retBean.getCredit()+retBean.getBankDep()));	</span>
+					}
+				}
+<span class="nc bnc" id="L492" title="All 2 branches missed.">				if(ReportUtility.isCS){</span>
+<span class="nc bnc" id="L493" title="All 2 branches missed.">					if(retailerMap.get(retclos.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L494">					CollectionReportOverAllBean retBean=retailerMap.get(retclos.getString(&quot;organization_id&quot;));</span>
+<span class="nc" id="L495">					retBean.setClosingBalance(retBean.getOpeningBal()+(retBean.getCSSale()-retBean.getCSCancel())-(retBean.getCash()+retBean.getCheque()-retBean.getChequeReturn()-retBean.getDebit()+retBean.getCredit()+retBean.getBankDep()));	</span>
+					}
+				}
+<span class="nc bnc" id="L498" title="All 2 branches missed.">				if(ReportUtility.isOLA){</span>
+<span class="nc bnc" id="L499" title="All 2 branches missed.">					if(retailerMap.get(retclos.getString(&quot;organization_id&quot;)) != null) {</span>
+<span class="nc" id="L500">					CollectionReportOverAllBean retBean=retailerMap.get(retclos.getString(&quot;organization_id&quot;));</span>
+<span class="nc" id="L501">					retBean.setClosingBalance(retBean.getOpeningBal()+(retBean.getDeposit()-retBean.getWithdrawal())-(retBean.getCash()+retBean.getCheque()-retBean.getChequeReturn()-retBean.getDebit()+retBean.getCredit()+retBean.getBankDep()));	</span>
+<span class="nc" id="L502">					}</span>
+				}
+				
+			}
+<span class="nc" id="L506">		} catch (Exception e) {</span>
+<span class="nc" id="L507">			e.printStackTrace();</span>
+<span class="nc" id="L508">			throw new LMSException(&quot;Error in Fetching Closing Balance Of Retailer&quot;);</span>
+		} finally {
+<span class="nc" id="L510">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L511">		}</span>
+<span class="nc" id="L512">		return retailerMap;</span>
+	}
+	public void collectionRetailerWiseNew(Timestamp startDate, Timestamp endDate, Connection connection, Map&lt;String, CollectionReportOverAllBean&gt; retailerMap,int agentOrgId) throws LMSException {
+<span class="nc" id="L515">		Statement stmt = null;</span>
+<span class="nc" id="L516">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L519">			String cashQry = &quot;SELECT retailer_org_id, amount cash, 0.0 cheque, 0.0 cheque_ret, 0.0 debit, 0.0 credit,0.0 bank_deposit FROM st_lms_agent_cash_transaction cash INNER JOIN st_lms_agent_transaction_master atm ON cash.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;'&quot;;</span>
+<span class="nc" id="L520">			String chqQry = &quot;SELECT retailer_org_id, 0.0 cash, cheque_amt cheque, 0.0 cheque_ret, 0.0 debit, 0.0 credit,0.0 bank_deposit FROM st_lms_agent_sale_chq chq INNER JOIN st_lms_agent_transaction_master atm ON chq.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND chq.transaction_type IN ('CHEQUE','CLOSED')&quot;;</span>
+<span class="nc" id="L521">			String chqRetQry = &quot;SELECT retailer_org_id, 0.0 cash, 0.0 cheque, cheque_amt cheque_ret, 0.0 debit, 0.0 credit,0.0 bank_deposit FROM st_lms_agent_sale_chq chq INNER JOIN st_lms_agent_transaction_master atm ON chq.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND chq.transaction_type IN ('CHQ_BOUNCE')&quot;;</span>
+<span class="nc" id="L522">			String debitQry = &quot;SELECT retailer_org_id, 0.0 cash, 0.0 cheque, 0.0 cheque_ret, amount debit, 0.0 credit,0.0 bank_deposit FROM st_lms_agent_debit_note dbt INNER JOIN st_lms_agent_transaction_master atm ON dbt.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND dbt.transaction_type IN ('DR_NOTE_CASH','DR_NOTE')&quot;;</span>
+<span class="nc" id="L523">			String creditQry = &quot;SELECT retailer_org_id, 0.0 cash, 0.0 cheque, 0.0 cheque_ret, 0.0 debit, amount credit,0.0 bank_deposit FROM st_lms_agent_credit_note crd INNER JOIN st_lms_agent_transaction_master atm ON crd.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND crd.transaction_type IN ('CR_NOTE_CASH','CR_NOTE')&quot;;</span>
+<span class="nc" id="L524">			String repQry = &quot;SELECT retailer_org_id, cash_amt, cheque_amt, cheque_bounce_amt, debit_note, credit_note,bank_deposit FROM st_rep_agent_payments WHERE finaldate&gt;=DATE('&quot;+startDate+&quot;') AND finaldate&lt;=DATE('&quot;+endDate+&quot;')&quot;;</span>
+<span class="nc" id="L525">			String bankDepoQry=&quot;SELECT retailer_org_id,0.0 cash, 0.0 cheque, 0.0 cheque_ret, 0.0 debit, 0.0 credit,amount bank_deposit FROM st_lms_agent_bank_deposit_transaction bdt INNER JOIN st_lms_agent_transaction_master atm ON bdt.transaction_id=atm.transaction_id AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;'&quot;;</span>
+<span class="nc" id="L526">			String accQry = &quot;SELECT t.retailer_org_id,t.cash,t.cheque,t.cheque_ret,t.debit,t.credit,t.bank_deposit from(SELECT retailer_org_id, IFNULL(SUM(cash),0.0) cash, IFNULL(SUM(cheque),0.0) cheque, IFNULL(SUM(cheque_ret),0.0) cheque_ret, IFNULL(SUM(debit),0.0) debit, IFNULL(SUM(credit),0.0) credit,IFNULL(SUM(bank_deposit),0.0) bank_deposit FROM (&quot;</span>
+					+ cashQry
+					+ &quot; UNION ALL &quot;
+					+ chqQry
+					+ &quot; UNION ALL &quot;
+					+ chqRetQry
+					+ &quot; UNION ALL &quot;
+					+ debitQry
+					+ &quot; UNION ALL &quot;
+					+ creditQry
+					+ &quot; UNION ALL &quot;
+					+ bankDepoQry
+					+&quot; UNION ALL &quot;
+					+ repQry
+					+&quot;)main GROUP BY retailer_org_id)t inner join (select organization_id from st_lms_organization_master where parent_id='&quot;+agentOrgId+&quot;') o on t.retailer_org_id =o.organization_id;&quot;;
+<span class="nc" id="L541">			logger.info(&quot;Account Detail Query - &quot; + accQry);</span>
+
+<span class="nc" id="L543">			stmt = connection.createStatement();</span>
+<span class="nc" id="L544">			rs = stmt.executeQuery(accQry);</span>
+<span class="nc bnc" id="L545" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L546">				String agtOrgId = rs.getString(&quot;retailer_org_id&quot;);</span>
+<span class="nc bnc" id="L547" title="All 2 branches missed.">				if(retailerMap.get(agtOrgId) != null) {</span>
+<span class="nc" id="L548">					retailerMap.get(agtOrgId).setCash(rs.getDouble(&quot;cash&quot;));</span>
+<span class="nc" id="L549">					retailerMap.get(agtOrgId).setCheque(rs.getDouble(&quot;cheque&quot;));</span>
+<span class="nc" id="L550">					retailerMap.get(agtOrgId).setChequeReturn(rs.getDouble(&quot;cheque_ret&quot;));</span>
+<span class="nc" id="L551">					retailerMap.get(agtOrgId).setDebit(rs.getDouble(&quot;debit&quot;));</span>
+<span class="nc" id="L552">					retailerMap.get(agtOrgId).setCredit(rs.getDouble(&quot;credit&quot;));</span>
+<span class="nc" id="L553">					retailerMap.get(agtOrgId).setBankDep(rs.getDouble(&quot;bank_deposit&quot;));</span>
+				}
+<span class="nc" id="L555">			}</span>
+
+<span class="nc bnc" id="L557" title="All 2 branches missed.">			if (ReportUtility.isDG) {</span>
+<span class="nc" id="L558">				String gameQry = ReportUtility.getDrawGameMapQuery(startDate);</span>
+<span class="nc" id="L559">				StringBuilder saleQry = new StringBuilder(&quot;SELECT s.retailer_org_id,s.mrp_sale,s.net_sale from (SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_sale, IFNULL(SUM(net_amt),0.0) net_sale FROM (&quot;);</span>
+<span class="nc" id="L560">				StringBuilder cancelQry = new StringBuilder(&quot;SELECT c.retailer_org_id,c.mrp_cancel,c.net_cancel from ( SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_cancel, IFNULL(SUM(net_amt),0.0) net_cancel FROM (&quot;);</span>
+<span class="nc" id="L561">				StringBuilder pwtQry = new StringBuilder(&quot;SELECT p.retailer_org_id,p.net_pwt from ( SELECT retailer_org_id, IFNULL(SUM(pwt_amt),0.0) net_pwt FROM (&quot;);</span>
+
+<span class="nc" id="L563">				ResultSet gameRs = stmt.executeQuery(gameQry);</span>
+<span class="nc bnc" id="L564" title="All 2 branches missed.">				while (gameRs.next()) {</span>
+<span class="nc" id="L565">					int gameId = gameRs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L566">					saleQry.append(&quot;SELECT rs.retailer_org_id, mrp_amt, net_amt FROM st_dg_ret_sale_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_SALE','DG_SALE_OFFLINE') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL SELECT organization_id, sale_mrp mrp_amt, sale_net net_amt FROM st_rep_dg_retailer WHERE game_id=&quot;).append(gameId).append(&quot; AND finaldate&gt;=DATE('&quot;).append(startDate).append(&quot;') AND finaldate&lt;=DATE('&quot;).append(endDate).append(&quot;') UNION ALL &quot;);</span>
+<span class="nc" id="L567">					cancelQry.append(&quot;SELECT rs.retailer_org_id, mrp_amt, net_amt FROM st_dg_ret_sale_refund_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_REFUND_CANCEL','DG_REFUND_FAILED') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL SELECT organization_id, ref_sale_mrp mrp_cancel, ref_net_amt net_cancel FROM st_rep_dg_retailer WHERE game_id=&quot;).append(gameId).append(&quot; AND finaldate&gt;=DATE('&quot;).append(startDate).append(&quot;') AND finaldate&lt;=DATE('&quot;).append(endDate).append(&quot;') UNION ALL &quot;);</span>
+<span class="nc" id="L568">					pwtQry.append(&quot;SELECT rs.retailer_org_id, pwt_amt FROM st_dg_ret_pwt_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL SELECT organization_id, pwt_net_amt net_pwt FROM st_rep_dg_retailer WHERE game_id=&quot;).append(gameId).append(&quot; AND finaldate&gt;=DATE('&quot;).append(startDate).append(&quot;') AND finaldate&lt;=DATE('&quot;).append(endDate).append(&quot;') UNION ALL &quot;);</span>
+<span class="nc" id="L569">				}</span>
+
+<span class="nc" id="L571">				saleQry.delete(saleQry.lastIndexOf(&quot; UNION ALL &quot;), saleQry.length());</span>
+<span class="nc" id="L572">				cancelQry.delete(cancelQry.lastIndexOf(&quot; UNION ALL &quot;), cancelQry.length());</span>
+<span class="nc" id="L573">				pwtQry.delete(pwtQry.lastIndexOf(&quot; UNION ALL &quot;), pwtQry.length());</span>
+
+<span class="nc" id="L575">				saleQry.append(&quot;)main GROUP BY retailer_org_id )s inner join (select organization_id from st_lms_organization_master where parent_id='&quot;+agentOrgId+&quot;')o on s.retailer_org_id =o.organization_id;&quot;);</span>
+<span class="nc" id="L576">				cancelQry.append(&quot;)main GROUP BY retailer_org_id )c inner join (select organization_id from st_lms_organization_master where parent_id='&quot;+agentOrgId+&quot;')o on c.retailer_org_id =o.organization_id;&quot;);</span>
+<span class="nc" id="L577">				pwtQry.append(&quot;)main GROUP BY retailer_org_id )p inner join (select organization_id from st_lms_organization_master where parent_id='&quot;+agentOrgId+&quot;')o on p.retailer_org_id =o.organization_id;&quot;);</span>
+
+				// Draw Sale Query
+<span class="nc" id="L580">				logger.info(&quot;Draw Sale Query - &quot; + saleQry.toString());</span>
+<span class="nc" id="L581">				rs = stmt.executeQuery(saleQry.toString());</span>
+<span class="nc bnc" id="L582" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L583" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L584">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setDgSale(rs.getDouble(&quot;net_sale&quot;));</span>
+				}
+
+				// Draw Cancel Query
+<span class="nc" id="L588">				logger.info(&quot;Draw Cancel Query - &quot; + cancelQry.toString());</span>
+<span class="nc" id="L589">				rs = stmt.executeQuery(cancelQry.toString());</span>
+<span class="nc bnc" id="L590" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L591" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L592">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setDgCancel(rs.getDouble(&quot;net_cancel&quot;));</span>
+				}
+				// Draw Pwt Query
+<span class="nc" id="L595">				logger.info(&quot;Draw Pwt Query - &quot; + pwtQry.toString());</span>
+<span class="nc" id="L596">				rs = stmt.executeQuery(pwtQry.toString());</span>
+<span class="nc bnc" id="L597" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L598" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L599">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setDgPwt(rs.getDouble(&quot;net_pwt&quot;));</span>
+				}
+			}
+
+<span class="nc bnc" id="L603" title="All 2 branches missed.">			if (ReportUtility.isSE) {</span>
+<span class="nc" id="L604">				String saleQry = null;</span>
+<span class="nc bnc" id="L605" title="All 2 branches missed.">				if (&quot;BOOK_WISE&quot;.equals(LMSFilterDispatcher.seSaleReportType)) {</span>
+<span class="nc" id="L606">					saleQry = &quot;SELECT organization_id, IFNULL(SUM(mrp_amt),0.00) mrp_amt, IFNULL(SUM(net_amt),0.00) net_amt FROM (SELECT lbt.retailer_org_id organization_id, lbt.mrp_amt, lbt.net_amt FROM st_se_agent_ret_loose_book_transaction lbt INNER JOIN st_se_agent_retailer_transaction trans ON lbt.transaction_id=trans.transaction_id INNER JOIN st_lms_agent_transaction_master atm ON atm.transaction_id=trans.transaction_id AND atm.transaction_type='LOOSE_SALE' AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' UNION ALL SELECT lbt.retailer_org_id organization_id, -lbt.mrp_amt, -lbt.net_amt FROM st_se_agent_ret_loose_book_transaction lbt INNER JOIN st_se_agent_retailer_transaction trans ON lbt.transaction_id=trans.transaction_id INNER JOIN st_lms_agent_transaction_master atm ON atm.transaction_id=trans.transaction_id AND atm.transaction_type='LOOSE_SALE_RET' AND transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;')main GROUP BY organization_id;&quot;;</span>
+<span class="nc bnc" id="L607" title="All 2 branches missed.">				} else if (&quot;TICKET_WISE&quot;.equals(LMSFilterDispatcher.seSaleReportType)) {</span>
+<span class="nc" id="L608">					saleQry = &quot;SELECT organization_id, IFNULL(mrpAmt,0.0) mrp_amt, IFNULL(netAmt,0.0) net_amt FROM st_lms_organization_master LEFT OUTER JOIN (SELECT current_owner_id,SUM(soldTkt*ticket_price) mrpAmt,SUM((soldTkt*ticket_price)-(soldTkt*ticket_price*transacrion_sale_comm_rate*0.01)) netAmt FROM st_se_game_master gm, st_se_game_inv_detail gid,(SELECT game_id,book_nbr,SUM(sold_tickets) soldTkt FROM st_se_game_ticket_inv_history WHERE DATE&gt;='&quot;+startDate+&quot;' AND DATE&lt;='&quot;+endDate+&quot;' AND current_owner='RETAILER' GROUP BY book_nbr) TktTlb WHERE gm.game_id=TktTlb.game_id AND TktTlb.book_nbr=gid.book_nbr AND gid.current_owner='RETAILER' GROUP BY current_owner_id) saleTlb ON organization_id=current_owner_id WHERE organization_type='RETAILER';&quot;;</span>
+				}
+<span class="nc" id="L610">				logger.info(&quot;Scratch Sale Query - &quot;+saleQry);</span>
+<span class="nc" id="L611">				rs = stmt.executeQuery(saleQry);</span>
+<span class="nc bnc" id="L612" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L613" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;organization_id&quot;)) != null)</span>
+<span class="nc" id="L614">						retailerMap.get(rs.getString(&quot;organization_id&quot;)).setSeSale(rs.getDouble(&quot;net_amt&quot;));</span>
+				}
+
+				// Scratch Pwt Query
+<span class="nc" id="L618">				String pwtQuery = &quot;SELECT retailer_org_id, IFNULL(SUM(pwt),0.0) pwt_amt FROM (SELECT retailer_org_id, SUM(pwt_amt+(pwt_amt*agt_claim_comm*0.01)) pwt FROM st_se_retailer_pwt WHERE transaction_id IN (SELECT transaction_id FROM st_lms_retailer_transaction_master WHERE transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+endDate+&quot;' AND transaction_type='PWT' AND retailer_org_id IN (SELECT organization_id FROM st_lms_organization_master WHERE organization_type='RETAILER')) GROUP BY retailer_org_id UNION ALL SELECT retailer_org_id,SUM(pwt_amt+(pwt_amt*claim_comm*0.01)) pwt FROM st_se_agent_pwt WHERE STATUS!='DONE_UNCLM' AND transaction_id IN (SELECT transaction_id FROM st_lms_agent_transaction_master WHERE transaction_date&gt;='&quot;+startDate+&quot;' AND transaction_date&lt;='&quot;+startDate+&quot;' AND transaction_type='PWT' AND retailer_org_id IN (SELECT organization_id FROM st_lms_organization_master WHERE organization_type='RETAILER')) GROUP BY retailer_org_id)main GROUP BY retailer_org_id;&quot;;</span>
+<span class="nc" id="L619">				logger.info(&quot;Scratch Pwt Query - &quot;+pwtQuery);</span>
+<span class="nc" id="L620">				rs = stmt.executeQuery(pwtQuery);</span>
+<span class="nc bnc" id="L621" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L622" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L623">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setSePwt(rs.getDouble(&quot;pwt_amt&quot;));</span>
+				}
+			}
+<span class="nc bnc" id="L626" title="All 2 branches missed.">			if (ReportUtility.isCS) {</span>
+<span class="nc" id="L627">				String catQry = &quot;SELECT category_id FROM st_cs_product_category_master WHERE status='ACTIVE';&quot;;</span>
+<span class="nc" id="L628">				StringBuilder saleQry = new StringBuilder(&quot;SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_sale, IFNULL(SUM(net_amt),0.0) net_sale FROM (&quot;);</span>
+<span class="nc" id="L629">				StringBuilder cancelQry = new StringBuilder(&quot;SELECT retailer_org_id, IFNULL(SUM(mrp_amt),0.0) mrp_cancel, IFNULL(SUM(net_amt),0.0) net_cancel FROM (&quot;);</span>
+
+<span class="nc" id="L631">				ResultSet catRs = stmt.executeQuery(catQry);</span>
+<span class="nc bnc" id="L632" title="All 2 branches missed.">				while (catRs.next()) {</span>
+<span class="nc" id="L633">					int catId = catRs.getInt(&quot;category_id&quot;);</span>
+<span class="nc" id="L634">					saleQry.append(&quot;SELECT cs.retailer_org_id, mrp_amt, net_amt FROM st_cs_sale_&quot;).append(catId).append(&quot; cs INNER JOIN st_lms_retailer_transaction_master rtm ON rtm.transaction_id=cs.transaction_id WHERE transaction_type IN('CS_SALE') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL &quot;);</span>
+<span class="nc" id="L635">					cancelQry.append(&quot;SELECT cs.retailer_org_id, mrp_amt, net_amt FROM st_cs_refund_&quot;).append(catId).append(&quot; cs INNER JOIN st_lms_retailer_transaction_master rtm ON rtm.transaction_id=cs.transaction_id WHERE transaction_type IN('CS_CANCEL_SERVER','CS_CANCEL_RET') AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' UNION ALL &quot;);</span>
+<span class="nc" id="L636">				}</span>
+<span class="nc" id="L637">				saleQry.delete(saleQry.lastIndexOf(&quot; UNION ALL &quot;), saleQry.length());</span>
+<span class="nc" id="L638">				cancelQry.delete(cancelQry.lastIndexOf(&quot; UNION ALL &quot;), cancelQry.length());</span>
+
+<span class="nc" id="L640">				saleQry.append(&quot;)main GROUP BY retailer_org_id;&quot;);</span>
+<span class="nc" id="L641">				cancelQry.append(&quot;)main GROUP BY retailer_org_id;&quot;);</span>
+
+				// CS Sale Query
+<span class="nc" id="L644">				logger.info(&quot;CS Sale Query - &quot; + saleQry.toString());</span>
+<span class="nc" id="L645">				rs = stmt.executeQuery(saleQry.toString());</span>
+<span class="nc bnc" id="L646" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L647" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L648">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setCSSale(rs.getDouble(&quot;net_sale&quot;));</span>
+				}
+
+				// CS Cancel Query
+<span class="nc" id="L652">				logger.info(&quot;CS Cancel Query - &quot; + cancelQry.toString());</span>
+<span class="nc" id="L653">				rs = stmt.executeQuery(cancelQry.toString());</span>
+<span class="nc bnc" id="L654" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L655" title="All 2 branches missed.">					if(retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)) != null)</span>
+<span class="nc" id="L656">						retailerMap.get(rs.getString(&quot;retailer_org_id&quot;)).setCSCancel(rs.getDouble(&quot;net_cancel&quot;));</span>
+				}
+			}
+<span class="nc bnc" id="L659" title="All 2 branches missed.">			if(ReportUtility.isOLA){</span>
+<span class="nc" id="L660">				OlaOrgReportRequestBean requestBean = new OlaOrgReportRequestBean();</span>
+<span class="nc" id="L661">				SimpleDateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L662">				requestBean.setFromDate(dateFormat.format(startDate));</span>
+<span class="nc" id="L663">				requestBean.setToDate(dateFormat.format(endDate));</span>
+<span class="nc" id="L664">				Map&lt;Integer, OlaOrgReportResponseBean&gt; olaMap = OlaRetailerReportControllerImpl.fetchDepositWithdrawlMultipleRetailer(requestBean, connection);</span>
+<span class="nc bnc" id="L665" title="All 2 branches missed.">				for(Integer retOrgId : olaMap.keySet()) {</span>
+<span class="nc bnc" id="L666" title="All 2 branches missed.">					if(retailerMap.get(String.valueOf(retOrgId)) != null) {</span>
+<span class="nc" id="L667">						retailerMap.get(String.valueOf(retOrgId)).setDeposit(olaMap.get(retOrgId).getNetDepositAmt());</span>
+<span class="nc" id="L668">						retailerMap.get(String.valueOf(retOrgId)).setWithdrawal(olaMap.get(retOrgId).getNetWithdrawalAmt());</span>
+					}
+<span class="nc" id="L670">				}</span>
+			}
+<span class="nc" id="L672">		} catch (Exception e) {</span>
+<span class="nc" id="L673">			e.printStackTrace();</span>
+<span class="nc" id="L674">			throw new LMSException(&quot;Error in report collectionAgentWise&quot;);</span>
+<span class="nc" id="L675">		}</span>
+<span class="nc" id="L676">	}</span>
+	public Map&lt;String, CollectionReportOverAllBean&gt; getLowRetailerClosingBalanceWithAnyDayLimit(Timestamp deployDate, Timestamp startDate, Timestamp endDate,int agentOrgId) throws Exception {
+<span class="nc" id="L678">		Map&lt;String, CollectionReportOverAllBean&gt; retailerMap =null; </span>
+<span class="nc" id="L679">		Map&lt;String, CollectionReportOverAllBean&gt; lowRetailerMap =null; </span>
+<span class="nc" id="L680">		CollectionReportOverAllBean reportBean = null;</span>
+<span class="nc" id="L681">		int maxDay=0;</span>
+		try {
+<span class="nc" id="L683">			newStartDate=startDate;</span>
+			
+<span class="nc" id="L685">			retailerMap=new LinkedHashMap&lt;String, CollectionReportOverAllBean&gt;();</span>
+<span class="nc" id="L686">			lowRetailerMap=new LinkedHashMap&lt;String, CollectionReportOverAllBean&gt;();</span>
+<span class="nc" id="L687">			DateFormat dateFormat = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L688">			maxDay=Integer.parseInt(Utility.getPropertyValue(&quot;RET_OUTSTANDING_BALANCE_LIMIT_AUTO_BLOCK&quot;));</span>
+<span class="nc" id="L689">			Calendar cal=Calendar.getInstance();</span>
+<span class="nc bnc" id="L690" title="All 2 branches missed.">				for(int day=1;day&lt;=maxDay;day++){</span>
+<span class="nc" id="L691">					cal.setTime (newStartDate); // convert your date to Calendar object</span>
+<span class="nc" id="L692">					cal.add(Calendar.DATE, -1);</span>
+<span class="nc" id="L693">					java.util.Date fromDate = (java.util.Date) cal.getTime();</span>
+<span class="nc" id="L694">					String start_date=dateFormat.format(fromDate);</span>
+<span class="nc" id="L695">					String end_date=start_date;</span>
+<span class="nc" id="L696">					dateChanger(start_date, end_date);</span>
+<span class="nc" id="L697">					retailerMap=getRetailerWiseClosingBalance(deployDate, newStartDate, newEndDate, agentOrgId);</span>
+<span class="nc" id="L698">					Iterator&lt;Map.Entry&lt;String, CollectionReportOverAllBean&gt;&gt; iterator = retailerMap.entrySet().iterator() ;</span>
+<span class="nc bnc" id="L699" title="All 2 branches missed.">			        while(iterator.hasNext()){</span>
+<span class="nc" id="L700">			        	    Map.Entry&lt;String, CollectionReportOverAllBean&gt; retEntry = iterator.next();</span>
+<span class="nc bnc" id="L701" title="All 2 branches missed.">			        	    if(lowRetailerMap.get(retEntry.getKey()) == null)</span>
+<span class="nc" id="L702">			        	    	lowRetailerMap.put(retEntry.getKey(),retEntry.getValue());</span>
+<span class="nc bnc" id="L703" title="All 4 branches missed.">			        	    if(lowRetailerMap.get(retEntry.getKey()) != null &amp;&amp; lowRetailerMap.get(retEntry.getKey()).getNoOfDays() == null)</span>
+<span class="nc" id="L704">			        	    	lowRetailerMap.put(retEntry.getKey(),retEntry.getValue());</span>
+<span class="nc bnc" id="L705" title="All 6 branches missed.">							if(retEntry.getValue().getClosingBalance() &lt;= 0 &amp;&amp; lowRetailerMap.get(retEntry.getKey()) != null &amp;&amp; lowRetailerMap.get(retEntry.getKey()).getNoOfDays() == null){</span>
+<span class="nc" id="L706">								retailerMap.get(retEntry.getKey()).setNoOfDays(String.valueOf(day));</span>
+									
+<span class="nc bnc" id="L708" title="All 2 branches missed.">							}else if(day==maxDay){</span>
+<span class="nc" id="L709">									retailerMap.get(retEntry.getKey()).setNoOfDays(&quot;&gt;=&quot;+String.valueOf(maxDay));    </span>
+								}
+<span class="nc" id="L711">							 }</span>
+						}
+					
+<span class="nc" id="L714">		} catch (Exception e) {</span>
+<span class="nc" id="L715">			e.printStackTrace();</span>
+<span class="nc" id="L716">			throw new LMSException(&quot;Error in Fetching Closing Balance Of Retailer&quot;);</span>
+<span class="nc" id="L717">		} finally {</span>
+			//DBConnect.closeCon(connection);
+<span class="nc" id="L719">		}</span>
+<span class="nc" id="L720">		return lowRetailerMap;</span>
+	}
+	private  void  dateChanger(String start_date, String end_date){
+<span class="nc" id="L723">		DateFormat dateFormat = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+		try{
+<span class="nc" id="L725">		newStartDate = new Timestamp(dateFormat</span>
+				.parse(start_date).getTime());
+<span class="nc" id="L727">		newEndDate = new Timestamp(dateFormat</span>
+				.parse(end_date).getTime()+ 24 * 60 * 60 * 1000 - 1000);
+		
+<span class="nc" id="L730">		}catch(ParseException ex){</span>
+<span class="nc" id="L731">			ex.printStackTrace();</span>
+<span class="nc" id="L732">		}</span>
+<span class="nc" id="L733">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

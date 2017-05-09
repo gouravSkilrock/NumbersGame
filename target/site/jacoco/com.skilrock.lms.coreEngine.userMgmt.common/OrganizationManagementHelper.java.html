@@ -1,0 +1,624 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OrganizationManagementHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.userMgmt.common</a> &gt; <span class="el_source">OrganizationManagementHelper.java</span></div><h1>OrganizationManagementHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.userMgmt.common;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.skilrock.lms.beans.CollectionReportOverAllBean;
+import com.skilrock.lms.beans.HistoryBean;
+import com.skilrock.lms.beans.OrgPwtLimitBean;
+import com.skilrock.lms.beans.OrganizationBean;
+import com.skilrock.lms.beans.ReportStatusBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.IPaymentLedgerReportAgtWiseHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.PaymentLedgerReportAgtWiseHelperSP;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.PaymentLedgerReportHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.PaymentLedgerRetailerWiseReportHelper;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+
+/**
+ * This class provides methods to get organization details and to edit
+ * organization details
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L48">public class OrganizationManagementHelper {</span>
+<span class="nc" id="L49">	private Log logger = LogFactory.getLog(OrganizationManagementHelper.class);</span>
+
+	private int calculateExtendsCreditLimitUpto(java.sql.Date date) {
+<span class="nc bnc" id="L52" title="All 2 branches missed.">		if (date == null) {</span>
+<span class="nc" id="L53">			return 0;</span>
+		}
+<span class="nc" id="L55">		long days = 0;</span>
+
+<span class="nc" id="L57">		Calendar today = Calendar.getInstance();</span>
+<span class="nc" id="L58">		today.set(today.get(Calendar.YEAR), today.get(Calendar.MONTH), today</span>
+				.get(Calendar.DAY_OF_MONTH), 0, 0, 0);
+
+<span class="nc" id="L61">		Calendar extendedDate = Calendar.getInstance();</span>
+<span class="nc" id="L62">		extendedDate.setTimeInMillis(date.getTime());</span>
+<span class="nc" id="L63">		extendedDate.set(extendedDate.get(Calendar.YEAR), extendedDate</span>
+				.get(Calendar.MONTH), extendedDate.get(Calendar.DAY_OF_MONTH),
+				0, 0, 1);
+
+<span class="nc" id="L67">		long timeDiff = extendedDate.getTimeInMillis()</span>
+				- today.getTimeInMillis();
+<span class="nc bnc" id="L69" title="All 2 branches missed.">		if (timeDiff &gt; 0) {</span>
+<span class="nc" id="L70">			days = timeDiff / (1000 * 60 * 60 * 24);</span>
+		}
+		// System.out.println(&quot; dd days : &quot;+days +&quot; hours = &quot;+hours);
+		// System.out.println(date +&quot;, extendedDate = &quot;+extendedDate.getTime()
+		// +&quot; ,today : &quot;+today.getTime());
+
+<span class="nc" id="L76">		return (int) days;</span>
+	}
+
+	/**
+	 * This method is used to edit organization details
+	 * 
+	 * @param orgid
+	 *            organization Id
+	 * @param addr1
+	 *            address line 1
+	 * @param addr2
+	 *            address line 2
+	 * @param city
+	 *            organization city
+	 * @param pin
+	 *            city pin
+	 * @param orgstatus
+	 *            organization status to set
+	 * @param limit
+	 *            organization limit to set
+	 * @param scrapStatus
+	 * @param daysAfter
+	 * @param extendedLimit
+	 */
+	public String editOrgDetails(int userId, OrganizationBean previousOrgBean,
+			String orgAddr1, String orgAddr2, String orgCity, long orgPin,
+			String statusNew, double orgSecurityDeposit, double orgCreditLimit,
+			String scrapStatus, String comment,String area,String division, int doneByUserId, String requestIp,String newIfuCode,String prevIfuCode) throws LMSException {
+<span class="nc" id="L104">		String returnStatus = &quot;&quot;;</span>
+<span class="nc" id="L105">		String reason = null;</span>
+<span class="nc" id="L106">		int orgId = previousOrgBean.getOrgId();</span>
+
+<span class="nc" id="L108">		String address1 = null;</span>
+<span class="nc" id="L109">		String address2 = null;</span>
+<span class="nc" id="L110">		String city = null;</span>
+<span class="nc" id="L111">		long pinCode = 0L;</span>
+<span class="nc" id="L112">		String divisionCode = null;</span>
+<span class="nc" id="L113">		String areaCode = null;</span>
+<span class="nc" id="L114">		String pwtScrap = null;</span>
+<span class="nc" id="L115">		double securityDeposit = 0.0;</span>
+<span class="nc" id="L116">		String orgStatus = null;</span>
+<span class="nc" id="L117">		int orgUserId = 0;</span>
+<span class="nc" id="L118">		String orgUserStatus = null;</span>
+<span class="nc" id="L119">		Connection con = null;</span>
+<span class="nc" id="L120">		Statement stmt = null;</span>
+<span class="nc" id="L121">		String query = null;</span>
+<span class="nc" id="L122">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L124">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L125">			con.setAutoCommit(false);</span>
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">			if (scrapStatus == null) {</span>
+<span class="nc" id="L128">				scrapStatus = previousOrgBean.getPwtScrapStatus().trim();</span>
+			}
+
+<span class="nc bnc" id="L131" title="All 4 branches missed.">			if(previousOrgBean.getArea()==null|| area==null){</span>
+<span class="nc" id="L132">				previousOrgBean.setArea(&quot;NA&quot;);</span>
+<span class="nc" id="L133">				area=&quot;NA&quot;;</span>
+			}
+
+<span class="nc" id="L136">			int count = 0;</span>
+<span class="nc" id="L137">			stmt = con.createStatement();</span>
+<span class="nc" id="L138">			query = &quot;SELECT addr_line1, addr_line2, city, pin_code, division_code, area_code, pwt_scrap, security_deposit, organization_status, user_id, status FROM st_lms_organization_master om INNER JOIN st_lms_user_master um ON om.organization_id=um.organization_id WHERE om.organization_id=&quot;+orgId+&quot; AND isrolehead='Y';&quot;;</span>
+<span class="nc" id="L139">			logger.info(&quot;Seelct Org Details Query - &quot;+query);</span>
+<span class="nc" id="L140">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L142">				address1 = rs.getString(&quot;addr_line1&quot;);</span>
+<span class="nc" id="L143">				address2 = rs.getString(&quot;addr_line2&quot;);</span>
+<span class="nc" id="L144">				city = rs.getString(&quot;city&quot;);</span>
+<span class="nc" id="L145">				pinCode = rs.getLong(&quot;pin_code&quot;);</span>
+<span class="nc" id="L146">				divisionCode = rs.getString(&quot;division_code&quot;);</span>
+<span class="nc" id="L147">				areaCode = rs.getString(&quot;area_code&quot;);</span>
+<span class="nc" id="L148">				pwtScrap = rs.getString(&quot;pwt_scrap&quot;);</span>
+<span class="nc" id="L149">				securityDeposit = rs.getDouble(&quot;security_deposit&quot;);</span>
+<span class="nc" id="L150">				orgStatus = rs.getString(&quot;organization_status&quot;);</span>
+<span class="nc" id="L151">				orgUserId = rs.getInt(&quot;user_id&quot;);</span>
+<span class="nc" id="L152">				orgUserStatus = rs.getString(&quot;status&quot;);</span>
+<span class="nc" id="L153">				count++;</span>
+			}
+<span class="nc bnc" id="L155" title="All 2 branches missed.">			if(count&gt;1) {</span>
+<span class="nc" id="L156">				throw new LMSException(&quot;Invalid Organization Code.&quot;);</span>
+			}
+
+<span class="nc" id="L159">			HistoryBean historyBean = new HistoryBean(orgId, doneByUserId, comment, requestIp);</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">			if(!address1.trim().equalsIgnoreCase(orgAddr1.trim())) {</span>
+<span class="nc" id="L161">				historyBean.setChangeType(&quot;ADDRESS_1&quot;);</span>
+<span class="nc" id="L162">				historyBean.setChangeValue(address1);</span>
+<span class="nc" id="L163">				historyBean.setUpdatedValue(orgAddr1);</span>
+<span class="nc" id="L164">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L166" title="All 2 branches missed.">			if(!address2.trim().equalsIgnoreCase(orgAddr2.trim())) {</span>
+<span class="nc" id="L167">				historyBean.setChangeType(&quot;ADDRESS_2&quot;);</span>
+<span class="nc" id="L168">				historyBean.setChangeValue(address2);</span>
+<span class="nc" id="L169">				historyBean.setUpdatedValue(orgAddr2);</span>
+<span class="nc" id="L170">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L172" title="All 2 branches missed.">			if(!city.trim().equalsIgnoreCase(orgCity.trim())) {</span>
+<span class="nc" id="L173">				historyBean.setChangeType(&quot;CITY&quot;);</span>
+<span class="nc" id="L174">				historyBean.setChangeValue(city);</span>
+<span class="nc" id="L175">				historyBean.setUpdatedValue(orgCity);</span>
+<span class="nc" id="L176">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L178" title="All 2 branches missed.">			if(pinCode != orgPin) {</span>
+<span class="nc" id="L179">				historyBean.setChangeType(&quot;PIN_CODE&quot;);</span>
+<span class="nc" id="L180">				historyBean.setChangeValue(String.valueOf(pinCode));</span>
+<span class="nc" id="L181">				historyBean.setUpdatedValue(String.valueOf(orgPin));</span>
+<span class="nc" id="L182">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L184" title="All 4 branches missed.">			if(divisionCode != null &amp;&amp; !divisionCode.trim().equalsIgnoreCase(division.trim())) {</span>
+<span class="nc" id="L185">				historyBean.setChangeType(&quot;DIVISION_CODE&quot;);</span>
+<span class="nc" id="L186">				historyBean.setChangeValue(divisionCode);</span>
+<span class="nc" id="L187">				historyBean.setUpdatedValue(division);</span>
+<span class="nc" id="L188">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L190" title="All 4 branches missed.">			if(areaCode != null &amp;&amp; !areaCode.trim().equalsIgnoreCase(area.trim())) {</span>
+<span class="nc" id="L191">				historyBean.setChangeType(&quot;AREA_CODE&quot;);</span>
+<span class="nc" id="L192">				historyBean.setChangeValue(areaCode);</span>
+<span class="nc" id="L193">				historyBean.setUpdatedValue(area);</span>
+<span class="nc" id="L194">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L196" title="All 2 branches missed.">			if(!pwtScrap.trim().equalsIgnoreCase(scrapStatus.trim())) {</span>
+<span class="nc" id="L197">				historyBean.setChangeType(&quot;PWT_SCRAP&quot;);</span>
+<span class="nc" id="L198">				historyBean.setChangeValue(pwtScrap);</span>
+<span class="nc" id="L199">				historyBean.setUpdatedValue(orgCity);</span>
+<span class="nc" id="L200">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L202" title="All 2 branches missed.">			if(securityDeposit != orgSecurityDeposit) {</span>
+<span class="nc" id="L203">				historyBean.setChangeType(&quot;SECURITY_DEPOSIT&quot;);</span>
+<span class="nc" id="L204">				historyBean.setChangeValue(String.valueOf(securityDeposit));</span>
+<span class="nc" id="L205">				historyBean.setUpdatedValue(String.valueOf(orgSecurityDeposit));</span>
+<span class="nc" id="L206">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L208" title="All 2 branches missed.">			if(!orgStatus.trim().equalsIgnoreCase(statusNew.trim())) {</span>
+				/*if(!orgStatus.trim().equalsIgnoreCase(statusNew.trim())) {
+					reason = statusNew+&quot;_MANUAL_BO&quot;;
+				} else {
+					reason = &quot;CHANGE_ORG_INFO&quot;;
+				}*/
+
+				//historyBean.setComments(reason);
+<span class="nc" id="L216">				historyBean.setChangeType(&quot;ORGANIZATION_STATUS&quot;);</span>
+<span class="nc" id="L217">				historyBean.setChangeValue(orgStatus);</span>
+<span class="nc" id="L218">				historyBean.setUpdatedValue(statusNew);</span>
+<span class="nc" id="L219">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+
+<span class="nc" id="L221">				historyBean.setOrganizationId(orgUserId);</span>
+<span class="nc" id="L222">				historyBean.setChangeType(&quot;USER_STATUS&quot;);</span>
+<span class="nc" id="L223">				historyBean.setChangeValue(orgUserStatus);</span>
+<span class="nc" id="L224">				historyBean.setUpdatedValue(statusNew);</span>
+<span class="nc" id="L225">				CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+			}
+
+<span class="nc bnc" id="L228" title="All 4 branches missed.">			if (!&quot;YES&quot;.equalsIgnoreCase(scrapStatus.trim()) &amp;&amp; !previousOrgBean.getPwtScrapStatus().trim().equalsIgnoreCase(scrapStatus.trim())) {</span>
+<span class="nc" id="L229">				stmt = con.createStatement();</span>
+<span class="nc" id="L230">				query = &quot;update st_lms_organization_master set pwt_scrap='NO' where parent_id = &quot; + orgId + &quot; and organization_type='RETAILER' and pwt_scrap='YES'&quot;;</span>
+<span class="nc" id="L231">				logger.info(&quot;Update Scrap Status Query - &quot;+query);</span>
+<span class="nc" id="L232">				int updatedRows = stmt.executeUpdate(query);</span>
+<span class="nc" id="L233">				logger.info(&quot;Updated Rows - &quot;+updatedRows);</span>
+			}
+			
+<span class="nc bnc" id="L236" title="All 2 branches missed.">			if(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">				String levyCat=newIfuCode.length()&gt;0?&quot;CAT-1&quot;:&quot;CAT-2&quot;;</span>
+				
+<span class="nc bnc" id="L239" title="All 2 branches missed.">				if(!newIfuCode.trim().equalsIgnoreCase(prevIfuCode.trim())){</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">					if(newIfuCode.length()&gt;0){</span>
+<span class="nc" id="L241">						Map&lt;String,String&gt; idMap=OrgNUserRegHelper.checkUniqueIdNo(newIfuCode.trim(), &quot;IFU Code&quot;, con);</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">						if(idMap.containsKey(&quot;returnTypeError&quot;)){</span>
+<span class="nc" id="L243">							return &quot;error&quot;;</span>
+						}
+					}
+					
+<span class="nc" id="L247">					stmt=con.createStatement();</span>
+<span class="nc" id="L248">					query=&quot;UPDATE st_lms_user_contact_details SET id_type='IFU Code',id_nbr='&quot;+newIfuCode+&quot;' where user_id=&quot;+orgUserId;</span>
+<span class="nc" id="L249">					logger.info(&quot;Update Ifu Code Query - &quot;+query);</span>
+<span class="nc" id="L250">					stmt.executeUpdate(query);</span>
+<span class="nc" id="L251">					query=&quot;UPDATE st_lms_organization_security_levy_master SET levy_cat_type='&quot;+levyCat+&quot; 'where organization_id=&quot;+orgId;</span>
+<span class="nc" id="L252">					stmt=con.createStatement();</span>
+<span class="nc" id="L253">					logger.info(&quot;Update leavy  category Query - &quot;+query);</span>
+<span class="nc" id="L254">					stmt.executeUpdate(query);</span>
+				}
+			}
+
+<span class="nc" id="L258">			con.commit();</span>
+<span class="nc" id="L259">		} catch (SQLException e) {</span>
+<span class="nc" id="L260">			e.printStackTrace();</span>
+<span class="nc" id="L261">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L263">			DBConnect.closeConnection(con, stmt, rs);</span>
+<span class="nc" id="L264">		}</span>
+
+<span class="nc" id="L266">		return returnStatus;</span>
+	}
+
+	public OrganizationBean orgDetails(int orgid) {
+
+<span class="nc" id="L271">		int orgId = orgid;</span>
+<span class="nc" id="L272">		String countryCode = null;</span>
+<span class="nc" id="L273">		String stateCode = null;</span>
+<span class="nc" id="L274">		Connection con = null;</span>
+<span class="nc" id="L275">		Statement stmt2 = null;</span>
+<span class="nc" id="L276">		Statement stmt3 = null;</span>
+<span class="nc" id="L277">		ResultSet rs2=null;</span>
+<span class="nc" id="L278">		ResultSet idList=null;</span>
+<span class="nc" id="L279">		String getOrgDetails=null;</span>
+		try {
+
+<span class="nc" id="L282">			OrganizationBean orgBean = null;</span>
+<span class="nc" id="L283">			orgBean = new OrganizationBean();</span>
+<span class="nc" id="L284">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L285">			stmt2 = con.createStatement();</span>
+<span class="nc" id="L286">			stmt3 = con.createStatement();</span>
+			
+<span class="nc" id="L288">			System.out.println(&quot;org id is &quot; + orgId);</span>
+<span class="nc" id="L289">			orgBean.setOrgId(orgId);</span>
+			
+<span class="nc bnc" id="L291" title="All 2 branches missed.">			if(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L292">				getOrgDetails = QueryManager.getST3OrgDetailsWithColletedSdDetail()</span>
+				+ &quot; where om.organization_id='&quot; + orgId + &quot;' &quot;;
+	
+			}else{
+<span class="nc" id="L296">				getOrgDetails = QueryManager.getST3OrgDetails()</span>
+				+ &quot; where organization_id='&quot; + orgId + &quot;' &quot;;
+			}
+<span class="nc" id="L299">			rs2 = stmt2.executeQuery(getOrgDetails);</span>
+			// rs2=stmt2.executeQuery(&quot;select * from st_lms_organization_master
+			// where organization_id='&quot;+orgId+&quot;'&quot;);
+<span class="nc bnc" id="L302" title="All 2 branches missed.">			while (rs2.next()) {</span>
+
+<span class="nc" id="L304">				orgBean.setOrgName(rs2.getString(TableConstants.ORG_NAME));</span>
+<span class="nc" id="L305">				orgBean.setOrgType(rs2.getString(TableConstants.ORG_TYPE));</span>
+<span class="nc" id="L306">				orgBean.setOrgAddr1(rs2.getString(TableConstants.ORG_ADDR1));</span>
+<span class="nc" id="L307">				orgBean.setOrgAddr2(rs2.getString(TableConstants.ORG_ADDR2));</span>
+<span class="nc" id="L308">				orgBean.setOrgCity(rs2.getString(TableConstants.ORG_CITY));</span>
+<span class="nc" id="L309">				orgBean.setArea(rs2.getString(&quot;area_code&quot;));</span>
+<span class="nc" id="L310">				orgBean.setDivision(rs2.getString(&quot;division_code&quot;));	</span>
+<span class="nc" id="L311">				orgBean.setParentOrgId(rs2</span>
+						.getInt(TableConstants.PARENT_ORGANIZATION_ID));
+<span class="nc" id="L313">				orgBean.setCurrentCreditAmt(rs2</span>
+						.getDouble(TableConstants.SOM_CURR_CREDIT_AMT));
+<span class="nc" id="L315">				orgBean.setExtendedCredit(rs2</span>
+						.getDouble(TableConstants.EXTENDED_CREDIT_LIMIT));
+<span class="nc" id="L317">				orgBean</span>
+						.setExtendsCreditLimitUpto(calculateExtendsCreditLimitUpto(rs2
+								.getDate(&quot;extends_credit_limit_upto&quot;)));
+<span class="nc" id="L320">				orgBean.setAvailableCredit(rs2</span>
+						.getDouble(TableConstants.SOM_AVAILABLE_CREDIT));
+<span class="nc" id="L322">				orgBean.setOrgPin(rs2.getLong(TableConstants.ORG_PIN));</span>
+<span class="nc" id="L323">				orgBean.setOrgCreditLimit(rs2</span>
+						.getDouble(TableConstants.CREDIT_LIMIT));
+<span class="nc" id="L325">				orgBean.setOrgStatus(rs2.getString(TableConstants.ORG_STATUS));</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">				orgBean.setSecurityDeposit(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))?rs2.getDouble(&quot;collected_security_deposit&quot;):rs2.getDouble(&quot;security_deposit&quot;));</span>
+<span class="nc" id="L327">				orgBean.setPwtScrapStatus(rs2.getString(&quot;pwt_scrap&quot;));</span>
+<span class="nc" id="L328">				orgBean.setClaimableBal(rs2.getDouble(&quot;claimable_bal&quot;));</span>
+<span class="nc" id="L329">				countryCode = rs2.getString(TableConstants.ORG_COUNTRY);</span>
+<span class="nc" id="L330">				stateCode = rs2.getString(TableConstants.ORG_STATE);</span>
+
+<span class="nc" id="L332">				String countryName = QueryManager.getCountryAndStateName()</span>
+						+ &quot; cont.country_code='&quot; + countryCode
+						+ &quot;' and stat.state_code='&quot; + stateCode + &quot;'&quot;;
+<span class="nc" id="L335">				ResultSet countryList = stmt3.executeQuery(countryName);</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">				while (countryList.next()) {</span>
+<span class="nc" id="L337">					orgBean.setOrgCountry(countryList.getString(&quot;country&quot;));</span>
+<span class="nc" id="L338">					orgBean.setOrgState(countryList.getString(&quot;state&quot;));</span>
+				}
+				
+<span class="nc" id="L341">				String idDetails=&quot;select  um.user_id,ucd.id_type,ucd.id_nbr  from st_lms_user_master um inner join st_lms_user_contact_details ucd  where um.user_id=ucd.user_id and organization_id=&quot;+orgid;</span>
+<span class="nc" id="L342">				idList=stmt3.executeQuery(idDetails);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">				if(idList.next()){</span>
+<span class="nc" id="L344">					orgBean.setIdType(idList.getString(&quot;id_type&quot;));</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">					if(&quot;IFU Code&quot;.equalsIgnoreCase(orgBean.getIdType())){</span>
+<span class="nc" id="L346">						orgBean.setIdNbr(idList.getString(&quot;id_nbr&quot;));</span>
+					}
+				}
+				// check parent scrap status
+<span class="nc bnc" id="L350" title="All 2 branches missed.">				if (&quot;RETAILER&quot;.equalsIgnoreCase(orgBean.getOrgType())) {</span>
+<span class="nc" id="L351">					String parentScrapStatusQuery = &quot;select name, pwt_scrap, organization_type, organization_id  &quot;</span>
+							+ &quot;from st_lms_organization_master  where organization_id=(select parent_id  from &quot;
+							+ &quot;st_lms_organization_master  where organization_id=&quot;
+							+ orgId + &quot;)&quot;;
+<span class="nc" id="L355">					ResultSet parScrapStatusPstmt = stmt3</span>
+							.executeQuery(parentScrapStatusQuery);
+
+<span class="nc bnc" id="L358" title="All 2 branches missed.">					if (parScrapStatusPstmt.next()) {</span>
+<span class="nc" id="L359">						String parPwtScrap = parScrapStatusPstmt</span>
+								.getString(&quot;pwt_scrap&quot;);
+<span class="nc" id="L361">						System.out.println(parentScrapStatusQuery</span>
+								+ &quot;\n parent pwt scrap ==== &quot; + parPwtScrap);
+<span class="nc" id="L363">						orgBean.setParPwtScrap(parPwtScrap);</span>
+					}
+<span class="nc" id="L365">				} else {</span>
+<span class="nc" id="L366">					orgBean.setParPwtScrap(&quot;YES&quot;);</span>
+				}
+
+				// fetch limits of an organization
+<span class="nc" id="L370">				CommonFunctionsHelper comm = new CommonFunctionsHelper();</span>
+<span class="nc" id="L371">				OrgPwtLimitBean limitBean = comm.fetchPwtLimitsOfOrgnization(</span>
+						orgId, con);
+<span class="nc" id="L373">				orgBean.setVerLimit(FormatNumber.formatNumberForJSP(limitBean</span>
+						.getVerificationLimit()));
+<span class="nc" id="L375">				orgBean.setAppLimit(FormatNumber.formatNumberForJSP(limitBean</span>
+						.getApprovalLimit()));
+<span class="nc" id="L377">				orgBean.setPayLimit(FormatNumber.formatNumberForJSP(limitBean</span>
+						.getPayLimit()));
+<span class="nc" id="L379">				orgBean.setScrapLimit(FormatNumber.formatNumberForJSP(limitBean</span>
+						.getScrapLimit()));
+
+				/*
+				 * String countryName=QueryManager.selectST3Country() + &quot; where
+				 * country_code='&quot;+countryCode+&quot;' &quot; ; ResultSet
+				 * countryList=stmt3.executeQuery(countryName);
+				 * 
+				 * //ResultSet countryList=stmt3.executeQuery(&quot;select name from
+				 * st_lms_country_master where country_code='&quot;+countryCode+&quot;'&quot;);
+				 * while(countryList.next()) {
+				 * orgBean.setOrgCountry(countryList.getString(TableConstants.NAME)); }
+				 * 
+				 * String stateName=QueryManager.selectST3State() + &quot; where
+				 * state_code='&quot;+stateCode+&quot;' &quot; ; ResultSet
+				 * stateList=stmt3.executeQuery(stateName); //ResultSet
+				 * stateList=stmt3.executeQuery(&quot;select name from
+				 * st_lms_state_master where state_code='&quot;+stateCode+&quot;'&quot;);
+				 * 
+				 * while(stateList.next()) {
+				 * orgBean.setOrgState(stateList.getString(TableConstants.NAME));
+				 * System.out.println(&quot;state is &quot;
+				 * +stateList.getString(TableConstants.NAME)); }
+				 */
+				// orgBean.setOrgCountry(rs2.getString(TableConstants.ORG_COUNTRY));
+				// orgBean.setOrgState(rs2.getString(TableConstants.ORG_STATE));
+<span class="nc" id="L405">			}</span>
+
+<span class="nc" id="L407">			return orgBean;</span>
+
+<span class="nc" id="L409">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L411">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L413">			DBConnect.closeConnection(con, stmt3, idList);</span>
+<span class="nc" id="L414">			DBConnect.closeRs(rs2);</span>
+<span class="nc" id="L415">			DBConnect.closeStmt(stmt2);</span>
+<span class="nc" id="L416">		}</span>
+
+<span class="nc" id="L418">		return null;</span>
+
+	}
+
+	public int fetchTerminalCount(int orgId) {
+<span class="nc" id="L423">		int count = 0;</span>
+<span class="nc" id="L424">		Connection con = null;</span>
+<span class="nc" id="L425">		Statement stmt = null;</span>
+<span class="nc" id="L426">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L428">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L429">			stmt = con.createStatement();</span>
+			/*rs = stmt.executeQuery(&quot;SELECT COUNT(serial_no) serial_count FROM st_lms_inv_status WHERE current_owner_id = &quot;
+							+ orgId + &quot; GROUP BY current_owner_id;&quot;);*/
+<span class="nc" id="L432">			rs = stmt.executeQuery(&quot;select (SELECT count(*) FROM st_lms_inv_status  a inner join st_lms_inv_model_master b on a.inv_model_id=b.model_id  WHERE current_owner_id = '&quot;+ orgId +&quot;' and b.inv_id=1) + &quot; +</span>
+					&quot;(SELECT count(*) FROM st_lms_inv_status inner join st_lms_organization_master on current_owner_id = organization_id  inner join st_lms_inv_model_master on inv_model_id=model_id where parent_id = '&quot;+ orgId +&quot;' and inv_id = 1)&quot; +
+					&quot; serial_count;&quot;);
+			
+<span class="nc bnc" id="L436" title="All 2 branches missed.">			if(rs.next())</span>
+<span class="nc" id="L437">				count = rs.getInt(&quot;serial_count&quot;);</span>
+<span class="nc" id="L438">		} catch (Exception e) {</span>
+<span class="nc" id="L439">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L441">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L442">		}</span>
+<span class="nc" id="L443">		return count;</span>
+	}
+	
+	
+	
+	public String getAgentOutstandingBal(int orgId, HttpServletRequest request, HttpSession session) throws ParseException, LMSException
+	{
+
+		
+		
+<span class="nc" id="L453">		 Calendar prevCal = Calendar.getInstance();</span>
+			/*String start_date = CommonMethods
+					.convertDateInGlobalFormat(new java.sql.Date(prevCal
+							.getTimeInMillis()).toString(), &quot;yyyy-mm-dd&quot;,
+							(String) session.getAttribute(&quot;date_format&quot;));*/
+<span class="nc" id="L458">			ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L459">			String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+<span class="nc" id="L460">			String start_date = CommonMethods</span>
+			.convertDateInGlobalFormat(new java.sql.Date(prevCal
+					.getTimeInMillis()).toString(), &quot;yyyy-mm-dd&quot;,
+					dateFormat);
+<span class="nc" id="L464">			String deploy_Date = (String) sc.getAttribute(&quot;DEPLOYMENT_DATE&quot;);</span>
+<span class="nc" id="L465">			Timestamp startDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+					.parse(start_date).getTime());
+<span class="nc" id="L467">			Timestamp endDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+					.parse(start_date).getTime()
+					+ 24 * 60 * 60 * 1000 - 1000);
+<span class="nc" id="L470">			Timestamp deployDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+					.parse(deploy_Date).getTime());
+<span class="nc" id="L472">			IPaymentLedgerReportAgtWiseHelper helper = null;</span>
+<span class="nc bnc" id="L473" title="All 2 branches missed.">			if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L474">				helper = new PaymentLedgerReportAgtWiseHelperSP();</span>
+			} else {
+<span class="nc" id="L476">				helper = new PaymentLedgerReportHelper();</span>
+			}
+			/*boolean isDG = (Boolean) session.getAttribute(&quot;isDG&quot;) ;
+			boolean isSE = (Boolean) session.getAttribute(&quot;isSE&quot;) ;
+			boolean isCS = (Boolean) session.getAttribute(&quot;isCS&quot;) ;
+			boolean isOLA = (Boolean) session.getAttribute(&quot;isOLA&quot;) ;*/
+			
+<span class="nc" id="L483">		 Map&lt;String, CollectionReportOverAllBean&gt; resultMap = helper</span>
+			.collectionAgentWiseWithOpeningBal(deployDate,
+					startDate, endDate, orgId);
+		 //#orgValue.dgSale-#orgValue.dgCancel-#orgValue.dgPwt-#orgValue.dgDirPlyPwt
+		 
+<span class="nc" id="L488">		 double drawCash = 0.0 ; //#orgValue.dgSale-#orgValue.dgCancel-#orgValue.dgPwt-#orgValue.dgDirPlyPwt</span>
+<span class="nc" id="L489">		 double scratchCash = 0.0 ; //#orgValue.seSale-#orgValue.seCancel-#orgValue.sePwt-#orgValue.seDirPlyPwt</span>
+<span class="nc" id="L490">		 double csSaleAmt = 0.0 ;</span>
+<span class="nc" id="L491">		 double csCancelAmt = 0.0 ;</span>
+<span class="nc" id="L492">		 double olaDepoAmt = 0.0 ; //#orgValue.deposit - #orgValue.depositRefund</span>
+<span class="nc" id="L493">		 double olaWdAmt = 0.0 ; //#orgValue.withdrawal - #orgValue.withdrawalRefund</span>
+<span class="nc" id="L494">		 double netGamingComm = 0.0 ;</span>
+<span class="nc" id="L495">		 double openingBal = 0.0 ;</span>
+<span class="nc" id="L496">		 double total = 0.0 ; 			 //#drawCash+#scratchCash-#agtNetPayment+#csSaleAmt-#csCancelAmt+#olaDepoAmt-#olaWdAmt-#netGamingComm2</span>
+<span class="nc" id="L497">		 double agentNetPayment = 0.0 ; //#orgValue.cash+#orgValue.cheque-#orgValue.chequeReturn-#orgValue.debit+#orgValue.credit+#orgValue.bankDep</span>
+<span class="nc" id="L498">		 double iwCash = 0.0;</span>
+<span class="nc" id="L499">		 double vsCash = 0.0;</span>
+<span class="nc bnc" id="L500" title="All 2 branches missed.">		 for(Map.Entry&lt;String, CollectionReportOverAllBean&gt; str : resultMap.entrySet())</span>
+		 {
+<span class="nc bnc" id="L502" title="All 2 branches missed.">			 if(ReportUtility.isDG)</span>
+			 {
+<span class="nc" id="L504">				 drawCash = str.getValue().getDgSale() -  str.getValue().getDgCancel() - str.getValue().getDgPwt() - str.getValue().getDgDirPlyPwt() ;</span>
+			 }
+<span class="nc bnc" id="L506" title="All 2 branches missed.">			 if(ReportUtility.isSE)</span>
+			 {
+<span class="nc" id="L508">				 scratchCash = str.getValue().getSeSale() - str.getValue().getSeCancel() - str.getValue().getSePwt() - str.getValue().getSeDirPlyPwt() ;</span>
+			 }
+<span class="nc bnc" id="L510" title="All 2 branches missed.">			 if(ReportUtility.isCS)</span>
+			 {
+<span class="nc" id="L512">				 csSaleAmt = str.getValue().getCSSale() ;</span>
+<span class="nc" id="L513">				 csCancelAmt = str.getValue().getCSCancel() ;</span>
+			 }
+<span class="nc bnc" id="L515" title="All 2 branches missed.">			 if(ReportUtility.isOLA)</span>
+			 {
+<span class="nc" id="L517">				 olaDepoAmt = str.getValue().getDeposit() - str.getValue().getDepositRefund() ;</span>
+<span class="nc" id="L518">				 olaWdAmt = str.getValue().getWithdrawal() - str.getValue().getWithdrawalRefund() ;</span>
+<span class="nc" id="L519">				 netGamingComm = str.getValue().getNetGamingComm() ;</span>
+			 }
+<span class="nc bnc" id="L521" title="All 2 branches missed.">			 if(ReportUtility.isIW) {</span>
+<span class="nc" id="L522">				iwCash = str.getValue().getIwSale() - str.getValue().getIwCancel() - str.getValue().getIwPwt() - str.getValue().getIwDirPlyPwt();</span>
+			 }
+<span class="nc bnc" id="L524" title="All 2 branches missed.">			if (ReportUtility.isVS) {</span>
+<span class="nc" id="L525">				vsCash = str.getValue().getVsSale() - str.getValue().getVsCancel() - str.getValue().getVsPwt() - str.getValue().getVsDirPlyPwt();</span>
+			}
+<span class="nc" id="L527">			agentNetPayment = str.getValue().getCash() + str.getValue().getCheque() - str.getValue().getChequeReturn() - str.getValue().getDebit() + str.getValue().getCredit() + str.getValue().getBankDep();</span>
+<span class="nc" id="L528">			total = drawCash + scratchCash - agentNetPayment + csSaleAmt - csCancelAmt + olaDepoAmt - olaWdAmt - netGamingComm + iwCash + vsCash;</span>
+<span class="nc" id="L529">			openingBal = str.getValue().getOpeningBal();</span>
+			 
+<span class="nc" id="L531">		 }</span>
+		 //double drawCash = resultMap.get(orgId).getDgSale() - resultMap.get(orgId).getDgCancel() - resultMap.get(orgId).getDgPwt() - resultMap.get(orgId).getDgDirPlyPwt() ; 
+<span class="nc" id="L533">		 double outBal = total + openingBal ;</span>
+		 
+<span class="nc" id="L535">		 return String.valueOf(outBal) ;</span>
+		
+		
+		
+	}
+	public String getRetOutstandingBal(int retOrgId, HttpServletRequest request, HttpSession session, int agtOrgId) throws ParseException, LMSException
+	{
+
+		
+		
+<span class="nc" id="L545">		 Calendar prevCal = Calendar.getInstance();</span>
+<span class="nc" id="L546">			String start_date = CommonMethods</span>
+					.convertDateInGlobalFormat(new java.sql.Date(prevCal
+							.getTimeInMillis()).toString(), &quot;yyyy-mm-dd&quot;,
+							(String) session.getAttribute(&quot;date_format&quot;));
+<span class="nc" id="L550">			ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L551">			String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+<span class="nc" id="L552">			String deploy_Date = (String) sc.getAttribute(&quot;DEPLOYMENT_DATE&quot;);</span>
+<span class="nc" id="L553">			Timestamp startDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+					.parse(start_date).getTime());
+<span class="nc" id="L555">			Timestamp endDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+					.parse(start_date).getTime()
+					+ 24 * 60 * 60 * 1000 - 1000);
+<span class="nc" id="L558">			Timestamp deployDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+					.parse(deploy_Date).getTime());
+			
+			/*boolean isDG = (Boolean) session.getAttribute(&quot;isDG&quot;) ;
+			boolean isSE = (Boolean) session.getAttribute(&quot;isSE&quot;) ;
+			boolean isCS = (Boolean) session.getAttribute(&quot;isCS&quot;) ;
+			boolean isOLA = (Boolean) session.getAttribute(&quot;isOLA&quot;) ;*/
+			
+<span class="nc" id="L566">			UserInfoBean userInfoBean = (UserInfoBean) session</span>
+			.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L568">			ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(ActionContext.getContext().getName());</span>
+<span class="nc" id="L569">			PaymentLedgerRetailerWiseReportHelper helper = new PaymentLedgerRetailerWiseReportHelper();</span>
+<span class="nc" id="L570">		 Map&lt;String, CollectionReportOverAllBean&gt; resultMap = helper</span>
+			.collectionRetailerWiseWithOpeningBal(deployDate,
+					startDate, endDate, agtOrgId, retOrgId, reportStatusBean);
+		 
+<span class="nc" id="L574">		 double drawCash = 0.0 ; //#orgValue.dgSale-#orgValue.dgCancel-#orgValue.dgPwt-#orgValue.dgDirPlyPwt</span>
+<span class="nc" id="L575">		 double scratchCash = 0.0 ; //#orgValue.seSale-#orgValue.seCancel-#orgValue.sePwt-#orgValue.seDirPlyPwt</span>
+<span class="nc" id="L576">		 double csSaleAmt = 0.0 ;</span>
+<span class="nc" id="L577">		 double csCancelAmt = 0.0 ;</span>
+<span class="nc" id="L578">		 double olaDepoAmt = 0.0 ; //#orgValue.deposit - #orgValue.depositRefund</span>
+<span class="nc" id="L579">		 double olaWdAmt = 0.0 ; //#orgValue.withdrawal - #orgValue.withdrawalRefund</span>
+<span class="nc" id="L580">		 double netGamingComm = 0.0 ;</span>
+<span class="nc" id="L581">		 double openingBal = 0.0 ;</span>
+<span class="nc" id="L582">		 double total = 0.0 ; 			 //#drawCash+#scratchCash-#agtNetPayment+#csSaleAmt-#csCancelAmt+#olaDepoAmt-#olaWdAmt-#netGamingComm2</span>
+<span class="nc" id="L583">		 double agentNetPayment = 0.0 ; //#orgValue.cash+#orgValue.cheque-#orgValue.chequeReturn-#orgValue.debit+#orgValue.credit+#orgValue.bankDep</span>
+<span class="nc" id="L584">		 double iwCash = 0.0;</span>
+<span class="nc" id="L585">		 double vsCash = 0.0;</span>
+<span class="nc bnc" id="L586" title="All 2 branches missed.">		 for(Map.Entry&lt;String, CollectionReportOverAllBean&gt; str : resultMap.entrySet())</span>
+		 {
+<span class="nc bnc" id="L588" title="All 2 branches missed.">			 if(ReportUtility.isDG)</span>
+			 {
+<span class="nc" id="L590">				 drawCash = str.getValue().getDgSale() -  str.getValue().getDgCancel() - str.getValue().getDgPwt() - str.getValue().getDgDirPlyPwt() ;</span>
+			 }
+<span class="nc bnc" id="L592" title="All 2 branches missed.">			 if(ReportUtility.isSE)</span>
+			 {
+<span class="nc" id="L594">				 scratchCash = str.getValue().getSeSale() - str.getValue().getSeCancel() - str.getValue().getSePwt() - str.getValue().getSeDirPlyPwt() ;</span>
+			 }
+<span class="nc bnc" id="L596" title="All 2 branches missed.">			 if(ReportUtility.isCS)</span>
+			 {
+<span class="nc" id="L598">				 csSaleAmt = str.getValue().getCSSale() ;</span>
+<span class="nc" id="L599">				 csCancelAmt = str.getValue().getCSCancel() ;</span>
+			 }
+<span class="nc bnc" id="L601" title="All 2 branches missed.">			 if(ReportUtility.isOLA)</span>
+			 {
+<span class="nc" id="L603">				 olaDepoAmt = str.getValue().getDeposit() - str.getValue().getDepositRefund() ;</span>
+<span class="nc" id="L604">				 olaWdAmt = str.getValue().getWithdrawal() - str.getValue().getWithdrawalRefund() ;</span>
+<span class="nc" id="L605">				 netGamingComm = str.getValue().getNetGamingComm() ;</span>
+			 }
+<span class="nc bnc" id="L607" title="All 2 branches missed.">			 if(ReportUtility.isIW) {</span>
+<span class="nc" id="L608">				iwCash = str.getValue().getIwSale() - str.getValue().getIwCancel() - str.getValue().getIwPwt() - str.getValue().getIwDirPlyPwt();</span>
+			 }
+<span class="nc bnc" id="L610" title="All 2 branches missed.">			 if(ReportUtility.isVS) {</span>
+<span class="nc" id="L611">				vsCash = str.getValue().getVsSale() - str.getValue().getVsCancel() - str.getValue().getVsPwt() - str.getValue().getVsDirPlyPwt();</span>
+			 }
+<span class="nc" id="L613">			 agentNetPayment = str.getValue().getCash() + str.getValue().getCheque() - str.getValue().getChequeReturn() - str.getValue().getDebit() + str.getValue().getCredit() + str.getValue().getBankDep() ;</span>
+<span class="nc" id="L614">			 total = drawCash + scratchCash - agentNetPayment + csSaleAmt - csCancelAmt + olaDepoAmt - olaWdAmt - netGamingComm + iwCash + vsCash;</span>
+<span class="nc" id="L615">			 openingBal = str.getValue().getOpeningBal() ;</span>
+			 
+<span class="nc" id="L617">		 }</span>
+		 //double drawCash = resultMap.get(orgId).getDgSale() - resultMap.get(orgId).getDgCancel() - resultMap.get(orgId).getDgPwt() - resultMap.get(orgId).getDgDirPlyPwt() ; 
+<span class="nc" id="L619">		 double outBal = total + openingBal ;</span>
+
+<span class="nc" id="L621">		 return String.valueOf(outBal) ;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

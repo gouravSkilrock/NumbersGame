@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AgentWiseSaleReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">AgentWiseSaleReportHelper.java</span></div><h1>AgentWiseSaleReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.beans.AgentWiseSaleBean;
+
+<span class="nc" id="L22">public class AgentWiseSaleReportHelper {</span>
+<span class="nc" id="L23">	static Log logger = LogFactory.getLog(AgentWiseSaleReportHelper.class);</span>
+
+	public void fetchReportData(String startDate,String endDate,Map&lt;Integer,AgentWiseSaleBean&gt; agentWiseSaleCommMap) throws LMSException{
+<span class="nc" id="L26">		Connection con=null;</span>
+<span class="nc" id="L27">		PreparedStatement pstmt=null;</span>
+<span class="nc" id="L28">		Statement stmt=null;</span>
+<span class="nc" id="L29">		double beforeLevyComm = 0.0;</span>
+<span class="nc" id="L30">		double afterLevyComm = 0.0;</span>
+<span class="nc" id="L31">		CallableStatement cstmt = null;</span>
+<span class="nc" id="L32">		ResultSet rs=null;</span>
+<span class="nc" id="L33">		double agentLevyComm = 0.0;</span>
+<span class="nc" id="L34">		ResultSet gameRs=null;</span>
+<span class="nc" id="L35">		AgentWiseSaleBean saleBean=null;</span>
+		
+		try{
+<span class="nc" id="L38">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L39">			String levyDateChangeQuery=&quot;SELECT olm.organization_id,olm.levy_rate,IFNULL(new_levy,0.00) new_levy,IFNULL(old_levy,0.00)old_levy,date_changed FROM st_lms_oranization_limits olm LEFT JOIN (SELECT ol.organization_id, date_changed,ol.levy_rate new_levy ,olh.levy_rate old_levy  FROM st_lms_oranization_limits ol  INNER JOIN st_lms_oranization_limits_history olh ON ol.organization_id=olh.organization_id WHERE  ol.levy_rate &lt;&gt; olh.levy_rate   AND  (date_changed &gt;='&quot;+startDate+&quot;' and date_changed &lt;='&quot;+endDate+&quot;' ) order by organization_id) olb ON olm.organization_id=olb.organization_id INNER JOIN st_lms_organization_master om ON om.organization_id=olm.organization_id WHERE om.organization_type='AGENT'&quot;;</span>
+<span class="nc" id="L40">	        stmt=con.createStatement();</span>
+<span class="nc" id="L41">	        logger.info(&quot;Agein Wise Sale levyDateChangeQuery:&quot;+levyDateChangeQuery);</span>
+<span class="nc" id="L42">	        rs=stmt.executeQuery(levyDateChangeQuery);</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">	        while(rs.next()){</span>
+<span class="nc" id="L44">	        	saleBean=new AgentWiseSaleBean();</span>
+<span class="nc" id="L45">	        	saleBean.setDateChanged(rs.getString(&quot;date_changed&quot;));</span>
+<span class="nc" id="L46">	        	saleBean.setFixLevyRate(rs.getDouble(&quot;levy_rate&quot;));</span>
+<span class="nc" id="L47">	        	saleBean.setOldLevyRate(rs.getDouble(&quot;old_levy&quot;));</span>
+<span class="nc" id="L48">	        	saleBean.setNewLevyRate(rs.getDouble(&quot;new_levy&quot;));</span>
+<span class="nc" id="L49">	        	agentWiseSaleCommMap.put(rs.getInt(&quot;organization_id&quot;), saleBean);</span>
+  	        }
+<span class="nc" id="L51">	        String gameQuery = &quot; select game_id from st_dg_game_master where closing_time &gt; '&quot;+startDate+&quot;' or closing_time is null&quot;;</span>
+<span class="nc" id="L52">	        String query=&quot;SELECT om.organization_id,CONCAT(om.org_code,'_',om.name) agent_name,IFNULL(SUM(mrp_amt),0.0) mrp_amt,IFNULL(SUM(good_cause_amt),0.0) good_cause_amt FROM st_lms_organization_master om LEFT JOIN (SELECT c.organization_id,c.parent_id,(c.mrp_amt-d.mrp_amt) mrp_amt,(c.good_cause_amt-d.good_cause_amt) good_cause_amt FROM(SELECT org_master.organization_id,parent_id,IFNULL(mrp_amt,0.0) mrp_amt,IFNULL(good_cause_amt,0.0) good_cause_amt FROM st_lms_organization_master org_master LEFT JOIN (SELECT sale.retailer_org_id,SUM(mrp_amt) mrp_amt,sum(good_cause_amt) good_cause_amt FROM st_dg_ret_sale_? sale inner join st_lms_retailer_transaction_master  txn_master ON sale.transaction_id=txn_master.transaction_id WHERE transaction_date&gt;=? and transaction_date&lt;=? GROUP BY sale.retailer_org_id) a ON org_master.organization_id=a.retailer_org_id WHERE organization_type=?) c INNER JOIN (select org_master.organization_id,parent_id,IFNULL(mrp_amt,0.0) mrp_amt,IFNULL(good_cause_amt,0.0) good_cause_amt FROM st_lms_organization_master org_master LEFT JOIN (SELECT refund.retailer_org_id,SUM(mrp_amt) mrp_amt,SUM(good_cause_amt) good_cause_amt FROM st_dg_ret_sale_refund_? refund INNER JOIN st_lms_retailer_transaction_master  txn_master on refund.transaction_id=txn_master.transaction_id WHERE transaction_date&gt;=? and transaction_date&lt;=?GROUP BY refund.retailer_org_id) b ON org_master.organization_id=b.retailer_org_id WHERE organization_type=?) d ON c.organization_id=d.organization_id) cd ON cd.parent_id=om.organization_id WHERE organization_type=? GROUP BY om.organization_id&quot;;</span>
+<span class="nc" id="L53">	        stmt=con.createStatement();</span>
+<span class="nc" id="L54">	        gameRs=stmt.executeQuery(gameQuery);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">	        while(gameRs.next()){</span>
+<span class="nc" id="L56">	        	int gameId=gameRs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L57">			    pstmt=con.prepareStatement(query);			</span>
+<span class="nc" id="L58">				pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L59">				pstmt.setString(2,startDate);</span>
+<span class="nc" id="L60">	            pstmt.setString(3,endDate);</span>
+<span class="nc" id="L61">	            pstmt.setString(4,&quot;RETAILER&quot;);</span>
+<span class="nc" id="L62">	            pstmt.setInt(5, gameId);</span>
+<span class="nc" id="L63">	            pstmt.setString(6,startDate);</span>
+<span class="nc" id="L64">	            pstmt.setString(7, endDate);</span>
+<span class="nc" id="L65">	            pstmt.setString(8, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L66">	            pstmt.setString(9,&quot;AGENT&quot;);</span>
+<span class="nc" id="L67">	            logger.info(&quot;getSaleCommAgentWise&quot;+pstmt.toString());</span>
+<span class="nc" id="L68">	            rs=pstmt.executeQuery();</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">	            while(rs.next()){</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">	            	if(agentWiseSaleCommMap.containsKey(rs.getInt(&quot;organization_id&quot;))){</span>
+<span class="nc" id="L71">	            		agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).setMrpAmt(agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getMrpAmt()+rs.getDouble(&quot;mrp_amt&quot;));</span>
+<span class="nc" id="L72">		            	agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).setGovtComm(agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getGovtComm()+rs.getDouble(&quot;good_cause_amt&quot;));</span>
+<span class="nc" id="L73">		            	agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).setAgentComm((agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getMrpAmt()-agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getGovtComm())*.01);</span>
+<span class="nc" id="L74">		            	agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).setAgentName(rs.getString(&quot;agent_name&quot;));</span>
+	            	}
+	         
+	            }
+<span class="nc" id="L78">	            cstmt = con.prepareCall(&quot;call getAgentWiseNetSaleBeforeLevyChange(?,?,?)&quot;);</span>
+<span class="nc" id="L79">	            cstmt.setTimestamp(1, Timestamp.valueOf(startDate));</span>
+<span class="nc" id="L80">	            cstmt.setTimestamp(2, Timestamp.valueOf(endDate));</span>
+<span class="nc" id="L81">	            cstmt.setInt(3, gameId);</span>
+<span class="nc" id="L82">	            logger.info(cstmt);</span>
+<span class="nc" id="L83">	            rs=cstmt.executeQuery();</span>
+	            
+<span class="nc bnc" id="L85" title="All 2 branches missed.">	            while(rs.next()){</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">	            	if(agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getMrpAmt() &gt; 0.0 ){</span>
+<span class="nc bnc" id="L87" title="All 4 branches missed.">	            		 if(&quot;NULL&quot;.equalsIgnoreCase(rs.getString(&quot;date_changed&quot;)) || rs.getString(&quot;date_changed&quot;)==null){</span>
+<span class="nc" id="L88">	 	 	            	agentLevyComm = agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getAgentComm()*agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getFixLevyRate()*.01;</span>
+<span class="nc" id="L89">	 	 	            	agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).setAgentLevyComm(agentLevyComm);</span>
+	 	 	            } else{
+	 	 	            	//Before
+<span class="nc" id="L92">	 	 	            	beforeLevyComm = (rs.getDouble(&quot;saleMrp&quot;)-rs.getDouble(&quot;govtComm&quot;))*.01*agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getOldLevyRate()*.01;</span>
+	 	 	            	//After
+<span class="nc" id="L94">	 	 	            	afterLevyComm = ((agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getMrpAmt()-rs.getDouble(&quot;saleMrp&quot;))-(agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getGovtComm()-rs.getDouble(&quot;govtComm&quot;)))*.01*agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getNewLevyRate()*.01;</span>
+	 	 	            	//set levy
+<span class="nc" id="L96">	 	 	            	agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).setAgentLevyComm(agentWiseSaleCommMap.get(rs.getInt(&quot;organization_id&quot;)).getAgentLevyComm()+beforeLevyComm + afterLevyComm);</span>
+	 	 	            }
+	            	}
+	            }
+	           
+	            
+<span class="nc" id="L102">	        }</span>
+<span class="nc" id="L103">		}catch(SQLException se){</span>
+<span class="nc" id="L104">			se.printStackTrace();</span>
+<span class="nc" id="L105">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L106">		}catch(Exception e){</span>
+<span class="nc" id="L107">			e.printStackTrace();</span>
+<span class="nc" id="L108">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally{
+<span class="nc" id="L110">			DBConnect.closeConnection(con, pstmt,rs);</span>
+<span class="nc" id="L111">			DBConnect.closeConnection(stmt, gameRs);</span>
+<span class="nc" id="L112">		}</span>
+<span class="nc" id="L113">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

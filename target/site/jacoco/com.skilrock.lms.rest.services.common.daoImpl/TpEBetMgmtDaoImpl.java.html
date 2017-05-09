@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TpEBetMgmtDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.rest.services.common.daoImpl</a> &gt; <span class="el_source">TpEBetMgmtDaoImpl.java</span></div><h1>TpEBetMgmtDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.rest.services.common.daoImpl;
+
+import java.sql.Blob;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.rest.services.bean.TpEBetDataBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L22">public class TpEBetMgmtDaoImpl {</span>
+    
+<span class="nc" id="L24">    private static Logger logger = LoggerFactory.getLogger(TpEBetMgmtDaoImpl.class);</span>
+	
+<span class="nc" id="L26">	private static TpEBetMgmtDaoImpl classInstance = null;</span>
+
+	public static TpEBetMgmtDaoImpl getInstance() {
+<span class="nc bnc" id="L29" title="All 2 branches missed.">		if (classInstance == null)</span>
+<span class="nc" id="L30">			classInstance = new TpEBetMgmtDaoImpl();</span>
+<span class="nc" id="L31">		return classInstance;</span>
+	}
+	
+	public synchronized void fetchEBetTokenId(TpEBetDataBean betDataBean)throws LMSException{
+<span class="nc" id="L35">	    	  logger.info(&quot;inside fetchEBetTokenId method with betDataBean {} &quot;,betDataBean);</span>
+<span class="nc" id="L36">		  Connection con=null;</span>
+<span class="nc" id="L37">		  int tokenCount = 0;</span>
+		  try{
+<span class="nc" id="L39">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L40">			tokenCount = TpEBetMgmtDaoImpl.getInstance().checkAndGenerateTokenCount(betDataBean,con);</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">			if(tokenCount &lt;Integer.parseInt(Utility.getPropertyValue(&quot;MAX_DEVICE_PER_RETAILER&quot;))){</span>
+<span class="nc" id="L42">			    int getTokenCount = Integer.parseInt(betDataBean.getTokenId().substring(1,betDataBean.getTokenId().length()));</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">			    if(getTokenCount &lt; 99){</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">				   if(getTokenCount&lt; 9)</span>
+<span class="nc" id="L45">				     betDataBean.setTokenId(betDataBean.getDeviceCode()+&quot;0&quot;+(getTokenCount+1));</span>
+				   else{
+<span class="nc" id="L47">				       betDataBean.setTokenId(betDataBean.getDeviceCode()+(getTokenCount+1));</span>
+				   }
+<span class="nc bnc" id="L49" title="All 2 branches missed.">			    }else if(getTokenCount == 99) {</span>
+<span class="nc" id="L50">				betDataBean.setTokenId(betDataBean.getDeviceCode()+&quot;0&quot;+1);</span>
+			    }else {
+<span class="nc" id="L52">				  throw new LMSException(LMSErrors.BET_SLIP_NOT_GENERATED_ERROR_CODE,LMSErrors.BET_SLIP_NOT_GENERATED_ERROR_MESSAGE);</span>
+			    }
+			  
+<span class="nc" id="L55">			    TpEBetMgmtDaoImpl.getInstance().saveRequestDataAndGetTokenId(betDataBean,con);</span>
+<span class="nc" id="L56">			}else{</span>
+<span class="nc" id="L57">				throw new LMSException(LMSErrors.MAX_DEVICE_PER_RETAILER_ERROR_CODE,LMSErrors.MAX_DEVICE_PER_RETAILER_ERROR_MESSAGE);</span>
+			}
+<span class="nc" id="L59">		  }catch(LMSException e){</span>
+<span class="nc" id="L60">			throw e;</span>
+<span class="nc" id="L61">		  }catch(Exception e){</span>
+<span class="nc" id="L62">			  e.printStackTrace();</span>
+<span class="nc" id="L63">			  throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		  }finally{
+<span class="nc" id="L65">		      DBConnect.closeResource(con);</span>
+<span class="nc" id="L66">		  }</span>
+<span class="nc" id="L67">	}</span>
+
+
+	private int checkAndGenerateTokenCount(TpEBetDataBean betDataBean,Connection con)throws LMSException {
+<span class="nc" id="L71">	    logger.info(&quot;inside fetchAndCheckRequestDataData method with connection and betDataBean {} &quot;,betDataBean);</span>
+
+<span class="nc" id="L73">	    	PreparedStatement pstmt = null;</span>
+<span class="nc" id="L74">		ResultSet rs = null;</span>
+<span class="nc" id="L75">		int ticketCount = 0;</span>
+		try {
+<span class="nc" id="L77">			pstmt = con.prepareStatement(&quot; SELECT  b.id,b.user_id,b.organization_id,b.device_code ,IFNULL(token_id, '00') as token_id  FROM st_lms_ebet_sale_request a right join st_lms_ebet_retailer_mappping b on a.device_map_id = b.Id and a.status = 'initiated' and a.ebet_expiry_datetime &gt; ?  WHERE b.device_id  = ?  order by a.id desc&quot;);</span>
+<span class="nc" id="L78">			pstmt.setString(1,Util.getCurrentTimeString());</span>
+<span class="nc" id="L79">			pstmt.setString(2,betDataBean.getDeviceId());</span>
+<span class="nc" id="L80">			logger.info(&quot;fetchAndCheckRequestDataData**************** pstmt= {}&quot;,pstmt);</span>
+<span class="nc" id="L81">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">			    if(rs.getRow() == 1){</span>
+<span class="nc" id="L84">				betDataBean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+<span class="nc" id="L85">				betDataBean.setDeviceMapId(rs.getInt(&quot;id&quot;));</span>
+<span class="nc" id="L86">				betDataBean.setOrganizationId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L87">				betDataBean.setDeviceCode(rs.getString(&quot;device_code&quot;));</span>
+<span class="nc" id="L88">				betDataBean.setTokenId(rs.getString(&quot;token_id&quot;));</span>
+			    }
+<span class="nc" id="L90">			    ticketCount = rs.getRow();</span>
+			}
+<span class="nc" id="L92">		} catch (SQLException e) {</span>
+<span class="nc" id="L93">			logger.error(&quot;SQLException e {}&quot;,e);</span>
+<span class="nc" id="L94">			throw new LMSException();</span>
+		}finally{
+<span class="nc" id="L96">		      DBConnect.closeResource(pstmt,rs);</span>
+<span class="nc" id="L97">		  }</span>
+<span class="nc" id="L98">		return ticketCount;</span>
+	}
+	
+
+	private void saveRequestDataAndGetTokenId(TpEBetDataBean betDataBean,	Connection con)throws LMSException{
+<span class="nc" id="L103">	    logger.info(&quot;inside saveRequestDataAndGetTokenId method with connection and betDataBean {} &quot;,betDataBean);</span>
+<span class="nc" id="L104">		PreparedStatement pstmt  = null;</span>
+		try{
+<span class="nc" id="L106">		    pstmt  = con.prepareStatement(&quot;insert into st_lms_ebet_sale_request(token_id,user_id,organization_id,device_map_id,request_data,sale_type,ebet_request_datetime,ebet_expiry_datetime,user_mobile,status)values(?,?,?,?,?,?,?,date_add(?,interval ? MINUTE),?,?)&quot;,Statement.RETURN_GENERATED_KEYS);</span>
+<span class="nc" id="L107">		    pstmt.setString(1,betDataBean.getTokenId());</span>
+<span class="nc" id="L108">		    pstmt.setInt(2, betDataBean.getUserId());</span>
+<span class="nc" id="L109">		    pstmt.setInt(3,betDataBean.getOrganizationId());</span>
+<span class="nc" id="L110">		    pstmt.setInt(4,betDataBean.getDeviceMapId());</span>
+<span class="nc" id="L111">		    pstmt.setString(5,betDataBean.getRequestData());</span>
+<span class="nc" id="L112">		    pstmt.setString(6,betDataBean.getSaleType());</span>
+<span class="nc" id="L113">		    pstmt.setString(7,Util.getCurrentTimeString());</span>
+<span class="nc" id="L114">		    pstmt.setString(8,Util.getCurrentTimeString());</span>
+<span class="nc" id="L115">		    pstmt.setString(9,Utility.getPropertyValue(&quot;EBET_EXPIRY_PERIOD&quot;));</span>
+<span class="nc" id="L116">		    pstmt.setString(10,betDataBean.getMobileNumber());</span>
+<span class="nc" id="L117">		    pstmt.setString(11,&quot;Initiated&quot;);</span>
+<span class="nc" id="L118">		    logger.info(&quot;st_lms_ebet_sale_request Insert Data pstmt= {}&quot;,pstmt);</span>
+<span class="nc" id="L119">		    pstmt.executeUpdate();</span>
+<span class="nc" id="L120">		}catch (SQLException e) {</span>
+<span class="nc" id="L121">			logger.error(&quot;SQLException e {}&quot;,e);</span>
+<span class="nc" id="L122">			throw new LMSException();</span>
+		}finally{
+<span class="nc" id="L124">		    DBConnect.closeResource(pstmt);</span>
+<span class="nc" id="L125">		}</span>
+<span class="nc" id="L126">	}</span>
+	
+	public List&lt;TpEBetDataBean&gt; fetchSaleData(TpEBetDataBean betDataBean)throws LMSException {
+<span class="nc" id="L129">	    logger.info(&quot;inside fetchAndCheckRequestDataData method with connection and betDataBean {} &quot;,betDataBean);</span>
+
+<span class="nc" id="L131">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L132">		ResultSet rs = null;</span>
+<span class="nc" id="L133">		TpEBetDataBean bean = null;</span>
+<span class="nc" id="L134">		Connection con = null;</span>
+<span class="nc" id="L135">		Blob blob = null; </span>
+<span class="nc" id="L136">		int orgId = 0;</span>
+<span class="nc" id="L137">		List&lt;TpEBetDataBean&gt; betDataList = new ArrayList&lt;TpEBetDataBean&gt;();</span>
+		try {
+<span class="nc" id="L139">		    	con = DBConnect.getConnection();</span>
+<span class="nc" id="L140">		    	orgId = new TpEBetMgmtDaoImpl().getOrgIdFromUserName(betDataBean.getUserName(), con);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">		    	if (betDataBean.getDeviceId().trim().isEmpty()) {</span>
+<span class="nc" id="L142">        		    pstmt = con.prepareStatement(&quot;SELECT a.id,token_id,a.user_id,a.organization_id,model_id,device_id,device_code,request_data,sale_type,ebet_request_datetime,ebet_expiry_datetime,user_mobile,processed_datetime FROM st_lms_ebet_sale_request a inner join st_lms_ebet_retailer_mappping b on a.device_map_id = b.Id WHERE a.organization_id = ? and status = 'initiated' and ebet_expiry_datetime &gt; ? order by device_code,ebet_request_datetime desc&quot;);</span>
+<span class="nc" id="L143">        		    pstmt.setInt(1,orgId);</span>
+<span class="nc" id="L144">        		    pstmt.setString(2,Util.getCurrentTimeString());</span>
+<span class="nc" id="L145">    			    logger.info(&quot;fetchAndCheckRequestDataData**************** pstmt= {}&quot;,pstmt);</span>
+<span class="nc" id="L146">    			    rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">    			    while(rs.next()) {</span>
+<span class="nc" id="L148">    				bean = new TpEBetDataBean();</span>
+<span class="nc" id="L149">    				bean.setRequestId(rs.getInt(&quot;id&quot;));</span>
+<span class="nc" id="L150">    				bean.setTokenId(rs.getString(&quot;token_id&quot;));</span>
+<span class="nc" id="L151">    				bean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+<span class="nc" id="L152">    				bean.setOrganizationId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L153">    				bean.setDeviceCode(rs.getString(&quot;device_code&quot;));</span>
+<span class="nc" id="L154">    				blob =rs.getBlob(&quot;request_data&quot;);</span>
+<span class="nc" id="L155">    				bean.setRequestData(new String(blob.getBytes(1,(int)blob.length())));</span>
+<span class="nc" id="L156">    				bean.setSaleType(rs.getString(&quot;sale_type&quot;));</span>
+<span class="nc" id="L157">    				bean.setEbetRequestDatetime(rs.getString(&quot;ebet_request_datetime&quot;));</span>
+<span class="nc" id="L158">    				bean.setEbetExpiryDatetime(rs.getString(&quot;ebet_expiry_datetime&quot;));</span>
+<span class="nc" id="L159">    				bean.setMobileNumber(rs.getString(&quot;user_mobile&quot;));</span>
+<span class="nc" id="L160">    				bean.setProcessedDatetime(rs.getString(&quot;processed_datetime&quot;));</span>
+<span class="nc" id="L161">    				bean.setDeviceId(rs.getString(&quot;device_id&quot;));</span>
+<span class="nc" id="L162">    				bean.setModelId(rs.getInt(&quot;model_id&quot;));</span>
+<span class="nc" id="L163">    				betDataList.add(bean);</span>
+    			    }
+			}else{
+<span class="nc" id="L166">			    pstmt = con.prepareStatement(&quot;SELECT a.id,token_id,a.user_id,a.organization_id,model_id,device_id,device_code,request_data,sale_type,ebet_request_datetime,ebet_expiry_datetime,user_mobile,processed_datetime FROM st_lms_ebet_sale_request a inner join st_lms_ebet_retailer_mappping b on a.device_map_id = b.Id WHERE b.device_id = ? and  a.organization_id = ? and status = 'initiated' and ebet_expiry_datetime &gt; ? order by device_code,ebet_request_datetime desc&quot;);</span>
+<span class="nc" id="L167">        		    pstmt.setString(1,betDataBean.getDeviceId());</span>
+<span class="nc" id="L168">        		    pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L169">        		    pstmt.setString(3, Util.getCurrentTimeString());</span>
+<span class="nc" id="L170">    			    logger.info(&quot;fetchAndCheckRequestDataData**************** pstmt= {}&quot;,pstmt);</span>
+<span class="nc" id="L171">    			    rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">			    while(rs.next()) {</span>
+<span class="nc" id="L173">        			bean = new TpEBetDataBean();</span>
+<span class="nc" id="L174">        			bean.setRequestId(rs.getInt(&quot;id&quot;));</span>
+<span class="nc" id="L175">        			bean.setTokenId(rs.getString(&quot;token_id&quot;));</span>
+<span class="nc" id="L176">        			bean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+<span class="nc" id="L177">        			bean.setOrganizationId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L178">        			bean.setDeviceCode(rs.getString(&quot;device_code&quot;));</span>
+<span class="nc" id="L179">        			blob =rs.getBlob(&quot;request_data&quot;);</span>
+<span class="nc" id="L180">    				bean.setRequestData(new String(blob.getBytes(1,(int)blob.length())));</span>
+<span class="nc" id="L181">        			bean.setSaleType(rs.getString(&quot;sale_type&quot;));</span>
+<span class="nc" id="L182">        			bean.setEbetRequestDatetime(rs.getString(&quot;ebet_request_datetime&quot;));</span>
+<span class="nc" id="L183">        			bean.setEbetExpiryDatetime(rs.getString(&quot;ebet_expiry_datetime&quot;));</span>
+<span class="nc" id="L184">        			bean.setMobileNumber(rs.getString(&quot;user_mobile&quot;));</span>
+<span class="nc" id="L185">        			bean.setProcessedDatetime(rs.getString(&quot;processed_datetime&quot;));</span>
+<span class="nc" id="L186">        			bean.setModelId(rs.getInt(&quot;model_id&quot;));</span>
+<span class="nc" id="L187">        			betDataList.add(bean);</span>
+        		    }
+			}
+			
+<span class="nc" id="L191">		} catch (SQLException e) {</span>
+<span class="nc" id="L192">			logger.error(&quot;SQLException e {}&quot;,e);</span>
+<span class="nc" id="L193">			throw new LMSException();</span>
+		}finally{
+<span class="nc" id="L195">		      DBConnect.closeResource(con,pstmt,rs);</span>
+<span class="nc" id="L196">		  }</span>
+<span class="nc" id="L197">		return betDataList;</span>
+	}
+	public void cancelEBetSaleData(int requestId)
+		throws LMSException {
+<span class="nc" id="L201">	    	logger.info(&quot;inside cancelEBetSaleData method with connection&quot;,requestId);</span>
+<span class="nc" id="L202">	    	PreparedStatement ps = null;</span>
+<span class="nc" id="L203">	    	Connection con = null;</span>
+	    	try {
+<span class="nc" id="L205">        		con = DBConnect.getConnection();</span>
+<span class="nc" id="L206">        		String query = &quot;update st_lms_ebet_sale_request set processed_datetime=?,status=? where Id=? and status=?&quot;;</span>
+<span class="nc" id="L207">        		ps = con.prepareStatement(query);</span>
+<span class="nc" id="L208">        		ps.setString(1, Util.getCurrentTimeString());</span>
+<span class="nc" id="L209">        		ps.setString(2, &quot;Cancelled&quot;);</span>
+<span class="nc" id="L210">        		ps.setInt(3, requestId);</span>
+<span class="nc" id="L211">        		ps.setString(4,&quot;Initiated&quot;);</span>
+<span class="nc" id="L212">        		ps.executeUpdate();</span>
+<span class="nc" id="L213">        	} catch (SQLException e) {</span>
+<span class="nc" id="L214">        	    logger.info(&quot;SQLException e {}&quot;, e);</span>
+<span class="nc" id="L215">        	    throw new LMSException();</span>
+        	} finally {
+<span class="nc" id="L217">        	    DBConnect.closeResource(con, ps);</span>
+<span class="nc" id="L218">        	}</span>
+<span class="nc" id="L219">	}</span>
+	
+	public int getOrgIdFromUserName(String userName, Connection con)
+		throws LMSException {
+<span class="nc" id="L223">	    	logger.info(&quot;inside getOrgIdFromUserName method with connection and userName {} {}&quot;,userName);</span>
+<span class="nc" id="L224">	    	PreparedStatement psmt = null;</span>
+<span class="nc" id="L225">	    	int orgId = 0;</span>
+<span class="nc" id="L226">	    	ResultSet rs = null;</span>
+	    	try {
+<span class="nc" id="L228">        		String query = &quot;select organization_id from st_lms_user_master where user_name = ?&quot;;</span>
+<span class="nc" id="L229">        		psmt = con.prepareStatement(query);</span>
+<span class="nc" id="L230">        		psmt.setString(1, userName);</span>
+<span class="nc" id="L231">        		rs = psmt.executeQuery();</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        		while(rs.next()) {</span>
+<span class="nc" id="L233">        		    orgId = rs.getInt(&quot;organization_id&quot;);</span>
+        		}
+<span class="nc" id="L235">        		logger.info(&quot;query {}&quot;, psmt);</span>
+<span class="nc" id="L236">        	} catch (SQLException e) {</span>
+<span class="nc" id="L237">        	    logger.info(&quot;SQLException e {}&quot;, e);</span>
+<span class="nc" id="L238">        	    throw new LMSException();</span>
+        	} finally {
+<span class="nc" id="L240">        	    DBConnect.closeResource(rs,psmt);</span>
+<span class="nc" id="L241">        	}</span>
+<span class="nc" id="L242">		return orgId;</span>
+	}
+	
+	public boolean isBetSlipActive(String tokenId) throws LMSException{
+<span class="nc" id="L246">		Connection con = null;</span>
+<span class="nc" id="L247">		PreparedStatement ps = null;</span>
+<span class="nc" id="L248">		ResultSet rs = null;</span>
+<span class="nc" id="L249">		String query = null;</span>
+		try {
+<span class="nc" id="L251">			query = &quot;SELECT Id FROM st_lms_ebet_sale_request WHERE token_Id = ? AND ebet_expiry_datetime &gt; ? AND status = 'initiated'&quot;;</span>
+<span class="nc" id="L252">			con =  DBConnect.getConnection();</span>
+<span class="nc" id="L253">			ps = con.prepareStatement(query);</span>
+<span class="nc" id="L254">			ps.setString(1, tokenId);</span>
+<span class="nc" id="L255">			ps.setString(2, Util.getCurrentTimeString());</span>
+<span class="nc" id="L256">			rs = ps.executeQuery();</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L258">				return true;</span>
+			}
+			
+<span class="nc" id="L261">		} catch (Exception e) {</span>
+<span class="nc" id="L262">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L264">			DBConnect.closeResource(con,ps,rs);</span>
+<span class="nc" id="L265">		}</span>
+<span class="nc" id="L266">		return false;</span>
+		
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

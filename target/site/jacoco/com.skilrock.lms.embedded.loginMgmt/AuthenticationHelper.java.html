@@ -1,0 +1,714 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthenticationHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.embedded.loginMgmt</a> &gt; <span class="el_source">AuthenticationHelper.java</span></div><h1>AuthenticationHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.embedded.loginMgmt;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.LoginBean;
+import com.skilrock.lms.beans.ServicesBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.ConfigurationVariables;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.LatLongFromCellId;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameOfflineHelper;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.coreEngine.loginMgmt.common.UserAuthenticationHelper;
+import com.skilrock.lms.coreEngine.messageMgmt.MessageUtility;
+import com.skilrock.lms.dge.beans.BetDetailsBean;
+import com.skilrock.lms.dge.beans.GameMasterLMSBean;
+import com.skilrock.lms.embedded.drawGames.common.EmbeddedErrors;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L37">public class AuthenticationHelper {</span>
+<span class="nc" id="L38">	private static Log logger = LogFactory.getLog(AuthenticationHelper.class);</span>
+public LoginBean authentication(String invCode,String invModel, String terminalId,String deviceType,String profile,double version,String simType,double CAPP ,double CCONF,double CDLL,String uname,String password,
+		String loginAttempts,String refMerchantId,long LSTktNo,String actionName, Map frzTimeMap,Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap,Map&lt;Integer, List&lt;List&gt;&gt;  drawTimeMap, int msgId, int CID, int LAC, StringBuilder finalData,String sessionId) throws LMSException{
+<span class="nc" id="L41">	Connection con =null;</span>
+<span class="nc" id="L42">	LoginBean loginBean =new LoginBean();</span>
+<span class="nc" id="L43">	PreparedStatement retPstmt=null;</span>
+<span class="nc" id="L44">	PreparedStatement retSimPstmt =null;</span>
+<span class="nc" id="L45">	ResultSet retRs=null;</span>
+<span class="nc" id="L46">	ResultSet retSimRs=null;</span>
+	try{
+		
+<span class="nc" id="L49">		con=DBConnect.getConnection();</span>
+<span class="nc" id="L50">		UserAuthenticationHelper loginAuth = new UserAuthenticationHelper();</span>
+		//check terminal Id for lms Wrapper
+<span class="nc bnc" id="L52" title="All 2 branches missed.">		if(Utility.getPropertyValue(&quot;IS_WRAPPER_ENABLED&quot;).equalsIgnoreCase(&quot;YES&quot;)){</span>
+			
+<span class="nc bnc" id="L54" title="All 2 branches missed.">			if(!loginAuth.checkTerminalId(terminalId,con)){</span>
+<span class="nc" id="L55">				logger.info(&quot;terminal Id not exist&quot;);</span>
+<span class="nc" id="L56">				loginBean.setErrorCode(EmbeddedErrors.ERROR_200); </span>
+<span class="nc" id="L57">				return loginBean ;</span>
+			}
+		}
+<span class="nc" id="L60">	loginBean = loginAuth.loginAuthentication(uname, password,&quot;TERMINAL&quot;, loginAttempts,con,sessionId , true);</span>
+<span class="nc" id="L61">	String returntype = loginBean.getStatus();</span>
+<span class="nc" id="L62">	logger.info(&quot;The user login is &quot; + returntype);</span>
+<span class="nc" id="L63">	UserInfoBean userInfo = loginBean.getUserInfo();</span>
+<span class="nc" id="L64">	logger.info(&quot;USER_NAME-----&gt; &quot; + uname);</span>
+	//System.out.println(&quot;PASSWORD-----&gt; &quot; + password);
+<span class="nc" id="L66">	String firstLogin = &quot;&quot;;	</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">	if (returntype.equals(&quot;success&quot;) || returntype.equals(&quot;FirstTime&quot;)) {</span>
+		
+		//String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);
+		// int autoCancelHoldDays=Integer.parseInt((String) sc.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));
+<span class="nc" id="L71">		long lastPrintedTicket=0;</span>
+<span class="nc" id="L72">		int gameId1 = 0;</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">		if(LSTktNo !=0){</span>
+<span class="nc" id="L74">			lastPrintedTicket = LSTktNo/Util.getDivValueForLastSoldTkt(String.valueOf(LSTktNo).length());</span>
+<span class="nc" id="L75">			gameId1 = Util.getGameIdFromGameNumber(Util.getGamenoFromTktnumber(String.valueOf(LSTktNo)));</span>
+		}
+
+		
+<span class="nc" id="L79">		DrawGameRPOSHelper drawGameRPOSHelper = new DrawGameRPOSHelper();</span>
+
+<span class="nc" id="L81">		String ticketNo = String.valueOf(LSTktNo);</span>
+<span class="nc" id="L82">		con.setAutoCommit(false);</span>
+<span class="nc" id="L83">		int tktNo = 0;</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">		if(ticketNo.length() &gt; 1)</span>
+		{
+<span class="nc" id="L86">			tktNo = Util.getUserIdFromTicket(ticketNo);</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">			if(userInfo.getUserId() == tktNo)</span>
+<span class="nc" id="L88">				drawGameRPOSHelper.checkLastPrintedTicketStatusAndUpdate(userInfo,lastPrintedTicket,&quot;TERMINAL&quot;,refMerchantId,Integer.parseInt(Utility.getPropertyValue(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;)),actionName, gameId1,con);</span>
+		}
+		
+		
+		//get all details from st_lms_ret_offline_master
+<span class="nc" id="L93">		String dbTerminalId=&quot;&quot;;</span>
+<span class="nc" id="L94">		String downloadAvailable=&quot;NO&quot;;</span>
+<span class="nc" id="L95">		double expectedVersion=0.0;</span>
+<span class="nc" id="L96">		String expVersion=null;</span>
+<span class="nc" id="L97">		boolean isOfflineUser = false;</span>
+<span class="nc" id="L98">		String offLineStatus=&quot;INACTIVE&quot;;</span>
+<span class="nc" id="L99">		int binding_length=0;</span>
+<span class="nc" id="L100">		boolean isLoginBinding = Utility.getPropertyValue(&quot;LOGIN_BINDING&quot;).equalsIgnoreCase(&quot;YES&quot;);</span>
+<span class="nc" id="L101">		boolean isSimBinding =  Utility.getPropertyValue(&quot;sim_binding&quot;).equalsIgnoreCase(&quot;YES&quot;);</span>
+		
+<span class="nc bnc" id="L103" title="All 2 branches missed.">		if(isLoginBinding){</span>
+<span class="nc" id="L104">			retPstmt=con.prepareStatement(&quot; select iom.serial_number,iom.is_download_available,iom.expected_version,iom.is_offline,iom.offline_status, imm.check_binding_length from st_lms_ret_offline_master iom inner join st_lms_inv_model_master imm on iom.device_type = imm.model_name where iom.user_id = ? and iom.device_type = ?&quot;);</span>
+<span class="nc" id="L105">			retPstmt.setInt(1, userInfo.getUserId());</span>
+<span class="nc" id="L106">			retPstmt.setString(2, deviceType);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">			if(isSimBinding){</span>
+<span class="nc" id="L108">				String invCol =null;</span>
+<span class="nc" id="L109">				int invModelId=0;</span>
+<span class="nc" id="L110">				retSimPstmt = con.prepareStatement(&quot;select inv_column_name,model_id from st_lms_inv_model_master where model_name=?&quot; ); </span>
+<span class="nc" id="L111">				retSimPstmt.setString(1,invModel);</span>
+<span class="nc" id="L112">				retSimRs=retSimPstmt.executeQuery();</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">				if(retSimRs.next()){</span>
+<span class="nc" id="L114">					invCol =retSimRs.getString(&quot;inv_column_name&quot;);</span>
+<span class="nc" id="L115">					invModelId =retSimRs.getInt(&quot;model_id&quot;);</span>
+				}else{
+<span class="nc" id="L117">					loginAuth = null;</span>
+<span class="nc" id="L118">					logger.info(&quot;You cannot login using this MODEL &quot;);</span>
+<span class="nc" id="L119">					loginBean.setErrorCode(EmbeddedErrors.ERROR_204);</span>
+<span class="nc" id="L120">					return loginBean ;	</span>
+					
+				}
+<span class="nc" id="L123">				DBConnect.closeConnection(retSimPstmt, retSimRs);</span>
+<span class="nc" id="L124">				retSimPstmt = con.prepareStatement(&quot;select inv_code invCode from st_lms_ret_offline_master iom inner join st_lms_inv_mapping invMap  on ( iom.&quot;+invCol+&quot;=invMap. serial_no )  where iom.user_id = ? and inv_model_id=? &quot;);</span>
+<span class="nc" id="L125">				retSimPstmt.setInt(1, userInfo.getUserId());</span>
+<span class="nc" id="L126">				retSimPstmt.setInt(2,invModelId);</span>
+<span class="nc" id="L127">				retSimRs=retSimPstmt.executeQuery();</span>
+<span class="nc" id="L128">			}</span>
+		}else{
+<span class="nc" id="L130">			retPstmt=con.prepareStatement(&quot;select iom.serial_number,iom.is_download_available,iom.expected_version,iom.is_offline,iom.offline_status from st_lms_ret_offline_master iom where iom.user_id = ?&quot;);</span>
+<span class="nc" id="L131">			retPstmt.setInt(1, userInfo.getUserId());</span>
+		}
+<span class="nc" id="L133">		retRs=retPstmt.executeQuery();</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">		if(retRs.next()){</span>
+<span class="nc" id="L135">			dbTerminalId=retRs.getString(&quot;serial_number&quot;);					</span>
+<span class="nc" id="L136">			downloadAvailable=retRs.getString(&quot;is_download_available&quot;);</span>
+<span class="nc" id="L137">			expectedVersion=retRs.getDouble(&quot;expected_version&quot;);</span>
+<span class="nc" id="L138">			expVersion=retRs.getString(&quot;expected_version&quot;);</span>
+<span class="nc" id="L139">			isOfflineUser=&quot;YES&quot;.equals(retRs.getString(&quot;is_offline&quot;));</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">			if(isOfflineUser)</span>
+<span class="nc" id="L141">				offLineStatus=retRs.getString(&quot;offline_status&quot;);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">			if(isLoginBinding){</span>
+<span class="nc" id="L143">				binding_length = Integer.parseInt(retRs.getString(&quot;check_binding_length&quot;));				</span>
+			}
+<span class="nc bnc" id="L145" title="All 2 branches missed.">			if(isSimBinding){</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				if(retSimRs.next()){</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">					boolean isValidSim = retSimRs.getString(&quot;invCode&quot;).equalsIgnoreCase(invCode)?true:false ;  </span>
+					
+<span class="nc bnc" id="L149" title="All 2 branches missed.">					if(!isValidSim){</span>
+<span class="nc" id="L150">						loginAuth = null;</span>
+<span class="nc" id="L151">						logger.info(&quot;Invalid IMSI/Inventory Code Provided&quot;);</span>
+<span class="nc" id="L152">						loginBean.setErrorCode(EmbeddedErrors.ERROR_204);</span>
+<span class="nc" id="L153">						return loginBean ;	</span>
+					}
+					
+<span class="nc" id="L156">				}else{</span>
+<span class="nc" id="L157">					loginAuth = null;</span>
+<span class="nc" id="L158">					logger.info(&quot;You cannot login using this SIM &quot;);</span>
+<span class="nc" id="L159">					loginBean.setErrorCode(EmbeddedErrors.ERROR_204);</span>
+<span class="nc" id="L160">					return loginBean ;	</span>
+					
+				}
+<span class="nc" id="L163">				DBConnect.closeConnection(retSimPstmt, retSimRs);</span>
+				
+			}
+			
+			
+		}else {
+<span class="nc" id="L169">			loginAuth = null;</span>
+<span class="nc" id="L170">			logger.info(&quot;You cannot login using terminal&quot;);</span>
+<span class="nc" id="L171">			loginBean.setErrorCode(EmbeddedErrors.ERROR_203);</span>
+<span class="nc" id="L172">			return loginBean ;		</span>
+		}
+		
+<span class="nc bnc" id="L175" title="All 2 branches missed.">		if(isLoginBinding){</span>
+<span class="nc" id="L176">			boolean isValidTerminal =loginAuth.validateTerminalId(dbTerminalId,terminalId,deviceType, binding_length);</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			if (!isValidTerminal) {</span>
+<span class="nc" id="L178">				loginBean.setErrorCode(EmbeddedErrors.ERROR_201);</span>
+<span class="nc" id="L179">				return loginBean ;</span>
+			}
+		}
+
+		/*if ( !isValidTerminal) {
+			
+			/*if(loginAuth.checkTerminalId(terminalId) || !&quot;YES&quot;.equalsIgnoreCase((String) ServletActionContext
+				.getServletContext().getAttribute(&quot;IS_WRAPPER_ENABLED&quot;))){*/
+			//response.getOutputStream().write((&quot;ErrorMsg:&quot; + EmbeddedErrors.LOGIN_INVALID_TERMINAL_ID).getBytes());
+			/*loginBean.setErrorCode(EmbeddedErrors.ERROR_201);
+			return loginBean ;*/
+				/*	}else{
+				response
+				.getOutputStream()
+				.write(
+						(&quot;ErrorMsg:&quot; + (String) ServletActionContext.getServletContext()
+								.getAttribute(&quot;WRAPPER_IP&quot;)+&quot;|&quot; + &quot;ErrorCode:04|&quot;)
+								.getBytes());
+				
+				System.out.println(&quot;&quot;+&quot;ErrorMsg:&quot; + (String) ServletActionContext.getServletContext()
+								.getAttribute(&quot;WRAPPER_IP&quot;)+&quot;|&quot; + &quot;ErrorCode:04|&quot;);
+				
+				return;
+			}*/
+		//}
+		/*
+		 * if(version &gt;= 4.0 &amp;&amp;
+		 * DrawGameOfflineHelper.checkOfflineUser(userInfo.getUserId())){
+		 * response.getOutputStream().write(&quot;ErrorMsg:Offline Game is Not
+		 * Available.|&quot;.getBytes()); session.invalidate(); return; }
+		 */
+<span class="nc bnc" id="L210" title="All 2 branches missed.">		if (userInfo.getUserType().equals(&quot;RETAILER&quot;)) {</span>
+<span class="nc" id="L211">			boolean isDraw = ServicesBean.isDG();</span>
+<span class="nc" id="L212">			boolean isScratch = ServicesBean.isSE();</span>
+<span class="nc" id="L213">			boolean isCs = ServicesBean.isCS();</span>
+			
+<span class="nc" id="L215">			boolean isIW = ServicesBean.isIW();</span>
+<span class="nc" id="L216">			boolean isOLA = ServicesBean.isOLA();</span>
+<span class="nc" id="L217">			boolean isSLE = ServicesBean.isSLE();</span>
+
+			// order of services: first char for home, second for scratch,
+			// third for draw
+<span class="nc" id="L221">			String servSb = null; // for Home</span>
+			// service by
+			// default 1
+
+<span class="nc bnc" id="L225" title="All 4 branches missed.">			if (isDraw &amp;&amp; isScratch) {</span>
+<span class="nc" id="L226">				servSb = &quot;111&quot;;</span>
+<span class="nc bnc" id="L227" title="All 4 branches missed.">			} else if (isDraw &amp;&amp; !isScratch) {</span>
+<span class="nc" id="L228">				servSb = &quot;101&quot;;</span>
+<span class="nc bnc" id="L229" title="All 4 branches missed.">			} else if (!isDraw &amp;&amp; isScratch) {</span>
+<span class="nc" id="L230">				servSb = &quot;110&quot;;</span>
+			} else {
+<span class="nc" id="L232">				servSb = &quot;100&quot;;</span>
+			}
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">			if (isCs) {</span>
+<span class="nc" id="L236">				servSb = servSb + &quot;1&quot;;</span>
+			} else {
+<span class="nc" id="L238">				servSb = servSb + &quot;0&quot;;</span>
+			}
+
+<span class="nc bnc" id="L241" title="All 2 branches missed.">			if (isIW) {</span>
+<span class="nc" id="L242">				servSb = servSb + &quot;1&quot;;</span>
+			} else {
+<span class="nc" id="L244">				servSb = servSb + &quot;0&quot;;</span>
+			}
+
+<span class="nc bnc" id="L247" title="All 2 branches missed.">			if (isOLA) {</span>
+<span class="nc" id="L248">				servSb = servSb + &quot;1&quot;;</span>
+			} else {
+<span class="nc" id="L250">				servSb = servSb + &quot;0&quot;;</span>
+			}
+			
+<span class="nc bnc" id="L253" title="All 2 branches missed.">			if (isSLE) {</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">				if(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;).equalsIgnoreCase(&quot;GHANA&quot;)) {</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">					if(version &gt;= 10.26)</span>
+<span class="nc" id="L256">						servSb = servSb + &quot;1&quot;;</span>
+				}
+				else 
+<span class="nc" id="L259">					servSb = servSb + &quot;1&quot;;</span>
+			} else {
+<span class="nc bnc" id="L261" title="All 2 branches missed.">				if(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;).equalsIgnoreCase(&quot;GHANA&quot;)) {</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">					if(version &gt;= 10.26)</span>
+<span class="nc" id="L263">						servSb = servSb + &quot;0&quot;;</span>
+				} else
+<span class="nc" id="L265">					servSb = servSb + &quot;0&quot;;</span>
+			}
+			
+<span class="nc bnc" id="L268" title="All 2 branches missed.">			if (returntype.equals(&quot;FirstTime&quot;)) {</span>
+<span class="nc" id="L269">				logger.info(&quot;Inside FirstTime Login&quot;);</span>
+<span class="nc" id="L270">				firstLogin = &quot;SFT|&quot;;</span>
+			}
+	
+
+<span class="nc" id="L274">			AjaxRequestHelper ajxHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L275">			ajxHelper.getAvlblCreditAmt(userInfo,con);</span>
+			
+<span class="nc" id="L277">			NumberFormat nFormat = NumberFormat.getInstance();</span>
+<span class="nc" id="L278">			nFormat.setMinimumFractionDigits(2);</span>
+
+<span class="nc" id="L280">			String bal = nFormat.format(userInfo.getAvailableCreditLimit());</span>
+<span class="nc" id="L281">			String claimbal = nFormat.format(userInfo.getClaimableBal());</span>
+<span class="nc" id="L282">			String unClaimbal = nFormat.format(userInfo.getUnclaimableBal());</span>
+
+<span class="nc" id="L284">			bal = bal.replace(&quot;,&quot;, &quot;&quot;);</span>
+<span class="nc" id="L285">			claimbal = claimbal.replace(&quot;,&quot;, &quot;&quot;);</span>
+<span class="nc" id="L286">			unClaimbal = unClaimbal.replace(&quot;,&quot;, &quot;&quot;);</span>
+
+<span class="nc" id="L288">			String balance = nFormat.format((userInfo.getAvailableCreditLimit() - userInfo.getClaimableBal())).replace(&quot;,&quot;, &quot;&quot;);</span>
+
+<span class="nc" id="L290">			logger.info(&quot;-------ENTERING INTO DEVICE VERSION CHECKING PART----------&quot;);</span>
+
+		
+			//String deviceVersion = null;
+		//	String isMandatory = null;
+	
+		/*	try {*/
+				//	con.setAutoCommit(false);
+				// -- SAVE CURRENT VERSION IN DATABASE
+			//	Statement stmt = con.createStatement();
+<span class="nc bnc" id="L300" title="All 2 branches missed.">				if (profile == null) {</span>
+<span class="nc" id="L301">					profile = &quot;NA&quot;;</span>
+				}
+<span class="nc" id="L303">				UserAuthenticationHelper.updateDownloadDetails(userInfo.getUserId(), version,expectedVersion,downloadAvailable,con);</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">				if(&quot;KENYA&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L305">					String insertVersionQuery = &quot;update st_lms_ret_offline_master set current_version = ?, profile = ?,CAPP = ?,CDLL = ?,CCONF = ?,last_connected_through=?,last_HBT_time=?,device_type=?  where user_id = ?&quot;;</span>
+<span class="nc" id="L306">					PreparedStatement pstmt = con.prepareStatement(insertVersionQuery);</span>
+<span class="nc" id="L307">					pstmt.setString(1, version + &quot;&quot;);</span>
+<span class="nc" id="L308">					pstmt.setString(2, profile);</span>
+<span class="nc" id="L309">					pstmt.setDouble(3, CAPP);</span>
+<span class="nc" id="L310">					pstmt.setDouble(4, CDLL);</span>
+<span class="nc" id="L311">					pstmt.setDouble(5, CCONF);</span>
+<span class="nc" id="L312">					pstmt.setString(6, simType);</span>
+<span class="nc" id="L313">					pstmt.setTimestamp(7, new Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L314">					pstmt.setString(8,deviceType);</span>
+<span class="nc" id="L315">					pstmt.setInt(9, userInfo.getUserId());</span>
+<span class="nc" id="L316">					pstmt.executeUpdate();</span>
+					
+<span class="nc" id="L318">					pstmt = con.prepareStatement(&quot;insert into st_lms_ret_wise_sim_history(sim_id, ret_organization_id) select id,? from st_lms_con_device_master where sim_name=?&quot;);</span>
+<span class="nc" id="L319">					pstmt.setInt(1, userInfo.getUserOrgId());</span>
+<span class="nc" id="L320">					pstmt.setString(2, simType);</span>
+<span class="nc" id="L321">					pstmt.executeUpdate();</span>
+<span class="nc" id="L322">				} else {</span>
+<span class="nc" id="L323">					String updateVersionQuery = &quot;update st_lms_ret_offline_master set current_version = ?, profile = ?,last_connected_through=?,last_HBT_time=?,device_type=?,login_status=?,last_login_time=?  where user_id = ?&quot;;</span>
+<span class="nc" id="L324">					PreparedStatement pstmt = con.prepareStatement(updateVersionQuery);</span>
+<span class="nc" id="L325">					pstmt.setString(1, version + &quot;&quot;);</span>
+<span class="nc" id="L326">					pstmt.setString(2, profile);</span>
+<span class="nc" id="L327">					pstmt.setString(3, simType);</span>
+<span class="nc" id="L328">					pstmt.setTimestamp(4, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L329">					pstmt.setString(5,deviceType);</span>
+<span class="nc" id="L330">					pstmt.setString(6,&quot;LOGIN&quot;);</span>
+<span class="nc" id="L331">					pstmt.setTimestamp(7, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L332">					pstmt.setInt(8, userInfo.getUserId());</span>
+<span class="nc" id="L333">					logger.info(&quot;updateVersionQuery&quot;+pstmt);</span>
+<span class="nc" id="L334">					int update=pstmt.executeUpdate();</span>
+<span class="nc" id="L335">					logger.info(&quot;updated Version&quot;+update);</span>
+<span class="nc" id="L336">					pstmt = con.prepareStatement(&quot;insert into st_lms_ret_wise_sim_history(datetime,sim_id, ret_organization_id) select ?,id,? from st_lms_con_device_master where sim_name=?&quot;);</span>
+<span class="nc" id="L337">					pstmt.setTimestamp(1, Util.getCurrentTimeStamp());						</span>
+<span class="nc" id="L338">					pstmt.setInt(2, userInfo.getUserOrgId());</span>
+<span class="nc" id="L339">					pstmt.setString(3, simType);</span>
+<span class="nc" id="L340">					logger.info(&quot;insert ret sim wise history query&quot;+pstmt);</span>
+<span class="nc" id="L341">					update=pstmt.executeUpdate();</span>
+<span class="nc" id="L342">					logger.info(&quot;insert sim&quot;+update);</span>
+				}
+<span class="nc" id="L344">				con.commit();</span>
+			/*} catch (SQLException ex) {
+				logger.error(&quot;sql exception &quot;, ex);
+				
+			}*/
+			
+			//DBConnect.closeCon(con);	
+
+				/*String deviceDetails = &quot;select device_version, is_mandatory, file_size from st_lms_htpos_download_details where id=(select max(id) from st_lms_htpos_download_details where device_type='&quot;
+						+ deviceType + &quot;')&quot;;
+
+				ResultSet rs = stmt.executeQuery(deviceDetails);
+
+				while (rs.next()) {
+					deviceVersion = rs.getString(&quot;device_version&quot;);
+					isMandatory = rs.getString(&quot;is_mandatory&quot;);
+					fileSize = rs.getString(&quot;file_size&quot;);
+				}
+				
+			
+			System.out.println(&quot;------DEVICE VERSION:&quot; + deviceVersion
+					+ &quot;----IS MANDATORY:&quot; + isMandatory + &quot;-------&quot;);*/
+
+			
+<span class="nc" id="L368">			String orgTypeOnTicket =Utility.getPropertyValue(&quot;ORG_TYPE_ON_TICKET&quot;);</span>
+		
+<span class="nc bnc" id="L370" title="All 2 branches missed.">			if (orgTypeOnTicket != null) {</span>
+<span class="nc bnc" id="L371" title="All 2 branches missed.">				if (orgTypeOnTicket.equalsIgnoreCase(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L372">					orgTypeOnTicket = userInfo.getParentOrgName().toUpperCase();</span>
+<span class="nc bnc" id="L373" title="All 2 branches missed.">				} else if (orgTypeOnTicket.equalsIgnoreCase(&quot;RETAILER&quot;)) {</span>
+<span class="nc" id="L374">					orgTypeOnTicket = userInfo.getOrgName().toUpperCase();</span>
+				}
+			}
+
+			/*String agtOrgN = userInfo.getParentOrgName().toUpperCase();
+			String retOrgN=  userInfo.getOrgName().toUpperCase(); */
+<span class="nc" id="L380">			String retOrgN = null;</span>
+<span class="nc" id="L381">			String agtOrgN = userInfo.getParentOrgCode();</span>
+<span class="nc bnc" id="L382" title="All 4 branches missed.">			if(&quot;GHANA&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;)) || &quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;)))</span>
+<span class="nc" id="L383">				retOrgN =  userInfo.getUserOrgCode();</span>
+			else
+<span class="nc" id="L385">				retOrgN=  userInfo.getOrgName().toUpperCase();</span>
+		
+<span class="nc" id="L387">			String currentTime = Util.getCurrentTimeString();</span>
+
+			//HashMap actionServiceMap = loginBean.getActionServiceMap();
+			
+<span class="nc" id="L391">			String embeddedActionList = null;</span>
+			//isOfflineUser = DrawGameOfflineHelper.checkOfflineUser(userInfo.getUserId(),con);
+			
+<span class="nc bnc" id="L394" title="All 2 branches missed.">			if(version &lt; 8.5){</span>
+<span class="nc" id="L395">				ArrayList&lt;String&gt; userActionList = loginBean</span>
+				.getUserActionList();
+<span class="nc bnc" id="L397" title="All 2 branches missed.">				if (isOfflineUser) {</span>
+<span class="nc" id="L398">					embeddedActionList = EmbeddedPrivMapping.getPriviledge(userActionList, &quot;OFFLINE&quot;,con);</span>
+				} else {
+<span class="nc" id="L400">					embeddedActionList = EmbeddedPrivMapping.getPriviledge(userActionList, &quot;ONLINE&quot;,con);</span>
+				}
+<span class="nc" id="L402">			}</span>
+			else{
+<span class="nc bnc" id="L404" title="All 4 branches missed.">				if(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;).equalsIgnoreCase(&quot;GHANA&quot;) &amp;&amp; version &lt; 10.26) {</span>
+<span class="nc" id="L405">					embeddedActionList = &quot;21100214002130021340213302131021320223001130011120111541114011130114003100032000|&quot;;</span>
+				} else {
+<span class="nc" id="L407">					embeddedActionList = EmbeddedPrivMapping.getPriviledgeNew(userInfo.getUserId(),con);	</span>
+				}
+			}
+			/*
+			 * System.out.println(&quot; embeddedActionList is--------------&quot; +
+			 * embeddedActionList);
+			 */
+<span class="nc" id="L414">			finalData.append(firstLogin + &quot;success&quot; + &quot;,&quot; + bal + &quot;,&quot;+ claimbal + &quot;,&quot; + unClaimbal + &quot;|&quot;+ embeddedActionList);</span>
+<span class="nc bnc" id="L415" title="All 4 branches missed.">			boolean isDownloadAvailable =&quot;YES&quot;.equalsIgnoreCase(downloadAvailable) </span>
+											&amp;&amp;  version !=expectedVersion;
+				
+				//UserAuthenticationHelper.chkDownloadAvailable(userInfo.getUserId(),con);
+<span class="nc bnc" id="L419" title="All 4 branches missed.">			if (version &gt;= 6.1 &amp;&amp; version &lt; 8.5) {</span>
+<span class="nc bnc" id="L420" title="All 2 branches missed.">				if(&quot;NA&quot;.equalsIgnoreCase(profile)){</span>
+<span class="nc" id="L421">					profile = &quot;INGENICO&quot;;</span>
+				}
+<span class="nc" id="L423">				finalData.append(UserAuthenticationHelper.terminalInfo(</span>
+						deviceType, profile, isCs, isDownloadAvailable, version, userInfo.getUserId(),con));
+<span class="nc bnc" id="L425" title="All 2 branches missed.">			} else if(version &gt;= 8.5){</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">				if(&quot;NA&quot;.equalsIgnoreCase(profile)){</span>
+<span class="nc" id="L427">					profile = &quot;INGENICO&quot;;</span>
+				}
+<span class="nc" id="L429">				finalData.append(UserAuthenticationHelper.newTerminalInfo(</span>
+						deviceType, profile, isCs, isDownloadAvailable, version,expVersion, userInfo.getUserId(),con));
+			}else {
+			/*	finalData.append(&quot;version:&quot; + deviceVersion
+						+ &quot;|is mandatory:&quot; + isMandatory + &quot;|fSize:&quot; + fileSize + &quot;|&quot;);*/
+<span class="nc" id="L434">				finalData.append(UserAuthenticationHelper.terminalInfoForLessVersion(deviceType, profile, isDownloadAvailable, version, </span>
+																			userInfo.getUserId(),con));
+			}
+			
+<span class="nc bnc" id="L438" title="All 2 branches missed.">			String sample =Utility.getPropertyValue(&quot;SAMPLE&quot;).equalsIgnoreCase(&quot;YES&quot;) ? &quot;Y&quot; : &quot;N&quot;;</span>
+<span class="nc bnc" id="L439" title="All 2 branches missed.">			String isLastTicketCancel =Utility.getPropertyValue(&quot;CANCEL_TYPE&quot;).equalsIgnoreCase(&quot;LAST_SOLD_TICKET&quot;) ? &quot;Y&quot; : &quot;N&quot;;</span>
+<span class="nc" id="L440">			finalData.append(&quot;OrgN:&quot; + orgTypeOnTicket + &quot;|AgtOrgN:&quot;+agtOrgN+&quot;|RetOrgN:&quot;+retOrgN+&quot;|SAMPLE:&quot; + sample</span>
+					+ &quot;|CompanyN:&quot; + Utility.getPropertyValue(&quot;ORG_NAME_JSP&quot;) + &quot;|CurrencyS:&quot;
+					+ Utility.getPropertyValue(&quot;CURRENCY_SYMBOL&quot;) + &quot;|CurrentT:&quot; + currentTime + &quot;|DF:&quot;
+					+ Utility.getPropertyValue(&quot;date_format&quot;).toLowerCase() + &quot;|Services:&quot; + servSb.toString() + &quot;|isLTktCan:&quot;+isLastTicketCancel+&quot;|rTO:&quot;+ Utility.getPropertyValue(&quot;RESPONSE_TIME_OUT&quot;) +&quot;|&quot;+&quot;isLTktCanSLE:&quot;+ Utility.getPropertyValue(&quot;SLE_LAST_TICKET_CANCEL&quot;).substring(0, 1) +&quot;|&quot; );
+<span class="nc bnc" id="L444" title="All 2 branches missed.">			if(isCs){</span>
+<span class="nc" id="L445">				finalData.append(&quot;cs_provider:&quot;+ Utility.getPropertyValue(&quot;CS_PROVIDER&quot;) + &quot;|&quot;);</span>
+			}
+	
+			/*session.setAttribute(&quot;PRIV_MAP&quot;, actionServiceMap);
+			session.setAttribute(&quot;ACTION_LIST&quot;, userActionList);
+			System.out.println(&quot; user infor after setting in session is &quot;
+					+ userInfo);
+			
+			
+
+			loggedInUser(uname, session);
+*/
+<span class="nc bnc" id="L457" title="All 2 branches missed.">			if (isDraw) {</span>
+
+				/*String saleStartTime = (String) sc
+						.getAttribute(&quot;SALE_START_TIME&quot;);
+				String saleEndTime = (String) sc
+						.getAttribute(&quot;SALE_END_TIME&quot;);*/
+
+<span class="nc bnc" id="L464" title="All 2 branches missed.">				finalData.append(&quot;isOffline:&quot;+ (isOfflineUser ? &quot;Y|balance:&quot;+ balance+ &quot;|SALE_ST:&quot;+ Utility.getPropertyValue(&quot;SALE_START_TIME&quot;)+ &quot;|SALE_ET:&quot;+ Utility.getPropertyValue(&quot;SALE_END_TIME&quot;)+ &quot;|status:&quot;</span>
+									+ offLineStatus /*DrawGameOfflineHelper.fetchOfflineUserStatus(userInfo.getUserOrgId(),con)*/+ &quot;|userId:&quot; + userInfo.getUserId() + &quot;|&quot;: &quot;N|&quot;));
+<span class="nc" id="L466">				String gameInfo =&quot;&quot;;</span>
+<span class="nc bnc" id="L467" title="All 2 branches missed.">				if(version &lt;  8.5){</span>
+				
+<span class="nc" id="L469">				 gameInfo = &quot;GameInfo:&quot;+ DrawGameRPOSHelper.embdDgData(isOfflineUser,drawIdTableMap,</span>
+												userInfo.getUserId(), userInfo.getUserOrgId(), version,con) + &quot;|&quot;;
+					
+			
+<span class="nc bnc" id="L473" title="All 2 branches missed.">				if (isOfflineUser) {</span>
+<span class="nc" id="L474">					String offStatus = DrawGameOfflineHelper.updateLoginStatus(userInfo.getUserId(),con);</span>
+<span class="nc bnc" id="L475" title="All 4 branches missed.">					if (offStatus.equals(&quot;LOGIN&quot;)</span>
+							|| offStatus.equals(&quot;LOGOUT&quot;)) {
+<span class="nc bnc" id="L477" title="All 2 branches missed.">						if (offStatus.equals(&quot;LOGOUT&quot;)) {</span>
+<span class="nc" id="L478">							finalData.append(gameInfo);</span>
+						}
+<span class="nc" id="L480">						logger.info(&quot;**Inside the offline*****&quot;);</span>
+					} else {
+						/*response
+								.getOutputStream()
+								.write(
+										(&quot;Errormsg:&quot; + EmbeddedErrors.LOGIN_ALREADY_LOGGED_IN_PLEASE_LOGOUT_AND_UPLOAD_FILE_PROPERLY)
+												.getBytes());*/
+<span class="nc" id="L487">						loginBean.setErrorCode(EmbeddedErrors.ERROR_202);</span>
+<span class="nc" id="L488">						return loginBean ;</span>
+						
+						
+					}
+
+<span class="nc" id="L493">				} else {</span>
+<span class="nc" id="L494">					System.out.println(&quot;**Inside the online**&quot;);</span>
+<span class="nc" id="L495">					StringBuilder noOfDraw = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L496">					Map&lt;Integer, GameMasterLMSBean&gt; map = Util.getGameMap();</span>
+
+<span class="nc" id="L498">					StringBuilder drawTimeStr = new StringBuilder(</span>
+							&quot;|DrawDT:&quot;);
+<span class="nc" id="L500">					StringBuilder frzTimeStr = new StringBuilder(</span>
+							&quot;|DrawFTG:&quot;);
+
+					/*TreeMap frzTimeMap = (TreeMap) sc.getContext(
+							&quot;/DrawGameWeb&quot;).getAttribute(&quot;FREEZETIME_DATA&quot;);*/
+					
+				
+
+<span class="nc bnc" id="L508" title="All 2 branches missed.">					if (version &lt; 5.1) {</span>
+						/*Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap = (TreeMap&lt;Integer, Map&lt;Integer, String&gt;&gt;) sc
+								.getAttribute(&quot;drawIdTableMap&quot;);*/
+						/*		TreeMap&lt;Integer, List&lt;List&gt;&gt; drawTimeMap = (TreeMap&lt;Integer, List&lt;List&gt;&gt;) sc
+								.getAttribute(&quot;GAME_DATA&quot;);*/
+<span class="nc" id="L513">						Iterator iter = drawIdTableMap.entrySet()</span>
+								.iterator();
+<span class="nc bnc" id="L515" title="All 2 branches missed.">						while (iter.hasNext()) {</span>
+<span class="nc" id="L516">							Map.Entry pair = (Map.Entry) iter.next();</span>
+<span class="nc" id="L517">							Map&lt;Integer, String&gt; noofDrawMap = (Map&lt;Integer, String&gt;) pair</span>
+									.getValue();
+
+<span class="nc" id="L520">							Integer gameId = (Integer) pair.getKey();</span>
+<span class="nc" id="L521">							GameMasterLMSBean bean = map.get(gameId);</span>
+<span class="nc" id="L522">							noOfDraw.append(pair.getKey() + &quot;:&quot;);</span>
+<span class="nc" id="L523">							noOfDraw.append(noofDrawMap.size() + &quot;:&quot;);</span>
+
+							//noOfDraw.append(Util.convertCollToStr(
+							//		new TreeMap(bean.getPriceMap())
+							//				.values()).replace(&quot;, &quot;, &quot;:&quot;));
+<span class="nc" id="L528">							Map&lt;String, BetDetailsBean&gt; bdbMap = bean.getPriceMap();</span>
+<span class="nc" id="L529">							Iterator&lt;String&gt; iterator = bdbMap.keySet().iterator();</span>
+<span class="nc bnc" id="L530" title="All 2 branches missed.">							while(iterator.hasNext())</span>
+							{
+<span class="nc" id="L532">								noOfDraw.append(bdbMap.get(iterator.next()).getUnitPrice()).append(&quot;:&quot;);</span>
+							}
+<span class="nc" id="L534">							noOfDraw.deleteCharAt(noOfDraw.length() - 1);</span>
+
+<span class="nc" id="L536">							noOfDraw.append(&quot;:&quot;</span>
+									+ bean.getTicketExpiryPeriod() + &quot;,&quot;);
+
+<span class="nc" id="L539">							frzTimeStr.append(pair.getKey());</span>
+<span class="nc" id="L540">							frzTimeStr.append(&quot;,&quot;);</span>
+<span class="nc" id="L541">							frzTimeStr.append(Long</span>
+									.parseLong((String) frzTimeMap.get(pair
+											.getKey())));
+<span class="nc" id="L544">							frzTimeStr.append(&quot;:&quot;);</span>
+
+<span class="nc" id="L546">							drawTimeStr.append(pair.getKey());</span>
+<span class="nc" id="L547">							drawTimeStr.append(&quot;,&quot;);</span>
+<span class="nc" id="L548">							List drawTimeList = drawTimeMap.get(</span>
+									pair.getKey()).get(0);
+<span class="nc bnc" id="L550" title="All 2 branches missed.">							for (int i = 0; i &lt; drawTimeList.size(); i++) {</span>
+<span class="nc" id="L551">								Long drawTime = (Long) drawTimeList.get(i);</span>
+<span class="nc" id="L552">								Timestamp time = new Timestamp(drawTime);</span>
+<span class="nc" id="L553">								drawTimeStr.append(time.toString().split(</span>
+										&quot;\\.&quot;)[0]);
+<span class="nc" id="L555">								drawTimeStr.append(&quot;,&quot;);</span>
+							}
+<span class="nc" id="L557">							drawTimeStr</span>
+									.deleteCharAt(drawTimeStr.length() - 1);
+<span class="nc" id="L559">							drawTimeStr.append(&quot;#&quot;);</span>
+<span class="nc" id="L560">						}</span>
+<span class="nc" id="L561">						frzTimeStr.deleteCharAt(frzTimeStr.length() - 1);</span>
+<span class="nc" id="L562">						drawTimeStr.deleteCharAt(drawTimeStr.length() - 1);</span>
+<span class="nc bnc" id="L563" title="All 2 branches missed.">						if (noOfDraw.length() &gt; 0) {</span>
+<span class="nc" id="L564">							noOfDraw.deleteCharAt(noOfDraw.length() - 1);</span>
+						}
+<span class="nc" id="L566">						String onlineData = &quot;GameData:&quot; + noOfDraw</span>
+								+ drawTimeStr + frzTimeStr + &quot;|&quot;;
+
+<span class="nc" id="L569">						finalData.append(onlineData);</span>
+<span class="nc bnc" id="L570" title="All 2 branches missed.">					} else if (version &gt;= 5.1) {</span>
+<span class="nc" id="L571">						finalData.append(gameInfo);</span>
+					}
+
+				}
+				
+			}	
+			// (new DrawGameRPOS()).newData();
+			}
+<span class="nc bnc" id="L579" title="All 2 branches missed.">			if (isScratch) {</span>
+				
+<span class="nc bnc" id="L581" title="All 2 branches missed.">				if(Utility.getPropertyValue(&quot;SCRATCH_PWT_PRINT&quot;).equalsIgnoreCase(&quot;YES&quot;))</span>
+<span class="nc" id="L582">					finalData.append(&quot;ScratchPWTPrt:Y|&quot;);</span>
+				else
+<span class="nc" id="L584">					finalData.append(&quot;ScratchPWTPrt:N|&quot;);</span>
+				
+<span class="nc bnc" id="L586" title="All 2 branches missed.">				if(Utility.getPropertyValue(&quot;SCRATCH_PWT_WIN_PRINT&quot;).equalsIgnoreCase(&quot;YES&quot;))</span>
+<span class="nc" id="L587">					finalData.append(&quot;ScratchWinRec:Y|&quot;);</span>
+				else
+<span class="nc" id="L589">					finalData.append(&quot;ScratchWinRec:N|&quot;);</span>
+				
+				
+				
+				
+				
+				// append Scratch specific data to finalData if any
+			}
+			
+<span class="nc" id="L598">			boolean permCombiDisp =Utility.getPropertyValue(&quot;PERM_COMB_DISP&quot;).equalsIgnoreCase(&quot;YES&quot;);// &quot;YES&quot;.equalsIgnoreCase((String)sc.getAttribute(&quot;PERM_COMB_DISP&quot;));</span>
+			
+<span class="nc bnc" id="L600" title="All 2 branches missed.">			if(permCombiDisp){</span>
+<span class="nc" id="L601">				finalData.append(&quot;isCombP:Y|&quot;);</span>
+			} else {
+<span class="nc" id="L603">				finalData.append(&quot;isCombP:N|&quot;);</span>
+			}
+<span class="nc" id="L605">			boolean isMpesa = Utility.getPropertyValue(&quot;IS_MPESA_ENABLE&quot;).equalsIgnoreCase(&quot;YES&quot;);//&quot;YES&quot;.equalsIgnoreCase((String)sc.getAttribute(&quot;IS_MPESA_ENABLE&quot;));</span>
+<span class="nc bnc" id="L606" title="All 2 branches missed.">			if(isMpesa){</span>
+<span class="nc" id="L607">				finalData.append(&quot;MPESA:Y|&quot;);</span>
+			}else{
+<span class="nc" id="L609">				finalData.append(&quot;MPESA:N|&quot;);</span>
+			}
+			
+<span class="nc bnc" id="L612" title="All 2 branches missed.">			if(version&gt;=8.55){</span>
+<span class="nc" id="L613">				finalData.append(&quot;sTime:&quot;+Utility.getPropertyValue(&quot;REPORTING_OFF_START_TIME&quot;)+&quot;|eTime:&quot;+Utility.getPropertyValue(&quot;REPORTING_OFF_END_TIME&quot;)+&quot;|isPno:&quot;+Utility.getPropertyValue(&quot;IS_PLAYER_MOBILE_REQ&quot;)+&quot;|&quot;); </span>
+			}
+<span class="nc bnc" id="L615" title="All 2 branches missed.">			if(isSLE){</span>
+<span class="nc" id="L616">				finalData.append(&quot;isPnoSLE:&quot;).append(Utility.getPropertyValue(&quot;SLE_MOBILENO_REQUIRED_ON_SALE&quot;)).append(&quot;|&quot;);</span>
+			}
+<span class="nc" id="L618">			finalData.append(&quot;hbInterval:&quot;).append(Utility.getPropertyValue(&quot;hbInterval&quot;)).append(&quot;|&quot;);</span>
+<span class="nc" id="L619">			finalData.append(&quot;uIDFill:&quot;).append(Utility.getPropertyValue(&quot;uIDFill&quot;)).append(&quot;|&quot;);</span>
+<span class="nc" id="L620">			finalData.append(&quot;InpType:&quot;).append(Utility.getPropertyValue(&quot;InpType&quot;)).append(&quot;|&quot;);</span>
+<span class="nc" id="L621">			finalData.append(&quot;retAuth:&quot;).append(Utility.getPropertyValue(&quot;retAuth&quot;)).append(&quot;|&quot;);</span>
+<span class="nc" id="L622">			finalData.append(&quot;userId:&quot;).append(userInfo.getUserId()).append(&quot;|&quot;);</span>
+<span class="nc bnc" id="L623" title="All 4 branches missed.">			if(Utility.getPropertyValue(&quot;Supervisor_PWD&quot;)!=null &amp;&amp; Utility.getPropertyValue(&quot;Supervisor_PWD&quot;).trim().length()&gt;1){</span>
+				
+<span class="nc" id="L625">				finalData.append(&quot;supervisorPwd:&quot;).append(Utility.getPropertyValue(&quot;Supervisor_PWD&quot;)).append(&quot;|&quot;);</span>
+			}
+
+			/*
+			if(Utility.getPropertyValue(&quot;FlashMsg&quot;)!=null &amp;&amp; Utility.getPropertyValue(&quot;FlashMsg&quot;).trim().length()&gt;1){
+				finalData.append(&quot;flsMsg:&quot;).append(Utility.getPropertyValue(&quot;FlashMsg&quot;).replace(&quot;|&quot;,&quot;&quot;)).append(&quot;|&quot;);
+			*/
+			//String flashMessages = MessageUtility.fetchUserWiseFlashMessagesEmbedded(msgId, userInfo.getUserId(), userInfo.getUserType(), con);
+<span class="nc" id="L633">			String flashMessages = MessageUtility.fetchUserWiseFlashMessagesEmbedded(msgId, userInfo.getUserId(), con);</span>
+<span class="nc" id="L634">			finalData.append(&quot;flsMsg:&quot;).append(flashMessages).append(&quot;|&quot;);</span>
+
+<span class="nc" id="L636">			finalData.append(Utility.getPropertyValue(&quot;RAFFLE_GAME_DATA&quot;)).append(&quot;|&quot;);</span>
+
+<span class="nc bnc" id="L638" title="All 2 branches missed.">			if(version&gt;=9.85) {</span>
+<span class="nc bnc" id="L639" title="All 2 branches missed.">				if(CommonMethods.checkPriviledgeActiveForUser(userInfo.getUserId(), &quot;Setting_Message&quot;, &quot;TERMINAL&quot;, &quot;HOME&quot;, con)) {</span>
+<span class="nc" id="L640">					String deleteMessageStatus = Utility.getPropertyValue(&quot;MESSAGE_INBOX_DELETE_STATUS&quot;);</span>
+<span class="nc bnc" id="L641" title="All 4 branches missed.">					if(deleteMessageStatus == null || &quot;NO&quot;.equals(deleteMessageStatus)) {</span>
+<span class="nc" id="L642">						deleteMessageStatus = &quot;N&quot;;</span>
+<span class="nc" id="L643">						String messageInfo = MessageUtility.getNewMessageStatusEmbedded(msgId, userInfo.getUserId(), userInfo.getUserType(), con);</span>
+<span class="nc" id="L644">						finalData.append(&quot;msgInfo:&quot;).append(messageInfo).append(&quot;,&quot;).append(deleteMessageStatus);</span>
+<span class="nc" id="L645">					} else {</span>
+<span class="nc" id="L646">						deleteMessageStatus = &quot;Y&quot;;</span>
+<span class="nc" id="L647">						finalData.append(&quot;msgInfo:0,N,N,Y&quot;);</span>
+					}
+				}
+			}
+
+<span class="nc bnc" id="L652" title="All 2 branches missed.">			if(&quot;GHANA&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))) {</span>
+<span class="nc" id="L653">				finalData.append(&quot;|minBAM:&quot;).append(Utility.getPropertyValue(&quot;MIN_BET_AMT_MULTIPLE&quot;));</span>
+<span class="nc" id="L654">				finalData.append(&quot;|isMacAllowed:&quot;).append(Utility.getPropertyValue(&quot;IS_MACHINE_ALLOWED&quot;));</span>
+			}
+
+<span class="nc bnc" id="L657" title="All 10 branches missed.">			if((Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;).equalsIgnoreCase(&quot;GHANA&quot;) &amp;&amp; version &gt;= 10.26) || &quot;NIGERIA&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;)) || &quot;ZIMBABWE&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;)) || (&quot;PHILIP&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))))</span>
+<span class="nc" id="L658">				finalData.append(&quot;|sessId:&quot;).append(sessionId).append(&quot;|&quot;).append(&quot;|merCode:&quot;).append(ConfigurationVariables.LMS_MERCHANT_CODE).append(&quot;|&quot;);</span>
+
+<span class="nc" id="L660">			String betMulValue = Utility.getPropertyValue(&quot;MIN_BET_AMT_MUL_REQUIRED&quot;);</span>
+<span class="nc bnc" id="L661" title="All 2 branches missed.">			if(betMulValue != null)</span>
+<span class="nc" id="L662">				finalData.append(&quot;betAmtMulDC:&quot;+betMulValue+&quot;|&quot;);</span>
+			//UserAuthenticationHelper.updateLoginStatus(userInfo.getUserId(), &quot;LOGIN&quot;,con);
+<span class="nc" id="L664">			UserAuthenticationHelper.updateUserSession(userInfo.getUserName() , sessionId , con);</span>
+			
+			
+<span class="nc" id="L667">			con.commit();</span>
+<span class="nc" id="L668">			logger.info(&quot;*********Embedded Login Data*******&quot;+ finalData.toString());</span>
+<span class="nc" id="L669">			loginBean.setErrorCode(EmbeddedErrors.ERROR_100);</span>
+			
+<span class="nc bnc" id="L671" title="All 2 branches missed.">			if(&quot;YES&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;REAL_TIME_LOCATION_UPDATE&quot;))){</span>
+				//Update latitude and longitude in st_lms_ret_offline_master...
+<span class="nc" id="L673">				LatLongFromCellId latLongThread = new LatLongFromCellId(userInfo.getUserId(), CID, LAC);</span>
+<span class="nc" id="L674">				latLongThread.setDaemon(true);</span>
+<span class="nc" id="L675">				latLongThread.start();</span>
+			}
+			
+<span class="nc" id="L678">			return loginBean ;</span>
+		
+		} else {
+<span class="nc" id="L681">			loginAuth = null;</span>
+<span class="nc" id="L682">			logger.info(&quot;You cannot login using terminal&quot;);</span>
+<span class="nc" id="L683">			loginBean.setErrorCode(EmbeddedErrors.ERROR_203);</span>
+<span class="nc" id="L684">			return loginBean ;</span>
+		
+		}
+
+	}	
+		
+		
+<span class="nc" id="L691">	}catch (Exception e) {</span>
+<span class="nc" id="L692">		logger.error(&quot; Exception&quot;,e);</span>
+<span class="nc" id="L693">		throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+	}finally {
+		
+<span class="nc" id="L696">		try{</span>
+<span class="nc" id="L697">			DBConnect.closeCon(con);</span>
+			
+<span class="nc" id="L699">		}catch (Exception e) {</span>
+<span class="nc" id="L700">			logger.error(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L701">		}</span>
+<span class="nc" id="L702">	}</span>
+	
+	
+<span class="nc" id="L705">	loginBean.setErrorCode(EmbeddedErrors.ERROR_000);</span>
+<span class="nc" id="L706">	return loginBean ;</span>
+	
+	
+	
+}
+	
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

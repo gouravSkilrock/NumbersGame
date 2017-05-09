@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RaffleSecondChanceHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">RaffleSecondChanceHelper.java</span></div><h1>RaffleSecondChanceHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.lang.reflect.Type;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Calendar;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.skilrock.itg.IDBarcode.IDBarcode;
+import com.skilrock.lms.beans.RafflePurchaseBean;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.ServiceResponse;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.orgOnLineSaleCreditUpdation;
+import com.skilrock.lms.coreEngine.scratchService.pwtMgmt.serviceImpl.ScratchTicketVerifyServiceImpl;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L30">public class RaffleSecondChanceHelper {</span>
+<span class="nc" id="L31">	Log logger =  LogFactory.getLog(RaffleSecondChanceHelper.class);</span>
+	
+	public String getSecondChanceGameName(String serviceName) throws LMSException {
+<span class="nc" id="L34">		Connection connection = null;</span>
+<span class="nc" id="L35">		Statement stmt = null;</span>
+<span class="nc" id="L36">		String query = null;</span>
+<span class="nc" id="L37">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L40">			Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L41">			String currentTime = calendar.get(Calendar.HOUR_OF_DAY)+&quot;:&quot;+calendar.get(Calendar.MINUTE)+&quot;:&quot;+calendar.get(Calendar.SECOND);</span>
+
+<span class="nc" id="L43">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L44">			stmt = connection.createStatement();</span>
+<span class="nc" id="L45">			query = &quot;SELECT game_name FROM st_lms_second_chance_service_mapping sm INNER JOIN st_lms_second_chance_day_mapping dm ON sm.sc_service_id=dm.sc_service_id AND sm.service_id=(SELECT service_id FROM st_lms_service_master WHERE service_code='&quot;+serviceName+&quot;') AND sm.status='ACTIVE' AND dm.status='ACTIVE' AND DAY=UPPER(DAYNAME('&quot;+Util.getCurrentTimeString()+&quot;')) AND start_time &lt;= '&quot;+currentTime+&quot;' AND '&quot;+currentTime+&quot;'&lt;=end_time;&quot;;</span>
+<span class="nc" id="L46">			logger.info(&quot;validateRaffleService - &quot;+query);</span>
+<span class="nc" id="L47">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L49">				return rs.getString(&quot;game_name&quot;);</span>
+			} else {
+<span class="nc" id="L51">				return null;</span>
+			}
+<span class="nc" id="L53">		} catch (SQLException se) {</span>
+<span class="nc" id="L54">			se.printStackTrace();</span>
+<span class="nc" id="L55">			throw new LMSException();</span>
+<span class="nc" id="L56">		} catch (Exception e) {</span>
+<span class="nc" id="L57">			e.printStackTrace();</span>
+<span class="nc" id="L58">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L60">			DBConnect.closeCon(connection);</span>
+		}
+	}
+
+	private boolean isDrawAvailable(int gameNo) {
+<span class="nc" id="L65">		return Util.drawIdTableMap.get(gameNo).isEmpty();</span>
+	}
+
+	public RafflePurchaseBean rafflePurchaseTicket(UserInfoBean userBean, RafflePurchaseBean rafflePurchaseBean) throws LMSException {
+<span class="nc" id="L69">		rafflePurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L70">		Connection con=null;</span>
+<span class="nc" id="L71">        long balDed=0;</span>
+<span class="nc" id="L72">        String status = &quot;&quot;;</span>
+<span class="nc" id="L73">        double oldTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L74">		double modifiedTotalPurchaseAmt = 0.0;</span>
+
+<span class="nc" id="L76">		ServiceRequest sReq = new ServiceRequest();</span>
+<span class="nc" id="L77">		ServiceResponse sRes = null;</span>
+<span class="nc" id="L78">		IServiceDelegate delegate = null;</span>
+		try {
+<span class="nc" id="L80">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L81">			con.setAutoCommit(false);</span>
+			/*
+			boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;SC_MAX_ATTEMP&quot;, &quot;0&quot;, con);
+			if(isFraud) {
+				logger.debug(&quot;Responsing Gaming not allowed to sale&quot;);
+				rafflePurchaseBean.setSaleStatus(&quot;FRAUD&quot;);
+				return rafflePurchaseBean;
+			}
+			*/
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			if(&quot;DG&quot;.equals(rafflePurchaseBean.getServiceName())) {</span>
+<span class="nc" id="L92">				sReq = new ServiceRequest();</span>
+<span class="nc" id="L93">				sReq.setServiceName(ServiceName.DRAW_MGMT);</span>
+<span class="nc" id="L94">				sReq.setServiceMethod(ServiceMethodName.VERIFY_DRAW_GAME_TICKET);</span>
+<span class="nc" id="L95">				sReq.setServiceData(rafflePurchaseBean.getParentTktNo());</span>
+<span class="nc" id="L96">				delegate = ServiceDelegate.getInstance();</span>
+<span class="nc" id="L97">				sRes = delegate.getResponse(sReq);</span>
+<span class="nc" id="L98">				boolean responseStatus = new Gson().fromJson(sRes.getIsSuccess().toString(), Boolean.class);</span>
+<span class="nc" id="L99">				String responseData = new Gson().fromJson(sRes.getResponseData().toString(), String.class);</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">				if (!responseStatus) {</span>
+					//ResponsibleGaming.respGaming(userBean, &quot;SC_MAX_ATTEMP&quot;, &quot;1&quot;, con);
+<span class="nc" id="L102">					rafflePurchaseBean.setSaleStatus(responseData);</span>
+<span class="nc" id="L103">					con.commit();</span>
+<span class="nc" id="L104">					return rafflePurchaseBean;</span>
+				} else {
+<span class="nc" id="L106">					rafflePurchaseBean.setParentTktNo(responseData);</span>
+				}
+<span class="nc bnc" id="L108" title="All 2 branches missed.">			} else if(&quot;SE&quot;.equals(rafflePurchaseBean.getServiceName())) {</span>
+<span class="nc" id="L109">				ScratchTicketVerifyServiceImpl serviceImpl = new ScratchTicketVerifyServiceImpl();</span>
+				//boolean isValid = serviceImpl.verifyScratchTicket(rafflePurchaseBean.getParentTktNo(), rafflePurchaseBean.getVirnCode());
+<span class="nc" id="L111">				serviceImpl.verifyScratchTicket(rafflePurchaseBean.getParentTktNo(), rafflePurchaseBean.getVirnCode());</span>
+				/*
+				if(!isValid) {
+					//ResponsibleGaming.respGaming(userBean, &quot;SC_MAX_ATTEMP&quot;, &quot;1&quot;, con);
+					rafflePurchaseBean.setSaleStatus(&quot;INVALID_TKT&quot;);
+					con.commit();
+					return rafflePurchaseBean;
+				}
+				*/
+			}
+	
+<span class="nc bnc" id="L122" title="All 2 branches missed.">			if(&quot;DG&quot;.equals(rafflePurchaseBean.getServiceName())) {</span>
+<span class="nc" id="L123">				sReq.setServiceName(ServiceName.RAFFLE_SECOND_CHANCE_MGMT);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">			} else if(&quot;SE&quot;.equals(rafflePurchaseBean.getServiceName())) {</span>
+<span class="nc" id="L125">				sReq.setServiceName(ServiceName.RAFFLE_SECOND_CHANCE_MGMT);</span>
+<span class="nc" id="L126">				String seTicketNumber = (rafflePurchaseBean.getParentTktNo()+rafflePurchaseBean.getVirnCode()).replace(&quot;-&quot;, &quot;&quot;);</span>
+<span class="nc" id="L127">				rafflePurchaseBean.setParentTktNo(seTicketNumber);</span>
+			}
+<span class="nc" id="L129">			sReq.setServiceMethod(ServiceMethodName.RAFFLE_PURCHASE_TICKET);</span>
+	
+<span class="nc" id="L131">			sReq.setServiceData(rafflePurchaseBean);</span>
+<span class="nc" id="L132">			delegate = ServiceDelegate.getInstance();</span>
+
+<span class="nc bnc" id="L134" title="All 4 branches missed.">			if (isDrawAvailable(rafflePurchaseBean.getGameId()) || DrawGameRPOSHelper.chkFreezeTimeSale(rafflePurchaseBean.getGameId())) {</span>
+<span class="nc" id="L135">				rafflePurchaseBean.setSaleStatus(&quot;NO_DRAWS&quot;);</span>
+<span class="nc" id="L136">				return rafflePurchaseBean;</span>
+			}
+
+<span class="nc" id="L139">			double totPurAmt = 0.0;</span>
+<span class="nc" id="L140">			rafflePurchaseBean.setTotalPurchaseAmt(totPurAmt);</span>
+<span class="nc" id="L141">			logger.debug(&quot;Total Purchase Amount:&quot;	+ totPurAmt);</span>
+
+			
+			// Check for Raffle
+			//boolean isFraud = false;	//	ResponsibleGaming.respGaming(userBean, &quot;SC_MAX_ATTEMP&quot;, &quot;1&quot;, con);
+
+<span class="nc" id="L147">			 balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDeduction(userBean, rafflePurchaseBean.getGameId(), rafflePurchaseBean</span>
+						.getTotalPurchaseAmt(),rafflePurchaseBean.getPlrMobileNumber(),con);
+<span class="nc" id="L149">			oldTotalPurchaseAmt = rafflePurchaseBean.getTotalPurchaseAmt();</span>
+<span class="nc" id="L150">			logger.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper Just Before  getting Success :&quot; + oldTotalPurchaseAmt);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">			if (balDed &gt; 0) {</span>
+<span class="nc" id="L152">				rafflePurchaseBean.setRefTransId(String.valueOf(balDed));</span>
+<span class="nc" id="L153">				con.commit();</span>
+			} else {
+<span class="nc bnc" id="L155" title="All 2 branches missed.">				if (balDed == -1) {</span>
+<span class="nc" id="L156">					status = &quot;AGT_INS_BAL&quot;;// Agent has insufficient</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">				} else if (balDed == -2) {</span>
+<span class="nc" id="L158">					status = &quot;FAILED&quot;;// Error LMS</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">				} else if (balDed == 0) {</span>
+<span class="nc" id="L160">					status = &quot;RET_INS_BAL&quot;;// Retailer has insufficient</span>
+				}
+<span class="nc" id="L162">				rafflePurchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L163">				return rafflePurchaseBean;</span>
+			}
+<span class="nc" id="L165">		} catch (SQLException se) {</span>
+<span class="nc" id="L166">			se.printStackTrace();</span>
+<span class="nc" id="L167">			throw new LMSException();</span>
+<span class="nc" id="L168">		} catch (LMSException e) {</span>
+<span class="nc" id="L169">			throw e;</span>
+<span class="nc" id="L170">		} catch (Exception e) {</span>
+<span class="nc" id="L171">			e.printStackTrace();</span>
+<span class="nc" id="L172">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L174">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L175">		}</span>
+
+		try {
+<span class="nc" id="L178">			sRes = delegate.getResponse(sReq);</span>
+<span class="nc" id="L179">			boolean responseStatus = new Gson().fromJson(sRes.getIsSuccess().toString(), Boolean.class);</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">			if (responseStatus) {</span>
+				//rafflePurchaseBean = (RafflePurchaseBean) sRes.getResponseData();
+<span class="nc" id="L182">				Type elementType = new TypeToken&lt;RafflePurchaseBean&gt;(){}.getType();</span>
+<span class="nc" id="L183">				rafflePurchaseBean = new Gson().fromJson(sRes.getResponseData().toString(), elementType);</span>
+<span class="nc" id="L184">				modifiedTotalPurchaseAmt = rafflePurchaseBean</span>
+						.getTotalPurchaseAmt();
+<span class="nc" id="L186">				logger</span>
+						.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper After getting Success :&quot;
+								+ modifiedTotalPurchaseAmt);
+<span class="nc" id="L189">				con=DBConnect.getConnection();</span>
+<span class="nc" id="L190">				con.setAutoCommit(false);</span>
+				/*
+				if (oldTotalPurchaseAmt != modifiedTotalPurchaseAmt) {
+					balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDedUpdate(userBean, rafflePurchaseBean.getGameId(),
+									modifiedTotalPurchaseAmt, oldTotalPurchaseAmt, balDed, con);
+				}
+				*/
+
+<span class="nc" id="L198">				int tickUpd = orgOnLineSaleCreditUpdation.drawTicketSaleTicketUpdate(balDed, rafflePurchaseBean.getRaffleTicket_no(),</span>
+						rafflePurchaseBean.getGameId(), userBean,rafflePurchaseBean.getPurchaseChannel(), con);
+
+<span class="nc bnc" id="L201" title="All 2 branches missed.">				if (tickUpd == 1) {</span>
+					//AjaxRequestHelper ajxHelper = new AjaxRequestHelper();
+					//ajxHelper.getAvlblCreditAmt(userBean,con);
+<span class="nc" id="L204">					rafflePurchaseBean.setAdvMsg(Util.getDGSaleAdvMessage(userBean.getUserOrgId(), rafflePurchaseBean.getGameId()));</span>
+
+<span class="nc" id="L206">					status = &quot;SUCCESS&quot;;</span>
+<span class="nc" id="L207">					rafflePurchaseBean.setSaleStatus(status);							</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">					if (!&quot;applet&quot;.equals(rafflePurchaseBean.getBarcodeType())) {</span>
+<span class="nc" id="L209">						IDBarcode.getBarcode(rafflePurchaseBean.getRaffleTicket_no() + rafflePurchaseBean.getReprintCount());</span>
+					}
+<span class="nc" id="L211">					con.commit();</span>
+					
+<span class="nc" id="L213">					return rafflePurchaseBean;</span>
+				} else {
+<span class="nc" id="L215">					status = &quot;FAILED&quot;;</span>
+<span class="nc" id="L216">					rafflePurchaseBean.setSaleStatus(status);</span>
+					// Code for cancelling the Ticket to be send to Draw
+					// Game Engine
+<span class="nc" id="L219">					new DrawGameRPOSHelper().cancelTicket(rafflePurchaseBean.getRaffleTicket_no()</span>
+							+ rafflePurchaseBean.getReprintCount(),
+							rafflePurchaseBean.getPurchaseChannel(),
+							rafflePurchaseBean.getDrawIdTableMap(),
+							rafflePurchaseBean.getGame_no(),
+							rafflePurchaseBean.getPartyId(),
+							rafflePurchaseBean.getPartyType(),
+							rafflePurchaseBean.getRefMerchantId(),
+							userBean, rafflePurchaseBean.getRefTransId());
+
+<span class="nc" id="L229">					return rafflePurchaseBean;</span>
+				}
+			} else {
+<span class="nc bnc" id="L232" title="All 2 branches missed.">				if(rafflePurchaseBean.getSaleStatus() == null) {</span>
+<span class="nc" id="L233">					rafflePurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L234">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+							userBean, rafflePurchaseBean.getGame_no(),
+							&quot;FAILED&quot;, balDed);
+<span class="nc" id="L237">					return rafflePurchaseBean;</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">				} else if(&quot;ERROR_TICKET_LIMIT&quot;.equalsIgnoreCase(rafflePurchaseBean.getSaleStatus())) {</span>
+<span class="nc" id="L239">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+							userBean, rafflePurchaseBean.getGame_no(),
+							&quot;FAILED&quot;, balDed);
+<span class="nc" id="L242">					return rafflePurchaseBean;</span>
+				} else {
+<span class="nc" id="L244">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+							userBean, rafflePurchaseBean.getGame_no(),
+							&quot;FAILED&quot;, balDed);
+<span class="nc" id="L247">					return rafflePurchaseBean;</span>
+				}
+			}
+<span class="nc" id="L250">		} catch (SQLException se) {</span>
+<span class="nc" id="L251">			se.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L253">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L254">		}</span>
+
+<span class="nc" id="L256">		return rafflePurchaseBean;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,576 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.commercialService.common</a> &gt; <span class="el_source">CSUtil.java</span></div><h1>CSUtil.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.commercialService.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.CSSaleBean;
+import com.skilrock.lms.beans.CSUserBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+
+<span class="nc" id="L22">public class CSUtil {</span>
+<span class="nc" id="L23">	static Log logger = LogFactory.getLog(CSUtil.class);</span>
+
+	public static CSUserBean fetchUserInfo(String userName) {
+<span class="nc" id="L26">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L27">		CSUserBean userBean = new CSUserBean();</span>
+<span class="nc" id="L28">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L30">			pstmt = con</span>
+					.prepareStatement(&quot;select retslom.retUserId as userId, retslom.retOrgId as userOrgId, retslom.retOrgName as userOrgName, retslom.retUserName as userName,  agtslum.user_id as parentId, agtslom.organization_id as parentOrgId, agtslom.name as parentOrgName, agtslum.user_name as parentUserName,retslom.retStatus as userStatus, agtslom.organization_status as parentStatus, retslom.retBal as userBal, (agtslom.available_credit - agtslom.claimable_bal) as parentBal from st_lms_organization_master agtslom,(select slum.user_id as retUserId, slum.organization_id as retOrgId, slom.name as retOrgName, slum.user_name as retUserName,slom.parent_id as agtOrgId, slom.organization_status as retStatus, (slom.available_credit - slom.claimable_bal) as retBal  from st_lms_organization_master slom, st_lms_user_master slum where slum.organization_id = slom.organization_id and slom.organization_type = 'RETAILER' and slum.user_name = ?) retslom, st_lms_user_master agtslum where retslom.agtOrgId = agtslom.organization_id and retslom.agtOrgId = agtslum.organization_id and agtslom.organization_type = 'AGENT'&quot;);
+<span class="nc" id="L32">			pstmt.setString(1, userName);</span>
+<span class="nc" id="L33">			logger.debug(&quot;userInfo &quot; + pstmt);</span>
+<span class="nc" id="L34">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L35" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L36">				userBean.setUserId(rs.getInt(&quot;userId&quot;));</span>
+<span class="nc" id="L37">				userBean.setUserOrgId(rs.getInt(&quot;userOrgId&quot;));</span>
+<span class="nc" id="L38">				userBean.setUserName(rs.getString(&quot;userName&quot;));</span>
+<span class="nc" id="L39">				userBean.setOrgName(rs.getString(&quot;userOrgName&quot;));</span>
+<span class="nc" id="L40">				userBean.setUserOrgStatus(rs.getString(&quot;userStatus&quot;));</span>
+<span class="nc" id="L41">				userBean.setUserOrgBalance(rs.getDouble(&quot;userBal&quot;));</span>
+
+<span class="nc" id="L43">				userBean.setParentOrgUserId(rs.getInt(&quot;parentId&quot;));</span>
+<span class="nc" id="L44">				userBean.setParentOrgId(rs.getInt(&quot;parentOrgId&quot;));</span>
+<span class="nc" id="L45">				userBean.setParentUserName(rs.getString(&quot;parentUserName&quot;));</span>
+<span class="nc" id="L46">				userBean.setParentOrgName(rs.getString(&quot;parentOrgName&quot;));</span>
+<span class="nc" id="L47">				userBean.setParentOrgStatus(rs.getString(&quot;parentStatus&quot;));</span>
+<span class="nc" id="L48">				userBean.setParentBalance(rs.getDouble(&quot;parentBal&quot;));</span>
+
+			} else {
+<span class="nc" id="L51">				userBean = null;</span>
+			}
+<span class="nc" id="L53">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L54">			sqe.printStackTrace();</span>
+<span class="nc" id="L55">		}</span>
+<span class="nc" id="L56">		return userBean;</span>
+	}
+
+	public static Map&lt;String, Double&gt; fetchCommisions(String prodCode,
+			String operatorCode, String circleCode, double denomination,
+			String merchant, Connection con) {
+<span class="nc" id="L62">		Map&lt;String, Double&gt; commMap = new HashMap&lt;String, Double&gt;();</span>
+<span class="nc" id="L63">		PreparedStatement pstmt = null;</span>
+		try {
+			/*
+			 * if(&quot;PAYWORLD&quot;.equalsIgnoreCase(merchant)){ pstmt = con
+			 * .prepareStatement(&quot;select category_id, product_id, retailer_comm,
+			 * agent_comm, jv_comm,unit_price, denomination from
+			 * st_cs_product_master where product_code = ? and status =
+			 * 'ACTIVE'&quot;); pstmt.setString(1, prodCode); }
+			 * if(&quot;CAMLOT&quot;.equalsIgnoreCase(merchant)){ pstmt = con
+			 * .prepareStatement(&quot;select category_id, product_id, retailer_comm,
+			 * agent_comm, jv_comm,unit_price, denomination from
+			 * st_cs_product_master where product_code = ? and operator_code = ?
+			 * and circle_code = ? and denomination = ? and status = 'ACTIVE'&quot;);
+			 * pstmt.setString(1, prodCode); pstmt.setString(2, operatorCode);
+			 * pstmt.setString(3, circleCode); pstmt.setDouble(4, denomination); }
+			 */
+			
+			//This condition is plugged here to continue sale in kenya with OLd structure
+<span class="nc bnc" id="L81" title="All 2 branches missed.">			if(&quot;CAMLOT&quot;.equalsIgnoreCase(merchant)){</span>
+<span class="nc" id="L82">				pstmt = con</span>
+					.prepareStatement(&quot;select category_id, product_id, retailer_comm, agent_comm, jv_comm,unit_price, denomination from st_cs_product_master where product_code = ? and status = 'ACTIVE'&quot;);
+<span class="nc" id="L84">				pstmt.setString(1, prodCode);</span>
+			}else{
+			
+<span class="nc" id="L87">			pstmt = con</span>
+					.prepareStatement(&quot;select category_id, product_id, retailer_comm, agent_comm, jv_comm,unit_price, denomination from st_cs_product_master where product_code = ? and operator_code = ? and circle_code = ? and denomination = ? and status = 'ACTIVE'&quot;);
+<span class="nc" id="L89">			pstmt.setString(1, prodCode);</span>
+<span class="nc" id="L90">			pstmt.setString(2, operatorCode);</span>
+<span class="nc" id="L91">			pstmt.setString(3, circleCode);</span>
+<span class="nc" id="L92">			pstmt.setDouble(4, denomination);</span>
+			}
+<span class="nc" id="L94">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L96">				commMap.put(&quot;prodId&quot;, rs.getDouble(&quot;product_id&quot;));</span>
+<span class="nc" id="L97">				commMap.put(&quot;retailerComm&quot;, rs.getDouble(&quot;retailer_comm&quot;));</span>
+<span class="nc" id="L98">				commMap.put(&quot;agentComm&quot;, rs.getDouble(&quot;agent_comm&quot;));</span>
+<span class="nc" id="L99">				commMap.put(&quot;jvComm&quot;, rs.getDouble(&quot;jv_comm&quot;));</span>
+<span class="nc" id="L100">				commMap.put(&quot;unit_price&quot;, rs.getDouble(&quot;unit_price&quot;));</span>
+<span class="nc" id="L101">				commMap.put(&quot;category_id&quot;, rs.getDouble(&quot;category_id&quot;));</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">				if (Double.compare(rs.getDouble(&quot;denomination&quot;), 0.00D) == 0) {</span>
+<span class="nc" id="L103">					commMap.put(&quot;is_flexi&quot;, 1.0);</span>
+				} else {
+<span class="nc" id="L105">					commMap.put(&quot;is_flexi&quot;, 0.0);</span>
+				}
+			}
+<span class="nc" id="L108">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L109">			sqe.printStackTrace();</span>
+<span class="nc" id="L110">		}</span>
+<span class="nc" id="L111">		return commMap;</span>
+	}
+
+	public static int fetchRetParentId(int retOrgId) {
+<span class="nc" id="L115">		int agtOrgId = 0;</span>
+<span class="nc" id="L116">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L117">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L119">			pstmt = con</span>
+					.prepareStatement(&quot;select parent_id from st_lms_organization_master where organization_id = ? and organization_type = 'RETAILER'&quot;);
+<span class="nc" id="L121">			pstmt.setInt(1, retOrgId);</span>
+<span class="nc" id="L122">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L124">				agtOrgId = rs.getInt(&quot;parent_id&quot;);</span>
+			}
+<span class="nc" id="L126">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L127">			sqe.printStackTrace();</span>
+<span class="nc" id="L128">		}</span>
+<span class="nc" id="L129">		return agtOrgId;</span>
+	}
+
+	public static double fetchUserBalance(String userName) {
+<span class="nc" id="L133">		double balance = -1.0;</span>
+<span class="nc" id="L134">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L135">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L137">			pstmt = con</span>
+					.prepareStatement(&quot;&quot;
+							+ &quot;select (avaliable_credit - claimable_bal)as balance from st_lms_organization_master where name = ? and organization_type = 'RETAILER'&quot;);
+<span class="nc" id="L140">			pstmt.setString(1, userName);</span>
+<span class="nc" id="L141">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L143">				balance = rs.getDouble(&quot;balance&quot;);</span>
+			}
+<span class="nc" id="L145">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L146">			sqe.printStackTrace();</span>
+<span class="nc" id="L147">		}</span>
+<span class="nc" id="L148">		return balance;</span>
+	}
+
+	public static Map&lt;String, Integer&gt; fetchUserOrgId(String userName,
+			int userOrgId) {
+<span class="nc" id="L153">		Map&lt;String, Integer&gt; map = new HashMap&lt;String, Integer&gt;();</span>
+<span class="nc" id="L154">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L155">		PreparedStatement pstmt = null;</span>
+
+		try {
+<span class="nc" id="L158">			pstmt = con</span>
+					.prepareStatement(&quot;select organization_id, user_id from st_lms_user_master where user_name = ? or organization_id=?  and organization_type = 'RETAILER'&quot;);
+<span class="nc" id="L160">			pstmt.setString(1, userName);</span>
+<span class="nc" id="L161">			pstmt.setInt(2, userOrgId);</span>
+<span class="nc" id="L162">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L164">				map.put(&quot;OrgId&quot;, rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L165">				map.put(&quot;UserId&quot;, rs.getInt(&quot;user_id&quot;));</span>
+			}
+<span class="nc" id="L167">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L168">			sqe.printStackTrace();</span>
+<span class="nc" id="L169">		}</span>
+<span class="nc" id="L170">		return map;</span>
+	}
+
+	public static void insertIntoCamlotTansactionLog(int RMSTransId,
+			String CSRefTransId, String providerRefId, String pin,
+			String expiryDate, String mobileNum) {
+<span class="nc" id="L176">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L177">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L179">			pstmt = con</span>
+					.prepareStatement(&quot;insert into st_cs_camlot_transaction_log values (?, ?, ?, ?, ?, ?)&quot;);
+<span class="nc" id="L181">			pstmt.setInt(1, RMSTransId);</span>
+<span class="nc" id="L182">			pstmt.setString(2, CSRefTransId);</span>
+<span class="nc" id="L183">			pstmt.setString(3, providerRefId);</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">			if (pin == null) {</span>
+<span class="nc" id="L185">				pin = &quot;NA&quot;;</span>
+			}
+<span class="nc" id="L187">			pstmt.setString(4, pin);</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">			if (expiryDate == null) {</span>
+<span class="nc" id="L189">				expiryDate = &quot;NA&quot;;</span>
+			}
+<span class="nc" id="L191">			pstmt.setString(5, expiryDate);</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">			if (mobileNum == null) {</span>
+<span class="nc" id="L193">				mobileNum = &quot;NA&quot;;</span>
+			}
+<span class="nc" id="L195">			pstmt.setString(6, mobileNum);</span>
+<span class="nc" id="L196">			pstmt.executeUpdate();</span>
+<span class="nc" id="L197">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L198">			sqe.printStackTrace();</span>
+<span class="nc" id="L199">		}</span>
+<span class="nc" id="L200">	}</span>
+
+	public static void fetchRetCommVar(CSUserBean userBean, int productId,
+			Connection con) {
+<span class="nc" id="L204">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L206">			pstmt = con</span>
+					.prepareStatement(&quot;select sale_comm_variance from st_cs_agent_retailer_sale_comm_variance where retailer_org_id = ? and product_id =?&quot;);
+<span class="nc" id="L208">			pstmt.setInt(1, userBean.getUserOrgId());</span>
+<span class="nc" id="L209">			pstmt.setInt(2, productId);</span>
+<span class="nc" id="L210">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L212">				userBean.setUserSaleCommVar(rs.getDouble(&quot;sale_comm_variance&quot;));</span>
+			}
+<span class="nc" id="L214">			pstmt = con</span>
+					.prepareStatement(&quot;select sale_comm_variance from st_cs_bo_agent_sale_comm_variance where agent_org_id = ? and product_id =?&quot;);
+<span class="nc" id="L216">			pstmt.setInt(1, userBean.getParentOrgId());</span>
+<span class="nc" id="L217">			pstmt.setInt(2, productId);</span>
+<span class="nc" id="L218">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L220">				userBean.setParentSaleCommVar(rs</span>
+						.getDouble(&quot;sale_comm_variance&quot;));
+			}
+<span class="nc" id="L223">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L224">			sqe.printStackTrace();</span>
+<span class="nc" id="L225">		}</span>
+
+<span class="nc" id="L227">	}</span>
+
+	public static double fmtToFourDecimal(double number) {
+<span class="nc" id="L230">		return Math.round((number * 10000)) / 10000.0;</span>
+
+	}
+
+	public static Map&lt;String, String&gt; fetchStates() {
+<span class="nc" id="L235">		Map&lt;String, String&gt; stateMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L236">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L238">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select circle_code, circle_name from st_cs_circle_master where status = 'ACTIVE'&quot;);
+<span class="nc" id="L240">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L241">			System.out.println(&quot;fetchStates query:&quot; + pstmt);</span>
+
+<span class="nc bnc" id="L243" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L244">				stateMap.put(rs.getString(&quot;circle_code&quot;), rs</span>
+						.getString(&quot;circle_name&quot;));
+			}
+<span class="nc" id="L247">		} catch (Exception e) {</span>
+<span class="nc" id="L248">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L250">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L251">		}</span>
+<span class="nc" id="L252">		System.out.println(&quot;StateMap in fetchStates(): &quot; + stateMap);</span>
+<span class="nc" id="L253">		return stateMap;</span>
+	}
+
+	public static Map&lt;String, String&gt; fetchOperatorMap() {
+
+<span class="nc" id="L258">		Map&lt;String, String&gt; returnMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L259">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L261">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select distinct(om.operator_code), om.operator_name from st_cs_operator_master om, st_cs_product_master pm where om.operator_code=pm.operator_code and om.status='ACTIVE' AND pm.status='ACTIVE'&quot;);
+
+<span class="nc" id="L264">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L266">				returnMap.put(rs.getString(&quot;operator_code&quot;), rs</span>
+						.getString(&quot;operator_name&quot;));
+			}
+<span class="nc" id="L269">		} catch (Exception e) {</span>
+<span class="nc" id="L270">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L272">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L273">		}</span>
+<span class="nc" id="L274">		return returnMap;</span>
+	}
+
+	public static Map&lt;String, String&gt; fetchCircleMap(String operatorCode) {
+<span class="nc" id="L278">		Map&lt;String, String&gt; returnMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L279">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L281">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select distinct(cm.circle_code), cm.circle_name from st_cs_circle_master cm, st_cs_product_master pm where pm.operator_code=? and cm.status='ACTIVE' AND pm.status='ACTIVE'&quot;);
+<span class="nc" id="L283">			pstmt.setString(1, operatorCode);</span>
+<span class="nc" id="L284">			System.out.println(&quot;**fetchCircleMap query:&quot; + pstmt + &quot;*****&quot;);</span>
+<span class="nc" id="L285">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L287" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L288">				returnMap.put(rs.getString(&quot;circle_code&quot;), rs</span>
+						.getString(&quot;circle_name&quot;));
+			}
+<span class="nc" id="L291">		} catch (Exception e) {</span>
+<span class="nc" id="L292">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L294">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L295">		}</span>
+<span class="nc" id="L296">		return returnMap;</span>
+	}
+
+	public static Map&lt;String, String&gt; fetchCategoryMap(String operatorCode,
+			String state) {
+<span class="nc" id="L301">		Map&lt;String, String&gt; returnMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L302">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L304">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select distinct(pcm.category_code), pcm.description from st_cs_product_category_master pcm,  st_cs_product_master pm where operator_code=? and circle_code=? and pcm.category_id=pm.category_id;&quot;);
+<span class="nc" id="L306">			pstmt.setString(1, operatorCode);</span>
+<span class="nc" id="L307">			pstmt.setString(2, state);</span>
+<span class="nc" id="L308">			System.out.println(&quot;***fetchCategoryMap query:&quot; + pstmt + &quot;*****&quot;);</span>
+<span class="nc" id="L309">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L311" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L312">				String categoryCode = rs.getString(&quot;category_code&quot;);</span>
+<span class="nc" id="L313">				String description = rs.getString(&quot;description&quot;);</span>
+<span class="nc" id="L314">				returnMap.put(categoryCode, description);</span>
+<span class="nc" id="L315">			}</span>
+<span class="nc" id="L316">		} catch (Exception e) {</span>
+<span class="nc" id="L317">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L319">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L320">		}</span>
+<span class="nc" id="L321">		return returnMap;</span>
+	}
+
+	public static Map&lt;String, String&gt; fetchDenominationsMap(
+			String operatorCode, String state, String voucherType) {
+<span class="nc" id="L326">		Map&lt;String, String&gt; returnMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L327">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L329">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select pm.denomination from st_cs_product_category_master pcm, st_cs_product_master pm where operator_code=? and circle_code=? and pcm.category_code=? and pcm.category_id=pm.category_id;&quot;);
+<span class="nc" id="L331">			pstmt.setString(1, operatorCode);</span>
+<span class="nc" id="L332">			pstmt.setString(2, state);</span>
+<span class="nc" id="L333">			pstmt.setString(3, voucherType);</span>
+<span class="nc" id="L334">			System.out.println(&quot;**fetchDenominationsMap query:&quot; + pstmt + &quot;**&quot;);</span>
+<span class="nc" id="L335">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L337" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L338">				String denomination = rs.getString(&quot;denomination&quot;);</span>
+<span class="nc" id="L339">				returnMap.put(denomination, denomination);</span>
+<span class="nc" id="L340">			}</span>
+<span class="nc" id="L341">		} catch (Exception e) {</span>
+<span class="nc" id="L342">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L344">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L345">		}</span>
+<span class="nc" id="L346">		return returnMap;</span>
+	}
+
+	public static String fetchLastCSTransId(int retOrgId) throws LMSException {
+<span class="nc" id="L350">		String lastTransId = &quot;&quot;;</span>
+<span class="nc" id="L351">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L352">		PreparedStatement pstmt1 = null;</span>
+<span class="nc" id="L353">		ResultSet rs1 = null;</span>
+		try {
+<span class="nc" id="L355">			pstmt1 = con</span>
+					.prepareStatement(&quot;select CSLastSaleTransId from st_lms_last_sale_transaction where organization_id = ?&quot;);
+<span class="nc" id="L357">			pstmt1.setInt(1, retOrgId);</span>
+<span class="nc" id="L358">			rs1 = pstmt1.executeQuery();</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">			if (rs1.next()) {</span>
+<span class="nc" id="L360">				lastTransId = rs1.getString(&quot;CSLastSaleTransId&quot;);</span>
+			}
+<span class="nc" id="L362">		} catch (SQLException e) {</span>
+<span class="nc" id="L363">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L364">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L366">			try {</span>
+<span class="nc bnc" id="L367" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L368">					con.close();</span>
+				}
+<span class="nc" id="L370">			} catch (SQLException e) {</span>
+<span class="nc" id="L371">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L372">				e.printStackTrace();</span>
+<span class="nc" id="L373">				throw new LMSException(e);</span>
+<span class="nc" id="L374">			}</span>
+		}
+<span class="nc" id="L376">		return lastTransId;</span>
+	}
+
+	public static String fetchCSSaleData(CSSaleBean saleBean) {
+<span class="nc" id="L380">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L381">		StringBuilder returnData = new StringBuilder(&quot;&quot;);</span>
+		try {
+<span class="nc" id="L383">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select cpm.product_id, cpm.product_code, cpm.description, cpm.operator_code, com.operator_name, cpm.circle_code, cpm.category_id, ccm.circle_name, cpm.denomination, cpd.talktime, cpd.validity, cpd.admin_fee, cpd.service_tax, cpd.recharge_instructions from st_cs_product_master cpm, st_cs_operator_master com , st_cs_circle_master ccm, st_cs_product_category_master ccatm, st_cs_product_details cpd where com.operator_code = cpm.operator_code and ccm.circle_code = cpm.circle_code and cpm.category_id = ccatm.category_id and cpd.product_id = cpm.product_id and cpm.status = 'ACTIVE' and com.operator_code=? and cpm.denomination=?&quot;);
+<span class="nc" id="L385">			pstmt.setString(1, saleBean.getOperatorCode());</span>
+<span class="nc" id="L386">			pstmt.setDouble(2, saleBean.getDenomination());</span>
+<span class="nc" id="L387">			System.out.println(&quot;fetchCSSaleData query:&quot; + pstmt);</span>
+
+<span class="nc" id="L389">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L390" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L391">				saleBean.setProdId(rs.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L392">				saleBean.setProdCode(rs.getString(&quot;product_code&quot;));</span>
+<span class="nc" id="L393">				returnData.append(&quot;description=&quot; + rs.getString(&quot;description&quot;));</span>
+<span class="nc" id="L394">				saleBean.setOperatorCode(rs.getString(&quot;operator_code&quot;));</span>
+<span class="nc" id="L395">				returnData.append(&quot;|operator_name=&quot;</span>
+						+ rs.getString(&quot;operator_name&quot;));
+<span class="nc" id="L397">				saleBean.setCircleCode(rs.getString(&quot;circle_code&quot;));</span>
+<span class="nc" id="L398">				returnData</span>
+						.append(&quot;|circle_name=&quot; + rs.getString(&quot;circle_name&quot;));
+<span class="nc" id="L400">				saleBean.setDenomination(rs.getDouble(&quot;denomination&quot;));</span>
+<span class="nc" id="L401">				saleBean.setCategoryId(rs.getInt(&quot;category_id&quot;));</span>
+
+<span class="nc" id="L403">				String talkTime = rs.getString(&quot;talktime&quot;);</span>
+<span class="nc" id="L404">				double talkTimeVal = Double.parseDouble(talkTime);</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">				if (talkTimeVal &lt; 0) {</span>
+<span class="nc" id="L406">					talkTime = &quot;NA&quot;; // For Applet Printing Purpose</span>
+				}
+
+<span class="nc" id="L409">				String validity = rs.getString(&quot;validity&quot;);</span>
+<span class="nc" id="L410">				double validityVal = Double.parseDouble(validity);</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">				if (validityVal &lt; 0) {</span>
+<span class="nc" id="L412">					validity = &quot;NA&quot;;</span>
+				}
+
+<span class="nc" id="L415">				String adminFee = rs.getString(&quot;admin_fee&quot;);</span>
+<span class="nc" id="L416">				double adminFeeVal = Double.parseDouble(adminFee);</span>
+<span class="nc bnc" id="L417" title="All 2 branches missed.">				if (adminFeeVal &lt; 0) {</span>
+<span class="nc" id="L418">					adminFee = &quot;NA&quot;;</span>
+				}
+
+<span class="nc" id="L421">				String serviceTax = rs.getString(&quot;service_tax&quot;);</span>
+<span class="nc" id="L422">				double serviceTaxVal = Double.parseDouble(serviceTax);</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">				if (serviceTaxVal &lt; 0) {</span>
+<span class="nc" id="L424">					serviceTax = &quot;NA&quot;;</span>
+				}
+
+<span class="nc" id="L427">				String rechargeInstruction = &quot;Dial &quot;</span>
+						+ rs.getString(&quot;recharge_instructions&quot;)
+						+ &quot; &amp; Press OK to recharge&quot;;
+
+<span class="nc" id="L431">				returnData.append(&quot;|talktime=&quot; + talkTime);</span>
+<span class="nc" id="L432">				returnData.append(&quot;|validity=&quot; + validity);</span>
+<span class="nc" id="L433">				returnData.append(&quot;|admin_fee=&quot; + adminFee);</span>
+<span class="nc" id="L434">				returnData.append(&quot;|service_tax=&quot; + serviceTax);</span>
+<span class="nc" id="L435">				returnData.append(&quot;|instruction=&quot; + rechargeInstruction);</span>
+			}
+<span class="nc" id="L437">		} catch (Exception e) {</span>
+<span class="nc" id="L438">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L440">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L441">		}</span>
+<span class="nc" id="L442">		return returnData.toString();</span>
+	}
+
+	public static String fetchCSReprintData(CSSaleBean saleBean, int lmsTxnId) {
+<span class="nc" id="L446">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L447">		StringBuilder returnData = new StringBuilder(&quot;&quot;);</span>
+		try {
+<span class="nc" id="L449">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select cpm.product_id, cpm.product_code, cpm.description, cpm.operator_code, com.operator_name, cpm.circle_code, ccm.circle_name, cpm.denomination, cpd.talktime, cpd.validity, cpd.admin_fee, cpd.service_tax, cpd.recharge_instructions from st_cs_product_master cpm, st_cs_operator_master com , st_cs_circle_master ccm, st_cs_product_category_master ccatm, st_cs_product_details cpd where com.operator_code = cpm.operator_code and ccm.circle_code = cpm.circle_code and cpm.category_id = ccatm.category_id and cpd.product_id = cpm.product_id and cpm.status = 'ACTIVE' and cpm.product_id=(select game_id as prodId from st_lms_retailer_transaction_master where transaction_id = ?)&quot;);
+<span class="nc" id="L451">			pstmt.setInt(1, lmsTxnId);</span>
+
+<span class="nc" id="L453">			System.out.println(&quot;fetchCSReprintData query:&quot; + pstmt);</span>
+
+<span class="nc" id="L455">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L457">				saleBean.setProdId(rs.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L458">				saleBean.setProdCode(rs.getString(&quot;product_code&quot;));</span>
+<span class="nc" id="L459">				returnData.append(&quot;description=&quot; + rs.getString(&quot;description&quot;));</span>
+<span class="nc" id="L460">				saleBean.setOperatorCode(rs.getString(&quot;operator_code&quot;));</span>
+<span class="nc" id="L461">				returnData.append(&quot;|operator_name=&quot;</span>
+						+ rs.getString(&quot;operator_name&quot;));
+<span class="nc" id="L463">				saleBean.setCircleCode(rs.getString(&quot;circle_code&quot;));</span>
+<span class="nc" id="L464">				returnData</span>
+						.append(&quot;|circle_name=&quot; + rs.getString(&quot;circle_name&quot;));
+<span class="nc" id="L466">				saleBean.setDenomination(rs.getDouble(&quot;denomination&quot;));</span>
+<span class="nc" id="L467">				saleBean.setMrpAmt(saleBean.getDenomination());</span>
+				//returnData.append(&quot;|talktime=&quot; + rs.getString(&quot;talktime&quot;));
+				//returnData.append(&quot;|validity=&quot; + rs.getString(&quot;validity&quot;));
+				//returnData.append(&quot;|admin_fee=&quot; + rs.getString(&quot;admin_fee&quot;));
+				//returnData.append(&quot;|service_tax=&quot; + rs.getString(&quot;service_tax&quot;));
+				
+<span class="nc" id="L473">				String talkTime = rs.getString(&quot;talktime&quot;);</span>
+<span class="nc" id="L474">				double talkTimeVal = Double.parseDouble(talkTime);</span>
+<span class="nc bnc" id="L475" title="All 2 branches missed.">				if (talkTimeVal &lt; 0) {</span>
+<span class="nc" id="L476">					talkTime = &quot;NA&quot;; // For Applet Printing Purpose</span>
+				}
+
+<span class="nc" id="L479">				String validity = rs.getString(&quot;validity&quot;);</span>
+<span class="nc" id="L480">				double validityVal = Double.parseDouble(validity);</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">				if (validityVal &lt; 0) {</span>
+<span class="nc" id="L482">					validity = &quot;NA&quot;;</span>
+				}
+
+<span class="nc" id="L485">				String adminFee = rs.getString(&quot;admin_fee&quot;);</span>
+<span class="nc" id="L486">				double adminFeeVal = Double.parseDouble(adminFee);</span>
+<span class="nc bnc" id="L487" title="All 2 branches missed.">				if (adminFeeVal &lt; 0) {</span>
+<span class="nc" id="L488">					adminFee = &quot;NA&quot;;</span>
+				}
+
+<span class="nc" id="L491">				String serviceTax = rs.getString(&quot;service_tax&quot;);</span>
+<span class="nc" id="L492">				double serviceTaxVal = Double.parseDouble(serviceTax);</span>
+<span class="nc bnc" id="L493" title="All 2 branches missed.">				if (serviceTaxVal &lt; 0) {</span>
+<span class="nc" id="L494">					serviceTax = &quot;NA&quot;;</span>
+				}
+
+<span class="nc" id="L497">				String rechargeInstruction = &quot;Dial &quot;</span>
+						+ rs.getString(&quot;recharge_instructions&quot;)
+						+ &quot; &amp; Press OK to recharge&quot;;
+
+<span class="nc" id="L501">				returnData.append(&quot;|talktime=&quot; + talkTime);</span>
+<span class="nc" id="L502">				returnData.append(&quot;|validity=&quot; + validity);</span>
+<span class="nc" id="L503">				returnData.append(&quot;|admin_fee=&quot; + adminFee);</span>
+<span class="nc" id="L504">				returnData.append(&quot;|service_tax=&quot; + serviceTax);</span>
+<span class="nc" id="L505">				returnData.append(&quot;|instruction=&quot; + rechargeInstruction);</span>
+			}
+<span class="nc" id="L507">		} catch (Exception e) {</span>
+<span class="nc" id="L508">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L510">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L511">		}</span>
+<span class="nc" id="L512">		return returnData.toString();</span>
+	}
+
+	/*
+	 * public static Map&lt;String, String&gt; fetchOprNameIdMap(){ Map&lt;String,
+	 * String&gt; returnMap = new HashMap&lt;String, String&gt;(); Connection con =
+	 * DBConnect.getConnection(); try{ PreparedStatement pstmt =
+	 * con.prepareStatement(&quot;select operator_name, operator_code from
+	 * st_cs_operator_master where status = 'ACTIVE'&quot;);
+	 * System.out.println(&quot;fetchOprNameIdMap query:&quot; + pstmt); ResultSet rs =
+	 * pstmt.executeQuery(); while (rs.next()) {
+	 * returnMap.put(rs.getString(&quot;operator_name&quot;),
+	 * rs.getString(&quot;operator_code&quot;)); } } catch (Exception e) {
+	 * e.printStackTrace(); } finally { DBConnect.closeCon(con); } return
+	 * returnMap; }
+	 */
+
+	public static void updateLastCSTransId(int retOrgId, long newTransId)
+			throws LMSException {
+<span class="nc" id="L531">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L533">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L534">			stmt</span>
+					.executeUpdate(&quot;update st_lms_last_sale_transaction set CSLastSaleTransId = &quot;
+							+ newTransId
+							+ &quot; where organization_id = &quot;
+							+ retOrgId);
+<span class="nc" id="L539">		} catch (SQLException e) {</span>
+<span class="nc" id="L540">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L541">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L543">			try {</span>
+<span class="nc bnc" id="L544" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L545">					con.close();</span>
+				}
+<span class="nc" id="L547">			} catch (SQLException e) {</span>
+<span class="nc" id="L548">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L549">				e.printStackTrace();</span>
+<span class="nc" id="L550">				throw new LMSException(e);</span>
+<span class="nc" id="L551">			}</span>
+		}
+<span class="nc" id="L553">	}</span>
+
+	public static List&lt;Integer&gt; fetchCSGameNumList() {
+<span class="nc" id="L556">		List&lt;Integer&gt; csGameNumList = new ArrayList&lt;Integer&gt;();</span>
+<span class="nc" id="L557">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L559">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select category_id from st_cs_product_category_master where status = 'ACTIVE'&quot;);
+<span class="nc" id="L561">			System.out.println(&quot;**fetchCSGameNumList query:&quot; + pstmt);</span>
+<span class="nc" id="L562">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L564" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L565">				csGameNumList.add(rs.getInt(&quot;category_id&quot;));</span>
+			}
+<span class="nc" id="L567">		} catch (Exception e) {</span>
+<span class="nc" id="L568">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L570">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L571">		}</span>
+<span class="nc" id="L572">		return csGameNumList;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

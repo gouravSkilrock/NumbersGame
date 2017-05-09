@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileUploadForTerminalHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.drawMgmt</a> &gt; <span class="el_source">FileUploadForTerminalHelper.java</span></div><h1>FileUploadForTerminalHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.drawMgmt;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.utility.PropertyLoader;
+
+<span class="nc" id="L18">public class FileUploadForTerminalHelper {</span>
+
+	public String uploadFile(String deviceType, String profileName,
+			String itemNames, ArrayList&lt;File&gt; sgnFileUploader,
+			ArrayList&lt;File&gt; adfFileUploader, ArrayList&lt;File&gt; agnFileUploader,
+			ArrayList&lt;String&gt; sgnFileUploaderFileName,
+			ArrayList&lt;String&gt; adfFileUploaderFileName,
+			ArrayList&lt;String&gt; agnFileUploaderFileName, String version,
+			int userId, String isMandatory, String status,String filePath) throws IOException,
+			SQLException {
+
+<span class="nc" id="L29">		String deviceTypes = deviceType</span>
+				.substring(deviceType.lastIndexOf('-') + 1);
+<span class="nc" id="L31">		String deviceId = deviceType.substring(0, 1).trim();</span>
+<span class="nc" id="L32">		String[] itemInfo = itemNames.split(&quot;-&quot;);</span>
+<span class="nc" id="L33">		String outFilePath = filePath+ deviceTypes + &quot;/&quot; + profileName.toLowerCase() + &quot;/&quot;;</span>
+<span class="nc" id="L34">		System.out.println(outFilePath);</span>
+<span class="nc" id="L35">		String errorMessage = &quot;PROBLEM&quot;;</span>
+<span class="nc" id="L36">		System.out.println(&quot;OUT FILE PATH...&quot; + outFilePath);</span>
+<span class="nc" id="L37">		File files = new File(outFilePath + version.trim());</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">		if (files.mkdirs()) {</span>
+<span class="nc" id="L39">			System.out.println(&quot;Version Directory Has Been Created....&quot;);</span>
+		} else {
+<span class="nc" id="L41">			System.out.println(&quot;Version Directory Has not Been Created....&quot;);</span>
+		}
+
+<span class="nc bnc" id="L44" title="All 2 branches missed.">		if (deviceTypes.equalsIgnoreCase(&quot;EFT930G&quot;)) {</span>
+<span class="nc" id="L45">			errorMessage = eftFileUploader(outFilePath, deviceTypes, deviceId,</span>
+					itemInfo, profileName, sgnFileUploader.get(0),
+					adfFileUploader.get(0), sgnFileUploaderFileName.get(0),
+					adfFileUploaderFileName.get(0), version, userId,
+					isMandatory, status);
+		}
+<span class="nc bnc" id="L51" title="All 8 branches missed.">		if (deviceTypes.equalsIgnoreCase(&quot;iCT220&quot;)</span>
+				|| deviceTypes.equalsIgnoreCase(&quot;TPS300&quot;)
+				|| deviceTypes.equalsIgnoreCase(&quot;TPS800&quot;)
+				|| deviceTypes.equalsIgnoreCase(&quot;iWL220&quot;)) {
+
+<span class="nc" id="L56">			errorMessage = ictFileUploader(outFilePath, deviceTypes, deviceId,</span>
+					itemInfo, profileName, agnFileUploader.get(0),
+					agnFileUploaderFileName.get(0), version, userId,
+					isMandatory, status);
+		}
+<span class="nc" id="L61">		return errorMessage;</span>
+	}
+
+	public String eftFileUploader(String outFilePath, String deviceType,
+			String deviceId, String[] itemInfo, String profileName,
+			File sgnFile, File adfFile, String sgnFileName, String adfFileName,
+			String version, int userId, String isMandatory, String status)
+			throws IOException, SQLException {
+
+<span class="nc" id="L70">		String errorMessage = &quot;Failed To Upload&quot;;</span>
+<span class="nc" id="L71">		Connection con = null;</span>
+<span class="nc" id="L72">		PreparedStatement pstm = null;</span>
+		int rowspdated;
+<span class="nc" id="L74">		long sgnFileSize = sgnFile.length();</span>
+<span class="nc" id="L75">		long adfFileSize = adfFile.length();</span>
+<span class="nc" id="L76">		String insertQuery = null;</span>
+		boolean flag;
+
+		// Uploading the file in directory...
+		try {
+			
+<span class="nc" id="L82">			flag=terminalFilesUploader(sgnFile,outFilePath,version,sgnFileName);</span>
+<span class="nc" id="L83">			System.out.println(&quot;TEST FOR SGN...&quot;+flag);</span>
+
+<span class="nc" id="L85">			flag=terminalFilesUploader(adfFile,outFilePath,version,adfFileName);</span>
+<span class="nc" id="L86">			System.out.println(&quot;TEST FOR ADF...&quot;+flag);</span>
+			
+<span class="nc" id="L88">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L89">			con.setAutoCommit(false);</span>
+			// Updating the Data Base
+<span class="nc" id="L91">			insertQuery = &quot;insert into st_lms_htpos_download (device_id,item_id,item_name,version,isMandatory,fileSize,fileSize_adf,updated_date,profile,status,updatedBy) values(?,?,?,?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L92">			pstm = con.prepareStatement(insertQuery);</span>
+<span class="nc" id="L93">			pstm.setDouble(1, Double.parseDouble(deviceId));</span>
+<span class="nc" id="L94">			pstm.setDouble(2, 0);</span>
+<span class="nc" id="L95">			pstm.setString(3, itemInfo[1]);</span>
+<span class="nc" id="L96">			pstm.setString(4, version);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">			pstm.setString(5,</span>
+					(isMandatory.equalsIgnoreCase(&quot;1&quot;) ? &quot;NO&quot; : &quot;YES&quot;));
+<span class="nc" id="L99">			pstm.setString(6, String.valueOf(sgnFileSize));</span>
+<span class="nc" id="L100">			pstm.setString(7, String.valueOf(adfFileSize));</span>
+<span class="nc" id="L101">			pstm.setDate(8, new Date(System.currentTimeMillis()));</span>
+<span class="nc" id="L102">			pstm.setString(9, profileName);</span>
+<span class="nc" id="L103">			pstm.setString(10, status);</span>
+<span class="nc" id="L104">			pstm.setInt(11, userId);</span>
+<span class="nc" id="L105">			rowspdated = pstm.executeUpdate();</span>
+<span class="nc" id="L106">			System.out.println(&quot;ROWS UPDATED....&quot; + rowspdated);</span>
+<span class="nc" id="L107">			con.commit();</span>
+<span class="nc" id="L108">			errorMessage = &quot;success&quot;;</span>
+<span class="nc" id="L109">			return errorMessage;</span>
+<span class="nc" id="L110">		} catch (SQLException e) {</span>
+<span class="nc" id="L111">			System.err.println(&quot;FileStreamsTdest: &quot; + e);</span>
+<span class="nc" id="L112">			errorMessage = e.getMessage();</span>
+		} finally {
+<span class="nc" id="L114">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L115">		}</span>
+<span class="nc" id="L116">		return errorMessage;</span>
+	}
+
+	public String ictFileUploader(String outFilePath, String deviceType,
+			String deviceId, String[] itemInfo, String profileName,
+			File agnFile, String agnFileName, String version, int userId,
+			String isMandatory, String status) throws IOException, SQLException {
+
+<span class="nc" id="L124">		String errorMessage = &quot;Failed To Upload&quot;;</span>
+<span class="nc" id="L125">		Connection con = null;</span>
+<span class="nc" id="L126">		PreparedStatement pstm = null;</span>
+		int rowspdated;
+<span class="nc" id="L128">		long agnFileSize = agnFile.length();</span>
+		boolean flag;
+<span class="nc" id="L130">		String insertQuery = &quot;insert into st_lms_htpos_download (device_id,item_id,item_name,version,isMandatory,fileSize,fileSize_adf,updated_date,profile,status,updatedBy) values(?,?,?,?,?,?,?,?,?,?,?)&quot;;</span>
+
+		// Uploading File in directory
+		try {
+<span class="nc" id="L134">			flag=terminalFilesUploader(agnFile,outFilePath,version,agnFileName);</span>
+<span class="nc" id="L135">			System.out.println(&quot;TEST...&quot;+flag);</span>
+			// Updating database
+<span class="nc" id="L137">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L138">			con.setAutoCommit(false);</span>
+<span class="nc" id="L139">			pstm = con.prepareStatement(insertQuery);</span>
+<span class="nc" id="L140">			pstm.setDouble(1, Double.parseDouble(deviceId));</span>
+<span class="nc" id="L141">			pstm.setDouble(2, 0);</span>
+<span class="nc" id="L142">			pstm.setString(3, itemInfo[1]);</span>
+<span class="nc" id="L143">			pstm.setString(4, version);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">			pstm.setString(5,</span>
+					(isMandatory.equalsIgnoreCase(&quot;1&quot;) ? &quot;NO&quot; : &quot;YES&quot;));
+<span class="nc" id="L146">			pstm.setString(6, String.valueOf(agnFileSize));</span>
+<span class="nc" id="L147">			pstm.setString(7, String.valueOf(-1));</span>
+<span class="nc" id="L148">			pstm.setDate(8, new Date(System.currentTimeMillis()));</span>
+<span class="nc" id="L149">			pstm.setString(9, profileName);</span>
+<span class="nc" id="L150">			pstm.setString(10, status);</span>
+<span class="nc" id="L151">			pstm.setInt(11, userId);</span>
+<span class="nc" id="L152">			rowspdated = pstm.executeUpdate();</span>
+<span class="nc" id="L153">			System.out.println(&quot;ROWS UPDATED....&quot; + rowspdated);</span>
+<span class="nc" id="L154">			con.commit();</span>
+<span class="nc" id="L155">			errorMessage = &quot;success&quot;;</span>
+<span class="nc" id="L156">			return errorMessage;</span>
+<span class="nc" id="L157">		} catch (SQLException e) {</span>
+<span class="nc" id="L158">			System.err.println(&quot;IOException: &quot; + e);</span>
+<span class="nc" id="L159">			errorMessage = e.getMessage();</span>
+		} finally {
+<span class="nc" id="L161">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L162">		}</span>
+<span class="nc" id="L163">		return errorMessage;</span>
+	}
+
+	public boolean terminalFilesUploader(File agnFile, String outFilePath,
+			String version, String agnFileName) {
+<span class="nc" id="L168">		FileInputStream fis = null;</span>
+<span class="nc" id="L169">		FileOutputStream fos = null;</span>
+<span class="nc" id="L170">		boolean flag=true;</span>
+		try {
+<span class="nc" id="L172">			fis = new FileInputStream(agnFile);</span>
+<span class="nc" id="L173">			fos = new FileOutputStream(outFilePath + version.trim() + &quot;/&quot;</span>
+					+ agnFileName);
+			int c;
+<span class="nc bnc" id="L176" title="All 2 branches missed.">			while ((c = fis.read()) != -1) {</span>
+<span class="nc" id="L177">				fos.write(c);</span>
+			}
+<span class="nc" id="L179">			System.out.println(&quot;FILE UPLOADED SUCCESSFULLY ...&quot;);</span>
+<span class="nc" id="L180">			System.out.println(new Date(System.currentTimeMillis()));</span>
+<span class="nc" id="L181">		} catch (Exception e) {</span>
+<span class="nc" id="L182">			flag=false;</span>
+		} finally {
+<span class="nc" id="L184">			try {</span>
+<span class="nc" id="L185">				fis.close();</span>
+<span class="nc" id="L186">				fos.close();</span>
+<span class="nc" id="L187">			} catch (IOException e) {</span>
+<span class="nc" id="L188">				e.printStackTrace();</span>
+<span class="nc" id="L189">			}</span>
+<span class="nc" id="L190">		}</span>
+<span class="nc" id="L191">		return flag;</span>
+	}
+
+	public ArrayList&lt;String&gt; getProFileNameList() {
+
+<span class="nc" id="L196">		String query = &quot;select distinct profile from st_lms_htpos_download&quot;;</span>
+<span class="nc" id="L197">		ArrayList&lt;String&gt; profileList = new ArrayList&lt;String&gt;();</span>
+		try {
+<span class="nc" id="L199">			Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L200">			Statement st = con.createStatement();</span>
+<span class="nc" id="L201">			ResultSet rs = st.executeQuery(query);</span>
+
+<span class="nc bnc" id="L203" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L204">				profileList.add(rs.getString(&quot;profile&quot;));</span>
+			}
+<span class="nc" id="L206">		} catch (Exception e) {</span>
+<span class="nc" id="L207">			e.printStackTrace();</span>
+<span class="nc" id="L208">		}</span>
+<span class="nc" id="L209">		return profileList;</span>
+	}
+
+	public ArrayList&lt;String&gt; getDeviceTypeList() {
+
+<span class="nc" id="L214">		String query = &quot;select distinct device_id,device_type from st_lms_htpos_device_master&quot;;</span>
+<span class="nc" id="L215">		ArrayList&lt;String&gt; deviceList = new ArrayList&lt;String&gt;();</span>
+		try {
+<span class="nc" id="L217">			Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L218">			Statement st = con.createStatement();</span>
+<span class="nc" id="L219">			ResultSet rs = st.executeQuery(query);</span>
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L222">				deviceList.add(rs.getString(&quot;device_id&quot;).trim().concat(&quot;-&quot;)</span>
+						.concat(rs.getString(&quot;device_type&quot;).trim()));
+			}
+<span class="nc" id="L225">		} catch (Exception e) {</span>
+<span class="nc" id="L226">			e.printStackTrace();</span>
+<span class="nc" id="L227">		}</span>
+<span class="nc" id="L228">		return deviceList;</span>
+	}
+
+	public ArrayList&lt;String&gt; getItemNames() {
+<span class="nc" id="L232">		String query = &quot;select distinct item_id ,item_name from st_lms_htpos_download&quot;;</span>
+<span class="nc" id="L233">		ArrayList&lt;String&gt; deviceList = new ArrayList&lt;String&gt;();</span>
+		try {
+<span class="nc" id="L235">			Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L236">			Statement st = con.createStatement();</span>
+<span class="nc" id="L237">			ResultSet rs = st.executeQuery(query);</span>
+
+<span class="nc bnc" id="L239" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L240">				deviceList.add(rs.getString(&quot;item_id&quot;).trim().concat(&quot;-&quot;)</span>
+						.concat(rs.getString(&quot;item_name&quot;).trim()));
+			}
+<span class="nc" id="L243">		} catch (Exception e) {</span>
+<span class="nc" id="L244">			e.printStackTrace();</span>
+<span class="nc" id="L245">		}</span>
+<span class="nc" id="L246">		return deviceList;</span>
+	}
+
+	public String getTerminalVersion(String deviceType, String profileName) {
+<span class="nc" id="L250">		String query = &quot;select max(version) version from st_lms_htpos_download where device_id=? and profile=?&quot;;</span>
+<span class="nc" id="L251">		String deviceId = deviceType.substring(0, 1).trim();</span>
+
+<span class="nc" id="L253">		String currentVersion = null;</span>
+		try {
+<span class="nc" id="L255">			Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L256">			PreparedStatement pstm = con.prepareStatement(query);</span>
+<span class="nc" id="L257">			pstm.setString(1, deviceId);</span>
+<span class="nc" id="L258">			pstm.setString(2, profileName);</span>
+<span class="nc" id="L259">			ResultSet rs = pstm.executeQuery();</span>
+
+<span class="nc bnc" id="L261" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L262">				currentVersion = rs.getString(&quot;version&quot;);</span>
+			}
+<span class="nc" id="L264">		} catch (Exception e) {</span>
+<span class="nc" id="L265">			e.printStackTrace();</span>
+<span class="nc" id="L266">			return currentVersion.trim();</span>
+<span class="nc" id="L267">		}</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">		if (currentVersion == null) {</span>
+<span class="nc" id="L269">			currentVersion = &quot;Not available&quot;;</span>
+		}
+<span class="nc" id="L271">		return currentVersion.trim();</span>
+
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InstantWinReportsHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.instantWin.reportsMgmt</a> &gt; <span class="el_source">InstantWinReportsHelper.java</span></div><h1>InstantWinReportsHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.instantWin.reportsMgmt;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.HashMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.IWUserIncentiveBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+
+
+/**
+ * 
+ * This is helper class for Instant Win Reports.
+ * @author Mukesh
+ *
+ */
+<span class="nc" id="L23">public class InstantWinReportsHelper {</span>
+<span class="nc" id="L24">	private Connection con = null;</span>
+<span class="nc" id="L25">	private PreparedStatement ps = null;</span>
+<span class="nc" id="L26">	private ResultSet rs = null;</span>
+<span class="nc" id="L27">	private static Log log = LogFactory.getLog(InstantWinReportsHelper.class);  </span>
+    /**
+     * This method incentive data for all agents.
+     * @param agentMap
+     * @param fromDate
+     * @param toDate
+     * @param reportType
+     * @throws LMSException
+     * @author Rishi
+     */
+    public void getAgentData(HashMap&lt;Integer,IWUserIncentiveBean&gt; agentMap, String fromDate, String toDate, String reportType) throws LMSException{
+<span class="nc" id="L38">    	log.info(&quot;In getAgentData()&quot;);</span>
+<span class="nc" id="L39">    	con = DBConnect.getConnection();</span>
+<span class="nc" id="L40">    	String query = null;</span>
+<span class="nc" id="L41">    	IWUserIncentiveBean iwUserIncentiveBean =  null;</span>
+    	try{
+<span class="nc" id="L43">   			query = &quot;SELECT om.organization_id,name, IFNULL(incentiveAmt,0.0) incentiveAmt,IFNULL(saleAmt,0.0) saleAmt,IFNULL(winAmt,0.0) winAmt FROM st_lms_organization_master om LEFT JOIN (select organization_id,incentiveAmt,saleAmt,winAmt from st_lms_user_master um1 inner join (SELECT um.parent_user_id,IFNULL(SUM(incentive_amt),0.0) incentiveAmt,IFNULL(SUM(sale_amt),0.0) saleAmt,IFNULL(SUM(winning_amt),0.0) winAmt From st_iw_retailer_&quot;+reportType.toLowerCase()+&quot;_incentive_data  rdid INNER JOIN st_lms_user_master um ON rdid.user_name=um.user_name Where start_date &gt;='&quot;+fromDate+&quot; 00:00:00'and end_date &lt;= '&quot;+toDate+&quot; 23:59:59' GROUP BY um.parent_user_id )  re on re.parent_user_id=um1.user_id ) mainTB ON om.organization_id=mainTB.organization_id where organization_type='AGENT' and organization_status &lt;&gt; 'TERMINATE' order by name&quot;;</span>
+<span class="nc" id="L44">   			log.info(&quot;Query to fetch agent data : &quot;+query);</span>
+<span class="nc" id="L45">    		ps = con.prepareStatement(query);</span>
+<span class="nc" id="L46">    		rs = ps.executeQuery();</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">    		while(rs.next()){</span>
+<span class="nc" id="L48">    			iwUserIncentiveBean = new IWUserIncentiveBean();</span>
+<span class="nc" id="L49">    			iwUserIncentiveBean.setOrganizationId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L50">    			iwUserIncentiveBean.setOrganizationName(rs.getString(&quot;name&quot;));</span>
+<span class="nc" id="L51">    			iwUserIncentiveBean.setSale(rs.getDouble(&quot;saleAmt&quot;));</span>
+<span class="nc" id="L52">    			iwUserIncentiveBean.setWinning(rs.getDouble(&quot;winAmt&quot;));</span>
+<span class="nc" id="L53">    			iwUserIncentiveBean.setIncentiveAmount(rs.getDouble(&quot;incentiveAmt&quot;));</span>
+<span class="nc" id="L54">    			agentMap.put(rs.getInt(&quot;organization_id&quot;), iwUserIncentiveBean);</span>
+    		}
+<span class="nc" id="L56">    	}catch (Exception e) {</span>
+<span class="nc" id="L57">    		e.printStackTrace();</span>
+<span class="nc" id="L58">    		throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+    	}finally{
+<span class="nc" id="L60">    		DBConnect.closeResource(con,ps,rs);</span>
+<span class="nc" id="L61">    	}</span>
+<span class="nc" id="L62">    }</span>
+    
+    /**
+     * This method fetches incentive data for all retailers.
+     * @param retailerMap
+     * @param fromDate
+     * @param toDate
+     * @param parentOrgId
+     * @param reportType
+     * @param orgName
+     * @throws LMSException
+     * @author Rishi
+     */
+    public void getRetailerData(HashMap&lt;Integer,IWUserIncentiveBean&gt; retailerMap, String fromDate, String toDate, int parentOrgId, String reportType, String orgName) throws LMSException{
+<span class="nc" id="L76">    	log.info(&quot;In getRetailerData()&quot;);</span>
+<span class="nc" id="L77">    	con = DBConnect.getConnection();</span>
+<span class="nc" id="L78">    	String query = null;</span>
+<span class="nc" id="L79">    	IWUserIncentiveBean iwUserIncentiveBean = null;</span>
+    	try{
+<span class="nc" id="L81">    		query = &quot;SELECT om.organization_id,name, IFNULL(incentiveAmt,0.0)incentiveAmt,IFNULL(saleAmt,0.0)saleAmt,IFNULL(winAmt,0.0)winAmt FROM st_lms_organization_master om LEFT JOIN (Select rdid.user_name,um.organization_id,ifnull(sum(sale_amt),0.0) saleAmt,ifnull(sum(winning_amt),0.0) winAmt,ifnull(sum(incentive_amt),0.0) incentiveAmt from st_lms_user_master um INNER JOIN st_iw_retailer_daily_incentive_data rdid ON um.user_name = rdid.user_name Where start_date &gt;='&quot;+fromDate+&quot; 00:00:00'and end_date &lt;= '&quot;+toDate+&quot; 23:59:59'  Group by rdid.user_name) mainTB ON om.organization_id=mainTB.organization_id AND om.organization_type='RETAILER'  Where om.parent_id =&quot;+parentOrgId+&quot; order by name&quot;;</span>
+<span class="nc" id="L82">    		log.info(&quot;Query to fetch retailer data : &quot;+query);</span>
+<span class="nc" id="L83">    		ps = con.prepareStatement(query);</span>
+<span class="nc" id="L84">    		rs = ps.executeQuery();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">    		while(rs.next()){</span>
+<span class="nc" id="L86">    			iwUserIncentiveBean = new IWUserIncentiveBean();</span>
+<span class="nc" id="L87">    			iwUserIncentiveBean.setOrganizationId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L88">    			iwUserIncentiveBean.setOrganizationName(rs.getString(&quot;name&quot;));</span>
+<span class="nc" id="L89">    			iwUserIncentiveBean.setSale(rs.getDouble(&quot;saleAmt&quot;));</span>
+<span class="nc" id="L90">    			iwUserIncentiveBean.setWinning(rs.getDouble(&quot;winAmt&quot;));</span>
+<span class="nc" id="L91">    			iwUserIncentiveBean.setIncentiveAmount(rs.getDouble(&quot;incentiveAmt&quot;));</span>
+<span class="nc" id="L92">    			iwUserIncentiveBean.setParentOrgName(orgName);</span>
+<span class="nc" id="L93">    			retailerMap.put(rs.getInt(&quot;organization_id&quot;), iwUserIncentiveBean);</span>
+    		}
+<span class="nc" id="L95">    	}catch (Exception e) {</span>
+<span class="nc" id="L96">    		e.printStackTrace();</span>
+<span class="nc" id="L97">    		throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+    	}finally{
+<span class="nc" id="L99">    		DBConnect.closeResource(con,ps,rs);</span>
+<span class="nc" id="L100">    	}	</span>
+<span class="nc" id="L101">    }</span>
+   
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

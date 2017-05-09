@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserPrivReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">UserPrivReportHelper.java</span></div><h1>UserPrivReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import com.skilrock.lms.beans.UserDetailsBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+
+
+<span class="nc" id="L23">public class UserPrivReportHelper {</span>
+<span class="nc" id="L24">	static Log logger = LogFactory.getLog(UserPrivReportHelper.class);</span>
+
+	public Map&lt;String, Map&lt;String, String&gt;&gt; getServicePrivDetails() throws LMSException{
+				
+<span class="nc" id="L28">		Map&lt;String, Map&lt;String, String&gt;&gt; servicePrivDetailMap = null;</span>
+		
+<span class="nc" id="L30">		Connection con = null;</span>
+<span class="nc" id="L31">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L32">		Statement stmt = null;</span>
+<span class="nc" id="L33">		ResultSet rs = null;</span>
+<span class="nc" id="L34">		ResultSet rs2 = null;</span>
+<span class="nc" id="L35">		ResultSet rs3 = null;</span>
+		
+		try{		
+<span class="nc" id="L38">				Map&lt;String, String&gt; serviceMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L39">				Map&lt;String, String&gt; groupMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L40">				Map&lt;String, String&gt; grpPrivMap = new TreeMap&lt;String,String&gt;();</span>
+<span class="nc" id="L41">				Map&lt;String, String&gt; servicePrivMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L42">				Map&lt;String, String&gt; relatedToPrivMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L43">				Set&lt;String&gt; privIds = new HashSet&lt;String&gt;();</span>
+<span class="nc" id="L44">				Set&lt;String&gt; headGroupNames = new HashSet&lt;String&gt;();</span>
+<span class="nc" id="L45">				Set&lt;String&gt; servicePrivIds = new HashSet&lt;String&gt;();</span>
+<span class="nc" id="L46">				Set&lt;String&gt; relatedToPrivIds = new HashSet&lt;String&gt;();</span>
+				
+				
+				String serviceId;
+<span class="nc" id="L50">				String privTable = null;</span>
+<span class="nc" id="L51">				String groupName = null;</span>
+<span class="nc" id="L52">				String relatedTo = null;</span>
+				
+<span class="nc" id="L54">				String fetchService = &quot;select distinct(sm.service_id),service_display_name,priv_rep_table from st_lms_service_master sm,st_lms_service_delivery_master sdm where sm.status='ACTIVE' and sdm.status='ACTIVE' and sdm.service_id=sm.service_id ;&quot;;	</span>
+		
+<span class="nc" id="L56">				con = DBConnect.getConnection();</span>
+<span class="nc" id="L57">				stmt = con.createStatement();			</span>
+<span class="nc" id="L58">				logger.debug(&quot;fetchingServicesDetails====&quot; + fetchService);</span>
+<span class="nc" id="L59">				rs = stmt.executeQuery(fetchService);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">				while(rs.next()){</span>
+<span class="nc" id="L61">					serviceId = rs.getString(&quot;service_id&quot;);</span>
+<span class="nc" id="L62">					privTable = rs.getString(&quot;priv_rep_table&quot;);</span>
+<span class="nc" id="L63">					serviceMap.put(serviceId, rs.getString(&quot;service_display_name&quot;));				</span>
+<span class="nc" id="L64">					pstmt = con.prepareStatement(&quot;select distinct(group_name), related_to from &quot;+rs.getString(&quot;priv_rep_table&quot;)+&quot; where status='ACTIVE' and priv_id in (&quot; +</span>
+							&quot;select priv_id from st_lms_user_priv_mapping where user_id = &quot; +
+							&quot;(select user_id from st_lms_user_master where isrolehead = 'Y' and role_id = 1) &quot; +
+							&quot;and service_mapping_id in &quot; +
+							&quot;(select service_delivery_master_id from st_lms_service_delivery_master where service_id = ? and interface = 'WEB' and status = 'ACTIVE')&quot; +
+							&quot;and status = 'ACTIVE' )&quot; +
+							&quot; and is_start = 'Y' order by related_to&quot;);						
+<span class="nc" id="L71">						pstmt.setInt(1, Integer.parseInt(serviceId));</span>
+<span class="nc" id="L72">						logger.debug(&quot;fetchingGroupDetails====&quot; + pstmt);</span>
+<span class="nc" id="L73">					rs2 = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">					while(rs2.next()){</span>
+<span class="nc" id="L75">						groupName = rs2.getString(&quot;group_name&quot;);</span>
+<span class="nc" id="L76">						relatedTo = rs2.getString(&quot;related_to&quot;);</span>
+<span class="nc" id="L77">						pstmt = con.prepareStatement(&quot;select priv_id from &quot;+privTable+&quot; where group_name = ? and related_to = ?&quot;);</span>
+<span class="nc" id="L78">							pstmt.setString(1, groupName);</span>
+<span class="nc" id="L79">							pstmt.setString(2, relatedTo);</span>
+<span class="nc" id="L80">							rs3 = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">							while(rs3.next()){</span>
+<span class="nc" id="L82">								privIds.add(rs3.getString(&quot;priv_id&quot;));</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">								if(!servicePrivMap.containsKey(serviceId)){</span>
+<span class="nc" id="L84">									servicePrivIds.clear();</span>
+								}
+<span class="nc" id="L86">								servicePrivIds.add(rs3.getString(&quot;priv_id&quot;));</span>
+<span class="nc" id="L87">								servicePrivMap.put(serviceId, servicePrivIds.toString());	</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">								if(!relatedToPrivMap.containsKey(serviceId+&quot;-&quot;+relatedTo)){</span>
+<span class="nc" id="L89">									relatedToPrivIds.clear();</span>
+								}
+<span class="nc" id="L91">								relatedToPrivIds.add(rs3.getString(&quot;priv_id&quot;));</span>
+<span class="nc" id="L92">								relatedToPrivMap.put(serviceId+&quot;-&quot;+relatedTo, relatedToPrivIds.toString());</span>
+							}
+<span class="nc" id="L94">							headGroupNames.add(relatedTo);</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">							if(!privIds.isEmpty()){</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">								if(relatedTo.equals(&quot;ROLE_MGT&quot;)){</span>
+<span class="nc" id="L97">									relatedTo = &quot;BO_USER_MGT&quot;;</span>
+								}
+<span class="nc" id="L99">								grpPrivMap.put(serviceId+&quot;-&quot;+relatedTo+&quot;-&quot;+groupName, privIds.toString());</span>
+<span class="nc" id="L100">								privIds.clear();</span>
+							}
+					}						
+<span class="nc bnc" id="L103" title="All 2 branches missed.">							if(!headGroupNames.isEmpty()){</span>
+<span class="nc" id="L104">								headGroupNames.remove(&quot;ROLE_MGT&quot;);</span>
+<span class="nc" id="L105">								groupMap.put(serviceId, headGroupNames.toString().trim());</span>
+<span class="nc" id="L106">								headGroupNames.clear();</span>
+							}
+				}
+				//logger.debug(&quot;servicePrivMap: &quot;+servicePrivMap);
+				//logger.debug(&quot;relPrivMap: &quot;+relatedToPrivMap);
+				//logger.debug(&quot;serviceMap : &quot;+serviceMap);
+				//logger.debug(&quot;groupMap : &quot;+groupMap);
+				//logger.debug(&quot;GroupPrivMap : &quot;+grpPrivMap);
+			
+<span class="nc" id="L115">				servicePrivDetailMap = new TreeMap&lt;String, Map&lt;String, String&gt;&gt;();</span>
+<span class="nc" id="L116">				servicePrivDetailMap.put(&quot;ServiceMap&quot;, serviceMap);</span>
+<span class="nc" id="L117">				servicePrivDetailMap.put(&quot;GroupMap&quot;, groupMap);</span>
+<span class="nc" id="L118">				servicePrivDetailMap.put(&quot;GroupPrivMap&quot;, grpPrivMap);</span>
+<span class="nc" id="L119">				servicePrivDetailMap.put(&quot;DirServPrivMap&quot;, servicePrivMap);</span>
+<span class="nc" id="L120">				servicePrivDetailMap.put(&quot;DirRelPrivMap&quot;, relatedToPrivMap);</span>
+<span class="nc" id="L121">		}catch (SQLException e) {</span>
+<span class="nc" id="L122">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L123">			e.printStackTrace();</span>
+<span class="nc" id="L124">		} catch(Exception e){</span>
+<span class="nc" id="L125">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L126">			e.printStackTrace();</span>
+		}finally {		
+<span class="nc" id="L128">			DBConnect.closeConnection(con, pstmt, stmt, rs);</span>
+<span class="nc" id="L129">			DBConnect.closeRs(rs2);</span>
+<span class="nc" id="L130">			DBConnect.closeRs(rs3);</span>
+<span class="nc" id="L131">		}		</span>
+<span class="nc" id="L132">		return servicePrivDetailMap;	 </span>
+	}
+	
+public Map&lt;String, Map&lt;String, String&gt;&gt; getTierUserDetails(int roleId, boolean isBoMaster, int loggedInUserId) throws LMSException{
+		
+		
+<span class="nc" id="L138">		Map&lt;String, Map&lt;String, String&gt;&gt; tierUserDetailMap = new TreeMap&lt;String, Map&lt;String, String&gt;&gt;();</span>
+<span class="nc" id="L139">		String userDetails = null;</span>
+		
+<span class="nc" id="L141">		Connection con = null;</span>
+<span class="nc" id="L142">		Statement stmt = null;</span>
+<span class="nc" id="L143">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L144">		ResultSet rs = null;</span>
+<span class="nc" id="L145">		ResultSet rs2 = null;</span>
+<span class="nc" id="L146">		String userType = null;</span>
+		
+		try{
+<span class="nc" id="L149">				Map&lt;String, String&gt; userTypeMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L150">				Map&lt;String, String&gt; userMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L151">				List&lt;String&gt; users = new ArrayList&lt;String&gt;();	</span>
+				
+<span class="nc" id="L153">				String fetchTiers = &quot;select tier_id, tier_name, tier_code from st_lms_tier_master where tier_status = 'ACTIVE' and tier_code = 'BO';&quot;;</span>
+				
+<span class="nc bnc" id="L155" title="All 2 branches missed.">				if(isBoMaster){</span>
+<span class="nc" id="L156">					userDetails = &quot;select distinct um.user_name,um.role_id, um.user_id from st_lms_user_master as um,st_lms_user_priv_mapping as upm, (select role_id from st_lms_role_master where tier_id = 1) rm where upm.user_id=um.user_id and um.role_id = rm.role_id and um.parent_user_id &lt;&gt; 0 and um.status &lt;&gt; 'TERMINATE' order by um.user_name;&quot;;</span>
+<span class="nc" id="L157">					userTypeMap.clear();</span>
+<span class="nc" id="L158">					userTypeMap.put(&quot;AL&quot;, &quot;All&quot;);					</span>
+<span class="nc" id="L159">					userTypeMap.put(&quot;RH&quot;, &quot;Heads&quot;);</span>
+<span class="nc" id="L160">					userTypeMap.put(&quot;RS&quot;, &quot;Sub Users&quot;);</span>
+				}else{
+<span class="nc" id="L162">					userDetails = &quot;select distinct um.user_name,um.role_id, um.user_id from st_lms_user_master as um ,st_lms_user_priv_mapping as upm where upm.role_id= &quot;+roleId+&quot; and upm.user_id=um.user_id and um.isrolehead='N' and um.status &lt;&gt; 'TERMINATE' order by um.user_name;&quot;;</span>
+<span class="nc" id="L163">					userTypeMap.clear();</span>
+<span class="nc" id="L164">					userTypeMap.put(&quot;RS&quot;, &quot;Sub Users&quot;);</span>
+				}
+					
+<span class="nc" id="L167">				logger.debug(&quot;fetchingServicesDetails====&quot; + fetchTiers);</span>
+				
+<span class="nc" id="L169">				con = DBConnect.getConnection();</span>
+<span class="nc" id="L170">				stmt = con.createStatement();</span>
+<span class="nc" id="L171">				rs = stmt.executeQuery(fetchTiers);</span>
+				
+<span class="nc bnc" id="L173" title="All 2 branches missed.">				while(rs.next()){</span>
+<span class="nc" id="L174">					logger.debug(&quot;fetchingUserDetails====&quot; + userDetails);</span>
+<span class="nc" id="L175">					pstmt = con.prepareStatement(userDetails);</span>
+<span class="nc" id="L176">					rs2 = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">					while(rs2.next()){</span>
+<span class="nc" id="L178">						userType = checkUserType(rs2.getInt(&quot;user_id&quot;), loggedInUserId);</span>
+<span class="nc" id="L179">						users.add(rs2.getString(&quot;user_id&quot;)+&quot;-&quot;+rs2.getString(&quot;role_id&quot;)+&quot;-&quot;+userType+&quot;-&quot;+rs2.getString(&quot;user_name&quot;));</span>
+					}	
+<span class="nc bnc" id="L181" title="All 2 branches missed.">					if(!users.isEmpty()){</span>
+<span class="nc" id="L182">						userMap.put(rs.getString(&quot;tier_id&quot;), users.toString());</span>
+<span class="nc" id="L183">						users.clear();</span>
+					}
+				}			
+				//logger.debug(&quot;userTypeMap : &quot;+userTypeMap);
+				//logger.debug(&quot;userMap : &quot;+userMap);		
+				
+<span class="nc" id="L189">				tierUserDetailMap.put(&quot;UserTypeMap&quot;, userTypeMap);</span>
+<span class="nc" id="L190">				tierUserDetailMap.put(&quot;UserMap&quot;, userMap);		</span>
+<span class="nc" id="L191">		}catch (SQLException e) {</span>
+<span class="nc" id="L192">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L193">			e.printStackTrace();</span>
+<span class="nc" id="L194">		}catch(Exception e){</span>
+<span class="nc" id="L195">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L196">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L198">			DBConnect.closeConnection(con, pstmt,stmt, rs);</span>
+<span class="nc" id="L199">			DBConnect.closeRs(rs2);</span>
+<span class="nc" id="L200">		}		</span>
+<span class="nc" id="L201">		return tierUserDetailMap;	 </span>
+	}
+
+
+public Map dispSearchBoUser(int roleId, int userId) throws LMSException {
+	
+<span class="nc" id="L207">	Map roleMap = new TreeMap();</span>
+<span class="nc" id="L208">	Connection con = null;</span>
+<span class="nc" id="L209">	Statement stmt = null;</span>
+<span class="nc" id="L210">	ResultSet rs = null;</span>
+<span class="nc" id="L211">	String query = null;</span>
+	try {
+<span class="nc" id="L213">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L214">			stmt = con.createStatement();</span>
+			
+<span class="nc bnc" id="L216" title="All 2 branches missed.">			if(isBoMaster(userId)){</span>
+<span class="nc" id="L217">				query = &quot;select role_id,role_description from st_lms_role_master where tier_id = (select tier_id from st_lms_tier_master where tier_code='BO') order by role_name&quot;;</span>
+			}else{
+<span class="nc" id="L219">				query = &quot;select role_id,role_description from st_lms_role_master where role_id = &quot;+roleId+&quot; and tier_id = (select tier_id from st_lms_tier_master where tier_code='BO')&quot;;</span>
+			}		
+<span class="nc" id="L221">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L223">				roleMap.put(rs.getInt(&quot;role_id&quot;), rs.getString(&quot;role_description&quot;));</span>
+			}
+<span class="nc" id="L225">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L226">		} catch (Exception e) {</span>
+<span class="nc" id="L227">				throw new LMSException(e);</span>
+<span class="nc" id="L228">		}</span>
+<span class="nc" id="L229">		return roleMap;</span>
+}
+
+public List&lt;UserDetailsBean&gt; getPriviledgedUsers(String serviceId, String privStr, boolean isBoMaster, int userId) throws LMSException{
+
+<span class="nc" id="L234">	Connection con = null;</span>
+<span class="nc" id="L235">	Statement stmt = null;</span>
+<span class="nc" id="L236">	ResultSet rs = null;</span>
+<span class="nc" id="L237">	UserDetailsBean userDetailsBean = null;</span>
+<span class="nc" id="L238">	String privUserFetchQuery = null;</span>
+<span class="nc" id="L239">	List&lt;UserDetailsBean&gt; usersDetails = new ArrayList&lt;UserDetailsBean&gt;();</span>
+<span class="nc" id="L240">	String genQuery = &quot;select distinct(um.user_id), first_name, last_name, um.user_name, um.status, isrolehead, role_name, rm.role_id from st_lms_user_master um, st_lms_user_contact_details ucd, st_lms_role_master rm, (select * from st_lms_user_priv_mapping where service_mapping_id IN (select service_delivery_master_id from st_lms_service_delivery_master where service_id = '&quot;+serviceId+&quot;' and interface = 'WEB') and status = 'ACTIVE' and priv_id IN (&quot;+privStr+&quot;) and role_id IN (select role_id from st_lms_role_master where tier_id = 1)) upm where um.user_id = upm.user_id and upm.user_id = ucd.user_id and um.role_id = rm.role_id and um.parent_user_id !=0 and um.status &lt;&gt; 'TERMINATE'&quot;;</span>
+<span class="nc" id="L241">	String otherQuery = &quot;select distinct(um.user_id), first_name, last_name, um.user_name, um.status, isrolehead, role_name, rm.role_id from st_lms_user_master um, st_lms_user_contact_details ucd, st_lms_role_master rm, (select * from st_lms_user_priv_mapping where service_mapping_id IN (select service_delivery_master_id from st_lms_service_delivery_master where service_id = '&quot;+serviceId+&quot;' and interface = 'WEB') and status = 'ACTIVE'  and priv_id IN (&quot;+privStr+&quot;) and role_id IN (select role_id from st_lms_role_master where tier_id = 1)) upm where um.user_id = upm.user_id and upm.user_id = ucd.user_id and um.role_id = rm.role_id and um.parent_user_id = &quot;+userId+&quot; and um.status &lt;&gt; 'TERMINATE'&quot;;</span>
+	
+	try{			
+<span class="nc bnc" id="L244" title="All 2 branches missed.">			if(isBoMaster)</span>
+<span class="nc" id="L245">				privUserFetchQuery = &quot;(&quot;+genQuery+&quot; and um.role_id = 1 ) union (&quot;+genQuery+&quot; and um.role_id != 1 and um.isrolehead = 'Y')&quot;;</span>
+			else
+<span class="nc" id="L247">				privUserFetchQuery = otherQuery;			</span>
+<span class="nc" id="L248">			logger.debug(&quot;fetchingPrivUsers====&quot; + privUserFetchQuery);</span>
+			
+<span class="nc" id="L250">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L251">			stmt = con.createStatement();		</span>
+<span class="nc" id="L252">			rs = stmt.executeQuery(privUserFetchQuery);</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L254">				userDetailsBean = new UserDetailsBean();</span>
+<span class="nc" id="L255">				userDetailsBean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+<span class="nc" id="L256">				userDetailsBean.setUserName(rs.getString(&quot;user_name&quot;));</span>
+<span class="nc" id="L257">				userDetailsBean.setFirstName(rs.getString(&quot;first_name&quot;));</span>
+<span class="nc" id="L258">				userDetailsBean.setLastName(rs.getString(&quot;last_name&quot;));</span>
+<span class="nc" id="L259">				userDetailsBean.setStatus(rs.getString(&quot;status&quot;));</span>
+<span class="nc" id="L260">				userDetailsBean.setDepartment(rs.getString(&quot;role_name&quot;));</span>
+<span class="nc" id="L261">				userDetailsBean.setRoleId(Integer.parseInt(rs.getString(&quot;role_id&quot;)));</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">				if(rs.getString(&quot;isrolehead&quot;).equals(&quot;Y&quot;))</span>
+<span class="nc" id="L263">					userDetailsBean.setIsRoleHead(&quot;Head&quot;);</span>
+				else
+<span class="nc" id="L265">					userDetailsBean.setIsRoleHead(&quot;Not Head&quot;);	</span>
+<span class="nc" id="L266">				usersDetails.add(userDetailsBean);</span>
+			}		
+			//logger.debug(&quot;UserDetails : &quot;+usersDetails);
+<span class="nc" id="L269">	}catch (SQLException e) {</span>
+<span class="nc" id="L270">		logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L271">		e.printStackTrace();</span>
+<span class="nc" id="L272">	} catch(Exception e){</span>
+<span class="nc" id="L273">		logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L274">		e.printStackTrace();</span>
+	}finally {
+<span class="nc" id="L276">		DBConnect.closeConnection(con, stmt, rs);</span>
+<span class="nc" id="L277">	}	</span>
+<span class="nc" id="L278">	return usersDetails;		 </span>
+}
+
+
+
+public Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt; fetchUserActivePrivs(String userId) throws LMSException{
+	
+<span class="nc" id="L285">	Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt; userActivePrivsMap = null;</span>
+<span class="nc" id="L286">	Map&lt;String, List&lt;String&gt;&gt; relatedToPrivGrpMap = null;</span>
+<span class="nc" id="L287">	List&lt;String&gt; privGroupList = null;</span>
+	
+<span class="nc" id="L289">	Connection con = null;</span>
+<span class="nc" id="L290">	PreparedStatement pstmt = null;</span>
+<span class="nc" id="L291">	ResultSet rs1 = null;</span>
+<span class="nc" id="L292">	ResultSet rs2 = null;</span>
+<span class="nc" id="L293">	ResultSet rs3 = null;</span>
+	
+	int size ;
+	String serviceId;
+	String privRepTable;
+	String relatedTo;	
+	
+	try{		
+<span class="nc" id="L301">			String fetchServiceNameQuery = &quot;select a.service_id, a.service_display_name, b.priv_rep_table from st_lms_service_master a, (select distinct(service_id), status, priv_rep_table from st_lms_service_delivery_master where service_delivery_master_id IN (select service_mapping_id from st_lms_user_priv_mapping where service_mapping_id IN (select service_delivery_master_id from st_lms_service_delivery_master where service_id IN (select service_id from st_lms_service_master))and user_id = &quot;+userId+&quot; and status = 'ACTIVE')) b where a.service_id = b.service_id and a.status='ACTIVE' and b.status='ACTIVE'&quot;;</span>
+<span class="nc" id="L302">			userActivePrivsMap = new HashMap&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt;();</span>
+<span class="nc" id="L303">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L304">			pstmt = con.prepareStatement(fetchServiceNameQuery);</span>
+<span class="nc" id="L305">			logger.debug(fetchServiceNameQuery);</span>
+<span class="nc" id="L306">			rs1 = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">			while(rs1.next()){</span>
+<span class="nc" id="L308">				size = 0;</span>
+<span class="nc" id="L309">				serviceId = rs1.getString(&quot;service_id&quot;);</span>
+<span class="nc" id="L310">				privRepTable = rs1.getString(&quot;priv_rep_table&quot;);</span>
+<span class="nc" id="L311">				pstmt = con.prepareStatement(&quot;select distinct(a.related_to) from (select distinct(group_name), related_to from &quot;+privRepTable+&quot; where priv_id IN (select priv_id from st_lms_user_priv_mapping where service_mapping_id IN (select service_delivery_master_id from st_lms_service_delivery_master where service_id = ? ) and user_id = ? and status = 'ACTIVE')) a&quot;);</span>
+<span class="nc" id="L312">					pstmt.setInt(1, Integer.parseInt(serviceId));</span>
+<span class="nc" id="L313">					pstmt.setString(2, userId);</span>
+<span class="nc" id="L314">					logger.debug(pstmt);</span>
+<span class="nc" id="L315">				rs2 = pstmt.executeQuery();</span>
+<span class="nc" id="L316">				relatedToPrivGrpMap = new TreeMap&lt;String, List&lt;String&gt;&gt;();</span>
+<span class="nc bnc" id="L317" title="All 2 branches missed.">				while(rs2.next()){</span>
+<span class="nc" id="L318">					relatedTo = rs2.getString(&quot;related_to&quot;);</span>
+<span class="nc" id="L319">					pstmt = con.prepareStatement(&quot;select distinct(group_name) from &quot;+privRepTable+&quot; where priv_id IN (select priv_id from st_lms_user_priv_mapping where service_mapping_id IN (select service_delivery_master_id from st_lms_service_delivery_master where service_id = ? )and user_id = ? and status = 'ACTIVE') and related_to = ? and is_start = 'Y'&quot;);</span>
+<span class="nc" id="L320">						pstmt.setInt(1, Integer.parseInt(serviceId));</span>
+<span class="nc" id="L321">						pstmt.setString(2, userId);</span>
+<span class="nc" id="L322">						pstmt.setString(3, relatedTo);</span>
+<span class="nc" id="L323">						logger.debug(pstmt.toString());</span>
+<span class="nc" id="L324">					rs3 = pstmt.executeQuery();</span>
+<span class="nc" id="L325">					privGroupList = new ArrayList&lt;String&gt;();</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">					while(rs3.next()){</span>
+<span class="nc" id="L327">						privGroupList.add(rs3.getString(&quot;group_name&quot;));</span>
+					}
+					//logger.debug(privGroupList);
+<span class="nc" id="L330">					size = size+privGroupList.size();					</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">					if(!privGroupList.isEmpty()){						</span>
+<span class="nc" id="L332">						relatedToPrivGrpMap.put(relatedTo, privGroupList);</span>
+					}
+				}
+				//logger.debug(relatedToPrivGrpMap);					
+<span class="nc bnc" id="L336" title="All 2 branches missed.">					if(!relatedToPrivGrpMap.isEmpty()){							</span>
+<span class="nc" id="L337">							userActivePrivsMap.put(serviceId+&quot;-&quot;+rs1.getString(&quot;service_display_name&quot;)+&quot;-&quot;+size, relatedToPrivGrpMap);</span>
+					}
+			}
+			//logger.debug(userActivePrivsMap);
+<span class="nc" id="L341">	}catch (SQLException e) {</span>
+<span class="nc" id="L342">		logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L343">		e.printStackTrace();</span>
+<span class="nc" id="L344">	}catch(Exception e){</span>
+<span class="nc" id="L345">		logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L346">		e.printStackTrace();</span>
+	} finally {
+<span class="nc" id="L348">		DBConnect.closeConnection(con, pstmt, rs1);</span>
+<span class="nc" id="L349">		DBConnect.closeRs(rs2);</span>
+<span class="nc" id="L350">		DBConnect.closeRs(rs3);</span>
+<span class="nc" id="L351">	}	</span>
+<span class="nc" id="L352">	return userActivePrivsMap;	 </span>
+}
+
+public boolean isUserHead(int userId) throws LMSException{
+	
+<span class="nc" id="L357">	Connection con = null;</span>
+<span class="nc" id="L358">	PreparedStatement pstmt1 = null;</span>
+<span class="nc" id="L359">	ResultSet rs1 = null;</span>
+	
+	try{
+<span class="nc" id="L362">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L363">			pstmt1 = con.prepareStatement(&quot;select isrolehead from st_lms_user_master where user_id = ?&quot;);</span>
+<span class="nc" id="L364">				pstmt1.setInt(1,userId);</span>
+<span class="nc" id="L365">			rs1 = pstmt1.executeQuery();</span>
+<span class="nc bnc" id="L366" title="All 2 branches missed.">			if(rs1.next()){</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">				if(&quot;Y&quot;.equals(rs1.getString(&quot;isrolehead&quot;)))</span>
+<span class="nc" id="L368">					return true;</span>
+			}
+<span class="nc" id="L370">		}catch (SQLException e) {</span>
+<span class="nc" id="L371">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L372">			e.printStackTrace();</span>
+<span class="nc" id="L373">		} catch(Exception e){</span>
+<span class="nc" id="L374">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L375">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L377">			DBConnect.closeConnection(con, pstmt1, rs1);</span>
+<span class="nc" id="L378">		}	</span>
+<span class="nc" id="L379">		return false;	</span>
+	}
+
+
+public boolean isBoMaster(int userId) throws LMSException{
+	
+<span class="nc" id="L385">	Connection con = null;</span>
+<span class="nc" id="L386">	PreparedStatement pstmt1 = null;</span>
+<span class="nc" id="L387">	ResultSet rs1 = null;</span>
+	
+	try{
+<span class="nc" id="L390">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L391">			pstmt1 = con.prepareStatement(&quot;select parent_user_id from st_lms_user_master where user_id = ?&quot;);</span>
+<span class="nc" id="L392">				pstmt1.setInt(1,userId);</span>
+<span class="nc" id="L393">			rs1 = pstmt1.executeQuery();</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">			while(rs1.next()){</span>
+<span class="nc bnc" id="L395" title="All 2 branches missed.">				if(rs1.getInt(&quot;parent_user_id&quot;) == 0){</span>
+<span class="nc" id="L396">					return true;</span>
+					}
+			}
+<span class="nc" id="L399">		}catch (SQLException e) {</span>
+<span class="nc" id="L400">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L401">			e.printStackTrace();</span>
+<span class="nc" id="L402">		} catch(Exception e){</span>
+<span class="nc" id="L403">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L404">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L406">			DBConnect.closeConnection(con, pstmt1, rs1);</span>
+<span class="nc" id="L407">		}	</span>
+<span class="nc" id="L408">		return false;	</span>
+	}
+
+
+public String checkUserType(int userId, int loggedInUserId) throws LMSException{
+	
+<span class="nc" id="L414">	Connection con = null;</span>
+<span class="nc" id="L415">	PreparedStatement pstmt1 = null;</span>
+<span class="nc" id="L416">	ResultSet rs1 = null;</span>
+	
+	try{
+<span class="nc" id="L419">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L420">			pstmt1 = con.prepareStatement(&quot;select parent_user_id, isrolehead from st_lms_user_master where user_id = ?&quot;);</span>
+<span class="nc" id="L421">				pstmt1.setInt(1,userId);</span>
+<span class="nc" id="L422">			rs1 = pstmt1.executeQuery();</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">			if(rs1.next()){</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">				if(isBoMaster(loggedInUserId)){</span>
+<span class="nc bnc" id="L425" title="All 4 branches missed.">					if(loggedInUserId == rs1.getInt(&quot;parent_user_id&quot;) &amp;&amp; rs1.getString(&quot;isrolehead&quot;).equals(&quot;N&quot;)) {</span>
+<span class="nc" id="L426">						return &quot;RS&quot;;</span>
+<span class="nc bnc" id="L427" title="All 4 branches missed.">					}else if(loggedInUserId == rs1.getInt(&quot;parent_user_id&quot;) &amp;&amp; rs1.getString(&quot;isrolehead&quot;).equals(&quot;Y&quot;)){</span>
+<span class="nc" id="L428">						return &quot;RH&quot;;</span>
+					}
+				}				
+			}
+<span class="nc" id="L432">		}catch (SQLException e) {</span>
+<span class="nc" id="L433">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L434">			e.printStackTrace();</span>
+<span class="nc" id="L435">		} catch(Exception e){</span>
+<span class="nc" id="L436">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L437">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L439">			DBConnect.closeConnection(con, pstmt1, rs1);</span>
+<span class="nc" id="L440">		}</span>
+					
+<span class="nc" id="L442">		return &quot;RS&quot;;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

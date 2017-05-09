@@ -1,0 +1,1035 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApproveTaskHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.accMgmt.common</a> &gt; <span class="el_source">ApproveTaskHelper.java</span></div><h1>ApproveTaskHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.accMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.beans.VatDetailBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.FormatNumber;
+
+/**
+ * This class provides method to approve task for a given task id
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L29">public class ApproveTaskHelper {</span>
+	/**
+	 * This method set the status of task to APPROVED for a given Id
+	 * 
+	 * @param id
+	 *            is task id
+	 * @throws LMSException
+	 */
+<span class="nc" id="L37">	static Log logger = LogFactory.getLog(ApproveTaskHelper.class);</span>
+
+	public Map getVatDetailsDG(java.sql.Date startDate, java.sql.Date endDate,
+			UserInfoBean infoBean) {
+<span class="nc" id="L41">		System.out.println(&quot;getVatDetailsDG called&quot;);</span>
+<span class="nc" id="L42">		Map map = new TreeMap();</span>
+<span class="nc" id="L43">		System.out.println(startDate + &quot; &quot; + endDate + &quot;  &quot; + infoBean);</span>
+<span class="nc" id="L44">		Connection conn = DBConnect.getConnection();</span>
+		try {
+			// calculate vat details of total purchase
+<span class="nc" id="L47">			List&lt;VatDetailBean&gt; purchaseDetailsList = new ArrayList&lt;VatDetailBean&gt;();</span>
+			/*
+			 * String purchaseVatDetailQuery = &quot;select ee.transaction_date,
+			 * aa.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt',
+			 * sum(cc.vat_amt+cc.taxable_sale) 'tax_sales',
+			 * sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',&quot; +&quot;
+			 * sum(cc.gov_comm_amt) 'non_taxable_good_cause', sum(cc.vat_amt)
+			 * 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name,
+			 * cc.transaction_type&quot; +&quot; from st_bo_receipt_gen_mapping aa,
+			 * st_lms_bo_receipts_trn_mapping bb, st_se_bo_agent_transaction cc,
+			 * st_lms_bo_receipts dd, st_lms_bo_transaction_master ee,
+			 * st_se_game_master ff, st_lms_organization_master gg&quot; +&quot; where
+			 * aa.id = bb.id and cc.transaction_id = bb.transaction_id and dd.id
+			 * = bb.id and (dd.receipt_type = 'INVOICE' OR dd.receipt_type =
+			 * 'CR_NOTE') and ee.transaction_id = cc.transaction_id&quot; +&quot; and
+			 * cc.game_id = ff.game_id and gg.organization_id = 1 and
+			 * cc.agent_org_id = ? and (ee.transaction_date&gt;=? and
+			 * ee.transaction_date&lt;?)&quot; +&quot; group by generated_id order by
+			 * transaction_date&quot;;
+			 */
+<span class="nc" id="L67">			String purchaseVatDetailQuery = &quot;select ee.transaction_date, dd.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt', sum(cc.vat_amt + cc.taxable_sale) 'tax_sales',  sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',  sum(cc.govt_comm) 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name, ee.transaction_type&quot;</span>
+					+ &quot; from st_lms_bo_receipts_trn_mapping bb,  st_dg_bo_sale cc,  st_lms_bo_receipts dd, st_lms_bo_transaction_master ee, st_dg_game_master ff, st_lms_organization_master gg&quot;
+					+ &quot; where  cc.transaction_id = bb.transaction_id and dd.receipt_id = bb.receipt_id  and (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE')  and ee.transaction_id = cc.transaction_id  and cc.game_id = ff.game_id and gg.organization_type = 'BO'  &quot;
+					+ &quot; and cc.agent_org_id = ? and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?) &quot;
+					+ &quot; group by generated_id  order by transaction_date&quot;;
+<span class="nc" id="L72">			PreparedStatement pstmt = conn</span>
+					.prepareStatement(purchaseVatDetailQuery);
+<span class="nc" id="L74">			pstmt.setInt(1, infoBean.getUserOrgId());</span>
+<span class="nc" id="L75">			pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L76">			pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L77">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc" id="L78">			System.out.println(&quot;purchase details query = &quot; + pstmt);</span>
+
+<span class="nc" id="L80">			VatDetailBean purchaseBean = null;</span>
+<span class="nc" id="L81">			double sumTotalSale = 0.0;</span>
+<span class="nc" id="L82">			double sumTaxSalesVatInc = 0.0;</span>
+<span class="nc" id="L83">			double sumNonTaxablePpr = 0.0;</span>
+<span class="nc" id="L84">			double sumNonTaxableGoodCause = 0.0;</span>
+<span class="nc" id="L85">			double sumVatAmount = 0.0;</span>
+<span class="nc" id="L86">			double sumTaxableSale = 0.0;</span>
+<span class="nc" id="L87">			int mulFlag = 1;</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L89">				purchaseBean = new VatDetailBean();</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">				if (&quot;DG_SALE_RET&quot;.equalsIgnoreCase(result.getString(</span>
+						&quot;transaction_type&quot;).trim())) {
+<span class="nc" id="L92">					mulFlag = -1;</span>
+				} else {
+<span class="nc" id="L94">					mulFlag = 1;</span>
+				}
+
+<span class="nc" id="L97">				purchaseBean.setDate(result.getDate(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L98">				purchaseBean.setInvoiceNo(result.getString(&quot;generated_id&quot;));</span>
+<span class="nc" id="L99">				double totalSale = result.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L100">				purchaseBean.setTotalSale(FormatNumber</span>
+						.formatNumberForJSP(totalSale * mulFlag));
+<span class="nc" id="L102">				sumTotalSale = sumTotalSale + totalSale * mulFlag;</span>
+
+<span class="nc" id="L104">				double taxSalesVatInc = result.getDouble(&quot;tax_sales&quot;);</span>
+<span class="nc" id="L105">				purchaseBean.setTaxSalesVatInc(FormatNumber</span>
+						.formatNumberForJSP(taxSalesVatInc * mulFlag));
+<span class="nc" id="L107">				sumTaxSalesVatInc = sumTaxSalesVatInc + taxSalesVatInc</span>
+						* mulFlag;
+
+<span class="nc" id="L110">				double nonTaxablePpr = result.getDouble(&quot;non_taxable_ppr&quot;);</span>
+<span class="nc" id="L111">				double nonTaxableGoodCause = result</span>
+						.getDouble(&quot;non_taxable_good_cause&quot;);
+<span class="nc" id="L113">				purchaseBean</span>
+						.setNonTaxablePpr(FormatNumber
+								.formatNumberForJSP((nonTaxablePpr + nonTaxableGoodCause)
+										* mulFlag));
+<span class="nc" id="L117">				sumNonTaxablePpr = sumNonTaxablePpr</span>
+						+ (nonTaxablePpr + nonTaxableGoodCause) * mulFlag;
+
+				/*
+				 * double nonTaxableGoodCause =
+				 * result.getDouble(&quot;non_taxable_good_cause&quot;);
+				 * purchaseBean.setNonTaxableGoodCause
+				 * (FormatNumber.formatNumberForJSP(nonTaxableGoodCause));
+				 * sumNonTaxableGoodCause = sumNonTaxableGoodCause +
+				 * nonTaxableGoodCause*mulFlag;
+				 */
+
+<span class="nc" id="L129">				double taxableSale = result.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L130">				purchaseBean.setTaxableSale(FormatNumber</span>
+						.formatNumberForJSP(taxableSale * mulFlag));
+<span class="nc" id="L132">				sumTaxableSale = sumTaxableSale + taxableSale * mulFlag;</span>
+
+<span class="nc" id="L134">				double vatAmount = result.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L135">				purchaseBean.setVatAmount(FormatNumber</span>
+						.formatNumberForJSP(vatAmount * mulFlag));
+<span class="nc" id="L137">				sumVatAmount = sumVatAmount + vatAmount * mulFlag;</span>
+
+<span class="nc" id="L139">				purchaseBean.setName(result.getString(&quot;name&quot;));</span>
+<span class="nc" id="L140">				purchaseBean.setTransactionType(result</span>
+						.getString(&quot;transaction_type&quot;));
+
+<span class="nc" id="L143">				purchaseDetailsList.add(purchaseBean);</span>
+<span class="nc" id="L144">			}</span>
+<span class="nc" id="L145">			map.put(&quot;purchaseDetailsList&quot;, purchaseDetailsList);</span>
+
+			// calculate total of all values
+
+<span class="nc" id="L149">			VatDetailBean sumPurchaseBean = new VatDetailBean();</span>
+<span class="nc" id="L150">			sumPurchaseBean.setTotalSale(FormatNumber</span>
+					.formatNumberForJSP(sumTotalSale));
+<span class="nc" id="L152">			sumPurchaseBean.setTaxSalesVatInc(FormatNumber</span>
+					.formatNumberForJSP(sumTaxSalesVatInc));
+<span class="nc" id="L154">			sumPurchaseBean.setNonTaxablePpr(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxablePpr));
+<span class="nc" id="L156">			sumPurchaseBean.setNonTaxableGoodCause(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxableGoodCause));
+<span class="nc" id="L158">			sumPurchaseBean.setTaxableSale(FormatNumber</span>
+					.formatNumberForJSP(sumTaxableSale));
+<span class="nc" id="L160">			double payableVatOfAgent = sumVatAmount;</span>
+<span class="nc" id="L161">			sumPurchaseBean.setVatAmount(FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+<span class="nc" id="L163">			map.put(&quot;sumPurchaseBean&quot;, sumPurchaseBean);</span>
+
+<span class="nc" id="L165">			result.close();</span>
+<span class="nc" id="L166">			pstmt.close();</span>
+
+			// calculate vat details of total sale and saleReturn
+<span class="nc" id="L169">			List&lt;VatDetailBean&gt; saleDetailsList = new ArrayList&lt;VatDetailBean&gt;();</span>
+			/*
+			 * String saleVatDetailQuery = &quot;select ee.transaction_date,
+			 * aa.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt',
+			 * sum(cc.vat_amt+cc.taxable_sale) 'tax_sales',
+			 * sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',&quot; + &quot;
+			 * 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt',
+			 * sum(cc.taxable_sale) 'taxable_sale', gg.name, cc.transaction_type
+			 * &quot; + &quot;from st_lms_agent_receipts_gen_mapping aa,
+			 * st_lms_agent_receipts_trn_mapping bb,
+			 * st_se_agent_retailer_transaction cc, st_lms_agent_receipts dd,
+			 * st_lms_agent_transaction_master ee, st_se_game_master ff,
+			 * st_lms_organization_master gg &quot; + &quot;where aa.id = bb.id and
+			 * cc.transaction_id = bb.transaction_id and dd.id = bb.id and
+			 * (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE') and
+			 * ee.transaction_id = cc.transaction_id and cc.game_id = ff.game_id
+			 * and gg.organization_id = cc.retailer_org_id &quot; + &quot;and cc.agent_id
+			 * = ? and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?) &quot; +
+			 * &quot;group by generated_id order by transaction_date &quot;;
+			 */
+<span class="nc" id="L189">			String saleVatDetailQuery = &quot;select ee.transaction_date, dd.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt', sum(cc.vat_amt+cc.taxable_sale) 'tax_sales', sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',&quot;</span>
+					+ &quot; 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name, ee.transaction_type &quot;
+					+ &quot; from  st_lms_agent_receipts_trn_mapping bb, st_dg_agt_sale cc, st_lms_agent_receipts dd, st_lms_agent_transaction_master ee, st_dg_game_master ff, st_lms_organization_master gg &quot;
+					+ &quot; where  cc.transaction_id = bb.transaction_id   and dd.receipt_id = bb.receipt_id  and (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE') and ee.transaction_id = cc.transaction_id  and cc.game_id = ff.game_id     and gg.organization_id = cc.retailer_org_id  &quot;
+					+ &quot; and ee.user_org_id = ?  and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?) and (ee.transaction_type = 'DG_SALE' or ee.transaction_type = 'DG_SALE_RET' )&quot;
+					+ &quot; group by generated_id order by transaction_date &quot;;
+<span class="nc" id="L195">			pstmt = conn.prepareStatement(saleVatDetailQuery);</span>
+<span class="nc" id="L196">			pstmt.setInt(1, infoBean.getUserOrgId());</span>
+<span class="nc" id="L197">			pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L198">			pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L199">			result = pstmt.executeQuery();</span>
+<span class="nc" id="L200">			System.out.println(&quot;sale details query = &quot; + pstmt);</span>
+<span class="nc" id="L201">			VatDetailBean saleBean = null;</span>
+<span class="nc" id="L202">			sumTotalSale = 0.0;</span>
+<span class="nc" id="L203">			sumTaxSalesVatInc = 0.0;</span>
+<span class="nc" id="L204">			sumNonTaxablePpr = 0.0;</span>
+<span class="nc" id="L205">			sumNonTaxableGoodCause = 0.0;</span>
+<span class="nc" id="L206">			sumVatAmount = 0.0;</span>
+<span class="nc" id="L207">			sumTaxableSale = 0.0;</span>
+<span class="nc" id="L208">			mulFlag = 1;</span>
+<span class="nc bnc" id="L209" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L210">				saleBean = new VatDetailBean();</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">				if (&quot;DG_SALE_RET&quot;.equalsIgnoreCase(result.getString(</span>
+						&quot;transaction_type&quot;).trim())) {
+<span class="nc" id="L213">					mulFlag = -1;</span>
+				} else {
+<span class="nc" id="L215">					mulFlag = 1;</span>
+				}
+
+<span class="nc" id="L218">				saleBean.setDate(result.getDate(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L219">				saleBean.setInvoiceNo(result.getString(&quot;generated_id&quot;));</span>
+
+<span class="nc" id="L221">				double totalSale = result.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L222">				saleBean.setTotalSale(FormatNumber.formatNumberForJSP(totalSale</span>
+						* mulFlag));
+<span class="nc" id="L224">				sumTotalSale = sumTotalSale + totalSale * mulFlag;</span>
+
+<span class="nc" id="L226">				double taxSalesVatInc = result.getDouble(&quot;tax_sales&quot;);</span>
+<span class="nc" id="L227">				saleBean.setTaxSalesVatInc(FormatNumber</span>
+						.formatNumberForJSP(taxSalesVatInc * mulFlag));
+<span class="nc" id="L229">				sumTaxSalesVatInc = sumTaxSalesVatInc + taxSalesVatInc</span>
+						* mulFlag;
+
+<span class="nc" id="L232">				double nonTaxablePpr = result.getDouble(&quot;non_taxable_ppr&quot;);</span>
+<span class="nc" id="L233">				saleBean.setNonTaxablePpr(FormatNumber</span>
+						.formatNumberForJSP(nonTaxablePpr * mulFlag));
+<span class="nc" id="L235">				sumNonTaxablePpr = sumNonTaxablePpr + nonTaxablePpr * mulFlag;</span>
+
+				/*
+				 * double nonTaxableGoodCause =
+				 * result.getDouble(&quot;non_taxable_good_cause&quot;);
+				 * saleBean.setNonTaxableGoodCause
+				 * (FormatNumber.formatNumberForJSP(nonTaxableGoodCause));
+				 * sumNonTaxableGoodCause = sumNonTaxableGoodCause +
+				 * nonTaxableGoodCause*mulFlag;
+				 */
+<span class="nc" id="L245">				double taxableSale = result.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L246">				saleBean.setTaxableSale(FormatNumber</span>
+						.formatNumberForJSP(taxableSale * mulFlag));
+<span class="nc" id="L248">				sumTaxableSale = sumTaxableSale + taxableSale * mulFlag;</span>
+
+<span class="nc" id="L250">				double vatAmount = result.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L251">				saleBean.setVatAmount(FormatNumber.formatNumberForJSP(vatAmount</span>
+						* mulFlag));
+<span class="nc" id="L253">				sumVatAmount = sumVatAmount + vatAmount * mulFlag;</span>
+
+<span class="nc" id="L255">				saleBean.setName(result.getString(&quot;name&quot;));</span>
+<span class="nc" id="L256">				saleBean.setTransactionType(result</span>
+						.getString(&quot;transaction_type&quot;));
+
+<span class="nc" id="L259">				saleDetailsList.add(saleBean);</span>
+<span class="nc" id="L260">			}</span>
+<span class="nc" id="L261">			map.put(&quot;saleDetailsList&quot;, saleDetailsList);</span>
+
+			// calculate total of all values
+
+<span class="nc" id="L265">			VatDetailBean sumSaleBean = new VatDetailBean();</span>
+<span class="nc" id="L266">			sumSaleBean.setTotalSale(FormatNumber</span>
+					.formatNumberForJSP(sumTotalSale));
+<span class="nc" id="L268">			sumSaleBean.setTaxSalesVatInc(FormatNumber</span>
+					.formatNumberForJSP(sumTaxSalesVatInc));
+<span class="nc" id="L270">			sumSaleBean.setNonTaxablePpr(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxablePpr));
+<span class="nc" id="L272">			sumSaleBean.setNonTaxableGoodCause(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxableGoodCause));
+<span class="nc" id="L274">			sumSaleBean.setTaxableSale(FormatNumber</span>
+					.formatNumberForJSP(sumTaxableSale));
+<span class="nc" id="L276">			payableVatOfAgent = -1 * payableVatOfAgent + sumVatAmount;</span>
+<span class="nc" id="L277">			sumSaleBean.setVatAmount(FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+
+<span class="nc" id="L280">			map.put(&quot;sumSaleBean&quot;, sumSaleBean);</span>
+<span class="nc" id="L281">			map.put(&quot;payableVatAgent&quot;, FormatNumber</span>
+					.formatNumberForJSP(payableVatOfAgent));
+
+<span class="nc" id="L284">		} catch (SQLException e) {</span>
+<span class="nc" id="L285">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L287">			try {</span>
+<span class="nc" id="L288">				conn.close();</span>
+<span class="nc" id="L289">			} catch (SQLException e) {</span>
+<span class="nc" id="L290">				e.printStackTrace();</span>
+<span class="nc" id="L291">			}</span>
+<span class="nc" id="L292">		}</span>
+
+<span class="nc" id="L294">		return map;</span>
+	}
+
+	public Map getVatDetailsForBoDG(java.sql.Date startDate,
+			java.sql.Date endDate, UserInfoBean infoBean) {
+<span class="nc" id="L299">		System.out.println(&quot;getVatDetailsForBoDG called &quot;);</span>
+<span class="nc" id="L300">		Map map = new TreeMap();</span>
+<span class="nc" id="L301">		System.out.println(startDate + &quot; &quot; + endDate + &quot;  &quot; + infoBean);</span>
+<span class="nc" id="L302">		Connection conn = DBConnect.getConnection();</span>
+		try {
+			// calculate vat details of total sale and saleReturn
+<span class="nc" id="L305">			List&lt;VatDetailBean&gt; saleDetailsList = new ArrayList&lt;VatDetailBean&gt;();</span>
+			/*
+			 * String saleVatDetailQuery = &quot;select ee.transaction_date,
+			 * aa.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt',
+			 * sum(cc.vat_amt+cc.taxable_sale) 'tax_sales',
+			 * sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',
+			 * sum(cc.gov_comm_amt) 'non_taxable_good_cause', sum(cc.vat_amt)
+			 * 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name,
+			 * cc.transaction_type &quot; + &quot;from st_bo_receipt_gen_mapping aa,
+			 * st_lms_bo_receipts_trn_mapping bb, st_se_bo_agent_transaction cc,
+			 * st_lms_bo_receipts dd, st_lms_bo_transaction_master ee,
+			 * st_se_game_master ff, st_lms_organization_master gg &quot; + &quot;where
+			 * aa.id = bb.id and cc.transaction_id = bb.transaction_id and dd.id
+			 * = bb.id and (dd.receipt_type = 'INVOICE' OR dd.receipt_type =
+			 * 'CR_NOTE') and ee.transaction_id = cc.transaction_id and
+			 * cc.game_id = ff.game_id and gg.organization_id = cc.agent_org_id
+			 * and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?)&quot; + &quot;group
+			 * by generated_id order by transaction_date &quot;;
+			 */
+<span class="nc" id="L324">			String idsForDateFilterQuery = &quot;select transaction_id from st_lms_bo_transaction_master where transaction_date&gt;=? and transaction_date&lt;? and transaction_type in ('DG_SALE','DG_REFUND_CANCEL', 'DG_REFUND_FAILED')&quot;;</span>
+<span class="nc" id="L325">			String saleMinusSaleReturnQuery = &quot;(select transaction_id, agent_org_id, game_id, mrp_amt, net_amt, taxable_sale, govt_comm, vat_amt from st_dg_bo_sale where transaction_id in (&quot;</span>
+					+ idsForDateFilterQuery
+					+ &quot;)) union (select transaction_id, agent_org_id, game_id, mrp_amt, net_amt, taxable_sale, govt_comm, vat_amt from st_dg_bo_sale_refund where transaction_id in (&quot;
+					+ idsForDateFilterQuery + &quot;))&quot;;
+<span class="nc" id="L329">			String saleVatDetailQuery = &quot;select ee.transaction_date, dd.generated_id, ee.transaction_id, sum(cc.net_amt) 'net_amt', &quot;</span>
+					+ &quot; sum(cc.vat_amt+cc.taxable_sale) 'tax_sales', sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr', &quot;
+					+ &quot; sum(cc.govt_comm) 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt',  sum(cc.taxable_sale) 'taxable_sale', &quot;
+					+ &quot;	gg.name, ee.transaction_type   from  st_lms_bo_receipts_trn_mapping bb, (&quot;
+					+ saleMinusSaleReturnQuery
+					+ &quot;) cc, st_lms_bo_receipts dd, &quot;
+					+ &quot; st_lms_bo_transaction_master ee, 	st_dg_game_master ff, st_lms_organization_master gg  &quot;
+					+ &quot;  where 	cc.transaction_id = bb.transaction_id and dd.receipt_id = bb.receipt_id and (dd.receipt_type = 'DG_INVOICE' &quot;
+					+ &quot; OR dd.receipt_type = 'CR_NOTE')  and ee.transaction_id = cc.transaction_id and cc.game_id = ff.game_id &quot;
+					+ &quot; and gg.organization_id = cc.agent_org_id&quot;
+					+ &quot; group by generated_id order by transaction_date &quot;;
+<span class="nc" id="L340">			PreparedStatement pstmt = conn.prepareStatement(saleVatDetailQuery);</span>
+<span class="nc" id="L341">			pstmt.setDate(1, startDate);</span>
+<span class="nc" id="L342">			pstmt.setDate(2, endDate);</span>
+<span class="nc" id="L343">			pstmt.setDate(3, startDate);</span>
+<span class="nc" id="L344">			pstmt.setDate(4, endDate);</span>
+<span class="nc" id="L345">			logger.debug(&quot;vat detail query &quot; + pstmt);</span>
+<span class="nc" id="L346">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc" id="L347">			System.out.println(&quot;sale details query = &quot; + pstmt);</span>
+<span class="nc" id="L348">			VatDetailBean saleBean = null;</span>
+<span class="nc" id="L349">			double sumTotalSale = 0.0;</span>
+<span class="nc" id="L350">			double sumTaxSalesVatInc = 0.0;</span>
+<span class="nc" id="L351">			double sumNonTaxablePpr = 0.0;</span>
+<span class="nc" id="L352">			double sumNonTaxableGoodCause = 0.0;</span>
+<span class="nc" id="L353">			double sumVatAmount = 0.0;</span>
+<span class="nc" id="L354">			double sumTaxableSale = 0.0;</span>
+<span class="nc" id="L355">			int mulFlag = 1;</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L357">				saleBean = new VatDetailBean();</span>
+<span class="nc bnc" id="L358" title="All 4 branches missed.">				if (&quot;DG_REFUND_FAILED&quot;.equalsIgnoreCase(result.getString(</span>
+						&quot;transaction_type&quot;).trim())
+						|| &quot;DG_REFUND_CANCEL&quot;.equalsIgnoreCase(result
+								.getString(&quot;transaction_type&quot;).trim())) {
+<span class="nc" id="L362">					mulFlag = -1;</span>
+				} else {
+<span class="nc" id="L364">					mulFlag = 1;</span>
+				}
+
+<span class="nc" id="L367">				saleBean.setDate(result.getDate(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L368">				saleBean.setInvoiceNo(result.getString(&quot;generated_id&quot;));</span>
+
+<span class="nc" id="L370">				double totalSale = result.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L371">				saleBean.setTotalSale(FormatNumber.formatNumberForJSP(totalSale</span>
+						* mulFlag));
+<span class="nc" id="L373">				sumTotalSale = sumTotalSale + totalSale * mulFlag;</span>
+
+<span class="nc" id="L375">				double taxSalesVatInc = result.getDouble(&quot;tax_sales&quot;);</span>
+<span class="nc" id="L376">				saleBean.setTaxSalesVatInc(FormatNumber</span>
+						.formatNumberForJSP(taxSalesVatInc * mulFlag));
+<span class="nc" id="L378">				sumTaxSalesVatInc = sumTaxSalesVatInc + taxSalesVatInc</span>
+						* mulFlag;
+
+<span class="nc" id="L381">				double nonTaxablePpr = result.getDouble(&quot;non_taxable_ppr&quot;);</span>
+<span class="nc" id="L382">				double nonTaxableGoodCause = result</span>
+						.getDouble(&quot;non_taxable_good_cause&quot;);
+<span class="nc" id="L384">				saleBean</span>
+						.setNonTaxablePpr(FormatNumber
+								.formatNumberForJSP((nonTaxablePpr + nonTaxableGoodCause)
+										* mulFlag));
+<span class="nc" id="L388">				sumNonTaxablePpr = sumNonTaxablePpr</span>
+						+ (nonTaxablePpr + nonTaxableGoodCause) * mulFlag;
+
+				/*
+				 * double nonTaxableGoodCause =
+				 * result.getDouble(&quot;non_taxable_good_cause&quot;);
+				 * saleBean.setNonTaxableGoodCause
+				 * (FormatNumber.formatNumberForJSP(nonTaxableGoodCause));
+				 * sumNonTaxableGoodCause = sumNonTaxableGoodCause +
+				 * nonTaxableGoodCause*mulFlag;
+				 */
+<span class="nc" id="L399">				double taxableSale = result.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L400">				saleBean.setTaxableSale(FormatNumber</span>
+						.formatNumberForJSP(taxableSale * mulFlag));
+<span class="nc" id="L402">				sumTaxableSale = sumTaxableSale + taxableSale * mulFlag;</span>
+
+<span class="nc" id="L404">				double vatAmount = result.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L405">				saleBean.setVatAmount(FormatNumber.formatNumberForJSP(vatAmount</span>
+						* mulFlag));
+<span class="nc" id="L407">				sumVatAmount = sumVatAmount + vatAmount * mulFlag;</span>
+
+<span class="nc" id="L409">				saleBean.setName(result.getString(&quot;name&quot;));</span>
+<span class="nc" id="L410">				saleBean.setTransactionType(result</span>
+						.getString(&quot;transaction_type&quot;));
+
+<span class="nc" id="L413">				saleDetailsList.add(saleBean);</span>
+<span class="nc" id="L414">			}</span>
+<span class="nc" id="L415">			map.put(&quot;saleDetailsList&quot;, saleDetailsList);</span>
+
+			// calculate total of all values
+
+<span class="nc" id="L419">			VatDetailBean sumSaleBean = new VatDetailBean();</span>
+<span class="nc" id="L420">			sumSaleBean.setTotalSale(FormatNumber</span>
+					.formatNumberForJSP(sumTotalSale));
+<span class="nc" id="L422">			sumSaleBean.setTaxSalesVatInc(FormatNumber</span>
+					.formatNumberForJSP(sumTaxSalesVatInc));
+<span class="nc" id="L424">			sumSaleBean.setNonTaxablePpr(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxablePpr));
+<span class="nc" id="L426">			sumSaleBean.setNonTaxableGoodCause(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxableGoodCause));
+<span class="nc" id="L428">			sumSaleBean.setTaxableSale(FormatNumber</span>
+					.formatNumberForJSP(sumTaxableSale));
+<span class="nc" id="L430">			sumSaleBean.setVatAmount(FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+<span class="nc" id="L432">			map.put(&quot;serviceName&quot;, &quot;DG&quot;);</span>
+<span class="nc" id="L433">			map.put(&quot;sumSaleBean&quot;, sumSaleBean);</span>
+<span class="nc" id="L434">			map.put(&quot;payableVatAgent&quot;, FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+
+<span class="nc" id="L437">		} catch (SQLException e) {</span>
+<span class="nc" id="L438">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L440">			try {</span>
+<span class="nc" id="L441">				conn.close();</span>
+<span class="nc" id="L442">			} catch (SQLException e) {</span>
+<span class="nc" id="L443">				e.printStackTrace();</span>
+<span class="nc" id="L444">			}</span>
+<span class="nc" id="L445">		}</span>
+
+<span class="nc" id="L447">		return map;</span>
+
+	}
+
+	public Map getVatDetailsForBoSE(java.sql.Date startDate,
+			java.sql.Date endDate, UserInfoBean infoBean) {
+<span class="nc" id="L453">		System.out.println(&quot;getVatDetailsForBoSE called&quot;);</span>
+<span class="nc" id="L454">		Map map = new TreeMap();</span>
+<span class="nc" id="L455">		System.out.println(startDate + &quot; &quot; + endDate + &quot;  &quot; + infoBean);</span>
+<span class="nc" id="L456">		Connection conn = DBConnect.getConnection();</span>
+		try {
+			// calculate vat details of total sale and saleReturn
+<span class="nc" id="L459">			List&lt;VatDetailBean&gt; saleDetailsList = new ArrayList&lt;VatDetailBean&gt;();</span>
+			/*
+			 * String saleVatDetailQuery = &quot;select ee.transaction_date,
+			 * aa.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt',
+			 * sum(cc.vat_amt+cc.taxable_sale) 'tax_sales',
+			 * sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',
+			 * sum(cc.gov_comm_amt) 'non_taxable_good_cause', sum(cc.vat_amt)
+			 * 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name,
+			 * cc.transaction_type &quot; + &quot;from st_bo_receipt_gen_mapping aa,
+			 * st_lms_bo_receipts_trn_mapping bb, st_se_bo_agent_transaction cc,
+			 * st_lms_bo_receipts dd, st_lms_bo_transaction_master ee,
+			 * st_se_game_master ff, st_lms_organization_master gg &quot; + &quot;where
+			 * aa.id = bb.id and cc.transaction_id = bb.transaction_id and dd.id
+			 * = bb.id and (dd.receipt_type = 'INVOICE' OR dd.receipt_type =
+			 * 'CR_NOTE') and ee.transaction_id = cc.transaction_id and
+			 * cc.game_id = ff.game_id and gg.organization_id = cc.agent_org_id
+			 * and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?)&quot; + &quot;group
+			 * by generated_id order by transaction_date &quot;;
+			 */
+<span class="nc" id="L478">			String saleVatDetailQuery = &quot;select ee.transaction_date, dd.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt', sum(cc.vat_amt+cc.taxable_sale) 'tax_sales', sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr', sum(cc.gov_comm_amt) 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt',  sum(cc.taxable_sale) 'taxable_sale', 	gg.name, cc.transaction_type  &quot;</span>
+					+ &quot; from  st_lms_bo_receipts_trn_mapping bb, st_se_bo_agent_transaction cc, st_lms_bo_receipts dd, st_lms_bo_transaction_master ee, 	st_se_game_master ff, st_lms_organization_master gg  &quot;
+					+ &quot;  where 	cc.transaction_id = bb.transaction_id and dd.receipt_id = bb.receipt_id and (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE')  and ee.transaction_id = cc.transaction_id  and cc.game_id = ff.game_id  and gg.organization_id = cc.agent_org_id &quot;
+					+ &quot; and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?)&quot;
+					+ &quot;group by generated_id 	order by transaction_date &quot;;
+<span class="nc" id="L483">			PreparedStatement pstmt = conn.prepareStatement(saleVatDetailQuery);</span>
+<span class="nc" id="L484">			pstmt.setDate(1, startDate);</span>
+<span class="nc" id="L485">			pstmt.setDate(2, endDate);</span>
+<span class="nc" id="L486">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc" id="L487">			System.out.println(&quot;sale details query = &quot; + pstmt);</span>
+<span class="nc" id="L488">			VatDetailBean saleBean = null;</span>
+<span class="nc" id="L489">			double sumTotalSale = 0.0;</span>
+<span class="nc" id="L490">			double sumTaxSalesVatInc = 0.0;</span>
+<span class="nc" id="L491">			double sumNonTaxablePpr = 0.0;</span>
+<span class="nc" id="L492">			double sumNonTaxableGoodCause = 0.0;</span>
+<span class="nc" id="L493">			double sumVatAmount = 0.0;</span>
+<span class="nc" id="L494">			double sumTaxableSale = 0.0;</span>
+<span class="nc" id="L495">			int mulFlag = 1;</span>
+<span class="nc bnc" id="L496" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L497">				saleBean = new VatDetailBean();</span>
+
+<span class="nc bnc" id="L499" title="All 2 branches missed.">				if (&quot;SALE_RET&quot;.equalsIgnoreCase(result.getString(</span>
+						&quot;transaction_type&quot;).trim())) {
+<span class="nc" id="L501">					mulFlag = -1;</span>
+				} else {
+<span class="nc" id="L503">					mulFlag = 1;</span>
+				}
+
+<span class="nc" id="L506">				saleBean.setDate(result.getDate(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L507">				saleBean.setInvoiceNo(result.getString(&quot;generated_id&quot;));</span>
+
+<span class="nc" id="L509">				double totalSale = result.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L510">				saleBean.setTotalSale(FormatNumber.formatNumberForJSP(totalSale</span>
+						* mulFlag));
+<span class="nc" id="L512">				sumTotalSale = sumTotalSale + totalSale * mulFlag;</span>
+
+<span class="nc" id="L514">				double taxSalesVatInc = result.getDouble(&quot;tax_sales&quot;);</span>
+<span class="nc" id="L515">				saleBean.setTaxSalesVatInc(FormatNumber</span>
+						.formatNumberForJSP(taxSalesVatInc * mulFlag));
+<span class="nc" id="L517">				sumTaxSalesVatInc = sumTaxSalesVatInc + taxSalesVatInc</span>
+						* mulFlag;
+
+<span class="nc" id="L520">				double nonTaxablePpr = result.getDouble(&quot;non_taxable_ppr&quot;);</span>
+<span class="nc" id="L521">				double nonTaxableGoodCause = result</span>
+						.getDouble(&quot;non_taxable_good_cause&quot;);
+<span class="nc" id="L523">				saleBean</span>
+						.setNonTaxablePpr(FormatNumber
+								.formatNumberForJSP((nonTaxablePpr + nonTaxableGoodCause)
+										* mulFlag));
+<span class="nc" id="L527">				sumNonTaxablePpr = sumNonTaxablePpr</span>
+						+ (nonTaxablePpr + nonTaxableGoodCause) * mulFlag;
+
+				/*
+				 * double nonTaxableGoodCause =
+				 * result.getDouble(&quot;non_taxable_good_cause&quot;);
+				 * saleBean.setNonTaxableGoodCause
+				 * (FormatNumber.formatNumberForJSP(nonTaxableGoodCause));
+				 * sumNonTaxableGoodCause = sumNonTaxableGoodCause +
+				 * nonTaxableGoodCause*mulFlag;
+				 */
+<span class="nc" id="L538">				double taxableSale = result.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L539">				saleBean.setTaxableSale(FormatNumber</span>
+						.formatNumberForJSP(taxableSale * mulFlag));
+<span class="nc" id="L541">				sumTaxableSale = sumTaxableSale + taxableSale * mulFlag;</span>
+
+<span class="nc" id="L543">				double vatAmount = result.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L544">				saleBean.setVatAmount(FormatNumber.formatNumberForJSP(vatAmount</span>
+						* mulFlag));
+<span class="nc" id="L546">				sumVatAmount = sumVatAmount + vatAmount * mulFlag;</span>
+
+<span class="nc" id="L548">				saleBean.setName(result.getString(&quot;name&quot;));</span>
+<span class="nc" id="L549">				saleBean.setTransactionType(result</span>
+						.getString(&quot;transaction_type&quot;));
+
+<span class="nc" id="L552">				saleDetailsList.add(saleBean);</span>
+<span class="nc" id="L553">			}</span>
+<span class="nc" id="L554">			map.put(&quot;saleDetailsList&quot;, saleDetailsList);</span>
+
+			// calculate total of all values
+
+<span class="nc" id="L558">			VatDetailBean sumSaleBean = new VatDetailBean();</span>
+<span class="nc" id="L559">			sumSaleBean.setTotalSale(FormatNumber</span>
+					.formatNumberForJSP(sumTotalSale));
+<span class="nc" id="L561">			sumSaleBean.setTaxSalesVatInc(FormatNumber</span>
+					.formatNumberForJSP(sumTaxSalesVatInc));
+<span class="nc" id="L563">			sumSaleBean.setNonTaxablePpr(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxablePpr));
+<span class="nc" id="L565">			sumSaleBean.setNonTaxableGoodCause(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxableGoodCause));
+<span class="nc" id="L567">			sumSaleBean.setTaxableSale(FormatNumber</span>
+					.formatNumberForJSP(sumTaxableSale));
+<span class="nc" id="L569">			sumSaleBean.setVatAmount(FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+
+<span class="nc" id="L572">			map.put(&quot;sumSaleBean&quot;, sumSaleBean);</span>
+<span class="nc" id="L573">			map.put(&quot;payableVatAgent&quot;, FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+<span class="nc" id="L575">			map.put(&quot;serviceName&quot;, &quot;SE&quot;);</span>
+
+<span class="nc" id="L577">		} catch (SQLException e) {</span>
+<span class="nc" id="L578">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L580">			try {</span>
+<span class="nc" id="L581">				conn.close();</span>
+<span class="nc" id="L582">			} catch (SQLException e) {</span>
+<span class="nc" id="L583">				e.printStackTrace();</span>
+<span class="nc" id="L584">			}</span>
+<span class="nc" id="L585">		}</span>
+
+<span class="nc" id="L587">		return map;</span>
+
+	}
+	
+	public Map getVatDetailsForBoIW(java.sql.Date startDate,
+			java.sql.Date endDate, UserInfoBean infoBean) {
+<span class="nc" id="L593">		System.out.println(&quot;getVatDetailsForBoIW called&quot;);</span>
+<span class="nc" id="L594">		Map map = new TreeMap();</span>
+<span class="nc" id="L595">		System.out.println(startDate + &quot; &quot; + endDate + &quot;  &quot; + infoBean);</span>
+<span class="nc" id="L596">		Connection conn = DBConnect.getConnection();</span>
+		try {
+			// calculate vat details of total sale and saleReturn
+<span class="nc" id="L599">			List&lt;VatDetailBean&gt; saleDetailsList = new ArrayList&lt;VatDetailBean&gt;();</span>
+			/*
+			 * String saleVatDetailQuery = &quot;select ee.transaction_date,
+			 * aa.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt',
+			 * sum(cc.vat_amt+cc.taxable_sale) 'tax_sales',
+			 * sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',
+			 * sum(cc.govt_comm) 'non_taxable_good_cause', sum(cc.vat_amt)
+			 * 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name,
+			 * cc.transaction_type &quot; + &quot;from st_bo_receipt_gen_mapping aa,
+			 * st_lms_bo_receipts_trn_mapping bb, st_iw_bo_sale cc,
+			 * st_lms_bo_receipts dd, st_lms_bo_transaction_master ee,
+			 * st_iw_game_master ff, st_lms_organization_master gg &quot; + &quot;where
+			 * aa.id = bb.id and cc.transaction_id = bb.transaction_id and dd.id
+			 * = bb.id and (dd.receipt_type = 'INVOICE' OR dd.receipt_type =
+			 * 'CR_NOTE') and ee.transaction_id = cc.transaction_id and
+			 * cc.game_id = ff.game_id and gg.organization_id = cc.agent_org_id
+			 * and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?)&quot; + &quot;group
+			 * by generated_id order by transaction_date &quot;;
+			 */
+<span class="nc" id="L618">			String saleVatDetailQuery = &quot;select ee.transaction_date, dd.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt', sum(cc.vat_amt+cc.taxable_sale) 'tax_sales', sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr', sum(cc.govt_comm) 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt',  sum(cc.taxable_sale) 'taxable_sale', 	gg.name  &quot;</span>
+					+ &quot; from  st_lms_bo_receipts_trn_mapping bb, st_iw_bo_sale cc, st_lms_bo_receipts dd, st_lms_bo_transaction_master ee, 	st_iw_game_master ff, st_lms_organization_master gg  &quot;
+					+ &quot;  where 	cc.transaction_id = bb.transaction_id and dd.receipt_id = bb.receipt_id and (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE')  and ee.transaction_id = cc.transaction_id  and cc.game_id = ff.game_id  and gg.organization_id = cc.agent_org_id &quot;
+					+ &quot; and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?)&quot;
+					+ &quot;group by generated_id 	order by transaction_date &quot;;
+<span class="nc" id="L623">			PreparedStatement pstmt = conn.prepareStatement(saleVatDetailQuery);</span>
+<span class="nc" id="L624">			pstmt.setDate(1, startDate);</span>
+<span class="nc" id="L625">			pstmt.setDate(2, endDate);</span>
+<span class="nc" id="L626">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc" id="L627">			System.out.println(&quot;sale details query = &quot; + pstmt);</span>
+<span class="nc" id="L628">			VatDetailBean saleBean = null;</span>
+<span class="nc" id="L629">			double sumTotalSale = 0.0;</span>
+<span class="nc" id="L630">			double sumTaxSalesVatInc = 0.0;</span>
+<span class="nc" id="L631">			double sumNonTaxablePpr = 0.0;</span>
+<span class="nc" id="L632">			double sumNonTaxableGoodCause = 0.0;</span>
+<span class="nc" id="L633">			double sumVatAmount = 0.0;</span>
+<span class="nc" id="L634">			double sumTaxableSale = 0.0;</span>
+<span class="nc" id="L635">			int mulFlag = 1;</span>
+<span class="nc bnc" id="L636" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L637">				saleBean = new VatDetailBean();</span>
+
+				/*if (&quot;SALE_RET&quot;.equalsIgnoreCase(result.getString(
+						&quot;transaction_type&quot;).trim())) {
+					mulFlag = -1;
+				} else {
+					mulFlag = 1;
+				}*/
+
+<span class="nc" id="L646">				saleBean.setDate(result.getDate(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L647">				saleBean.setInvoiceNo(result.getString(&quot;generated_id&quot;));</span>
+
+<span class="nc" id="L649">				double totalSale = result.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L650">				saleBean.setTotalSale(FormatNumber.formatNumberForJSP(totalSale</span>
+						* mulFlag));
+<span class="nc" id="L652">				sumTotalSale = sumTotalSale + totalSale * mulFlag;</span>
+
+<span class="nc" id="L654">				double taxSalesVatInc = result.getDouble(&quot;tax_sales&quot;);</span>
+<span class="nc" id="L655">				saleBean.setTaxSalesVatInc(FormatNumber</span>
+						.formatNumberForJSP(taxSalesVatInc * mulFlag));
+<span class="nc" id="L657">				sumTaxSalesVatInc = sumTaxSalesVatInc + taxSalesVatInc</span>
+						* mulFlag;
+
+<span class="nc" id="L660">				double nonTaxablePpr = result.getDouble(&quot;non_taxable_ppr&quot;);</span>
+<span class="nc" id="L661">				double nonTaxableGoodCause = result</span>
+						.getDouble(&quot;non_taxable_good_cause&quot;);
+<span class="nc" id="L663">				saleBean</span>
+						.setNonTaxablePpr(FormatNumber
+								.formatNumberForJSP((nonTaxablePpr + nonTaxableGoodCause)
+										* mulFlag));
+<span class="nc" id="L667">				sumNonTaxablePpr = sumNonTaxablePpr</span>
+						+ (nonTaxablePpr + nonTaxableGoodCause) * mulFlag;
+
+				/*
+				 * double nonTaxableGoodCause =
+				 * result.getDouble(&quot;non_taxable_good_cause&quot;);
+				 * saleBean.setNonTaxableGoodCause
+				 * (FormatNumber.formatNumberForJSP(nonTaxableGoodCause));
+				 * sumNonTaxableGoodCause = sumNonTaxableGoodCause +
+				 * nonTaxableGoodCause*mulFlag;
+				 */
+<span class="nc" id="L678">				double taxableSale = result.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L679">				saleBean.setTaxableSale(FormatNumber</span>
+						.formatNumberForJSP(taxableSale * mulFlag));
+<span class="nc" id="L681">				sumTaxableSale = sumTaxableSale + taxableSale * mulFlag;</span>
+
+<span class="nc" id="L683">				double vatAmount = result.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L684">				saleBean.setVatAmount(FormatNumber.formatNumberForJSP(vatAmount</span>
+						* mulFlag));
+<span class="nc" id="L686">				sumVatAmount = sumVatAmount + vatAmount * mulFlag;</span>
+
+<span class="nc" id="L688">				saleBean.setName(result.getString(&quot;name&quot;));</span>
+<span class="nc" id="L689">				saleBean.setTransactionType(result</span>
+						.getString(&quot;transaction_type&quot;));
+
+<span class="nc" id="L692">				saleDetailsList.add(saleBean);</span>
+<span class="nc" id="L693">			}</span>
+<span class="nc" id="L694">			map.put(&quot;saleDetailsList&quot;, saleDetailsList);</span>
+
+			// calculate total of all values
+
+<span class="nc" id="L698">			VatDetailBean sumSaleBean = new VatDetailBean();</span>
+<span class="nc" id="L699">			sumSaleBean.setTotalSale(FormatNumber</span>
+					.formatNumberForJSP(sumTotalSale));
+<span class="nc" id="L701">			sumSaleBean.setTaxSalesVatInc(FormatNumber</span>
+					.formatNumberForJSP(sumTaxSalesVatInc));
+<span class="nc" id="L703">			sumSaleBean.setNonTaxablePpr(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxablePpr));
+<span class="nc" id="L705">			sumSaleBean.setNonTaxableGoodCause(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxableGoodCause));
+<span class="nc" id="L707">			sumSaleBean.setTaxableSale(FormatNumber</span>
+					.formatNumberForJSP(sumTaxableSale));
+<span class="nc" id="L709">			sumSaleBean.setVatAmount(FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+
+<span class="nc" id="L712">			map.put(&quot;sumSaleBean&quot;, sumSaleBean);</span>
+<span class="nc" id="L713">			map.put(&quot;payableVatAgent&quot;, FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+<span class="nc" id="L715">			map.put(&quot;serviceName&quot;, &quot;IW&quot;);</span>
+
+<span class="nc" id="L717">		} catch (SQLException e) {</span>
+<span class="nc" id="L718">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L720">			try {</span>
+<span class="nc" id="L721">				conn.close();</span>
+<span class="nc" id="L722">			} catch (SQLException e) {</span>
+<span class="nc" id="L723">				e.printStackTrace();</span>
+<span class="nc" id="L724">			}</span>
+<span class="nc" id="L725">		}</span>
+
+<span class="nc" id="L727">		return map;</span>
+
+	}
+
+	public Map getVatDetailsSE(java.sql.Date startDate, java.sql.Date endDate,
+			UserInfoBean infoBean) {
+<span class="nc" id="L733">		System.out.println(&quot;getVatDetailsSE called&quot;);</span>
+<span class="nc" id="L734">		Map map = new TreeMap();</span>
+<span class="nc" id="L735">		System.out.println(startDate + &quot; &quot; + endDate + &quot;  &quot; + infoBean);</span>
+<span class="nc" id="L736">		Connection conn = DBConnect.getConnection();</span>
+		try {
+			// calculate vat details of total purchase
+<span class="nc" id="L739">			List&lt;VatDetailBean&gt; purchaseDetailsList = new ArrayList&lt;VatDetailBean&gt;();</span>
+			/*
+			 * String purchaseVatDetailQuery = &quot;select ee.transaction_date,
+			 * aa.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt',
+			 * sum(cc.vat_amt+cc.taxable_sale) 'tax_sales',
+			 * sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',&quot; +&quot;
+			 * sum(cc.gov_comm_amt) 'non_taxable_good_cause', sum(cc.vat_amt)
+			 * 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name,
+			 * cc.transaction_type&quot; +&quot; from st_bo_receipt_gen_mapping aa,
+			 * st_lms_bo_receipts_trn_mapping bb, st_se_bo_agent_transaction cc,
+			 * st_lms_bo_receipts dd, st_lms_bo_transaction_master ee,
+			 * st_se_game_master ff, st_lms_organization_master gg&quot; +&quot; where
+			 * aa.id = bb.id and cc.transaction_id = bb.transaction_id and dd.id
+			 * = bb.id and (dd.receipt_type = 'INVOICE' OR dd.receipt_type =
+			 * 'CR_NOTE') and ee.transaction_id = cc.transaction_id&quot; +&quot; and
+			 * cc.game_id = ff.game_id and gg.organization_id = 1 and
+			 * cc.agent_org_id = ? and (ee.transaction_date&gt;=? and
+			 * ee.transaction_date&lt;?)&quot; +&quot; group by generated_id order by
+			 * transaction_date&quot;;
+			 */
+<span class="nc" id="L759">			String purchaseVatDetailQuery = &quot;select ee.transaction_date, dd.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt', sum(cc.vat_amt + cc.taxable_sale) 'tax_sales',  sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',  sum(cc.gov_comm_amt) 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name, cc.transaction_type&quot;</span>
+					+ &quot; from st_lms_bo_receipts_trn_mapping bb,  st_se_bo_agent_transaction cc,  st_lms_bo_receipts dd, st_lms_bo_transaction_master ee, st_se_game_master ff, st_lms_organization_master gg&quot;
+					+ &quot; where  cc.transaction_id = bb.transaction_id and dd.receipt_id = bb.receipt_id  and (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE')  and ee.transaction_id = cc.transaction_id  and cc.game_id = ff.game_id and gg.organization_type = 'BO'  &quot;
+					+ &quot; and cc.agent_org_id = ? and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?) &quot;
+					+ &quot; group by generated_id  order by transaction_date&quot;;
+<span class="nc" id="L764">			PreparedStatement pstmt = conn</span>
+					.prepareStatement(purchaseVatDetailQuery);
+<span class="nc" id="L766">			pstmt.setInt(1, infoBean.getUserOrgId());</span>
+<span class="nc" id="L767">			pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L768">			pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L769">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc" id="L770">			System.out.println(&quot;purchase details query = &quot; + pstmt);</span>
+
+<span class="nc" id="L772">			VatDetailBean purchaseBean = null;</span>
+<span class="nc" id="L773">			double sumTotalSale = 0.0;</span>
+<span class="nc" id="L774">			double sumTaxSalesVatInc = 0.0;</span>
+<span class="nc" id="L775">			double sumNonTaxablePpr = 0.0;</span>
+<span class="nc" id="L776">			double sumNonTaxableGoodCause = 0.0;</span>
+<span class="nc" id="L777">			double sumVatAmount = 0.0;</span>
+<span class="nc" id="L778">			double sumTaxableSale = 0.0;</span>
+<span class="nc" id="L779">			int mulFlag = 1;</span>
+<span class="nc bnc" id="L780" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L781">				purchaseBean = new VatDetailBean();</span>
+<span class="nc bnc" id="L782" title="All 2 branches missed.">				if (&quot;SALE_RET&quot;.equalsIgnoreCase(result.getString(</span>
+						&quot;transaction_type&quot;).trim())) {
+<span class="nc" id="L784">					mulFlag = -1;</span>
+				} else {
+<span class="nc" id="L786">					mulFlag = 1;</span>
+				}
+
+<span class="nc" id="L789">				purchaseBean.setDate(result.getDate(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L790">				purchaseBean.setInvoiceNo(result.getString(&quot;generated_id&quot;));</span>
+<span class="nc" id="L791">				double totalSale = result.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L792">				purchaseBean.setTotalSale(FormatNumber</span>
+						.formatNumberForJSP(totalSale * mulFlag));
+<span class="nc" id="L794">				sumTotalSale = sumTotalSale + totalSale * mulFlag;</span>
+
+<span class="nc" id="L796">				double taxSalesVatInc = result.getDouble(&quot;tax_sales&quot;);</span>
+<span class="nc" id="L797">				purchaseBean.setTaxSalesVatInc(FormatNumber</span>
+						.formatNumberForJSP(taxSalesVatInc * mulFlag));
+<span class="nc" id="L799">				sumTaxSalesVatInc = sumTaxSalesVatInc + taxSalesVatInc</span>
+						* mulFlag;
+
+<span class="nc" id="L802">				double nonTaxablePpr = result.getDouble(&quot;non_taxable_ppr&quot;);</span>
+<span class="nc" id="L803">				double nonTaxableGoodCause = result</span>
+						.getDouble(&quot;non_taxable_good_cause&quot;);
+<span class="nc" id="L805">				purchaseBean</span>
+						.setNonTaxablePpr(FormatNumber
+								.formatNumberForJSP((nonTaxablePpr + nonTaxableGoodCause)
+										* mulFlag));
+<span class="nc" id="L809">				sumNonTaxablePpr = sumNonTaxablePpr</span>
+						+ (nonTaxablePpr + nonTaxableGoodCause) * mulFlag;
+
+				/*
+				 * double nonTaxableGoodCause =
+				 * result.getDouble(&quot;non_taxable_good_cause&quot;);
+				 * purchaseBean.setNonTaxableGoodCause
+				 * (FormatNumber.formatNumberForJSP(nonTaxableGoodCause));
+				 * sumNonTaxableGoodCause = sumNonTaxableGoodCause +
+				 * nonTaxableGoodCause*mulFlag;
+				 */
+
+<span class="nc" id="L821">				double taxableSale = result.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L822">				purchaseBean.setTaxableSale(FormatNumber</span>
+						.formatNumberForJSP(taxableSale * mulFlag));
+<span class="nc" id="L824">				sumTaxableSale = sumTaxableSale + taxableSale * mulFlag;</span>
+
+<span class="nc" id="L826">				double vatAmount = result.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L827">				purchaseBean.setVatAmount(FormatNumber</span>
+						.formatNumberForJSP(vatAmount * mulFlag));
+<span class="nc" id="L829">				sumVatAmount = sumVatAmount + vatAmount * mulFlag;</span>
+
+<span class="nc" id="L831">				purchaseBean.setName(result.getString(&quot;name&quot;));</span>
+<span class="nc" id="L832">				purchaseBean.setTransactionType(result</span>
+						.getString(&quot;transaction_type&quot;));
+
+<span class="nc" id="L835">				purchaseDetailsList.add(purchaseBean);</span>
+<span class="nc" id="L836">			}</span>
+<span class="nc" id="L837">			map.put(&quot;purchaseDetailsList&quot;, purchaseDetailsList);</span>
+
+			// calculate total of all values
+
+<span class="nc" id="L841">			VatDetailBean sumPurchaseBean = new VatDetailBean();</span>
+<span class="nc" id="L842">			sumPurchaseBean.setTotalSale(FormatNumber</span>
+					.formatNumberForJSP(sumTotalSale));
+<span class="nc" id="L844">			sumPurchaseBean.setTaxSalesVatInc(FormatNumber</span>
+					.formatNumberForJSP(sumTaxSalesVatInc));
+<span class="nc" id="L846">			sumPurchaseBean.setNonTaxablePpr(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxablePpr));
+<span class="nc" id="L848">			sumPurchaseBean.setNonTaxableGoodCause(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxableGoodCause));
+<span class="nc" id="L850">			sumPurchaseBean.setTaxableSale(FormatNumber</span>
+					.formatNumberForJSP(sumTaxableSale));
+<span class="nc" id="L852">			double payableVatOfAgent = sumVatAmount;</span>
+<span class="nc" id="L853">			sumPurchaseBean.setVatAmount(FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+<span class="nc" id="L855">			map.put(&quot;sumPurchaseBean&quot;, sumPurchaseBean);</span>
+
+<span class="nc" id="L857">			result.close();</span>
+<span class="nc" id="L858">			pstmt.close();</span>
+
+			// calculate vat details of total sale and saleReturn
+<span class="nc" id="L861">			List&lt;VatDetailBean&gt; saleDetailsList = new ArrayList&lt;VatDetailBean&gt;();</span>
+			/*
+			 * String saleVatDetailQuery = &quot;select ee.transaction_date,
+			 * aa.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt',
+			 * sum(cc.vat_amt+cc.taxable_sale) 'tax_sales',
+			 * sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',&quot; + &quot;
+			 * 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt',
+			 * sum(cc.taxable_sale) 'taxable_sale', gg.name, cc.transaction_type
+			 * &quot; + &quot;from st_lms_agent_receipts_gen_mapping aa,
+			 * st_lms_agent_receipts_trn_mapping bb,
+			 * st_se_agent_retailer_transaction cc, st_lms_agent_receipts dd,
+			 * st_lms_agent_transaction_master ee, st_se_game_master ff,
+			 * st_lms_organization_master gg &quot; + &quot;where aa.id = bb.id and
+			 * cc.transaction_id = bb.transaction_id and dd.id = bb.id and
+			 * (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE') and
+			 * ee.transaction_id = cc.transaction_id and cc.game_id = ff.game_id
+			 * and gg.organization_id = cc.retailer_org_id &quot; + &quot;and cc.agent_id
+			 * = ? and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?) &quot; +
+			 * &quot;group by generated_id order by transaction_date &quot;;
+			 */
+<span class="nc" id="L881">			String saleVatDetailQuery = &quot;select ee.transaction_date, dd.generated_id, cc.transaction_id, sum(cc.net_amt) 'net_amt', sum(cc.vat_amt+cc.taxable_sale) 'tax_sales', sum(ff.prize_payout_ratio*cc.mrp_amt/100) 'non_taxable_ppr',&quot;</span>
+					+ &quot; 'non_taxable_good_cause', sum(cc.vat_amt) 'vat_amt', sum(cc.taxable_sale) 'taxable_sale', gg.name, cc.transaction_type &quot;
+					+ &quot; from  st_lms_agent_receipts_trn_mapping bb, st_se_agent_retailer_transaction cc, st_lms_agent_receipts dd, st_lms_agent_transaction_master ee, st_se_game_master ff, st_lms_organization_master gg &quot;
+					+ &quot; where  cc.transaction_id = bb.transaction_id   and dd.receipt_id = bb.receipt_id  and (dd.receipt_type = 'INVOICE' OR dd.receipt_type = 'CR_NOTE') and ee.transaction_id = cc.transaction_id  and cc.game_id = ff.game_id     and gg.organization_id = cc.retailer_org_id  &quot;
+					+ &quot; and ee.user_org_id = ?  and (ee.transaction_date&gt;=? and ee.transaction_date&lt;?)&quot;
+					+ &quot; group by generated_id order by transaction_date &quot;;
+<span class="nc" id="L887">			pstmt = conn.prepareStatement(saleVatDetailQuery);</span>
+<span class="nc" id="L888">			pstmt.setInt(1, infoBean.getUserOrgId());</span>
+<span class="nc" id="L889">			pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L890">			pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L891">			result = pstmt.executeQuery();</span>
+<span class="nc" id="L892">			System.out.println(&quot;sale details query = &quot; + pstmt);</span>
+<span class="nc" id="L893">			VatDetailBean saleBean = null;</span>
+<span class="nc" id="L894">			sumTotalSale = 0.0;</span>
+<span class="nc" id="L895">			sumTaxSalesVatInc = 0.0;</span>
+<span class="nc" id="L896">			sumNonTaxablePpr = 0.0;</span>
+<span class="nc" id="L897">			sumNonTaxableGoodCause = 0.0;</span>
+<span class="nc" id="L898">			sumVatAmount = 0.0;</span>
+<span class="nc" id="L899">			sumTaxableSale = 0.0;</span>
+<span class="nc" id="L900">			mulFlag = 1;</span>
+<span class="nc bnc" id="L901" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L902">				saleBean = new VatDetailBean();</span>
+<span class="nc bnc" id="L903" title="All 2 branches missed.">				if (&quot;SALE_RET&quot;.equalsIgnoreCase(result.getString(</span>
+						&quot;transaction_type&quot;).trim())) {
+<span class="nc" id="L905">					mulFlag = -1;</span>
+				} else {
+<span class="nc" id="L907">					mulFlag = 1;</span>
+				}
+
+<span class="nc" id="L910">				saleBean.setDate(result.getDate(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L911">				saleBean.setInvoiceNo(result.getString(&quot;generated_id&quot;));</span>
+
+<span class="nc" id="L913">				double totalSale = result.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L914">				saleBean.setTotalSale(FormatNumber.formatNumberForJSP(totalSale</span>
+						* mulFlag));
+<span class="nc" id="L916">				sumTotalSale = sumTotalSale + totalSale * mulFlag;</span>
+
+<span class="nc" id="L918">				double taxSalesVatInc = result.getDouble(&quot;tax_sales&quot;);</span>
+<span class="nc" id="L919">				saleBean.setTaxSalesVatInc(FormatNumber</span>
+						.formatNumberForJSP(taxSalesVatInc * mulFlag));
+<span class="nc" id="L921">				sumTaxSalesVatInc = sumTaxSalesVatInc + taxSalesVatInc</span>
+						* mulFlag;
+
+<span class="nc" id="L924">				double nonTaxablePpr = result.getDouble(&quot;non_taxable_ppr&quot;);</span>
+<span class="nc" id="L925">				saleBean.setNonTaxablePpr(FormatNumber</span>
+						.formatNumberForJSP(nonTaxablePpr * mulFlag));
+<span class="nc" id="L927">				sumNonTaxablePpr = sumNonTaxablePpr + nonTaxablePpr * mulFlag;</span>
+
+				/*
+				 * double nonTaxableGoodCause =
+				 * result.getDouble(&quot;non_taxable_good_cause&quot;);
+				 * saleBean.setNonTaxableGoodCause
+				 * (FormatNumber.formatNumberForJSP(nonTaxableGoodCause));
+				 * sumNonTaxableGoodCause = sumNonTaxableGoodCause +
+				 * nonTaxableGoodCause*mulFlag;
+				 */
+<span class="nc" id="L937">				double taxableSale = result.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L938">				saleBean.setTaxableSale(FormatNumber</span>
+						.formatNumberForJSP(taxableSale * mulFlag));
+<span class="nc" id="L940">				sumTaxableSale = sumTaxableSale + taxableSale * mulFlag;</span>
+
+<span class="nc" id="L942">				double vatAmount = result.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L943">				saleBean.setVatAmount(FormatNumber.formatNumberForJSP(vatAmount</span>
+						* mulFlag));
+<span class="nc" id="L945">				sumVatAmount = sumVatAmount + vatAmount * mulFlag;</span>
+
+<span class="nc" id="L947">				saleBean.setName(result.getString(&quot;name&quot;));</span>
+<span class="nc" id="L948">				saleBean.setTransactionType(result</span>
+						.getString(&quot;transaction_type&quot;));
+
+<span class="nc" id="L951">				saleDetailsList.add(saleBean);</span>
+<span class="nc" id="L952">			}</span>
+<span class="nc" id="L953">			map.put(&quot;saleDetailsList&quot;, saleDetailsList);</span>
+
+			// calculate total of all values
+
+<span class="nc" id="L957">			VatDetailBean sumSaleBean = new VatDetailBean();</span>
+<span class="nc" id="L958">			sumSaleBean.setTotalSale(FormatNumber</span>
+					.formatNumberForJSP(sumTotalSale));
+<span class="nc" id="L960">			sumSaleBean.setTaxSalesVatInc(FormatNumber</span>
+					.formatNumberForJSP(sumTaxSalesVatInc));
+<span class="nc" id="L962">			sumSaleBean.setNonTaxablePpr(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxablePpr));
+<span class="nc" id="L964">			sumSaleBean.setNonTaxableGoodCause(FormatNumber</span>
+					.formatNumberForJSP(sumNonTaxableGoodCause));
+<span class="nc" id="L966">			sumSaleBean.setTaxableSale(FormatNumber</span>
+					.formatNumberForJSP(sumTaxableSale));
+<span class="nc" id="L968">			payableVatOfAgent = -1 * payableVatOfAgent + sumVatAmount;</span>
+<span class="nc" id="L969">			sumSaleBean.setVatAmount(FormatNumber</span>
+					.formatNumberForJSP(sumVatAmount));
+
+<span class="nc" id="L972">			map.put(&quot;sumSaleBean&quot;, sumSaleBean);</span>
+<span class="nc" id="L973">			map.put(&quot;payableVatAgent&quot;, FormatNumber</span>
+					.formatNumberForJSP(payableVatOfAgent));
+
+<span class="nc" id="L976">		} catch (SQLException e) {</span>
+<span class="nc" id="L977">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L979">			try {</span>
+<span class="nc" id="L980">				conn.close();</span>
+<span class="nc" id="L981">			} catch (SQLException e) {</span>
+<span class="nc" id="L982">				e.printStackTrace();</span>
+<span class="nc" id="L983">			}</span>
+<span class="nc" id="L984">		}</span>
+
+<span class="nc" id="L986">		return map;</span>
+	}
+
+	public void tdsTask(int id, String userType) throws LMSException {
+
+<span class="nc" id="L991">		int taskId = id;</span>
+
+<span class="nc" id="L993">		Connection con = null;</span>
+		try {
+
+<span class="nc" id="L996">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L997">			con.setAutoCommit(false);</span>
+<span class="nc" id="L998">			String updateTask = null;</span>
+
+<span class="nc bnc" id="L1000" title="All 2 branches missed.">			if (userType.equals(&quot;BO&quot;)) {</span>
+<span class="nc" id="L1001">				updateTask = QueryManager.updateST3Task() + &quot; where task_id='&quot;</span>
+						+ taskId + &quot;' &quot;;
+<span class="nc bnc" id="L1003" title="All 2 branches missed.">			} else if (userType.equals(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L1004">				updateTask = QueryManager.updateST3TaskAgt()</span>
+						+ &quot; where task_id='&quot; + taskId + &quot;' &quot;;
+			}
+
+<span class="nc" id="L1008">			PreparedStatement stmt1 = con.prepareStatement(updateTask);</span>
+<span class="nc" id="L1009">			stmt1.setDate(1, new java.sql.Date(new Date().getTime()));</span>
+<span class="nc" id="L1010">			stmt1.executeUpdate();</span>
+<span class="nc" id="L1011">			System.out.println(&quot;1234567777777&quot;);</span>
+<span class="nc" id="L1012">			System.out.println(&quot;status approved&quot;);</span>
+			// stmt1.executeUpdate(&quot;update st_lms_bo_tasks set status='APPROVED'
+			// where task_id='&quot;+taskId+&quot;'&quot;);
+
+<span class="nc" id="L1016">			con.commit();</span>
+
+<span class="nc" id="L1018">		} catch (SQLException e) {</span>
+<span class="nc" id="L1019">			e.printStackTrace();</span>
+<span class="nc" id="L1020">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1022">			try {</span>
+<span class="nc bnc" id="L1023" title="All 4 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L1024">					con.close();</span>
+				}
+
+<span class="nc" id="L1027">			} catch (SQLException se) {</span>
+<span class="nc" id="L1028">				se.printStackTrace();</span>
+<span class="nc" id="L1029">			}</span>
+<span class="nc" id="L1030">		}</span>
+
+<span class="nc" id="L1032">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

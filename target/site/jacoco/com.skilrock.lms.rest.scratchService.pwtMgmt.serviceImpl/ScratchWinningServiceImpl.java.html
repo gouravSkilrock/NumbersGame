@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScratchWinningServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.rest.scratchService.pwtMgmt.serviceImpl</a> &gt; <span class="el_source">ScratchWinningServiceImpl.java</span></div><h1>ScratchWinningServiceImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.rest.scratchService.pwtMgmt.serviceImpl;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.gson.Gson;
+import com.skilrock.lms.beans.OrgPwtLimitBean;
+import com.skilrock.lms.beans.PwtBean;
+import com.skilrock.lms.beans.ScratchPayPWTBean;
+import com.skilrock.lms.beans.TicketBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.coreEngine.scratchService.common.ScratchErrors;
+import com.skilrock.lms.coreEngine.scratchService.orderMgmt.beans.ScratchGameDataBean;
+import com.skilrock.lms.coreEngine.scratchService.pwtMgmt.common.CommonFunctionsHelper;
+import com.skilrock.lms.coreEngine.scratchService.pwtMgmt.common.RetailerPwtProcessHelper;
+import com.skilrock.lms.rest.scratchService.dao.ScratchDao;
+import com.skilrock.lms.rest.scratchService.daoImpl.ScratchDaoImpl;
+import com.skilrock.lms.rest.scratchService.pwtMgmt.beans.ScratchTicketVirnData;
+import com.skilrock.lms.rest.scratchService.pwtMgmt.beans.ScratchWinningDataBean;
+import com.skilrock.lms.rest.scratchService.pwtMgmt.daoImpl.ScratchWinningDaoImpl;
+import com.skilrock.lms.rest.services.bean.ScratchWinningPaymentRequest;
+
+/**
+ * This is service class for verify and pay winning for scratch.
+ * 
+ * @author Nikhil K. Bansal
+ */
+public class ScratchWinningServiceImpl {
+
+<span class="fc" id="L38">	private static Logger logger = LoggerFactory.getLogger(ScratchWinningServiceImpl.class);</span>
+
+	private ScratchDao scratchDao;
+	private CommonFunctionsHelper commonFunction;
+	private RetailerPwtProcessHelper retailerPwtHelper;
+	private ScratchWinningDaoImpl scratchWinDao;
+	private ScratchGameDataBean scratchGameDataBean;
+	private PwtBean pwtBean;
+	private ScratchPayPWTBean scratchPayPWTBean;
+	private TicketBean ticketBean;
+	private OrgPwtLimitBean orgPwtLimitBean;
+	
+<span class="fc" id="L50">	public ScratchWinningServiceImpl(ScratchDao scratchDao, CommonFunctionsHelper commonFunction, RetailerPwtProcessHelper retailerPwtHelper, ScratchWinningDaoImpl scratchWinDao) {</span>
+<span class="fc" id="L51">		this.scratchDao = scratchDao;</span>
+<span class="fc" id="L52">		this.commonFunction = commonFunction;</span>
+<span class="fc" id="L53">		this.retailerPwtHelper = retailerPwtHelper;</span>
+<span class="fc" id="L54">		this.scratchWinDao = scratchWinDao;</span>
+<span class="fc" id="L55">	}</span>
+
+<span class="nc" id="L57">	public ScratchWinningServiceImpl() {</span>
+<span class="nc" id="L58">		scratchDao = new ScratchDaoImpl();</span>
+<span class="nc" id="L59">		commonFunction = new CommonFunctionsHelper();</span>
+<span class="nc" id="L60">		retailerPwtHelper = new RetailerPwtProcessHelper();</span>
+<span class="nc" id="L61">		scratchWinDao = new ScratchWinningDaoImpl();</span>
+<span class="nc" id="L62">	}</span>
+
+	public ScratchWinningDataBean verifyTicketAndVirn(String ticketNo, String virnNo, UserInfoBean userInfoBean)
+			throws LMSException {
+<span class="fc" id="L66">		Connection connection = null;</span>
+<span class="fc" id="L67">		ScratchWinningDataBean winDataBean = null;</span>
+		try {
+<span class="fc" id="L69">			winDataBean = new ScratchWinningDataBean();</span>
+<span class="fc" id="L70">			String highPrizeCriteria = Utility.getPropertyValue(&quot;HIGH_PRIZE_CRITERIA&quot;);</span>
+<span class="fc" id="L71">			String highPrizeAmt = Utility.getPropertyValue(&quot;HIGH_PRIZE_AMT&quot;);</span>
+<span class="fc" id="L72">			connection = DBConnect.getConnection();</span>
+<span class="fc" id="L73">			ScratchGameDataBean gameDataBean = scratchDao.getGameDataWithPwtEndDateVerifyFromTicketNbr(ticketNo,</span>
+					connection);
+<span class="fc" id="L75">			TicketBean tktBean = commonFunction.isTicketFormatValid(ticketNo, gameDataBean.getGameId(), connection);</span>
+<span class="pc bpc" id="L76" title="1 of 4 branches missed.">			if (tktBean != null &amp;&amp; !tktBean.getIsValid()) {</span>
+<span class="fc" id="L77">				throw new LMSException(ScratchErrors.INVALID_TICKET_NUMBER_ERROR_CODE,ScratchErrors.INVALID_TICKET_NUMBER_ERROR_MESSAGE);</span>
+			}
+<span class="fc" id="L79">			String tktArr[] = tktBean.getTicketNumber().split(&quot;-&quot;);</span>
+<span class="fc" id="L80">			tktBean = retailerPwtHelper.checkTicketStatus(tktArr[0], tktArr[0] + &quot;-&quot; + tktArr[1], tktArr[2],</span>
+					gameDataBean.getGameId(), connection);
+<span class="fc bfc" id="L82" title="All 2 branches covered.">			if (tktBean==null) {</span>
+<span class="fc" id="L83">				throw new LMSException(ScratchErrors.INVALID_TICKET_NUMBER_ERROR_CODE,</span>
+						ScratchErrors.INVALID_TICKET_NUMBER_ERROR_MESSAGE);
+			}
+
+<span class="pc bpc" id="L87" title="1 of 4 branches missed.">			if (tktBean != null &amp;&amp; !tktBean.getIsValid()) {</span>
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">				if(&quot;221002&quot;.equals(tktBean.getMessageCode()) || &quot;222006&quot;.equals(tktBean.getMessageCode())){</span>
+<span class="fc" id="L89">					winDataBean.setStatus(&quot;CLAIMED&quot;);</span>
+<span class="fc" id="L90">					return winDataBean;</span>
+				}else{
+<span class="fc" id="L92">					throw new LMSException(ScratchErrors.INVALID_TICKET_NUMBER_ERROR_CODE,</span>
+							ScratchErrors.INVALID_TICKET_NUMBER_ERROR_MESSAGE);
+				}
+			}
+
+<span class="fc" id="L97">			tktBean.setTicketGameId(gameDataBean.getGameId());</span>
+<span class="fc" id="L98">			tktBean.setTicketNumber(tktArr[0] + &quot;-&quot; + tktArr[1] + &quot;-&quot; + tktArr[2]);</span>
+<span class="fc" id="L99">			tktBean.setBook_nbr(tktArr[0] + &quot;-&quot; + tktArr[1]);</span>
+<span class="fc" id="L100">			tktBean.setGameNbr(Integer.parseInt(tktArr[0]));</span>
+<span class="fc" id="L101">			ScratchTicketVirnData ticketVirnData = scratchWinDao.verifyAndGetTicketVirnData(virnNo, gameDataBean,</span>
+					connection, tktBean);
+<span class="fc" id="L103">			logger.info(&quot;ticket status&quot;,ticketVirnData);</span>
+<span class="pc bpc" id="L104" title="1 of 4 branches missed.">			if (ticketVirnData.getPrizeStatus().equalsIgnoreCase(&quot;UNCLM_PWT&quot;)</span>
+					|| ticketVirnData.getPrizeStatus().equalsIgnoreCase(&quot;UNCLM_CANCELLED&quot;)) {
+<span class="fc" id="L106">				OrgPwtLimitBean orgPwtLimit = commonFunction.fetchPwtLimitsOfOrgnization(userInfoBean.getUserOrgId(),</span>
+						connection);
+<span class="fc" id="L108">				winDataBean.setWinningAmount(Double.parseDouble(ticketVirnData.getPwtAmount()));</span>
+<span class="fc" id="L109">				double pwtAmt = winDataBean.getWinningAmount();</span>
+<span class="pc bpc" id="L110" title="5 of 8 branches missed.">				boolean isHighPrizeFlag = &quot;level&quot;.equals(highPrizeCriteria)</span>
+						&amp;&amp; &quot;HIGH&quot;.equals(ticketVirnData.getPrizeLevel())
+						|| &quot;amt&quot;.equals(highPrizeCriteria) &amp;&amp; pwtAmt &gt; Double.parseDouble(highPrizeAmt);
+<span class="pc bpc" id="L113" title="5 of 6 branches missed.">				if (pwtAmt &gt; orgPwtLimit.getVerificationLimit() || pwtAmt &gt; orgPwtLimit.getApprovalLimit()</span>
+						|| isHighPrizeFlag) {
+<span class="fc" id="L115">					winDataBean.setStatus(&quot;HIGH_PRIZE&quot;);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">				} else if (pwtAmt &lt;= orgPwtLimit.getPayLimit()) {</span>
+<span class="nc" id="L117">					winDataBean.setStatus(&quot;UNCLAIMED&quot;);</span>
+				}
+<span class="fc" id="L119">			}</span>
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">			else if (ticketVirnData.getPrizeStatus().equalsIgnoreCase(&quot;NO_PRIZE_PWT&quot;)) {</span>
+<span class="fc" id="L122">				winDataBean.setStatus(&quot;NON_WIN&quot;);</span>
+			} else {
+<span class="fc" id="L124">				winDataBean.setStatus(&quot;CLAIMED&quot;);</span>
+			}
+<span class="fc" id="L126">		} catch (LMSException e) {</span>
+<span class="fc" id="L127">			throw e;</span>
+<span class="fc" id="L128">		} catch (Exception e) {</span>
+<span class="fc" id="L129">			e.printStackTrace();</span>
+<span class="fc" id="L130">			throw new LMSException(ScratchErrors.GENERAL_EXCEPTION_ERROR_CODE, ScratchErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="fc" id="L131">		}</span>
+<span class="fc" id="L132">		return winDataBean;</span>
+	}
+	
+	public void payPWTProcess(UserInfoBean userInfoBean, ScratchWinningPaymentRequest scratchWinningPaymentRequest,ScratchWinningDataBean winningDataBean) throws LMSException{
+<span class="fc" id="L136">		Connection connection = null;</span>
+		try{
+<span class="fc" id="L138">			connection = DBConnect.getConnection();</span>
+<span class="fc" id="L139">			connection.setAutoCommit(false);</span>
+<span class="fc" id="L140">			pwtBean = setPWTBeanParameters(scratchWinningPaymentRequest, winningDataBean);</span>
+<span class="fc" id="L141">			fetchAndVerfiyScratchGameDataBean(scratchWinningPaymentRequest, connection);</span>
+<span class="fc" id="L142">			ticketBean = validateTicketNumberAndRequiredParameters(scratchWinningPaymentRequest, connection);</span>
+<span class="fc" id="L143">			fetchAndVerifyOrgPWTLimitBean(userInfoBean, connection);</span>
+<span class="fc" id="L144">			scratchPayPWTBean = setScratchPayPWTBeanParameters(userInfoBean);</span>
+<span class="nc" id="L145">			scratchWinDao.payPWTProcess(scratchPayPWTBean, connection);</span>
+<span class="nc" id="L146">			connection.commit();</span>
+<span class="fc" id="L147">		} catch(LMSException e){</span>
+<span class="fc" id="L148">			throw e;</span>
+<span class="fc" id="L149">		} catch(SQLException e){</span>
+<span class="fc" id="L150">			logger.error(&quot;Exception Occurred&quot;, e);</span>
+<span class="fc" id="L151">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="fc" id="L152">		} catch(Exception e){</span>
+<span class="fc" id="L153">			logger.error(&quot;Exception Occurred&quot;, e);</span>
+<span class="fc" id="L154">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L155">		}</span>
+<span class="nc" id="L156">	}</span>
+
+	private PwtBean setPWTBeanParameters(ScratchWinningPaymentRequest scratchWinningPaymentRequest, ScratchWinningDataBean winningDataBean) {
+<span class="fc" id="L159">		PwtBean pwtBean = new PwtBean();</span>
+<span class="fc" id="L160">		pwtBean.setEncVirnCode(MD5Encoder.encode(scratchWinningPaymentRequest.getVirnNumber()));</span>
+<span class="fc" id="L161">		pwtBean.setEnctktNumber(MD5Encoder.encode(scratchWinningPaymentRequest.getTicketNumber()));</span>
+<span class="fc" id="L162">		pwtBean.setValid(true);</span>
+<span class="fc" id="L163">		pwtBean.setVerificationStatus(&quot;Valid Virn&quot;);</span>
+<span class="fc" id="L164">		pwtBean.setMessage(&quot;Credited To Concerned Party&quot;);</span>
+<span class="fc" id="L165">		pwtBean.setPwtAmount(Double.toString(winningDataBean.getWinningAmount()));</span>
+<span class="fc" id="L166">		return pwtBean;</span>
+	}
+
+	private void fetchAndVerfiyScratchGameDataBean(ScratchWinningPaymentRequest scratchWinningPaymentRequest, Connection connection) throws LMSException {
+<span class="fc" id="L170">		scratchGameDataBean = scratchDao.getGameDataWithPwtEndDateVerifyFromTicketNbr(scratchWinningPaymentRequest.getTicketNumber(),connection);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">		if(scratchGameDataBean == null){</span>
+<span class="fc" id="L172">			throw new LMSException(ScratchErrors.SCRATCH_GAME_NOT_AVAILABLE_ERROR_CODE, ScratchErrors.SCRATCH_GAME_NOT_AVAILABLE_ERROR_MESSAGE);</span>
+		}
+<span class="fc" id="L174">	}</span>
+	
+	private TicketBean validateTicketNumberAndRequiredParameters(ScratchWinningPaymentRequest scratchWinningPaymentRequest, Connection connection) throws SQLException,LMSException {
+<span class="fc" id="L177">		TicketBean tktBean = null;</span>
+<span class="fc" id="L178">		tktBean = commonFunction.isTicketFormatValid(scratchWinningPaymentRequest.getTicketNumber(), scratchGameDataBean.getGameId(), connection);</span>
+<span class="pc bpc" id="L179" title="1 of 4 branches missed.">		if (tktBean != null &amp;&amp; !tktBean.getIsValid()) {</span>
+<span class="fc" id="L180">			throw new LMSException(ScratchErrors.INVALID_TICKET_NUMBER_ERROR_CODE,ScratchErrors.INVALID_TICKET_NUMBER_ERROR_MESSAGE);</span>
+		}
+<span class="fc" id="L182">		String tktArr[] = tktBean.getTicketNumber().split(&quot;-&quot;);</span>
+<span class="fc" id="L183">		tktBean = retailerPwtHelper.checkTicketStatus(tktArr[0], tktArr[0] + &quot;-&quot; + tktArr[1], tktArr[2],scratchGameDataBean.getGameId(), connection);</span>
+<span class="fc" id="L184">		tktBean.setTicketGameId(scratchGameDataBean.getGameId());</span>
+<span class="fc" id="L185">		tktBean.setTicketNumber(tktArr[0] + &quot;-&quot; + tktArr[1] + &quot;-&quot; + tktArr[2]);</span>
+<span class="fc" id="L186">		tktBean.setBook_nbr(tktArr[0] + &quot;-&quot; + tktArr[1]);</span>
+<span class="fc" id="L187">		tktBean.setGameNbr(Integer.parseInt(tktArr[0]));</span>
+<span class="fc" id="L188">		return tktBean;</span>
+	}
+	
+	private void fetchAndVerifyOrgPWTLimitBean(UserInfoBean userInfoBean, Connection connection) throws SQLException, LMSException {
+<span class="fc" id="L192">		orgPwtLimitBean = commonFunction.fetchPwtLimitsOfOrgnization(userInfoBean.getUserOrgId(), connection);</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">		if(orgPwtLimitBean == null){</span>
+<span class="fc" id="L194">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}
+<span class="fc" id="L196">	}</span>
+	
+	private ScratchPayPWTBean setScratchPayPWTBeanParameters(UserInfoBean userInfoBean) {
+<span class="fc" id="L199">		ScratchPayPWTBean scratchPayPWTBean = new ScratchPayPWTBean();</span>
+<span class="fc" id="L200">		scratchPayPWTBean.setUserInfoBean(userInfoBean);</span>
+<span class="fc" id="L201">		scratchPayPWTBean.setPwtBean(pwtBean);</span>
+<span class="fc" id="L202">		scratchPayPWTBean.setTicketBean(ticketBean);</span>
+<span class="fc" id="L203">		scratchPayPWTBean.setOrgPwtLimitBean(orgPwtLimitBean);</span>
+<span class="fc" id="L204">		return scratchPayPWTBean;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

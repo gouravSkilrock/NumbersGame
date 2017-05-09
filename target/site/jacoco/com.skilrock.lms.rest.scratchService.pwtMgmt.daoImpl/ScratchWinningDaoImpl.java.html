@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScratchWinningDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.rest.scratchService.pwtMgmt.daoImpl</a> &gt; <span class="el_source">ScratchWinningDaoImpl.java</span></div><h1>ScratchWinningDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.rest.scratchService.pwtMgmt.daoImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.beans.ScratchPayPWTBean;
+import com.skilrock.lms.beans.TicketBean;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.GameUtilityHelper;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.scratchService.common.ScratchErrors;
+import com.skilrock.lms.coreEngine.scratchService.orderMgmt.beans.ScratchGameDataBean;
+import com.skilrock.lms.coreEngine.scratchService.pwtMgmt.common.CommonFunctionsHelper;
+import com.skilrock.lms.rest.scratchService.pwtMgmt.beans.ScratchTicketVirnData;
+
+<span class="nc" id="L26">public class ScratchWinningDaoImpl {</span>
+
+	private static final String AGENT = &quot;AGENT&quot;;
+	private static final String API = &quot;API&quot;;
+	private static final String SE = &quot;SE&quot;;
+	private static final String RETAILER = &quot;RETAILER&quot;;
+	private static final String CLAIM_PLR_RET_UNCLM = &quot;CLAIM_PLR_RET_UNCLM&quot;;
+	private static final String CLAIM_PLR_RET_CLM = &quot;CLAIM_PLR_RET_CLM&quot;;
+	private static final String ACTIVE = &quot;ACTIVE&quot;;
+	private static final String CLAIMED = &quot;CLAIMED&quot;;
+	private static final String CREDIT = &quot;CREDIT&quot;;
+	private static final String UNCLAIM_BAL = &quot;UNCLAIM_BAL&quot;;
+	private static final String DEBIT = &quot;DEBIT&quot;;
+	private static final String CLAIM_BAL = &quot;CLAIM_BAL&quot;;
+<span class="fc" id="L40">	private static Logger logger = LoggerFactory.getLogger(ScratchWinningDaoImpl.class);</span>
+	private int gameId;
+	private double pwtAmt;
+	private boolean isAutoScrap;
+	private int transactionId;
+	private double agentCommission;
+	private double retailerCommission;
+	private String pwtStatus;
+	
+	public ScratchTicketVirnData verifyAndGetTicketVirnData(String virnCode, ScratchGameDataBean gameDataBean,
+			Connection connection, TicketBean tktBean) throws LMSException {
+
+<span class="nc" id="L52">		int gameId = gameDataBean.getGameId();</span>
+<span class="nc" id="L53">		int gameNbr = gameDataBean.getGameNbr();</span>
+<span class="nc" id="L54">		ScratchTicketVirnData dataBean = new ScratchTicketVirnData();</span>
+
+<span class="nc" id="L56">		String encodedVirnCode = MD5Encoder.encode(virnCode);</span>
+<span class="nc" id="L57">		logger.info(&quot;Encoded virn == &quot; + encodedVirnCode);</span>
+
+<span class="nc" id="L59">		String encodedTktNo = MD5Encoder.encode(tktBean.getTicketNumber());</span>
+<span class="nc" id="L60">		logger.info(&quot;Encoded Ticket Number == &quot; + encodedTktNo);</span>
+		try {
+<span class="nc" id="L62">			Statement statement = connection.createStatement();</span>
+<span class="nc" id="L63">			StringBuilder query = new StringBuilder();</span>
+<span class="nc" id="L64">			query.append(QueryManager.getST1PWTBOCheckQuery()).append(&quot; st_se_pwt_inv_&quot; + gameNbr + &quot; where &quot;);</span>
+<span class="nc" id="L65">			query.append(&quot; game_id = &quot; + gameId).append(&quot; and virn_code='&quot;);</span>
+<span class="nc" id="L66">			query.append(encodedVirnCode).append(&quot;'&quot;).append(&quot; and id1='&quot;);</span>
+<span class="nc" id="L67">			query.append(encodedTktNo).append(&quot;'&quot;).append(&quot; and ticket_status in ('SOLD')&quot;);</span>
+
+<span class="nc" id="L69">			logger.info(&quot;GameId:&quot; + gameId + &quot;\nQuery:: &quot; + query);</span>
+
+<span class="nc" id="L71">			ResultSet resultSet = statement.executeQuery(query.toString());</span>
+
+<span class="nc bnc" id="L73" title="All 2 branches missed.">			if (resultSet.next()) {</span>
+<span class="nc" id="L74">				String vCode = resultSet.getString(TableConstants.SPI_VIRN_CODE);</span>
+<span class="nc" id="L75">				String pwtAmount = resultSet.getString(TableConstants.SPI_PWT_AMT);</span>
+<span class="nc" id="L76">				String prizeLevel = resultSet.getString(TableConstants.SPI_PRIZE_LEVEL);</span>
+<span class="nc" id="L77">				String prizeStatus = resultSet.getString(&quot;status&quot;);</span>
+<span class="nc" id="L78">				logger.info(&quot;Vcode : &quot; + vCode + &quot;\nPWT Amt : &quot; + pwtAmount + &quot;\nPrize level : &quot; + prizeLevel</span>
+						+ &quot;\nstatus : &quot; + prizeStatus);
+
+<span class="nc bnc" id="L81" title="All 2 branches missed.">				if (MD5Encoder.encode(virnCode).equals(vCode)) {</span>
+<span class="nc" id="L82">					dataBean.setPrizeLevel(prizeLevel);</span>
+<span class="nc" id="L83">					dataBean.setPrizeStatus(prizeStatus);</span>
+<span class="nc" id="L84">					dataBean.setvCode(vCode);</span>
+<span class="nc" id="L85">					dataBean.setPwtAmount(pwtAmount);</span>
+				} else {
+<span class="nc" id="L87">					throw new LMSException(ScratchErrors.VIRN_NUMBER_INVALID_ERROR_CODE,</span>
+							ScratchErrors.VIRN_NUMBER_INVALID_ERROR_MESSAGE);
+				}
+<span class="nc" id="L90">			} else {</span>
+<span class="nc" id="L91">				throw new LMSException(ScratchErrors.VIRN_NUMBER_INVALID_ERROR_CODE,</span>
+						ScratchErrors.VIRN_NUMBER_INVALID_ERROR_MESSAGE);
+			}
+
+<span class="nc" id="L95">		} catch (LMSException e) {</span>
+<span class="nc" id="L96">			throw e;</span>
+<span class="nc" id="L97">		} catch (SQLException e) {</span>
+<span class="nc" id="L98">			logger.error(&quot;SQL EXception&quot;, e);</span>
+<span class="nc" id="L99">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L100">		} catch (Exception e) {</span>
+<span class="nc" id="L101">			logger.error(&quot;EXception&quot;, e);</span>
+<span class="nc" id="L102">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L103">		}</span>
+<span class="nc" id="L104">		return dataBean;</span>
+
+	}
+	
+	public void payPWTProcess(ScratchPayPWTBean scratchPayPWTBean, Connection connection) throws LMSException{
+		try{
+<span class="nc" id="L110">			gameId = scratchPayPWTBean.getTicketBean().getTicketGameId();</span>
+<span class="nc" id="L111">			pwtAmt = Double.parseDouble(scratchPayPWTBean.getPwtBean().getPwtAmount());</span>
+<span class="nc bnc" id="L112" title="All 4 branches missed.">			isAutoScrap = &quot;YES&quot;.equalsIgnoreCase(scratchPayPWTBean.getOrgPwtLimitBean().getIsPwtAutoScrap()) &amp;&amp; pwtAmt &lt;= scratchPayPWTBean.getOrgPwtLimitBean().getScrapLimit();</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">			if (pwtAmt &lt;= scratchPayPWTBean.getOrgPwtLimitBean().getPayLimit()) {</span>
+<span class="nc" id="L114">				payPWTIfPayLimitNotExceeded(scratchPayPWTBean, connection);</span>
+			} else {
+<span class="nc" id="L116">				throw new LMSException(ScratchErrors.LIMIT_EXCEEDED_ERROR_CODE,ScratchErrors.LIMIT_EXCEEDED_ERROR_MESSAGE);</span>
+			}
+<span class="nc" id="L118">		} catch(LMSException e){</span>
+<span class="nc" id="L119">			throw e;</span>
+<span class="nc" id="L120">		} catch(SQLException e){</span>
+<span class="nc" id="L121">			logger.error(&quot;SQLException Occurred :&quot;, e);</span>
+<span class="nc" id="L122">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L123">		} catch(Exception e){</span>
+<span class="nc" id="L124">			logger.error(&quot;Exception Occurred :&quot;, e);</span>
+<span class="nc" id="L125">			e.printStackTrace();</span>
+<span class="nc" id="L126">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L127">		}</span>
+<span class="nc" id="L128">	}</span>
+
+	private void payPWTIfPayLimitNotExceeded(ScratchPayPWTBean scratchPayPWTBean, Connection connection) throws SQLException, LMSException {
+<span class="nc" id="L131">		PreparedStatement pstmt = insertInLMSTransactionMaster(connection);</span>
+<span class="nc" id="L132">		ResultSet rs = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">		if (rs.next()) {</span>
+<span class="nc" id="L134">			payPWTIfTransactionInsertedInLMSTransactionMaster(scratchPayPWTBean, connection, rs);</span>
+		} else {
+<span class="nc" id="L136">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}
+<span class="nc" id="L138">	}</span>
+	
+	private PreparedStatement insertInLMSTransactionMaster(Connection connection) throws LMSException {
+<span class="nc" id="L141">		String transMasQuery = null;</span>
+<span class="nc" id="L142">		PreparedStatement pstmt = null;</span>
+		try{
+<span class="nc" id="L144">			transMasQuery = &quot;INSERT INTO st_lms_transaction_master (user_type, service_code, interface) VALUES (?,?,?)&quot;;</span>
+<span class="nc" id="L145">			pstmt = connection.prepareStatement(transMasQuery);</span>
+<span class="nc" id="L146">			pstmt.setString(1, RETAILER);</span>
+<span class="nc" id="L147">			pstmt.setString(2, SE);</span>
+<span class="nc" id="L148">			pstmt.setString(3, API);</span>
+<span class="nc" id="L149">			pstmt.executeUpdate();</span>
+<span class="nc" id="L150">		}catch(SQLException e){</span>
+<span class="nc" id="L151">			logger.error(&quot;SQLException occurred&quot;, e);</span>
+<span class="nc" id="L152">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L153">		}</span>
+<span class="nc" id="L154">		return pstmt;</span>
+	}
+
+	private void payPWTIfTransactionInsertedInLMSTransactionMaster(ScratchPayPWTBean scratchPayPWTBean, Connection connection, ResultSet rs) throws SQLException, LMSException {
+<span class="nc" id="L158">		CommonFunctionsHelper commHelper = new CommonFunctionsHelper();</span>
+<span class="nc" id="L159">		transactionId = rs.getInt(1);</span>
+<span class="nc" id="L160">		insertInLMSRetailerTransactionMaster(scratchPayPWTBean, connection);</span>
+<span class="nc" id="L161">		fetchAgentAndRetailerCommission(scratchPayPWTBean, connection, commHelper);</span>
+<span class="nc" id="L162">		insertInScratchRetailerPWT(scratchPayPWTBean, connection, transactionId);</span>
+<span class="nc bnc" id="L163" title="All 4 branches missed.">		if (scratchPayPWTBean.getPendingReqId() != null &amp;&amp; !scratchPayPWTBean.isAnonymous()) {</span>
+<span class="nc" id="L164">			updateScratchPWTApproval(scratchPayPWTBean, connection);</span>
+		}
+<span class="nc bnc" id="L166" title="All 2 branches missed.">		pwtStatus = isAutoScrap ? CLAIM_PLR_RET_CLM: CLAIM_PLR_RET_UNCLM;</span>
+<span class="nc" id="L167">		updateGameInformation(scratchPayPWTBean, connection, commHelper);</span>
+<span class="nc" id="L168">		updateOrganizationBalance(scratchPayPWTBean, connection);</span>
+<span class="nc" id="L169">	}</span>
+
+	private void insertInLMSRetailerTransactionMaster(ScratchPayPWTBean scratchPayPWTBean,Connection connection) throws LMSException {
+<span class="nc" id="L172">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L173">		String retTransMasterQuery = null;</span>
+		try{
+<span class="nc" id="L175">			retTransMasterQuery = &quot;insert into  st_lms_retailer_transaction_master ( transaction_id , retailer_user_id , retailer_org_id , transaction_date , transaction_type,game_id ) values (?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L176">			pstmt = connection.prepareStatement(retTransMasterQuery);</span>
+<span class="nc" id="L177">			pstmt.setInt(1, transactionId);</span>
+<span class="nc" id="L178">			pstmt.setInt(2, scratchPayPWTBean.getUserInfoBean().getUserId());</span>
+<span class="nc" id="L179">			pstmt.setInt(3, scratchPayPWTBean.getUserInfoBean().getUserOrgId());</span>
+<span class="nc" id="L180">			pstmt.setTimestamp(4, new java.sql.Timestamp(new java.util.Date().getTime()));</span>
+<span class="nc" id="L181">			pstmt.setString(5, &quot;PWT&quot;);</span>
+<span class="nc" id="L182">			pstmt.setInt(6, gameId);</span>
+<span class="nc" id="L183">			pstmt.executeUpdate();</span>
+<span class="nc" id="L184">		}catch(SQLException e){</span>
+<span class="nc" id="L185">			logger.error(&quot;SQLException occurred&quot;, e);</span>
+<span class="nc" id="L186">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L187">		}</span>
+<span class="nc" id="L188">	}</span>
+	
+	private void fetchAgentAndRetailerCommission(ScratchPayPWTBean scratchPayPWTBean, Connection connection, CommonFunctionsHelper commHelper) throws SQLException {
+<span class="nc" id="L191">		retailerCommission = commHelper.fetchCommOfOrganization(gameId,	scratchPayPWTBean.getUserInfoBean().getUserOrgId(), &quot;PWT&quot;, RETAILER, connection);</span>
+<span class="nc" id="L192">		agentCommission = commHelper.fetchCommOfOrganization(gameId, scratchPayPWTBean.getUserInfoBean().getParentOrgId(), &quot;PWT&quot;, AGENT, connection);</span>
+<span class="nc" id="L193">	}</span>
+
+	private void insertInScratchRetailerPWT(ScratchPayPWTBean scratchPayPWTBean, Connection connection, int transactionId) throws LMSException {
+<span class="nc" id="L196">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L197">		String retPwtEntry = null;</span>
+		try{
+<span class="nc" id="L199">			retPwtEntry = &quot;insert into  st_se_retailer_pwt ( retailer_user_id , retailer_org_id , virn_code , ticket_nbr , game_id , transaction_id , pwt_amt , claim_comm , agt_claim_comm, status ) values ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)&quot;;</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">			pwtStatus = isAutoScrap ? CLAIM_BAL : UNCLAIM_BAL;</span>
+<span class="nc" id="L201">			pstmt = connection.prepareStatement(retPwtEntry);</span>
+<span class="nc" id="L202">			pstmt.setInt(1, scratchPayPWTBean.getUserInfoBean().getUserId());</span>
+<span class="nc" id="L203">			pstmt.setInt(2, scratchPayPWTBean.getUserInfoBean().getUserOrgId());</span>
+<span class="nc" id="L204">			pstmt.setString(3, scratchPayPWTBean.getPwtBean().getEncVirnCode());</span>
+<span class="nc" id="L205">			pstmt.setString(4, scratchPayPWTBean.getTicketBean().getTicketNumber());</span>
+<span class="nc" id="L206">			pstmt.setInt(5, gameId);</span>
+<span class="nc" id="L207">			pstmt.setInt(6, transactionId);</span>
+<span class="nc" id="L208">			pstmt.setDouble(7, pwtAmt);</span>
+<span class="nc" id="L209">			pstmt.setDouble(8, retailerCommission);</span>
+<span class="nc" id="L210">			pstmt.setDouble(9, agentCommission);</span>
+<span class="nc" id="L211">			pstmt.setString(10, pwtStatus);</span>
+<span class="nc" id="L212">			pstmt.executeUpdate();</span>
+<span class="nc" id="L213">		}catch(SQLException e){</span>
+<span class="nc" id="L214">			logger.error(&quot;SQLException occurred&quot;, e);</span>
+<span class="nc" id="L215">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L216">		}</span>
+<span class="nc" id="L217">	}</span>
+	
+	private void updateScratchPWTApproval(ScratchPayPWTBean scratchPayPWTBean, Connection connection) throws LMSException {
+<span class="nc" id="L220">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L221">		String updateAppTable = null;</span>
+		try{
+<span class="nc" id="L223">			updateAppTable = &quot;update  st_se_pwt_approval_request_master  set req_status ='DONE', remarks ='Payment Done', payment_done_by_type =?, payment_done_by =? where  task_id = ?&quot;;</span>
+<span class="nc" id="L224">			pstmt = connection.prepareStatement(updateAppTable);</span>
+<span class="nc" id="L225">			pstmt.setString(1, scratchPayPWTBean.getUserInfoBean().getUserType());</span>
+<span class="nc" id="L226">			pstmt.setInt(2, scratchPayPWTBean.getUserInfoBean().getUserOrgId());</span>
+<span class="nc" id="L227">			pstmt.setInt(3, Integer.parseInt(scratchPayPWTBean.getPendingReqId()));</span>
+<span class="nc" id="L228">			int i = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">			if (i &lt; 1) {</span>
+<span class="nc" id="L230">				throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+			}
+<span class="nc" id="L232">		} catch(LMSException e){</span>
+<span class="nc" id="L233">			throw e;</span>
+<span class="nc" id="L234">		} catch(SQLException e){</span>
+<span class="nc" id="L235">			logger.error(&quot;SQLException occurred&quot;, e);</span>
+<span class="nc" id="L236">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L237">		}</span>
+<span class="nc" id="L238">	}</span>
+	
+	private void updateGameInformation(ScratchPayPWTBean scratchPayPWTBean, Connection connection, CommonFunctionsHelper commHelper) throws SQLException, LMSException {
+<span class="nc" id="L241">		GameUtilityHelper.updateNoOfPrizeRemNewZim(gameId, pwtAmt, pwtStatus,scratchPayPWTBean.getPwtBean().getEncVirnCode(), connection, scratchPayPWTBean.getTicketBean().getGameNbr(),scratchPayPWTBean.getPwtBean().getEnctktNumber());</span>
+<span class="nc" id="L242">		commHelper.updateVirnStatus(scratchPayPWTBean.getTicketBean().getGameNbr(), pwtStatus,gameId, scratchPayPWTBean.getPwtBean().getEncVirnCode(), connection,scratchPayPWTBean.getPwtBean().getEnctktNumber());</span>
+<span class="nc" id="L243">		commHelper.updateTicketInvTable(scratchPayPWTBean.getTicketBean().getTicketNumber(),scratchPayPWTBean.getTicketBean().getBook_nbr(), </span>
+				scratchPayPWTBean.getTicketBean().getGameNbr(), gameId,pwtStatus, scratchPayPWTBean.getUserInfoBean().getUserId(),
+				scratchPayPWTBean.getUserInfoBean().getUserOrgId(), scratchPayPWTBean.getTicketBean().getUpdateTicketType(),0, 
+				RETAILER, API,connection);
+<span class="nc bnc" id="L247" title="All 2 branches missed.">		if (ACTIVE.equalsIgnoreCase(scratchPayPWTBean.getTicketBean().getBookStatus())) {</span>
+<span class="nc" id="L248">			commHelper.updateBookStatus(gameId, scratchPayPWTBean.getTicketBean().getBook_nbr(),connection, CLAIMED);</span>
+		}
+<span class="nc" id="L250">		commHelper.updatePwtDateAndTierTickets(scratchPayPWTBean.getTicketBean(),connection);</span>
+<span class="nc" id="L251">	}</span>
+	
+	private void updateOrganizationBalance(ScratchPayPWTBean scratchPayPWTBean, Connection connection) throws LMSException {
+<span class="nc bnc" id="L254" title="All 2 branches missed.">		if (isAutoScrap) {</span>
+<span class="nc" id="L255">			updateOrganizationBalanceIfAutoScrap(scratchPayPWTBean, connection);</span>
+		} else {
+<span class="nc" id="L257">			OrgCreditUpdation.updateOrganizationBalWithValidate(pwtAmt, UNCLAIM_BAL, CREDIT, scratchPayPWTBean.getUserInfoBean().getUserOrgId(),scratchPayPWTBean.getUserInfoBean().getParentOrgId(), RETAILER, 0, connection);</span>
+		}
+<span class="nc" id="L259">	}</span>
+
+	private void updateOrganizationBalanceIfAutoScrap(ScratchPayPWTBean scratchPayPWTBean, Connection connection) throws LMSException {
+<span class="nc" id="L262">		double retailerAmount = pwtAmt + pwtAmt * .01 * retailerCommission;</span>
+<span class="nc" id="L263">		double agentAmount = pwtAmt + pwtAmt * .01 * agentCommission;</span>
+<span class="nc" id="L264">		OrgCreditUpdation.updateOrganizationBalWithValidate(retailerAmount, CLAIM_BAL, DEBIT, scratchPayPWTBean.getUserInfoBean().getUserOrgId(),scratchPayPWTBean.getUserInfoBean().getParentOrgId(), RETAILER, 0, connection);</span>
+<span class="nc" id="L265">		OrgCreditUpdation.updateOrganizationBalWithValidate(agentAmount, CLAIM_BAL, DEBIT,scratchPayPWTBean.getUserInfoBean().getParentOrgId(), 0, AGENT, 0, connection);</span>
+<span class="nc" id="L266">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

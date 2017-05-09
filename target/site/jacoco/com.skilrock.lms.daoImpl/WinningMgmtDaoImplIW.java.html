@@ -1,0 +1,748 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WinningMgmtDaoImplIW.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.daoImpl</a> &gt; <span class="el_source">WinningMgmtDaoImplIW.java</span></div><h1>WinningMgmtDaoImplIW.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.daoImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.BOMasterApprovalBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.GenerateRecieptNo;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper;
+import com.skilrock.lms.coreEngine.instantWin.common.IWErrors;
+import com.skilrock.lms.coreEngine.instantWin.common.controllerImpl.CommonMethodsControllerImpl;
+import com.skilrock.lms.dao.WinningMgmtDao;
+import com.skilrock.lms.daoImpl.WinningTransactionManagerIW.DirectPlrPwtBean;
+import com.skilrock.lms.daoImpl.WinningTransactionManagerIW.PwtInvBean;
+import com.skilrock.lms.daoImpl.WinningTransactionManagerIW.TransactionBean;
+import com.skilrock.lms.dge.beans.PlayerBean;
+import com.skilrock.lms.instantWin.common.IW;
+import com.skilrock.lms.rest.services.bean.TPPwtRequestBean;
+import com.skilrock.lms.rest.services.bean.TPPwtResponseBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public final class WinningMgmtDaoImplIW implements WinningMgmtDao {
+<span class="nc" id="L41">	private static Logger logger = LoggerFactory.getLogger(WinningMgmtDaoImplIW.class);</span>
+
+<span class="nc" id="L43">	private volatile static WinningMgmtDaoImplIW winMgmtDao = null;</span>
+
+<span class="nc" id="L45">	private WinningMgmtDaoImplIW() {</span>
+<span class="nc" id="L46">	}</span>
+
+	public static WinningMgmtDaoImplIW getInstance() {
+<span class="nc bnc" id="L49" title="All 2 branches missed.">		if (winMgmtDao == null) {</span>
+<span class="nc" id="L50">			synchronized (WinningMgmtDaoImplIW.class) {</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">				if (winMgmtDao == null) {</span>
+<span class="nc" id="L52">					winMgmtDao = new WinningMgmtDaoImplIW();</span>
+				}
+<span class="nc" id="L54">			}</span>
+		}
+<span class="nc" id="L56">		return winMgmtDao;</span>
+	}
+
+	@Override
+	public TPPwtResponseBean boNormalPay(UserInfoBean userBean, TPPwtRequestBean requestBean, String serviceCode, String interfaceType) throws LMSException {
+<span class="nc" id="L61">		logger.info(&quot;-- Inside boNormalPay --&quot;);</span>
+<span class="nc" id="L62">		Connection connection = null;</span>
+
+<span class="nc" id="L64">		TPPwtResponseBean responseBean = null;</span>
+<span class="nc" id="L65">		long taskId = 0;</span>
+		try {
+<span class="nc" id="L67">			String transactionTime = Util.getCurrentTimeString();</span>
+
+<span class="nc" id="L69">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L70">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L72">			PwtInvBean invBean = new PwtInvBean().setGameId(requestBean.getGameId()).setWinningAmount(requestBean.getTotalAmount()).setTicketNumber(requestBean.getTicketNumber()).setEngineTransactionId(String.valueOf(requestBean.getTxnIdIw())).setClaimAt(&quot;BO&quot;).setStatus(&quot;CLAIM_AT_BO&quot;).setDirPly(true);</span>
+<span class="nc" id="L73">			int pwtInvId = WinningTransactionManagerIW.insertPwtInventory(invBean, connection);</span>
+
+<span class="nc" id="L75">			TransactionBean transBean = new TransactionBean().setUserBean(userBean).setServiceCode(serviceCode).setInterfaceType(interfaceType).setPartyType(&quot;PLAYER&quot;).setPartyId(requestBean.getPlayerId()).setTransType(&quot;IW_PWT_AUTO&quot;).setTransTime(transactionTime);</span>
+<span class="nc" id="L76">			long transId = WinningTransactionManagerIW.insertBOTransaction(transBean, connection);</span>
+			
+<span class="nc bnc" id="L78" title="All 4 branches missed.">			if (requestBean.getPlayerId() == -1 || requestBean.getPlayerId() == 0) {</span>
+				// Do Nothing
+			} else
+<span class="nc" id="L81">				taskId = WinningTransactionManagerIW.insertPWTApproval(userBean, requestBean, serviceCode, interfaceType, transId, transactionTime, connection);</span>
+
+<span class="nc" id="L83">			DirectPlrPwtBean dirPwtBean = new DirectPlrPwtBean().setUserBean(userBean).setGameId(requestBean.getGameId()).setPwtInvId(pwtInvId).setTransId(transId).setTransTime(transactionTime).setPlayerId(requestBean.getPlayerId()).setTaxAmount(0.00).setNetAmount(requestBean.getTotalAmount()).setWinningAmount(requestBean.getTotalAmount()).setPaymentType(&quot;CASH&quot;).setTaskId(taskId);</span>
+<span class="nc" id="L84">			WinningTransactionManagerIW.insertBODirectPlrPwt(dirPwtBean, connection);</span>
+
+<span class="nc" id="L86">			WinningTransactionManagerIW.updateBOPwtInv(requestBean.getGameId(), requestBean.getTicketNumber(), transId, connection);</span>
+
+<span class="nc" id="L88">			connection.commit();</span>
+
+<span class="nc" id="L90">			responseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L91">			responseBean.setResponseCode(0);</span>
+<span class="nc" id="L92">			responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L93">			responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L94">			responseBean.setTxnId(String.valueOf(transId));</span>
+<span class="nc" id="L95">			responseBean.setDoneByUserId(userBean.getUserId());</span>
+<span class="nc" id="L96">			responseBean.setStatus(&quot;PAID&quot;);</span>
+<span class="nc" id="L97">		} catch (SQLException se) {</span>
+<span class="nc" id="L98">			se.printStackTrace();</span>
+<span class="nc" id="L99">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L100">		} catch (LMSException le) {</span>
+<span class="nc" id="L101">			throw le;</span>
+<span class="nc" id="L102">		} catch (Exception e) {</span>
+<span class="nc" id="L103">			e.printStackTrace();</span>
+<span class="nc" id="L104">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L106">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L107">		}</span>
+<span class="nc" id="L108">		return responseBean;</span>
+	}
+
+	@Override
+	public TPPwtResponseBean boHighPrize(UserInfoBean userBean, TPPwtRequestBean requestBean, String serviceCode, String interfaceType) throws LMSException {
+<span class="nc" id="L113">		logger.info(&quot;-- Inside boHighPrize --&quot;);</span>
+<span class="nc" id="L114">		Connection connection = null;</span>
+<span class="nc" id="L115">		PreparedStatement appReqStmt = null;</span>
+<span class="nc" id="L116">		ResultSet rs = null;</span>
+
+<span class="nc" id="L118">		TPPwtResponseBean responseBean = null;</span>
+		try {
+<span class="nc" id="L120">			String transactionTime = Util.getCurrentTimeString();</span>
+<span class="nc" id="L121">			PlayerBean playerBean = requestBean.getPlayerBean();</span>
+
+<span class="nc" id="L123">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L124">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L126">			appReqStmt = connection.prepareStatement(&quot;INSERT INTO st_iw_approval_req_master (request_id, party_id, party_type, ticket_nbr, game_id, pwt_amt, tax_amt, net_amt, request_status, requested_by_user_id, requester_by_type, request_date, approved_by_user_id, approved_by_type, approval_date, remarks, payment_done_by_user_id, payment_done_by_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);&quot;, Statement.RETURN_GENERATED_KEYS);</span>
+
+<span class="nc" id="L128">			int playerId = getPlayerIdOrRegister(playerBean, connection);</span>
+
+<span class="nc" id="L130">			String recIdForApp = GenerateRecieptNo.generateRequestIdIW(&quot;IWREQUEST&quot;, connection);</span>
+<span class="nc" id="L131">			logger.info(&quot;recIdForApp - &quot; + recIdForApp);</span>
+
+<span class="nc" id="L133">			long taskId = 0L;</span>
+
+<span class="nc" id="L135">			appReqStmt.setString(1, recIdForApp);</span>
+<span class="nc" id="L136">			appReqStmt.setInt(2, playerId);</span>
+<span class="nc" id="L137">			appReqStmt.setString(3, &quot;PLAYER&quot;);</span>
+<span class="nc" id="L138">			appReqStmt.setString(4, requestBean.getTicketNumber());</span>
+<span class="nc" id="L139">			appReqStmt.setInt(5, requestBean.getGameId());</span>
+<span class="nc" id="L140">			appReqStmt.setDouble(6, requestBean.getTotalAmount());</span>
+<span class="nc" id="L141">			appReqStmt.setDouble(7, requestBean.getTaxAmt());</span>
+<span class="nc" id="L142">			appReqStmt.setDouble(8, requestBean.getNetAmt());</span>
+<span class="nc" id="L143">			appReqStmt.setString(9, &quot;PND_PAY&quot;);</span>
+<span class="nc" id="L144">			appReqStmt.setInt(10, userBean.getUserId());</span>
+<span class="nc" id="L145">			appReqStmt.setString(11, userBean.getUserType());</span>
+<span class="nc" id="L146">			appReqStmt.setString(12, transactionTime);</span>
+<span class="nc" id="L147">			appReqStmt.setInt(13, userBean.getUserId());</span>
+<span class="nc" id="L148">			appReqStmt.setString(14, userBean.getUserType());</span>
+<span class="nc" id="L149">			appReqStmt.setString(15, transactionTime);</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">			appReqStmt.setString(16, (requestBean.getRemarks() == null) ? null : requestBean.getRemarks().replaceAll(&quot;\\+&quot;, &quot; &quot;));</span>
+<span class="nc" id="L151">			appReqStmt.setInt(17, userBean.getUserId());</span>
+<span class="nc" id="L152">			appReqStmt.setString(18, userBean.getUserType());</span>
+<span class="nc" id="L153">			logger.info(&quot;Insert In st_iw_approval_req_master - &quot; + appReqStmt);</span>
+<span class="nc" id="L154">			appReqStmt.executeUpdate();</span>
+<span class="nc" id="L155">			rs = appReqStmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L157">				taskId = rs.getInt(1);</span>
+			} else {
+<span class="nc" id="L159">				throw new LMSException(LMSErrors.APPROVAL_REQUEST_INSERTION_ERROR_CODE, LMSErrors.APPROVAL_REQUEST_INSERTION_ERROR_MESSAGE);</span>
+			}
+<span class="nc" id="L161">			connection.commit();</span>
+
+<span class="nc" id="L163">			responseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L164">			responseBean.setResponseCode(0);</span>
+<span class="nc" id="L165">			responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L166">			responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L167">			responseBean.setTxnId(String.valueOf(taskId));</span>
+<span class="nc" id="L168">			responseBean.setDoneByUserId(userBean.getUserId());</span>
+<span class="nc" id="L169">			responseBean.setRequestId(recIdForApp);</span>
+<span class="nc" id="L170">			responseBean.setStatus(&quot;PAID&quot;);</span>
+<span class="nc" id="L171">		} catch (SQLException se) {</span>
+<span class="nc" id="L172">			se.printStackTrace();</span>
+<span class="nc" id="L173">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L174">		} catch (LMSException le) {</span>
+<span class="nc" id="L175">			throw le;</span>
+<span class="nc" id="L176">		} catch (Exception e) {</span>
+<span class="nc" id="L177">			e.printStackTrace();</span>
+<span class="nc" id="L178">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L180">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L181">		}</span>
+<span class="nc" id="L182">		return responseBean;</span>
+	}
+
+	@Override
+	public TPPwtResponseBean agentNormalPay(UserInfoBean userBean, TPPwtRequestBean requestBean, String serviceCode, String interfaceType) throws LMSException {
+<span class="nc" id="L187">		logger.info(&quot;-- Inside agentNormalPay --&quot;);</span>
+<span class="nc" id="L188">		Connection connection = null;</span>
+
+<span class="nc" id="L190">		TPPwtResponseBean responseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L191">		long transId = 0L;</span>
+		try {
+<span class="nc" id="L193">			String transactionTime = Util.getCurrentTimeString();</span>
+
+<span class="nc" id="L195">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L196">			connection.setAutoCommit(false);</span>
+
+			// boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;IW_PWT&quot;, String.valueOf(requestBean.getTotalAmount()), connection);
+			// if (isFraud) {
+			// throw new LMSException(LMSErrors.RG_LIMIT_EXCEPTION_ERROR_CODE, LMSErrors.RG_LIMIT_EXCEPTION_ERROR_MESSAGE);
+			// }
+
+<span class="nc" id="L203">			double highPrizeAmt = Double.parseDouble(Utility.getPropertyValue(&quot;IW_HIGH_PRIZE_AMT&quot;));</span>
+<span class="nc" id="L204">			double masApproveLimit = Double.parseDouble(Utility.getPropertyValue(&quot;IW_MAS_APPROVE_LIMIT&quot;));</span>
+
+<span class="nc" id="L206">			double agentComm = com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper.fetchIWCommOfOrganization(requestBean.getGameId(), userBean.getUserOrgId(), &quot;PWT&quot;, &quot;AGENT&quot;, connection);</span>
+
+//			double agentComm = Util.getIWPwtCommVariance(userBean.getUserOrgId(), requestBean.getGameId());
+
+<span class="nc bnc" id="L210" title="All 2 branches missed.">			if (masApproveLimit &lt;= requestBean.getTotalAmount()) {</span>
+<span class="nc" id="L211">				responseBean.setStatus(IW.Status.MAS_APPROVAL_INIT);</span>
+<span class="nc bnc" id="L212" title="All 4 branches missed.">			} else if (highPrizeAmt &lt;= requestBean.getTotalAmount() &amp;&amp; requestBean.getTotalAmount() &lt; masApproveLimit) {</span>
+<span class="nc" id="L213">				responseBean.setStatus(IW.Status.HIGH_PRIZE);</span>
+			} else {
+<span class="nc" id="L215">				responseBean.setStatus(IW.Status.NORMAL_PAY);</span>
+<span class="nc" id="L216">				double agentNet = CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount()) + CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount() * agentComm * .01);</span>
+
+<span class="nc" id="L218">				PwtInvBean invBean = new PwtInvBean().setGameId(requestBean.getGameId()).setWinningAmount(requestBean.getTotalAmount()).setTicketNumber(requestBean.getTicketNumber()).setEngineTransactionId(requestBean.getTxnIdIw()).setClaimAt(&quot;AGENT&quot;).setStatus(&quot;CLAIM_AT_AGENT&quot;).setDirPly(true);</span>
+<span class="nc" id="L219">				int pwtInvId = WinningTransactionManagerIW.insertPwtInventory(invBean, connection);</span>
+
+<span class="nc" id="L221">				TransactionBean transBean = new TransactionBean().setUserBean(userBean).setServiceCode(serviceCode).setInterfaceType(interfaceType).setPartyType(&quot;PLAYER&quot;).setPartyId(requestBean.getGameId()).setTransType(&quot;IW_PWT_AUTO&quot;).setTransTime(transactionTime);</span>
+<span class="nc" id="L222">				transId = WinningTransactionManagerIW.insertAgentTransaction(transBean, connection);</span>
+
+<span class="nc" id="L224">				DirectPlrPwtBean dirPwtBean = new DirectPlrPwtBean().setUserBean(userBean).setGameId(requestBean.getGameId()).setPwtInvId(pwtInvId).setTransId(transId).setTransTime(transactionTime).setPlayerId(1).setWinningAmount(requestBean.getTotalAmount()).setPaymentType(&quot;CASH&quot;).setPwtClaimStatus(&quot;DONE_CLM&quot;).setAgentClaimComm(CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount() * agentComm * .01)).setAgentNetAmt(agentNet);</span>
+<span class="nc" id="L225">				WinningTransactionManagerIW.insertAgentDirectPlrPwt(dirPwtBean, connection);</span>
+				
+<span class="nc" id="L227">				WinningTransactionManagerIW.updateAgentPwtInv(requestBean.getGameId(), requestBean.getTicketNumber(), transId, connection);</span>
+
+<span class="nc" id="L229">				boolean isValid = OrgCreditUpdation.updateOrganizationBalWithValidate(agentNet, &quot;TRANSACTION&quot;, &quot;IW_PWT&quot;, userBean.getUserOrgId(), 0, &quot;AGENT&quot;, 0, connection);</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">				if (!isValid) {</span>
+<span class="nc" id="L231">					throw new LMSException(IWErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_CODE, IWErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+				}
+			}
+
+<span class="nc" id="L235">			connection.commit();</span>
+
+<span class="nc bnc" id="L237" title="All 2 branches missed.">			if (IW.Status.NORMAL_PAY.equalsIgnoreCase(responseBean.getStatus())) {</span>
+<span class="nc" id="L238">				responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L239">				responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L240">				responseBean.setTxnId(String.valueOf(transId));</span>
+<span class="nc" id="L241">				responseBean.setDoneByUserId(userBean.getUserId());</span>
+<span class="nc" id="L242">				responseBean.setStatus(&quot;PAID&quot;);</span>
+			} else {
+<span class="nc" id="L244">				responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L245">				responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L246">				responseBean.setStatus(&quot;Check PWT Status&quot;);</span>
+			}
+<span class="nc" id="L248">		} catch (SQLException se) {</span>
+<span class="nc" id="L249">			se.printStackTrace();</span>
+<span class="nc" id="L250">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L251">		} catch (LMSException le) {</span>
+<span class="nc" id="L252">			throw le;</span>
+<span class="nc" id="L253">		} catch (Exception e) {</span>
+<span class="nc" id="L254">			e.printStackTrace();</span>
+<span class="nc" id="L255">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L257">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L258">		}</span>
+<span class="nc" id="L259">		return responseBean;</span>
+	}
+
+	@Override
+	public TPPwtResponseBean agentHighPrize(UserInfoBean userBean, TPPwtRequestBean requestBean, String serviceCode, String interfaceType) throws LMSException {
+<span class="nc" id="L264">		logger.info(&quot;-- Inside agentHighPrize --&quot;);</span>
+<span class="nc" id="L265">		Connection connection = null;</span>
+<span class="nc" id="L266">		PreparedStatement appReqStmt = null;</span>
+<span class="nc" id="L267">		Statement stmt = null;</span>
+<span class="nc" id="L268">		String query = null;</span>
+<span class="nc" id="L269">		ResultSet rs = null;</span>
+
+<span class="nc" id="L271">		TPPwtResponseBean responseBean = null;</span>
+<span class="nc" id="L272">		Map&lt;Integer, String&gt; drawTransMap = new HashMap&lt;Integer, String&gt;();</span>
+		try {
+<span class="nc" id="L274">			String transactionTime = Util.getCurrentTimeString();</span>
+<span class="nc" id="L275">			PlayerBean playerBean = requestBean.getPlayerBean();</span>
+
+<span class="nc" id="L277">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L278">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L280">			stmt = connection.createStatement();</span>
+<span class="nc" id="L281">			appReqStmt = connection.prepareStatement(&quot;INSERT INTO st_iw_approval_req_master (request_id, party_id, party_type, ticket_nbr, game_id, pwt_amt, tax_amt, net_amt, request_status, requested_by_user_id, requester_by_type, request_date, approved_by_user_id, approved_by_type, approval_date, remarks, payment_done_by_user_id, payment_done_by_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);&quot;, Statement.RETURN_GENERATED_KEYS);</span>
+
+<span class="nc" id="L283">			int playerId = getPlayerIdOrRegister(playerBean, connection);</span>
+
+<span class="nc" id="L285">			String recIdForApp = GenerateRecieptNo.generateRequestIdIW(&quot;IWREQUEST&quot;, connection);</span>
+<span class="nc" id="L286">			logger.info(&quot;recIdForApp - &quot; + recIdForApp);</span>
+
+<span class="nc" id="L288">			long taskId = 0L;</span>
+
+<span class="nc" id="L290">			appReqStmt.setString(1, recIdForApp);</span>
+<span class="nc" id="L291">			appReqStmt.setInt(2, playerId);</span>
+<span class="nc" id="L292">			appReqStmt.setString(3, &quot;PLAYER&quot;);</span>
+<span class="nc" id="L293">			appReqStmt.setString(4, requestBean.getTicketNumber());</span>
+<span class="nc" id="L294">			appReqStmt.setInt(5, requestBean.getGameId());</span>
+<span class="nc" id="L295">			appReqStmt.setDouble(6, requestBean.getTotalAmount());</span>
+<span class="nc" id="L296">			appReqStmt.setDouble(7, 0.00);</span>
+<span class="nc" id="L297">			appReqStmt.setDouble(8, requestBean.getTotalAmount());</span>
+<span class="nc" id="L298">			appReqStmt.setString(9, &quot;PAID&quot;);</span>
+<span class="nc" id="L299">			appReqStmt.setInt(10, userBean.getUserId());</span>
+<span class="nc" id="L300">			appReqStmt.setString(11, userBean.getUserType());</span>
+<span class="nc" id="L301">			appReqStmt.setString(12, transactionTime);</span>
+<span class="nc" id="L302">			appReqStmt.setInt(13, userBean.getUserId());</span>
+<span class="nc" id="L303">			appReqStmt.setString(14, userBean.getUserType());</span>
+<span class="nc" id="L304">			appReqStmt.setString(15, transactionTime);</span>
+<span class="nc" id="L305">			appReqStmt.setString(16, requestBean.getRemarks());</span>
+<span class="nc" id="L306">			appReqStmt.setInt(17, userBean.getUserId());</span>
+<span class="nc" id="L307">			appReqStmt.setString(18, userBean.getUserType());</span>
+<span class="nc" id="L308">			logger.info(&quot;Insert In st_iw_approval_req_master - &quot; + appReqStmt);</span>
+<span class="nc" id="L309">			appReqStmt.executeUpdate();</span>
+<span class="nc" id="L310">			rs = appReqStmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L312">				taskId = rs.getInt(1);</span>
+			} else {
+<span class="nc" id="L314">				throw new LMSException(LMSErrors.APPROVAL_REQUEST_INSERTION_ERROR_CODE, LMSErrors.APPROVAL_REQUEST_INSERTION_ERROR_MESSAGE);</span>
+			}
+
+<span class="nc" id="L317">			PwtInvBean invBean = new PwtInvBean().setGameId(requestBean.getGameId()).setWinningAmount(requestBean.getTotalAmount()).setTicketNumber(requestBean.getTicketNumber()).setEngineTransactionId(requestBean.getTxnIdIw()).setClaimAt(&quot;AGENT&quot;).setStatus(&quot;CLAIM_AT_AGENT&quot;).setDirPly(true);</span>
+<span class="nc" id="L318">			int pwtInvId = WinningTransactionManagerIW.insertPwtInventory(invBean, connection);</span>
+
+<span class="nc" id="L320">			TransactionBean transBean = new TransactionBean().setUserBean(userBean).setServiceCode(serviceCode).setInterfaceType(interfaceType).setPartyType(&quot;PLAYER&quot;).setPartyId(playerId).setTransType(&quot;IW_PWT_PLR&quot;).setTransTime(transactionTime);</span>
+<span class="nc" id="L321">			long transId = WinningTransactionManagerIW.insertAgentTransaction( transBean, connection);</span>
+
+<span class="nc" id="L323">			DirectPlrPwtBean dirPwtBean = new DirectPlrPwtBean().setUserBean(userBean).setGameId(requestBean.getGameId()).setPwtInvId(pwtInvId).setTaskId(taskId).setTransId(transId).setTransTime(transactionTime).setPlayerId(playerId).setWinningAmount(requestBean.getTotalAmount()).setPaymentType(&quot;CASH&quot;).setPwtClaimStatus(&quot;CLAIM_BAL&quot;).setAgentClaimComm(0.00);</span>
+<span class="nc" id="L324">			WinningTransactionManagerIW.insertAgentDirectPlrPwt(dirPwtBean, connection);</span>
+
+<span class="nc" id="L326">			query = &quot;UPDATE st_iw_approval_req_master SET transaction_id=&quot; + transId + &quot; WHERE task_id=&quot; + taskId + &quot;;&quot;;</span>
+<span class="nc" id="L327">			logger.info(&quot;UPDATE st_iw_approval_req_master - &quot; + query);</span>
+
+<span class="nc" id="L329">			double agentComm = Util.getIWPwtCommVariance(userBean.getUserOrgId(), requestBean.getGameId());</span>
+<span class="nc" id="L330">			double agentNet = CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount()) - CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount() * agentComm * .01);</span>
+
+<span class="nc" id="L332">			boolean isValid = OrgCreditUpdation.updateOrganizationBalWithValidate(agentNet, &quot;TRANSACTION&quot;, &quot;IW_PWT&quot;, userBean.getUserOrgId(), 0, &quot;AGENT&quot;, 0, connection);</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">			if (!isValid) {</span>
+<span class="nc" id="L334">				throw new LMSException(IWErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_CODE, IWErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+			}
+
+<span class="nc" id="L337">			stmt.executeUpdate(query);</span>
+
+<span class="nc" id="L339">			connection.commit();</span>
+
+<span class="nc" id="L341">			responseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L342">			responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L343">			responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L344">			responseBean.setTxnId(String.valueOf(transId));</span>
+<span class="nc" id="L345">			responseBean.setDrawTransMap(drawTransMap);</span>
+<span class="nc" id="L346">			responseBean.setDoneByUserId(userBean.getUserId());</span>
+<span class="nc" id="L347">			responseBean.setStatus(&quot;PAID&quot;);</span>
+<span class="nc" id="L348">		} catch (SQLException se) {</span>
+<span class="nc" id="L349">			se.printStackTrace();</span>
+<span class="nc" id="L350">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L351">		} catch (LMSException le) {</span>
+<span class="nc" id="L352">			throw le;</span>
+<span class="nc" id="L353">		} catch (Exception e) {</span>
+<span class="nc" id="L354">			e.printStackTrace();</span>
+<span class="nc" id="L355">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L357">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L358">		}</span>
+<span class="nc" id="L359">		return responseBean;</span>
+	}
+
+	@Override
+	public TPPwtResponseBean retailerNormalPay(UserInfoBean userBean, TPPwtRequestBean requestBean, String serviceCode, String interfaceType) throws LMSException {
+<span class="nc" id="L364">		logger.info(&quot;-- Inside retailerNormalPay --&quot;);</span>
+<span class="nc" id="L365">		Connection connection = null;</span>
+
+<span class="nc" id="L367">		TPPwtResponseBean responseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L368">		long transId = 0L;</span>
+<span class="nc" id="L369">		double balance = 0L;</span>
+		try {
+<span class="nc" id="L371">			String transactionTime = Util.getCurrentTimeString();</span>
+
+<span class="nc" id="L373">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L374">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L376">			boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;IW_PWT&quot;, String.valueOf(requestBean.getTotalAmount()), connection);</span>
+<span class="nc bnc" id="L377" title="All 2 branches missed.">			if (isFraud) {</span>
+<span class="nc" id="L378">				throw new LMSException(LMSErrors.RG_LIMIT_EXCEPTION_ERROR_CODE, LMSErrors.RG_LIMIT_EXCEPTION_ERROR_MESSAGE);</span>
+			}
+
+<span class="nc" id="L381">			double retailerComm = CommonFunctionsHelper.fetchIWCommOfOrganization(requestBean.getGameId(), userBean.getUserOrgId(), &quot;PWT&quot;, &quot;RETAILER&quot;, connection);</span>
+<span class="nc" id="L382">			double agentComm = CommonFunctionsHelper.fetchIWCommOfOrganization(requestBean.getGameId(), userBean.getParentOrgId(), &quot;PWT&quot;, &quot;AGENT&quot;, connection);</span>
+
+<span class="nc" id="L384">			double highPrizeAmt = Double.parseDouble(Utility.getPropertyValue(&quot;IW_HIGH_PRIZE_AMT&quot;));</span>
+<span class="nc" id="L385">			double masApproveLimit = Double.parseDouble(Utility.getPropertyValue(&quot;IW_MAS_APPROVE_LIMIT&quot;));</span>
+
+//			double retailerComm = Util.getIWPwtCommVariance(userBean.getUserOrgId(), requestBean.getGameId());
+//			double agentComm = Util.getIWPwtCommVariance(userBean.getParentOrgId(), requestBean.getGameId());
+
+<span class="nc bnc" id="L390" title="All 2 branches missed.">			if (masApproveLimit &lt;= requestBean.getTotalAmount()) {</span>
+<span class="nc" id="L391">				responseBean.setStatus(IW.Status.MAS_APPROVAL_INIT);</span>
+<span class="nc bnc" id="L392" title="All 4 branches missed.">			} else if (highPrizeAmt &lt;= requestBean.getTotalAmount() &amp;&amp; requestBean.getTotalAmount() &lt; masApproveLimit) {</span>
+<span class="nc" id="L393">				responseBean.setStatus(IW.Status.HIGH_PRIZE);</span>
+			} else {
+<span class="nc" id="L395">				responseBean.setStatus(IW.Status.NORMAL_PAY);</span>
+<span class="nc" id="L396">				double retailerNet = CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount()) + CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount() * retailerComm * .01);</span>
+<span class="nc" id="L397">				double agentNet = CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount()) + CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount() * agentComm * .01);</span>
+
+<span class="nc" id="L399">				PwtInvBean invBean = new PwtInvBean().setGameId(requestBean.getGameId()).setWinningAmount(requestBean.getTotalAmount()).setTicketNumber(requestBean.getTicketNumber()).setEngineTransactionId(String.valueOf(requestBean.getTxnIdIw())).setClaimAt(&quot;RETAILER&quot;).setStatus(&quot;CLAIM_AT_RETAILER&quot;).setDirPly(false);</span>
+<span class="nc" id="L400">				int pwtInvId = WinningTransactionManagerIW.insertPwtInventory(invBean, connection);</span>
+
+<span class="nc" id="L402">				TransactionBean transBean = new TransactionBean().setUserBean(userBean).setServiceCode(serviceCode).setInterfaceType(interfaceType).setPartyId(requestBean.getGameId()).setTransType(&quot;IW_PWT&quot;).setTransTime(transactionTime);</span>
+<span class="nc" id="L403">				transId = WinningTransactionManagerIW.insertRetailerTransaction(transBean, connection);</span>
+
+<span class="nc" id="L405">				DirectPlrPwtBean pwtBean = new DirectPlrPwtBean().setTransId(transId).setPwtInvId(pwtInvId).setGameId(requestBean.getGameId()).setUserBean(userBean).setWinningAmount(requestBean.getTotalAmount()).setRetailerClaimComm(CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount() * retailerComm * .01)).setRetailerNetAmt(retailerNet).setAgentClaimComm(CommonMethods.fmtToTwoDecimal(requestBean.getTotalAmount() * agentComm * .01)).setAgentNetAmt(agentNet).setTransTime(transactionTime).setPwtClaimStatus(&quot;DONE_CLM&quot;);</span>
+<span class="nc" id="L406">				WinningTransactionManagerIW.insertRetailerPwt(pwtBean, connection);</span>
+
+<span class="nc" id="L408">				WinningTransactionManagerIW.updateRetailerPwtInv(requestBean.getGameId(), requestBean.getTicketNumber(), transId, connection);</span>
+
+<span class="nc" id="L410">				boolean isValid = OrgCreditUpdation.updateOrganizationBalWithValidate(retailerNet, &quot;TRANSACTION&quot;, &quot;IW_PWT&quot;, userBean.getUserOrgId(), userBean.getParentOrgId(), &quot;RETAILER&quot;, 0, connection);</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">				if (!isValid) {</span>
+<span class="nc" id="L412">					throw new LMSException(IWErrors.RETAILER_BALANCE_INSUFFICIENT_ERROR_CODE, IWErrors.RETAILER_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+				}
+
+<span class="nc" id="L415">				isValid = OrgCreditUpdation.updateOrganizationBalWithValidate(agentNet, &quot;TRANSACTION&quot;, &quot;IW_PWT&quot;, userBean.getParentOrgId(), 0, &quot;AGENT&quot;, 0, connection);</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">				if (!isValid) {</span>
+<span class="nc" id="L417">					throw new LMSException(IWErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_CODE, IWErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+				}
+				// Update Heart Beat After PWT Completion
+<span class="nc" id="L420">				Util.setHeartBeatAndSaleTime(userBean.getUserOrgId(), &quot;IW_PWT&quot;, connection);</span>
+
+<span class="nc" id="L422">				connection.commit();</span>
+				
+<span class="nc" id="L424">				new AjaxRequestHelper().getAvlblCreditAmt(userBean, connection);</span>
+<span class="nc" id="L425">				balance = userBean.getAvailableCreditLimit() - userBean.getClaimableBal();</span>
+			}
+
+<span class="nc bnc" id="L428" title="All 2 branches missed.">			if(IW.Status.NORMAL_PAY.equalsIgnoreCase(responseBean.getStatus())) {</span>
+<span class="nc" id="L429">				responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L430">				responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L431">				responseBean.setTxnId(String.valueOf(transId));</span>
+<span class="nc" id="L432">				responseBean.setDoneByUserId(userBean.getUserId());</span>
+<span class="nc" id="L433">				responseBean.setBalance(balance);</span>
+<span class="nc" id="L434">				responseBean.setStatus(&quot;PAID&quot;);</span>
+<span class="nc" id="L435">				responseBean.setAdvMessageMap(CommonMethodsControllerImpl.getInstance().getIWAdvMessages(userBean.getUserOrgId(), requestBean.getGameId(), &quot;PWT&quot;));</span>
+			} else {
+<span class="nc" id="L437">				responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L438">				responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L439">				responseBean.setStatus(&quot;Check PWT Status&quot;);</span>
+			}
+<span class="nc" id="L441">		} catch (SQLException se) {</span>
+<span class="nc" id="L442">			se.printStackTrace();</span>
+<span class="nc" id="L443">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L444">		} catch (LMSException le) {</span>
+<span class="nc" id="L445">			throw le;</span>
+<span class="nc" id="L446">		} catch (Exception e) {</span>
+<span class="nc" id="L447">			e.printStackTrace();</span>
+<span class="nc" id="L448">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L450">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L451">		}</span>
+<span class="nc" id="L452">		return responseBean;</span>
+	}
+
+	@Override
+	public TPPwtResponseBean masApprovalInit(UserInfoBean userBean, TPPwtRequestBean requestBean, String serviceCode, String interfaceType) throws LMSException {
+<span class="nc" id="L457">		logger.info(&quot;-- Inside boMasApprovalInit --&quot;);</span>
+<span class="nc" id="L458">		Connection connection = null;</span>
+<span class="nc" id="L459">		PreparedStatement appReqStmt = null;</span>
+<span class="nc" id="L460">		ResultSet rs = null;</span>
+
+<span class="nc" id="L462">		TPPwtResponseBean responseBean = null;</span>
+		try {
+<span class="nc" id="L464">			String transactionTime = Util.getCurrentTimeString();</span>
+<span class="nc" id="L465">			PlayerBean playerBean = requestBean.getPlayerBean();</span>
+
+<span class="nc" id="L467">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L468">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L470">			int playerId = getPlayerIdOrRegister(playerBean, connection);</span>
+
+<span class="nc" id="L472">			String recIdForApp = GenerateRecieptNo.generateRequestIdIW(&quot;IWREQUEST&quot;, connection);</span>
+<span class="nc" id="L473">			logger.info(&quot;recIdForApp - &quot; + recIdForApp);</span>
+
+<span class="nc" id="L475">			appReqStmt = connection.prepareStatement(&quot;INSERT INTO st_iw_approval_req_master (request_id, party_id, party_type, ticket_nbr, game_id, pwt_amt, tax_amt, net_amt, request_status, requested_by_user_id, requester_by_type, request_date, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);&quot;, PreparedStatement.RETURN_GENERATED_KEYS);</span>
+<span class="nc" id="L476">			int taskId = 0;</span>
+
+<span class="nc" id="L478">			appReqStmt.setString(1, recIdForApp);</span>
+<span class="nc" id="L479">			appReqStmt.setInt(2, playerId);</span>
+<span class="nc" id="L480">			appReqStmt.setString(3, &quot;PLAYER&quot;);</span>
+<span class="nc" id="L481">			appReqStmt.setString(4, requestBean.getTicketNumber());</span>
+<span class="nc" id="L482">			appReqStmt.setInt(5, requestBean.getGameId());</span>
+<span class="nc" id="L483">			appReqStmt.setDouble(6, requestBean.getTotalAmount());</span>
+<span class="nc" id="L484">			appReqStmt.setDouble(7, requestBean.getTaxAmt());</span>
+<span class="nc" id="L485">			appReqStmt.setDouble(8, requestBean.getNetAmt());</span>
+<span class="nc" id="L486">			appReqStmt.setString(9, &quot;PND_MAS&quot;);</span>
+<span class="nc" id="L487">			appReqStmt.setInt(10, userBean.getUserId());</span>
+<span class="nc" id="L488">			appReqStmt.setString(11, userBean.getUserType());</span>
+<span class="nc" id="L489">			appReqStmt.setString(12, transactionTime);</span>
+<span class="nc bnc" id="L490" title="All 2 branches missed.">			appReqStmt.setString(13, (requestBean.getRemarks() == null) ? null : requestBean.getRemarks().replaceAll(&quot;\\+&quot;, &quot; &quot;));</span>
+<span class="nc" id="L491">			logger.info(&quot;Insert In st_iw_approval_req_master - &quot; + appReqStmt);</span>
+<span class="nc" id="L492">			appReqStmt.executeUpdate();</span>
+<span class="nc" id="L493">			rs = appReqStmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L494" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L495">				taskId = rs.getInt(1);</span>
+			} else {
+<span class="nc" id="L497">				throw new LMSException(LMSErrors.APPROVAL_REQUEST_INSERTION_ERROR_CODE, LMSErrors.APPROVAL_REQUEST_INSERTION_ERROR_MESSAGE);</span>
+			}
+
+<span class="nc" id="L500">			connection.commit();</span>
+
+<span class="nc" id="L502">			responseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L503">			responseBean.setResponseCode(0);</span>
+<span class="nc" id="L504">			responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L505">			responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L506">			responseBean.setTxnId(String.valueOf(taskId));</span>
+<span class="nc" id="L507">			responseBean.setDoneByUserId(userBean.getUserId());</span>
+<span class="nc" id="L508">			responseBean.setRequestId(recIdForApp);</span>
+<span class="nc" id="L509">			responseBean.setStatus(&quot;PENDING&quot;);</span>
+<span class="nc" id="L510">		} catch (SQLException se) {</span>
+<span class="nc" id="L511">			se.printStackTrace();</span>
+<span class="nc" id="L512">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L513">		} catch (LMSException le) {</span>
+<span class="nc" id="L514">			throw le;</span>
+<span class="nc" id="L515">		} catch (Exception e) {</span>
+<span class="nc" id="L516">			e.printStackTrace();</span>
+<span class="nc" id="L517">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L519">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L520">		}</span>
+<span class="nc" id="L521">		return responseBean;</span>
+	}
+
+	@Override
+	public TPPwtResponseBean masApprovalDone(UserInfoBean userBean, TPPwtRequestBean requestBean, String serviceCode, String interfaceType) throws LMSException {
+<span class="nc" id="L526">		logger.info(&quot;-- Inside boMasApprovalDone --&quot;);</span>
+<span class="nc" id="L527">		Connection connection = null;</span>
+<span class="nc" id="L528">		PreparedStatement appReqStmt = null;</span>
+
+<span class="nc" id="L530">		TPPwtResponseBean responseBean = null;</span>
+		try {
+<span class="nc" id="L532">			String transactionTime = Util.getCurrentTimeString();</span>
+
+<span class="nc" id="L534">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L535">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L537">			int playerId = 000;</span>
+
+<span class="nc" id="L539">			appReqStmt = connection.prepareStatement(&quot;UPDATE st_iw_approval_req_master SET request_status=?, approved_by_user_id=?, approved_by_type=?, approval_date=?, remarks=?, payment_done_by_user_id=?, payment_done_by_type=?, transaction_id=? WHERE task_id=?;&quot;);</span>
+
+<span class="nc" id="L541">			PwtInvBean invBean = new PwtInvBean().setGameId(requestBean.getGameId()).setWinningAmount(requestBean.getTotalAmount()).setTicketNumber(requestBean.getTicketNumber()).setEngineTransactionId(requestBean.getTxnIdIw()).setClaimAt(&quot;BO&quot;).setStatus(&quot;CLAIM_AT_BO&quot;).setDirPly(true);</span>
+<span class="nc" id="L542">			int pwtInvId = WinningTransactionManagerIW.insertPwtInventory(invBean, connection);</span>
+
+<span class="nc" id="L544">			TransactionBean transBean = new TransactionBean().setUserBean(userBean).setServiceCode(serviceCode).setInterfaceType(interfaceType).setPartyType(&quot;PLAYER&quot;).setPartyId(playerId).setTransType(&quot;IW_PWT_PLR&quot;).setTransTime(transactionTime);</span>
+<span class="nc" id="L545">			long transId = WinningTransactionManagerIW.insertBOTransaction(transBean, connection);</span>
+
+<span class="nc" id="L547">			DirectPlrPwtBean dirPwtBean = new DirectPlrPwtBean().setUserBean(userBean).setGameId(requestBean.getGameId()).setPwtInvId(pwtInvId).setTaskId(Long.parseLong(requestBean.getTxnIdIw())).setTransId(transId).setTransTime(transactionTime).setPlayerId(playerId).setTaxAmount(requestBean.getTaxAmt()).setNetAmount(requestBean.getNetAmt()).setWinningAmount(requestBean.getTotalAmount()) .setPaymentType(&quot;CASH&quot;);</span>
+<span class="nc" id="L548">			WinningTransactionManagerIW.insertBODirectPlrPwt(dirPwtBean, connection);</span>
+
+<span class="nc" id="L550">			appReqStmt.setString(1, &quot;PAID&quot;);</span>
+<span class="nc" id="L551">			appReqStmt.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L552">			appReqStmt.setString(3, userBean.getUserType());</span>
+<span class="nc" id="L553">			appReqStmt.setString(4, transactionTime);</span>
+<span class="nc" id="L554">			appReqStmt.setString(5, requestBean.getRemarks());</span>
+<span class="nc" id="L555">			appReqStmt.setInt(6, userBean.getUserId());</span>
+<span class="nc" id="L556">			appReqStmt.setString(7, userBean.getUserType());</span>
+<span class="nc" id="L557">			appReqStmt.setLong(8, transId);</span>
+<span class="nc" id="L558">			appReqStmt.setLong(9, Long.valueOf(requestBean.getTxnIdIw()));</span>
+<span class="nc" id="L559">			logger.info(&quot;UPDATE st_sle_approval_req_master - &quot; + appReqStmt);</span>
+<span class="nc" id="L560">			appReqStmt.executeUpdate();</span>
+
+<span class="nc" id="L562">			WinningTransactionManagerIW.updateBOPwtInv(requestBean.getGameId(), requestBean.getTicketNumber(), transId, connection);</span>
+
+<span class="nc" id="L564">			connection.commit();</span>
+
+<span class="nc" id="L566">			responseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L567">			responseBean.setGameId(requestBean.getGameId());</span>
+<span class="nc" id="L568">			responseBean.setTicketNumber(requestBean.getTicketNumber());</span>
+<span class="nc" id="L569">			responseBean.setTxnId(String.valueOf(transId));</span>
+<span class="nc" id="L570">			responseBean.setDoneByUserId(userBean.getUserId());</span>
+<span class="nc" id="L571">			responseBean.setStatus(&quot;PAID&quot;);</span>
+<span class="nc" id="L572">		} catch (SQLException se) {</span>
+<span class="nc" id="L573">			se.printStackTrace();</span>
+<span class="nc" id="L574">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L575">		} catch (LMSException le) {</span>
+<span class="nc" id="L576">			throw le;</span>
+<span class="nc" id="L577">		} catch (Exception e) {</span>
+<span class="nc" id="L578">			e.printStackTrace();</span>
+<span class="nc" id="L579">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L581">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L582">		}</span>
+<span class="nc" id="L583">		return responseBean;</span>
+	}
+
+	private static int getPlayerIdOrRegister(PlayerBean playerBean, Connection connection) throws LMSException {
+<span class="nc" id="L587">		Statement stmt = null;</span>
+<span class="nc" id="L588">		ResultSet rs = null;</span>
+
+<span class="nc" id="L590">		int playerId = 0;</span>
+		try {
+<span class="nc bnc" id="L592" title="All 2 branches missed.">			String firstName = (playerBean.getFirstName() == null) ? null : playerBean.getFirstName().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L593" title="All 2 branches missed.">			String lastName = (playerBean.getLastName() == null) ? null : playerBean.getLastName().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L594" title="All 2 branches missed.">			String idType = (playerBean.getIdType() == null) ? null : playerBean.getIdType().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L595" title="All 2 branches missed.">			String idNumber = (playerBean.getIdNumber() == null) ? null : playerBean.getIdNumber().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+
+<span class="nc" id="L597">			stmt = connection.createStatement();</span>
+<span class="nc" id="L598">			String query = &quot;SELECT player_id FROM st_lms_player_master WHERE first_name='&quot; + firstName + &quot;' AND last_name='&quot; + lastName + &quot;' AND photo_id_type='&quot; + idType + &quot;' AND photo_id_nbr='&quot; + idNumber + &quot;';&quot;;</span>
+<span class="nc" id="L599">			logger.info(&quot;Get Player Basic Info - &quot; + query);</span>
+<span class="nc" id="L600">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L601" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L602">				playerId = rs.getInt(&quot;player_id&quot;);</span>
+			} else {
+<span class="nc bnc" id="L604" title="All 2 branches missed.">				String emailId = (playerBean.getEmailId() == null) ? null : playerBean.getEmailId().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L605" title="All 2 branches missed.">				String phoneNo = (playerBean.getPhoneNumber() == null) ? null : playerBean.getPhoneNumber().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L606" title="All 2 branches missed.">				String address1 = (playerBean.getAddress1() == null) ? null : playerBean.getAddress1().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L607" title="All 2 branches missed.">				String address2 = (playerBean.getAddress2() == null) ? null : playerBean.getAddress2().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L608" title="All 2 branches missed.">				String city = (playerBean.getCity() == null) ? null : playerBean.getCity().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L609" title="All 2 branches missed.">				String state = (playerBean.getState() == null) ? null : playerBean.getState().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+<span class="nc bnc" id="L610" title="All 2 branches missed.">				String country = (playerBean.getCountry() == null) ? null : playerBean.getCountry().replaceAll(&quot;\\+&quot;, &quot; &quot;);</span>
+
+<span class="nc" id="L612">				query = &quot;INSERT INTO st_lms_player_master (first_name, last_name, email_id, phone_nbr, addr_line1, addr_line2, city, state_code, country_code, pin_code, photo_id_type, photo_id_nbr) VALUES (&quot; + stmtParamSetter(firstName, lastName, emailId, phoneNo, address1, address2, city, state, country, &quot;0&quot;, idType, idNumber) + &quot;);&quot;;</span>
+<span class="nc" id="L613">				logger.info(&quot;Insert In st_lms_player_master - &quot; + query);</span>
+<span class="nc" id="L614">				stmt.executeUpdate(query, Statement.RETURN_GENERATED_KEYS);</span>
+<span class="nc" id="L615">				rs = stmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L616" title="All 2 branches missed.">				if (rs.next()) {</span>
+<span class="nc" id="L617">					playerId = rs.getInt(1);</span>
+				} else {
+<span class="nc" id="L619">					throw new LMSException(LMSErrors.PLAYER_REGISTRATION_ERROR_CODE, LMSErrors.PLAYER_REGISTRATION_ERROR_MESSAGE);</span>
+				}
+			}
+<span class="nc" id="L622">		} catch (SQLException se) {</span>
+<span class="nc" id="L623">			se.printStackTrace();</span>
+<span class="nc" id="L624">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L625">		} catch (LMSException le) {</span>
+<span class="nc" id="L626">			throw le;</span>
+<span class="nc" id="L627">		} catch (Exception e) {</span>
+<span class="nc" id="L628">			e.printStackTrace();</span>
+<span class="nc" id="L629">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L630">		}</span>
+<span class="nc" id="L631">		logger.info(&quot;Player ID - &quot; + playerId);</span>
+<span class="nc" id="L632">		return playerId;</span>
+	}
+
+	private static final String stmtParamSetter(String... params) {
+<span class="nc" id="L636">		StringBuilder stmtBuilder = new StringBuilder();</span>
+
+<span class="nc bnc" id="L638" title="All 2 branches missed.">		for (String param : params) {</span>
+<span class="nc" id="L639">			stmtBuilder.append(&quot;'&quot; + param + &quot;',&quot;);</span>
+		}
+<span class="nc" id="L641">		stmtBuilder.deleteCharAt(stmtBuilder.length() - 1);</span>
+
+<span class="nc" id="L643">		return stmtBuilder.toString();</span>
+	}
+
+	public List&lt;BOMasterApprovalBean&gt; getMasOrPendingRequests(BOMasterApprovalBean requestBean, String requestType, Connection connection) throws LMSException {
+<span class="nc" id="L647">		Statement stmt = null;</span>
+<span class="nc" id="L648">		String query = null;</span>
+<span class="nc" id="L649">		ResultSet rs = null;</span>
+<span class="nc" id="L650">		List&lt;BOMasterApprovalBean&gt; masterApprovalList = new ArrayList&lt;BOMasterApprovalBean&gt;();</span>
+<span class="nc" id="L651">		BOMasterApprovalBean approvalBean = null;</span>
+		try {
+<span class="nc" id="L653">			String appender = &quot;&quot;;</span>
+<span class="nc bnc" id="L654" title="All 4 branches missed.">			if (requestBean.getRequestId() != null &amp;&amp; requestBean.getRequestId().length() &gt; 0)</span>
+<span class="nc" id="L655">				appender += &quot; AND request_id='&quot; + requestBean.getRequestId() + &quot;'&quot;;</span>
+<span class="nc bnc" id="L656" title="All 4 branches missed.">			if (requestBean.getFirstName() != null &amp;&amp; requestBean.getFirstName().length() &gt; 0)</span>
+<span class="nc" id="L657">				appender += &quot; AND first_name='&quot; + requestBean.getFirstName() + &quot;'&quot;;</span>
+<span class="nc bnc" id="L658" title="All 4 branches missed.">			if (requestBean.getLastName() != null &amp;&amp; requestBean.getLastName().length() &gt; 0) </span>
+<span class="nc" id="L659">				appender += &quot; AND last_name='&quot; + requestBean.getLastName() + &quot;'&quot;;</span>
+
+<span class="nc" id="L661">			query = &quot;SELECT task_id, game_id, draw_id, ticket_nbr, pwt_amt, request_id, (SELECT NAME FROM st_lms_organization_master om INNER JOIN st_lms_user_master um ON om.organization_id=um.organization_id WHERE um.user_id=11001) request_by, request_status, party_type, first_name, last_name, city, remarks FROM st_sle_approval_req_master arm INNER JOIN st_lms_player_master pm ON arm.party_id=pm.player_id WHERE request_status='&quot; + requestType + &quot;'&quot; + appender + &quot;;&quot;;</span>
+<span class="nc" id="L662">			stmt = connection.createStatement();</span>
+<span class="nc" id="L663">			logger.info(&quot;getMasterApprovalRequests - &quot; + query);</span>
+<span class="nc" id="L664">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L665" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L666">				approvalBean = new BOMasterApprovalBean();</span>
+<span class="nc" id="L667">				approvalBean.setTaskId(rs.getInt(&quot;task_id&quot;));</span>
+<span class="nc" id="L668">				approvalBean.setGameId(rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L669">				approvalBean.setDrawId(rs.getInt(&quot;draw_id&quot;));</span>
+<span class="nc" id="L670">				approvalBean.setTicketNumber(rs.getString(&quot;ticket_nbr&quot;));</span>
+<span class="nc" id="L671">				approvalBean.setWinningAmount(rs.getDouble(&quot;pwt_amt&quot;));</span>
+<span class="nc" id="L672">				approvalBean.setRequestId(rs.getString(&quot;request_id&quot;));</span>
+<span class="nc" id="L673">				approvalBean.setRequestFor(rs.getString(&quot;party_type&quot;));</span>
+<span class="nc" id="L674">				approvalBean.setRequestedBy(rs.getString(&quot;request_by&quot;));</span>
+<span class="nc" id="L675">				approvalBean.setRequestStatus(rs.getString(&quot;request_status&quot;));</span>
+<span class="nc" id="L676">				approvalBean.setFirstName(rs.getString(&quot;first_name&quot;));</span>
+<span class="nc" id="L677">				approvalBean.setLastName(rs.getString(&quot;last_name&quot;));</span>
+<span class="nc" id="L678">				approvalBean.setCity(rs.getString(&quot;city&quot;));</span>
+<span class="nc" id="L679">				approvalBean.setRemarks(rs.getString(&quot;remarks&quot;));</span>
+<span class="nc" id="L680">				masterApprovalList.add(approvalBean);</span>
+			}
+<span class="nc" id="L682">		} catch (SQLException se) {</span>
+<span class="nc" id="L683">			se.printStackTrace();</span>
+<span class="nc" id="L684">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L685">		} catch (Exception e) {</span>
+<span class="nc" id="L686">			e.printStackTrace();</span>
+<span class="nc" id="L687">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L688">		}</span>
+<span class="nc" id="L689">		return masterApprovalList;</span>
+	}
+
+	public boolean processMasterApproval(int taskId, String processType, int userId, String userType, Connection connection) throws LMSException {
+<span class="nc" id="L693">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L694">		boolean status = false;</span>
+		try {
+<span class="nc" id="L696">			pstmt = connection.prepareStatement(&quot;UPDATE st_sle_approval_req_master SET request_status=?, approved_by_user_id=?, approved_by_type=?, approval_date=? WHERE task_id=?;&quot;);</span>
+<span class="nc" id="L697">			pstmt.setString(1, processType);</span>
+<span class="nc" id="L698">			pstmt.setInt(2, userId);</span>
+<span class="nc" id="L699">			pstmt.setString(3, userType);</span>
+<span class="nc" id="L700">			pstmt.setTimestamp(4, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L701">			pstmt.setInt(5, taskId);</span>
+<span class="nc" id="L702">			logger.info(&quot;processMasterApproval - &quot; + pstmt);</span>
+<span class="nc" id="L703">			pstmt.executeUpdate();</span>
+<span class="nc" id="L704">			status = true;</span>
+<span class="nc" id="L705">		} catch (SQLException se) {</span>
+<span class="nc" id="L706">			se.printStackTrace();</span>
+<span class="nc" id="L707">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L708">		} catch (Exception e) {</span>
+<span class="nc" id="L709">			e.printStackTrace();</span>
+<span class="nc" id="L710">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L711">		}</span>
+<span class="nc" id="L712">		return status;</span>
+	}
+
+	public static Map&lt;String, Integer&gt; getIdDetails(String ticketNumber,
+			Connection connection) throws LMSException {
+
+<span class="nc" id="L718">		Map&lt;String, Integer&gt; map = new HashMap&lt;String, Integer&gt;() ;</span>
+		
+<span class="nc" id="L720">		Statement statement = null ;</span>
+<span class="nc" id="L721">		ResultSet resultSet = null ;</span>
+		
+		try{
+<span class="nc" id="L724">			String data = &quot;select user_id, organization_id, parent_user_id from st_lms_user_master where organization_id = (select retailer_org_id from st_iw_ret_sale where engine_tx_id = '&quot;+ticketNumber+&quot;');&quot; ;</span>
+<span class="nc" id="L725">			statement = connection.createStatement();</span>
+<span class="nc" id="L726">			resultSet = statement.executeQuery(data);</span>
+<span class="nc" id="L727">			logger.info(&quot;Data Statement : &quot; + statement) ;</span>
+			
+<span class="nc bnc" id="L729" title="All 2 branches missed.">			if(resultSet.next()){</span>
+<span class="nc" id="L730">				map.put(&quot;userId&quot;, resultSet.getInt(&quot;user_id&quot;));</span>
+<span class="nc" id="L731">				map.put(&quot;orgId&quot;, resultSet.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L732">				map.put(&quot;parentUserId&quot;, resultSet.getInt(&quot;parent_user_id&quot;));</span>
+			}
+			
+<span class="nc" id="L735">		}catch (SQLException se) {</span>
+<span class="nc" id="L736">			se.printStackTrace();</span>
+<span class="nc" id="L737">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L738">		} catch (Exception e) {</span>
+<span class="nc" id="L739">			e.printStackTrace();</span>
+<span class="nc" id="L740">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally{
+<span class="nc" id="L742">			DBConnect.closeConnection(statement, resultSet);</span>
+<span class="nc" id="L743">		}</span>
+		
+<span class="nc" id="L745">		return map;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

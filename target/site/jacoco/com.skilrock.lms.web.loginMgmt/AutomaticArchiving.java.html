@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AutomaticArchiving.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.loginMgmt</a> &gt; <span class="el_source">AutomaticArchiving.java</span></div><h1>AutomaticArchiving.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.loginMgmt;
+
+import java.io.IOException;
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.quartz.Job;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
+
+import com.skilrock.lms.beans.SchedulerDetailsBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameOfflineHelper;
+import com.skilrock.lms.coreEngine.userMgmt.common.CommonFunctionsHelper;
+import com.skilrock.lms.scheduler.SchedulerCommonFuntionsHelper;
+
+/**
+ * 
+ * * @author gauravk
+ *  This Class does the following activities - 1 - Disable
+ * login of all users. 2 - Logout all the users. 3 - Run LMS Archiving. 4 -
+ * Enable login of all users. 5 - Send email if ICS does not run successfully.
+ */
+
+<span class="nc" id="L41">public class AutomaticArchiving implements Job{</span>
+
+<span class="nc" id="L43">	private static String mailType = &quot;multiple&quot;;</span>
+<span class="nc" id="L44">	private static String toMultipleEmail = &quot;vishal.verma@skilrock.com,yogesh@skilrock.com&quot;;</span>
+<span class="nc" id="L45">	private static String toMail = &quot;@skilrock.com&quot;;</span>
+
+<span class="nc" id="L47">	Log logger = LogFactory.getLog(AutomaticArchiving.class);</span>
+	
+	public void execute(JobExecutionContext context)
+			throws JobExecutionException {
+		
+		try{
+<span class="nc" id="L53">			String jobName = context.getJobDetail().getFullName();</span>
+<span class="nc" id="L54">			logger.info(&quot;SimpleJob says: &quot; + jobName + &quot; executing at &quot;</span>
+					+ new java.util.Date());
+			
+<span class="nc" id="L57">			Map&lt;String,SchedulerDetailsBean&gt; scheBeanMap =SchedulerCommonFuntionsHelper.getSchedulerBeanMap(context.getJobDetail().getGroup());</span>
+			
+<span class="nc" id="L59">			SchedulerCommonFuntionsHelper.insertSchedulerGroupHistory(context.getJobDetail().getGroup());</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">			if(scheBeanMap.size()&gt;0){</span>
+				
+<span class="nc bnc" id="L62" title="All 2 branches missed.">				if(scheBeanMap.get(&quot;Auto_Archiving_SCHEDULER&quot;).isActive()){</span>
+<span class="nc" id="L63">					ServletContext servletContext = LMSUtility.sc;</span>
+<span class="nc" id="L64">					String  isAutoArch =(String)servletContext.getAttribute(&quot;autoArchiving&quot;); </span>
+<span class="nc" id="L65">					logger.info(&quot;Auto Archiving&quot;+isAutoArch);</span>
+<span class="nc" id="L66">					System.out.println(&quot;Auto Archiving&quot;);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">					if(isAutoArch.equalsIgnoreCase(&quot;true&quot;)){</span>
+					
+<span class="nc" id="L69">					String errorMsg = null;</span>
+					try{
+<span class="nc" id="L71">						SchedulerCommonFuntionsHelper.updateSchedulerStart( scheBeanMap.get(&quot;Auto_Archiving_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L72">						logger.info(&quot;Inside Auto Archiving&quot;);</span>
+				
+<span class="nc" id="L74">							logger.info(&quot;Inside Auto Archiving&quot;);</span>
+<span class="nc" id="L75">						startArchiving();	</span>
+						
+<span class="nc" id="L77">						SchedulerCommonFuntionsHelper.updateSchedulerEnd(scheBeanMap.get(&quot;Auto_Archiving_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L78">					}catch (Exception e) {</span>
+<span class="nc" id="L79">						logger.error(&quot;Exception in Auto_Archiving_SCHEDULER &quot;, e);</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">						if(e.getMessage()!=null){</span>
+<span class="nc" id="L81">							errorMsg =e.getMessage();</span>
+						}else{
+							
+<span class="nc" id="L84">							errorMsg=&quot;Error Occurred Msg Is Null &quot;;</span>
+						}
+<span class="nc" id="L86">					}</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">					if(errorMsg!=null){</span>
+<span class="nc" id="L88">						SchedulerCommonFuntionsHelper.updateSchedulerError( scheBeanMap.get(&quot;Auto_Archiving_SCHEDULER&quot;).getJobId(), errorMsg);</span>
+					}
+<span class="nc" id="L90">					}else{</span>
+<span class="nc" id="L91">						logger.info(&quot;System is not configured for the automatic archiving&quot;);</span>
+					}
+					
+					
+				}
+			}
+			/*ServletContext servletContext = LMSUtility.sc;
+			String  isAutoArch =(String)servletContext.getAttribute(&quot;autoArchiving&quot;); 
+			logger.info(&quot;Auto Archiving&quot;+isAutoArch);
+			System.out.println(&quot;Auto Archiving&quot;);
+			if(isAutoArch.equalsIgnoreCase(&quot;true&quot;)){
+				logger.info(&quot;Inside Auto Archiving&quot;);
+					startArchiving();	
+			}else{
+				logger.info(&quot;System is not configured for the automatic archiving&quot;);
+			}*/
+			
+<span class="nc" id="L108">		}catch (LMSException e) {</span>
+<span class="nc" id="L109">			logger.error(&quot;LMSException in Weekly Job Scheduler  &quot;, e);</span>
+<span class="nc" id="L110">		}catch (Exception e) {</span>
+<span class="nc" id="L111">			logger.error(&quot;Exception in Weekly Job Scheduler  &quot;, e);</span>
+<span class="nc" id="L112">		}</span>
+<span class="nc" id="L113">	}</span>
+
+	public void startArchiving() throws LMSException{
+<span class="nc" id="L116">		Statement stmt = null;</span>
+<span class="nc" id="L117">		ResultSet rs = null;</span>
+		//int queryId;
+<span class="nc" id="L119">		boolean result = false;</span>
+<span class="nc" id="L120">		Connection con = null;</span>
+		//boolean flag = false;
+		//String errMessage = null;
+		//String subject = &quot;FOR TESTING  - LMS ERROR REPORTING SYSTEM (LMS ERRORS) &quot;;
+		//String databaseName = DBConnect.getDatabaseName();
+/*		String body = &quot;*********************************************************************************************************\n\n&quot;
+				+ &quot;***ICS FOR LMS***&quot;
+				+ &quot;\n\n&quot;
+				+ &quot;Error occured in Database: &quot;
+				+ databaseName
+				+ &quot;\n\n You can check these errors by going through the below details : \n\n\n&quot;;*/
+		try {
+<span class="nc" id="L132">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L133">			stmt = con.createStatement();</span>
+<span class="nc" id="L134">			logger.info(&quot;Stop login of all users&quot;);</span>
+<span class="nc" id="L135">			stopLoginAllUsers();</span>
+<span class="nc" id="L136">			logger.info(&quot;Logout all users before archiving !&quot;);</span>
+<span class="nc" id="L137">			logOutAll(); // Logout all users</span>
+<span class="nc" id="L138">			CallableStatement pstmt = con</span>
+					.prepareCall(&quot;{call runLMSArchiving()}&quot;);
+<span class="nc" id="L140">			pstmt.executeUpdate();</span>
+
+<span class="nc" id="L142">			rs = stmt</span>
+					.executeQuery(&quot;select * from tempdate_history where date(processing_time)='&quot;
+							+ new java.sql.Date(new Date().getTime()) + &quot;'&quot;);
+<span class="nc bnc" id="L145" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L146">				result = true;</span>
+			}
+<span class="nc bnc" id="L148" title="All 2 branches missed.">			if (result) {</span>
+<span class="nc" id="L149">				logger.info(&quot;LMS Archiving run successfully :&quot;);</span>
+			} else {
+<span class="nc" id="L151">				logger.info(&quot;LMS Archiving does not run successfully :&quot;);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">				if (mailType.equalsIgnoreCase(&quot;multiple&quot;)) {</span>
+<span class="nc" id="L153">					toMultipleEmail = toMultipleEmail.trim();</span>
+<span class="nc" id="L154">					String[] multipleEmailArray = toMultipleEmail.split(&quot;,&quot;);</span>
+<span class="nc" id="L155">					new MailSend().sendEmailMany(multipleEmailArray, &quot;LMS ARCHIVING DOES NOT RUN&quot;,</span>
+							&quot;LMS archiving does not run successfully on &quot;
+									+ new Timestamp(new Date().getTime())
+									+ &quot;. Please look over the issue.&quot;);
+				}
+				
+				/*MailSend.sendMail(toMail,
+						&quot;LMS archiving does not run successfully on &quot;
+								+ new Timestamp(new Date().getTime())
+								+ &quot;. Please look over the issue.&quot;,
+						&quot;LMS ARCHIVING DOES NOT RUN&quot;);*/
+			}
+
+<span class="nc" id="L168">			stopLoginAllUsers();</span>
+<span class="nc" id="L169">			logger.info(&quot;Login allowed all users after archiving !&quot;);</span>
+		/*	logger.info(&quot;ICS Process start.&quot;);
+			rs = stmt
+					.executeQuery(&quot;select  qm.id,error_msg from st_ics_query_master qm inner join st_ics_daily_query_status qs on qm.id=qs.query_id where qm.query_status='ACTIVE' and qm.is_critical='YES' and date(ics_run_date)='&quot;
+							+ new java.sql.Date(new Date().getTime())
+							+ &quot;' and is_success=1&quot;);
+			while (rs.next()) {
+				flag = true;
+				queryId = rs.getInt(&quot;id&quot;);
+				errMessage = rs.getString(&quot;error_msg&quot;);
+				body = body + &quot;Query Id :&quot; + queryId + &quot;\n   Error Message : &quot;
+						+ errMessage + &quot;\n&quot;;
+			}
+			if (!flag) {
+				logger.info(&quot;ICS run successfully.&quot;);
+			} else {
+				logger.info(&quot;ICS does not run successfully.&quot;);
+
+				if (mailType.equalsIgnoreCase(&quot;multiple&quot;)) {
+					toMultipleEmail = toMultipleEmail.trim();
+					String[] multipleEmailArray = toMultipleEmail.split(&quot;,&quot;);
+					new MailSend().sendEmailMany(multipleEmailArray, subject,
+							body);
+				} else {
+					MailSend.sendMail(toMail, body, subject);
+				}
+
+			}*/
+<span class="nc" id="L197">		}  catch (Exception e) {</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">			if (LMSFilterDispatcher.stopLogInUsers) {</span>
+<span class="nc" id="L199">				LMSFilterDispatcher.stopLogInUsers = false;</span>
+			}
+<span class="nc" id="L201">			logger.error(&quot;Error occured in running LMS Archiving&quot;,e);</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">			if (mailType.equalsIgnoreCase(&quot;multiple&quot;)) {</span>
+<span class="nc" id="L203">				toMultipleEmail = toMultipleEmail.trim();</span>
+<span class="nc" id="L204">				String[] multipleEmailArray = toMultipleEmail.split(&quot;,&quot;);</span>
+<span class="nc" id="L205">				new MailSend().sendEmailMany(multipleEmailArray, &quot;LMS ARCHIVING DOES NOT RUN&quot;,</span>
+						&quot;LMS archiving does not run successfully on &quot;
+								+ new Timestamp(new Date().getTime())
+								+ &quot;. Please look over the issue.&quot;);
+			}
+<span class="nc" id="L210">			logger.info(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L211">			throw new LMSException(&quot;Exception&quot;+e.getMessage());</span>
+			/*MailSend.sendMail(toMail,
+					&quot;LMS archiving does not run successfully on &quot;
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; 1.1.2.2.2.1
+							+ new Timestamp(new Date().getTime())
+							+ &quot;. Please look over the issue.&quot;,
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; AutomaticArchiving.java
+					&quot;LMS ARCHIVING DOES NOT RUN&quot;);
+			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE) ;
+=======
+					&quot;LMS ARCHIVING DOES NOT RUN&quot;);*/
+		
+
+		}finally {
+<span class="nc" id="L225">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L226">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L227">			DBConnect.closeStmt(stmt);</span>
+			
+<span class="nc" id="L229">		} </span>
+<span class="nc" id="L230">	}</span>
+
+	public void stopLoginAllUsers() {
+<span class="nc bnc" id="L233" title="All 2 branches missed.">		LMSFilterDispatcher.stopLogInUsers = (!LMSFilterDispatcher.stopLogInUsers);</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">		if (!LMSFilterDispatcher.stopLogInUsers) {</span>
+<span class="nc" id="L235">			System.out.println(&quot;Archiving Complete : All users login allowed&quot;);</span>
+		} else {
+<span class="nc" id="L237">			System.out.println(&quot;Archving Start : All users login blocked.&quot;);</span>
+		}
+<span class="nc" id="L239">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public void logOutAll() throws IOException {
+<span class="nc" id="L243">		HttpSession session = null;</span>
+<span class="nc" id="L244">		String userName = null;</span>
+<span class="nc" id="L245">		int userId = 0;</span>
+<span class="nc" id="L246">		ServletContext sc = LMSUtility.sc;</span>
+<span class="nc" id="L247">		Map&lt;String, HttpSession&gt; currentUserSessionMap = (Map&lt;String, HttpSession&gt;) sc</span>
+				.getAttribute(&quot;LOGGED_IN_USERS&quot;);
+<span class="nc" id="L249">		System.out.println(&quot; LOGGED_IN_USERS maps is &quot; + currentUserSessionMap);</span>
+<span class="nc" id="L250">		int forcedOut = 0;</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">		if (currentUserSessionMap != null) {</span>
+<span class="nc" id="L252">			Iterator&lt;Map.Entry&lt;String, HttpSession&gt;&gt; iter = currentUserSessionMap</span>
+					.entrySet().iterator();
+<span class="nc" id="L254">			int alreadyOut = 0;</span>
+
+<span class="nc bnc" id="L256" title="All 2 branches missed.">			while (iter.hasNext()) {</span>
+<span class="nc" id="L257">				Map.Entry&lt;String, HttpSession&gt; pair = (Map.Entry&lt;String, HttpSession&gt;) iter</span>
+						.next();
+<span class="nc" id="L259">				userName = pair.getKey();</span>
+<span class="nc" id="L260">				session = pair.getValue();</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">				if (&quot;admin&quot;.equalsIgnoreCase(userName)) {</span>
+<span class="nc" id="L262">					continue;</span>
+				}
+<span class="nc bnc" id="L264" title="All 4 branches missed.">				if (session == null</span>
+						|| !CommonFunctionsHelper.isSessionValid(session)) {
+<span class="nc" id="L266">					alreadyOut++;</span>
+<span class="nc" id="L267">					continue;</span>
+				}
+
+<span class="nc" id="L270">				session.removeAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L271">				session.removeAttribute(&quot;ACTION_LIST&quot;);</span>
+<span class="nc" id="L272">				session.removeAttribute(&quot;PRIV_MAP&quot;);</span>
+<span class="nc" id="L273">				session.invalidate();</span>
+<span class="nc" id="L274">				session = null;</span>
+<span class="nc" id="L275">				System.out.println(&quot;Log out Successfully and Session is &quot;</span>
+						+ session);
+<span class="nc bnc" id="L277" title="All 2 branches missed.">				if (DrawGameOfflineHelper.checkOfflineUser(userId)) {</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">					if (DrawGameOfflineHelper.updateLogoutSuccess(userName)) {</span>
+<span class="nc" id="L279">						forcedOut++;</span>
+					} else {
+<span class="nc" id="L281">						alreadyOut++;</span>
+					}
+<span class="nc" id="L283">					return;</span>
+				} else {
+<span class="nc" id="L285">					forcedOut++;</span>
+				}
+<span class="nc" id="L287">			}</span>
+
+<span class="nc" id="L289">			session = currentUserSessionMap.get(&quot;admin&quot;);</span>
+<span class="nc" id="L290">			currentUserSessionMap = new HashMap&lt;String, HttpSession&gt;();</span>
+<span class="nc" id="L291">			currentUserSessionMap.put(&quot;admin&quot;, session);</span>
+<span class="nc" id="L292">			sc.setAttribute(&quot;LOGGED_IN_USERS&quot;, currentUserSessionMap);</span>
+<span class="nc" id="L293">			System.out.println(&quot;Forced Out:&quot;+forcedOut+&quot;Already Out :&quot;+alreadyOut);</span>
+		}
+<span class="nc" id="L295">		System.out.println(sc.getAttribute(&quot;LOGGED_IN_USERS&quot;));</span>
+<span class="nc" id="L296">	}</span>
+	public static void main(String[] args) {
+		// new AutomaticArchiving().startArchiving() ;
+		
+<span class="nc" id="L300">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

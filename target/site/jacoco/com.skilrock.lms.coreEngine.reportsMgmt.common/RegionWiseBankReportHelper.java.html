@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RegionWiseBankReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">RegionWiseBankReportHelper.java</span></div><h1>RegionWiseBankReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.RegionWiseBankDetailBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+
+<span class="nc" id="L21">public class RegionWiseBankReportHelper {</span>
+<span class="nc" id="L22">	private static final Log logger = LogFactory</span>
+			.getLog(RegionWiseBankReportHelper.class);
+
+	private String getFormattedTimeStamp(String inDate) throws ParseException {
+		try {
+<span class="nc" id="L27">			return new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;)</span>
+					.format(new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;)
+							.parse(inDate));
+<span class="nc" id="L30">		} catch (Exception e) {</span>
+<span class="nc" id="L31">			e.printStackTrace();</span>
+<span class="nc" id="L32">			return inDate;</span>
+		}
+	}
+
+	public String fetchOrgAddress(int orgId) throws LMSException {
+<span class="nc" id="L37">		String orgAddress = null;</span>
+
+<span class="nc" id="L39">		Connection con = null;</span>
+<span class="nc" id="L40">		PreparedStatement pStmt = null;</span>
+<span class="nc" id="L41">		ResultSet rs = null;</span>
+
+<span class="nc" id="L43">		logger.info(&quot;***** Inside fetchOrgAddress Function&quot;);</span>
+		try {
+<span class="nc" id="L45">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L46">			pStmt = con</span>
+					.prepareStatement(&quot;select addr_line1, addr_line2, city from st_lms_organization_master where organization_id = ?&quot;);
+<span class="nc" id="L48">			pStmt.setInt(1, orgId);</span>
+<span class="nc" id="L49">			rs = pStmt.executeQuery();</span>
+<span class="nc" id="L50">			logger.info(&quot;Fetching Org Address Query &quot; + pStmt);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L52">				orgAddress = rs.getString(&quot;addr_line1&quot;) + &quot;, &quot;</span>
+						+ rs.getString(&quot;addr_line2&quot;) + &quot;, &quot;
+						+ rs.getString(&quot;city&quot;);
+			}
+<span class="nc" id="L56">			logger.info(&quot;Ord Address is &quot; + orgAddress);</span>
+<span class="nc" id="L57">		} catch (SQLException e) {</span>
+<span class="nc" id="L58">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,</span>
+					LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);
+<span class="nc" id="L60">		} catch (Exception e) {</span>
+<span class="nc" id="L61">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,</span>
+					LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);
+		} finally {
+<span class="nc" id="L64">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L65">			DBConnect.closePstmt(pStmt);</span>
+<span class="nc" id="L66">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L67">		}</span>
+<span class="nc" id="L68">		return orgAddress;</span>
+	}
+
+	public List&lt;RegionWiseBankDetailBean&gt; fetchRegionWiseBankReport(
+			Timestamp start_date, Timestamp end_date) throws LMSException {
+		List&lt;RegionWiseBankDetailBean&gt; regionWiseBankDetailBeanList;
+<span class="nc" id="L74">		RegionWiseBankDetailBean regionWiseBankDetailBean = null;</span>
+
+<span class="nc" id="L76">		Connection con = null;</span>
+<span class="nc" id="L77">		PreparedStatement pStmt = null;</span>
+<span class="nc" id="L78">		ResultSet rs = null;</span>
+
+<span class="nc" id="L80">		logger.info(&quot;***** Inside fetchRegionWiseBankReport Function&quot;);</span>
+
+<span class="nc" id="L82">		String query = &quot;SELECT tp_trans_id, transaction_date, bank_name, branch_name, cashier_name, region_name, amount, trans_type, retailer_org_id, ret_org_code, ret_org_name, agent_org_code FROM(SELECT map.tp_trans_id, map.transaction_date, map.bank_name, map.branch_name, map.cashier_name, map.region_name, debit.amount, 'DEBIT' trans_type, debit.retailer_org_id, rom.org_code ret_org_code, rom.name ret_org_name, aom.org_code agent_org_code FROM st_lms_tp_txn_details map INNER JOIN st_lms_agent_debit_note debit INNER JOIN st_lms_organization_master rom INNER JOIN st_lms_organization_master aom ON map.retailer_trans_id = debit.transaction_id AND rom.organization_id = debit.retailer_org_id AND aom.organization_id = rom.parent_id WHERE map.transaction_date &gt;= ? AND map.transaction_date &lt;= ? &quot;</span>
+				+ &quot;UNION SELECT map.tp_trans_id, map.transaction_date, map.bank_name, map.branch_name, map.cashier_name, map.region_name, cash.amount,  'CREDIT' trans_type, cash.retailer_org_id, rom.org_code ret_org_code, rom.name ret_org_name, aom.org_code agent_org_code FROM st_lms_tp_txn_details map INNER JOIN st_lms_agent_cash_transaction cash INNER JOIN st_lms_organization_master rom INNER JOIN st_lms_organization_master aom ON map.retailer_trans_id = cash.transaction_id AND rom.organization_id = cash.retailer_org_id AND aom.organization_id = rom.parent_id WHERE map.transaction_date &gt;= ? AND map.transaction_date &lt;= ? ) main ORDER BY transaction_date DESC&quot;;
+<span class="nc" id="L84">		regionWiseBankDetailBeanList = new ArrayList&lt;RegionWiseBankDetailBean&gt;();</span>
+		try {
+<span class="nc" id="L86">			con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L88">			pStmt = con.prepareStatement(query);</span>
+<span class="nc" id="L89">			pStmt.setTimestamp(1, start_date);</span>
+<span class="nc" id="L90">			pStmt.setTimestamp(2, end_date);</span>
+<span class="nc" id="L91">			pStmt.setTimestamp(3, start_date);</span>
+<span class="nc" id="L92">			pStmt.setTimestamp(4, end_date);</span>
+<span class="nc" id="L93">			logger.info(&quot;Query Fetching Data is &quot; + pStmt);</span>
+
+<span class="nc" id="L95">			rs = pStmt.executeQuery();</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L97">				regionWiseBankDetailBean = new RegionWiseBankDetailBean();</span>
+<span class="nc" id="L98">				regionWiseBankDetailBean.setRegion(rs.getString(&quot;region_name&quot;));</span>
+<span class="nc" id="L99">				regionWiseBankDetailBean.setBankName(rs.getString(&quot;bank_name&quot;));</span>
+<span class="nc" id="L100">				regionWiseBankDetailBean.setBranchName(rs</span>
+						.getString(&quot;branch_name&quot;));
+<span class="nc" id="L102">				regionWiseBankDetailBean.setTxnRef(rs.getString(&quot;tp_trans_id&quot;));</span>
+
+<span class="nc" id="L104">				regionWiseBankDetailBean.setTxnDate(getFormattedTimeStamp(rs</span>
+						.getString(&quot;transaction_date&quot;)));
+
+<span class="nc" id="L107">				regionWiseBankDetailBean.setCashierName(rs</span>
+						.getString(&quot;cashier_name&quot;));
+<span class="nc" id="L109">				regionWiseBankDetailBean.setCustomerName(rs</span>
+						.getString(&quot;ret_org_name&quot;));
+<span class="nc" id="L111">				regionWiseBankDetailBean.setTerminalId(rs</span>
+						.getString(&quot;ret_org_code&quot;));
+<span class="nc" id="L113">				regionWiseBankDetailBean.setLmcId(rs</span>
+						.getString(&quot;agent_org_code&quot;));
+<span class="nc" id="L115">				regionWiseBankDetailBean.setTransactionType(rs</span>
+						.getString(&quot;trans_type&quot;));
+<span class="nc" id="L117">				regionWiseBankDetailBean.setAmount(rs.getString(&quot;amount&quot;));</span>
+
+<span class="nc" id="L119">				regionWiseBankDetailBeanList.add(regionWiseBankDetailBean);</span>
+			}
+<span class="nc" id="L121">		} catch (SQLException e) {</span>
+<span class="nc" id="L122">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,</span>
+					LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);
+<span class="nc" id="L124">		} catch (Exception e) {</span>
+<span class="nc" id="L125">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,</span>
+					LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);
+		} finally {
+<span class="nc" id="L128">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L129">			DBConnect.closePstmt(pStmt);</span>
+<span class="nc" id="L130">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L131">		}</span>
+
+<span class="nc" id="L133">		return regionWiseBankDetailBeanList;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

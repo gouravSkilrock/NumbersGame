@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Logout.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.keba.loginMgmt.action</a> &gt; <span class="el_source">Logout.java</span></div><h1>Logout.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.keba.loginMgmt.action;
+
+import java.io.PrintWriter;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpSession;
+
+import net.sf.json.JSONObject;
+import net.sf.json.JSONSerializer;
+
+import org.apache.struts2.ServletActionContext;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.BaseAction;
+import com.skilrock.lms.common.ConfigurationVariables;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameOfflineHelper;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.coreEngine.loginMgmt.common.UserAuthenticationHelper;
+import com.skilrock.lms.coreEngine.userMgmt.common.CommonFunctionsHelper;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class Logout extends BaseAction {
+	private static final long serialVersionUID = 1L;
+
+	public Logout() {
+<span class="nc" id="L29">		super(Logout.class);</span>
+<span class="nc" id="L30">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public void logOut() {
+
+<span class="nc" id="L35">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L36">		JSONObject responseObject = new JSONObject();</span>
+<span class="nc" id="L37">		HttpSession session = null;</span>
+<span class="nc" id="L38">		PrintWriter out = null;</span>
+		try {
+<span class="nc" id="L40">			response.setContentType(&quot;application/json&quot;);</span>
+<span class="nc" id="L41">			out = response.getWriter();</span>
+<span class="nc" id="L42">			JSONObject requestData = (JSONObject) JSONSerializer.toJSON(request.getParameter(&quot;requestData&quot;));</span>
+<span class="nc" id="L43">			logger.info(&quot;Logout Request Data - &quot;+requestData);</span>
+<span class="nc" id="L44">			String userName = requestData.getString(&quot;userName&quot;);</span>
+<span class="nc" id="L45">			long lastTktNo = Long.parseLong(requestData.getString(&quot;lastTktNo&quot;).trim());</span>
+
+<span class="nc" id="L47">			Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">			if (currentUserSessionMap == null) {</span>
+<span class="nc" id="L49">				responseObject.put(&quot;errorMsg&quot;, &quot;Time Out. Login Again.&quot;);</span>
+<span class="nc" id="L50">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+			}
+<span class="nc" id="L52">			session = getSession(userName);</span>
+
+<span class="nc" id="L54">			currentUserSessionMap.remove(userName);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">			if (!CommonFunctionsHelper.isSessionValid(session)) {</span>
+<span class="nc" id="L56">				responseObject.put(&quot;errorMsg&quot;, &quot;Time Out. Login Again.&quot;);</span>
+<span class="nc" id="L57">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+			}
+
+<span class="nc" id="L60">			UserInfoBean userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L61">			int userId = userBean.getUserId();</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">			if (userBean != null) {</span>
+<span class="nc" id="L63">				loggedOutUser(userBean.getUserName());</span>
+
+<span class="nc" id="L65">				String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L66">				int autoCancelHoldDays=Integer.parseInt((String) sc.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));</span>
+<span class="nc" id="L67">				long lastPrintedTicket=0;</span>
+<span class="nc" id="L68">				int gameId = 0;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">				if(lastTktNo !=0){</span>
+<span class="nc" id="L70">					lastPrintedTicket = lastTktNo/Util.getDivValueForLastSoldTkt(String.valueOf(lastTktNo).length());</span>
+<span class="nc" id="L71">					gameId = Util.getGameIdFromGameNumber(Util.getGamenoFromTktnumber(String.valueOf(lastTktNo)));</span>
+				}
+
+<span class="nc" id="L74">				String actionName=ActionContext.getContext().getName();</span>
+<span class="nc" id="L75">				DrawGameRPOSHelper drawGameRPOSHelper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L76">				drawGameRPOSHelper.checkLastPrintedTicketStatusAndUpdate(userBean,lastPrintedTicket,&quot;TERMINAL&quot;,refMerchantId,autoCancelHoldDays,actionName, gameId);</span>
+			}
+<span class="nc" id="L78">			session.removeAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L79">			session.removeAttribute(&quot;ACTION_LIST&quot;);</span>
+<span class="nc" id="L80">			session.removeAttribute(&quot;PRIV_MAP&quot;);</span>
+<span class="nc" id="L81">			session.invalidate();</span>
+<span class="nc" id="L82">			session = null;</span>
+<span class="nc" id="L83">			UserAuthenticationHelper.updateLoginStatus(userId, &quot;LOGOUT&quot;);</span>
+<span class="nc" id="L84">			System.out.println(&quot;Log out Successfully and Session is &quot; + session);</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">			if (DrawGameOfflineHelper.checkOfflineUser(userId)) {</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">				if (DrawGameOfflineHelper.updateLogoutSuccess(userName)) {</span>
+<span class="nc" id="L87">					responseObject.put(&quot;msg&quot;, &quot;Logout Successfully&quot;);</span>
+<span class="nc" id="L88">					responseObject.put(&quot;isSuccess&quot;, true);</span>
+				} else {
+<span class="nc" id="L90">					responseObject.put(&quot;errorMsg&quot;, &quot;Time Out. Login Again.&quot;);</span>
+<span class="nc" id="L91">					responseObject.put(&quot;isSuccess&quot;, false);</span>
+				}
+				return;
+			} else {
+<span class="nc" id="L95">				responseObject.put(&quot;msg&quot;, &quot;Logout Successfully&quot;);</span>
+<span class="nc" id="L96">				responseObject.put(&quot;isSuccess&quot;, true);</span>
+			}
+<span class="nc" id="L98">		} catch (Exception e) {</span>
+<span class="nc" id="L99">			e.printStackTrace();</span>
+<span class="nc" id="L100">			responseObject.put(&quot;errorMsg&quot;, &quot;Exception Occured.&quot;);</span>
+<span class="nc" id="L101">			responseObject.put(&quot;isSuccess&quot;, false);</span>
+			return;
+		} finally {
+<span class="nc bnc" id="L104" title="All 8 branches missed.">			if (responseObject.isEmpty()) {</span>
+<span class="nc" id="L105">				responseObject.put(&quot;errorMsg&quot;, &quot;Compile Time Error.&quot;);</span>
+<span class="nc" id="L106">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+			}
+<span class="nc" id="L108">			logger.info(&quot;Logout Response Data : &quot; + responseObject);</span>
+<span class="nc" id="L109">			out.print(responseObject);</span>
+<span class="nc" id="L110">			out.flush();</span>
+<span class="nc" id="L111">			out.close();</span>
+<span class="nc" id="L112">		}</span>
+<span class="nc" id="L113">	}		</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	private void loggedOutUser(String user) {
+		if (ConfigurationVariables.USER_RELOGIN_SESSION_TERMINATE) {
+<span class="nc" id="L118">			ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L119">			Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L120">			currentUserSessionMap.remove(user);</span>
+<span class="nc" id="L121">			sc.setAttribute(&quot;LOGGED_IN_USERS&quot;, currentUserSessionMap);</span>
+<span class="nc" id="L122">			System.out.println(&quot; LOGGED_IN_USERS maps is &quot; + currentUserSessionMap);</span>
+		} else {
+			ServletContext sc = ServletActionContext.getServletContext();
+			List&lt;String&gt; currentUserList = (List&lt;String&gt;) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);
+			currentUserList.remove(user);
+			sc.setAttribute(&quot;LOGGED_IN_USERS&quot;, currentUserList);
+			System.out.println(&quot; LOGGED_IN_USERS maps is &quot; + currentUserList);
+		}
+<span class="nc" id="L130">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

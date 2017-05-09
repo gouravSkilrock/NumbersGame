@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserManagementHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.userMgmt.common</a> &gt; <span class="el_source">UserManagementHelper.java</span></div><h1>UserManagementHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.userMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.struts2.ServletActionContext;
+
+import com.skilrock.lms.beans.HistoryBean;
+import com.skilrock.lms.beans.UserBean;
+import com.skilrock.lms.beans.UserDetailsBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.common.utility.MailSend;
+
+<span class="nc" id="L25">public class UserManagementHelper {</span>
+
+	public boolean editOfflineUserDetails(int userid, String offlineStatus,
+			String isOffline, boolean isSession) throws LMSException {
+<span class="nc" id="L29">		Connection con = null;</span>
+		 
+<span class="nc" id="L31">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L32">		String updateQuery = null;</span>
+<span class="nc" id="L33">		String addQry = &quot;&quot;;</span>
+<span class="nc" id="L34">		boolean checkUpdate = false, addQryChk = false;</span>
+<span class="nc" id="L35">		String preOfflineStatus = null;</span>
+		try {
+<span class="nc" id="L37">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L38">			con.setAutoCommit(false);</span>
+<span class="nc" id="L39">			String selQry = &quot;select is_offline,login_status,offline_status from st_lms_ret_offline_master where user_id=?&quot;;</span>
+<span class="nc" id="L40">			pstmt = con.prepareStatement(selQry);</span>
+<span class="nc" id="L41">			pstmt.setInt(1, userid);</span>
+<span class="nc" id="L42">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L44" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L45">				preOfflineStatus = rs.getString(&quot;offline_status&quot;);</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">				if (&quot;NO&quot;.equalsIgnoreCase(rs.getString(&quot;is_offline&quot;))) {</span>
+<span class="nc" id="L47">					addQry = &quot;,is_offline='&quot; + isOffline + &quot;'&quot;;</span>
+<span class="nc" id="L48">					addQryChk = true;</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">					if (isSession) {</span>
+<span class="nc" id="L50">						return false;</span>
+					}
+<span class="nc bnc" id="L52" title="All 4 branches missed.">				} else if (&quot;YES&quot;.equalsIgnoreCase(rs.getString(&quot;is_offline&quot;))</span>
+						&amp;&amp; &quot;LOGOUT&quot;.equalsIgnoreCase(rs
+								.getString(&quot;login_status&quot;))) {
+<span class="nc" id="L55">					addQry = &quot;,is_offline='&quot; + isOffline + &quot;'&quot;;</span>
+<span class="nc" id="L56">					addQryChk = true;</span>
+				}
+			}
+<span class="nc bnc" id="L59" title="All 4 branches missed.">			if (addQryChk == true</span>
+					|| !preOfflineStatus.equalsIgnoreCase(offlineStatus)) {
+<span class="nc" id="L61">				updateQuery = &quot;update st_lms_ret_offline_master set offline_status=?&quot;</span>
+						+ addQry + &quot; where user_id=?&quot;;
+<span class="nc" id="L63">				pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L64">				pstmt.setString(1, offlineStatus);</span>
+<span class="nc" id="L65">				pstmt.setInt(2, userid);</span>
+<span class="nc" id="L66">				int i = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">				if (i &gt; 0) {</span>
+<span class="nc" id="L68">					checkUpdate = true;</span>
+				}
+			}
+<span class="nc" id="L71">			con.commit();</span>
+
+<span class="nc" id="L73">		} catch (SQLException e) {</span>
+
+		} finally {
+<span class="nc" id="L76">			try {</span>
+<span class="nc" id="L77">				con.close();</span>
+<span class="nc" id="L78">			} catch (SQLException e) {</span>
+<span class="nc" id="L79">				e.printStackTrace();</span>
+<span class="nc" id="L80">			}</span>
+<span class="nc" id="L81">		}</span>
+<span class="nc" id="L82">		return checkUpdate;</span>
+	}
+
+	/*
+	 * public void editUserDetailsByBO(int userid,long phonenbr,String
+	 * emailid,String status) throws LMSException{
+	 * 
+	 * int userId=userid; String emailId =emailid; long phoneNbr=phonenbr;
+	 * String userStatus=status; System.out.println(&quot;useer id is &quot; + userId);
+	 * Connection con = null;
+	 * 
+	 * try {
+	 * 
+	 *   Statement stmt1 = null; //Statement
+	 * stmt2 = null; con = DBConnect.getConnection(); con.setAutoCommit(false);
+	 * stmt1 = con.createStatement(); //stmt2 = con.createStatement();
+	 * 
+	 * String updateUserDetails=QueryManager.updateST3UserDetails() + &quot;
+	 * email_id='&quot;+emailId+&quot;' ,phone_nbr='&quot;+phoneNbr+&quot;' where
+	 * user_id='&quot;+userId+&quot;' &quot; ; stmt1.executeUpdate(updateUserDetails);
+	 * //stmt1.executeUpdate(&quot;update st_user_contact_details set
+	 * email_id='&quot;+emailId+&quot;' ,phone_nbr='&quot;+phoneNbr+&quot;' where
+	 * user_id='&quot;+userId+&quot;' &quot;);
+	 * 
+	 * String updateStatus= QueryManager.updateST3UserStatus() + &quot;
+	 * status='&quot;+userStatus+&quot;' where user_id='&quot;+userId+&quot;' &quot; ;
+	 * stmt1.executeUpdate(updateStatus); //stmt2.executeUpdate(&quot;update
+	 * st_user_master set status='&quot;+userStatus+&quot;' where user_id='&quot;+userId+&quot;' &quot;); //
+	 * update report_email_user_master tables stmt1.executeUpdate(&quot;update
+	 * st_report_email_user_master set email_id = '&quot;+emailId+&quot;' where
+	 * ref_user_id = &quot;+userId);
+	 * 
+	 * con.commit(); } catch (SQLException e) {
+	 * 
+	 * 
+	 * try { if(con!=null) { con.rollback(); } } catch (SQLException se) { //
+	 * TODO Auto-generated catch block se.printStackTrace(); throw new
+	 * LMSException(&quot;Error During Rollback&quot;,se); } e.printStackTrace(); throw
+	 * new LMSException(e); } finally{ try{ if(con!=null) { con.close(); }
+	 * }catch(SQLException see){ see.printStackTrace(); throw new
+	 * LMSException(&quot;Error During closing connection&quot;,see); } } }
+	 */
+	public boolean editUserDetails(int userId, long phoneNbr, long mobileNbr, String emailId, String status, int doneByUserId, String comments, String requestIp) throws LMSException {
+
+<span class="nc" id="L126">		Connection con = null;</span>
+<span class="nc" id="L127">		Statement stmt = null;</span>
+<span class="nc" id="L128">		ResultSet rs = null;</span>
+<span class="nc" id="L129">		String prevEmailId = null;</span>
+<span class="nc" id="L130">		String prevPhoneNbr = null;</span>
+<span class="nc" id="L131">		String prevMobileNbr = null;</span>
+<span class="nc" id="L132">		String prevStatus = null;</span>
+<span class="nc" id="L133">		int organizationId = 0;</span>
+<span class="nc" id="L134">		String organizationStatus = null;</span>
+<span class="nc" id="L135">		String isRoleHead = null;</span>
+<span class="nc" id="L136">		HistoryBean historyBean = null;</span>
+		try {
+<span class="nc" id="L138">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L139">			con.setAutoCommit(false);</span>
+
+<span class="nc" id="L141">			stmt = con.createStatement();</span>
+<span class="nc" id="L142">			rs = stmt.executeQuery(&quot;SELECT email_id, phone_nbr, mobile_nbr, status, om.organization_id, organization_status, isrolehead FROM st_lms_user_master um INNER JOIN st_lms_user_contact_details ucd ON um.user_id=ucd.user_id INNER JOIN st_lms_organization_master om ON om.organization_id=um.organization_id WHERE um.user_id=&quot;+userId+&quot;;&quot;);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">				prevEmailId = (rs.getString(&quot;email_id&quot;)==null)?&quot;&quot;:rs.getString(&quot;email_id&quot;).trim();</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">				prevPhoneNbr = (rs.getString(&quot;phone_nbr&quot;)==null)?&quot;&quot;:rs.getString(&quot;phone_nbr&quot;).trim();</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				prevMobileNbr = (rs.getString(&quot;mobile_nbr&quot;)==null)?&quot;&quot;:rs.getString(&quot;mobile_nbr&quot;).trim();</span>
+<span class="nc" id="L147">				prevStatus = rs.getString(&quot;status&quot;);</span>
+<span class="nc" id="L148">				isRoleHead = rs.getString(&quot;isrolehead&quot;);</span>
+<span class="nc" id="L149">				organizationId = rs.getInt(&quot;organization_id&quot;);</span>
+<span class="nc" id="L150">				organizationStatus = rs.getString(&quot;organization_status&quot;);</span>
+			}
+
+<span class="nc" id="L153">			historyBean = new HistoryBean(userId, doneByUserId, comments, requestIp);</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">			if(!prevEmailId.equals(emailId)) {</span>
+<span class="nc" id="L155">				historyBean.setChangeType(&quot;EMAIL_ID&quot;);</span>
+<span class="nc" id="L156">				historyBean.setChangeValue(prevEmailId);</span>
+<span class="nc" id="L157">				historyBean.setUpdatedValue(emailId);</span>
+<span class="nc" id="L158">				CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L160" title="All 2 branches missed.">			if(!prevPhoneNbr.equals(String.valueOf(phoneNbr))) {</span>
+<span class="nc" id="L161">				historyBean.setChangeType(&quot;PHONE_NUMBER&quot;);</span>
+<span class="nc" id="L162">				historyBean.setChangeValue(prevPhoneNbr);</span>
+<span class="nc" id="L163">				historyBean.setUpdatedValue(String.valueOf(phoneNbr));</span>
+<span class="nc" id="L164">				CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L166" title="All 2 branches missed.">			if(!prevMobileNbr.equals(String.valueOf(mobileNbr))) {</span>
+<span class="nc" id="L167">				historyBean.setChangeType(&quot;MOBILE_NUMBER&quot;);</span>
+<span class="nc" id="L168">				historyBean.setChangeValue(prevMobileNbr);</span>
+<span class="nc" id="L169">				historyBean.setUpdatedValue(String.valueOf(mobileNbr));</span>
+<span class="nc" id="L170">				CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+			}
+<span class="nc bnc" id="L172" title="All 2 branches missed.">			if(!prevStatus.equals(status)) {</span>
+<span class="nc" id="L173">				historyBean.setChangeType(&quot;USER_STATUS&quot;);</span>
+<span class="nc" id="L174">				historyBean.setChangeValue(prevStatus);</span>
+<span class="nc" id="L175">				historyBean.setUpdatedValue(status);</span>
+<span class="nc" id="L176">				CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+<span class="nc bnc" id="L177" title="All 8 branches missed.">				if(&quot;Y&quot;.equalsIgnoreCase(isRoleHead) &amp;&amp; (&quot;ACTIVE&quot;.equals(status) || &quot;BLOCK&quot;.equals(status) || &quot;TERMINATE&quot;.equals(status))) {</span>
+<span class="nc" id="L178">					historyBean.setOrganizationId(organizationId);</span>
+<span class="nc" id="L179">					historyBean.setChangeType(&quot;ORGANIZATION_STATUS&quot;);</span>
+<span class="nc" id="L180">					historyBean.setChangeValue(organizationStatus);</span>
+<span class="nc" id="L181">					historyBean.setUpdatedValue(status);</span>
+<span class="nc" id="L182">					CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+				}
+			}
+
+<span class="nc" id="L186">			stmt.executeUpdate(&quot;UPDATE st_lms_report_email_user_master SET email_id='&quot;+emailId+&quot;', status='&quot;+status+&quot;' WHERE ref_user_id=&quot;+userId);</span>
+
+<span class="nc" id="L188">			con.commit();</span>
+<span class="nc" id="L189">		} catch (SQLException e) {</span>
+<span class="nc" id="L190">			e.printStackTrace();</span>
+<span class="nc" id="L191">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L193">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L194">		}</span>
+
+<span class="nc" id="L196">		return true;</span>
+	}
+
+	public String offlineFileUploadViaApplet(int userId) throws LMSException {
+<span class="nc" id="L200">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L201">		StringBuilder sb = new StringBuilder(&quot;&quot;);</span>
+		try {
+<span class="nc" id="L203">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select user_id, user_name from st_lms_user_master where parent_user_id = ? and user_id in (select user_id from st_lms_ret_offline_master where is_offline = 'YES')&quot;);
+<span class="nc" id="L205">			pstmt.setInt(1, userId);</span>
+<span class="nc" id="L206">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L207">			System.out.println(&quot;Offlien Upload*****&quot; + pstmt);</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L209">				sb.append(rs.getString(&quot;user_id&quot;));</span>
+<span class="nc" id="L210">				sb.append(&quot;,&quot;);</span>
+<span class="nc" id="L211">				sb.append(rs.getString(&quot;user_name&quot;));</span>
+<span class="nc" id="L212">				sb.append(&quot;|&quot;);</span>
+			}
+<span class="nc bnc" id="L214" title="All 2 branches missed.">			if (sb.length() &gt; 1) {</span>
+<span class="nc" id="L215">				sb.deleteCharAt(sb.length() - 1);</span>
+			}
+<span class="nc" id="L217">		} catch (SQLException ex) {</span>
+<span class="nc" id="L218">			System.out.println(ex);</span>
+		} finally {
+<span class="nc" id="L220">			try {</span>
+<span class="nc" id="L221">				con.close();</span>
+<span class="nc" id="L222">			} catch (SQLException e) {</span>
+<span class="nc" id="L223">				e.printStackTrace();</span>
+<span class="nc" id="L224">			}</span>
+<span class="nc" id="L225">		}</span>
+<span class="nc" id="L226">		return sb.toString();</span>
+	}
+
+	public String offlineFileUploadViaAppletAtBO() {
+<span class="nc" id="L230">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L231">		StringBuilder sb = new StringBuilder(&quot;&quot;);</span>
+		try {
+<span class="nc" id="L233">			PreparedStatement ps = con</span>
+					.prepareStatement(&quot;select user_id, user_name from st_lms_user_master where organization_type = 'AGENT'&quot;);
+<span class="nc" id="L235">			ResultSet rs = ps.executeQuery();</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L237">				sb.append(rs.getString(&quot;user_id&quot;));</span>
+<span class="nc" id="L238">				sb.append(&quot;,&quot;);</span>
+<span class="nc" id="L239">				sb.append(rs.getString(&quot;user_name&quot;));</span>
+<span class="nc" id="L240">				sb.append(&quot;|&quot;);</span>
+			}
+<span class="nc bnc" id="L242" title="All 2 branches missed.">			if (sb.length() &gt; 1) {</span>
+<span class="nc" id="L243">				sb.deleteCharAt(sb.length() - 1);</span>
+			}
+<span class="nc" id="L245">		} catch (SQLException ex) {</span>
+<span class="nc" id="L246">			ex.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L248">			try {</span>
+<span class="nc" id="L249">				con.close();</span>
+<span class="nc" id="L250">			} catch (Exception ex) {</span>
+<span class="nc" id="L251">				ex.printStackTrace();</span>
+<span class="nc" id="L252">			}</span>
+<span class="nc" id="L253">		}</span>
+<span class="nc" id="L254">		return sb.toString();</span>
+	}
+
+	public UserBean offlineUserDetails(int userId) throws LMSException {
+
+<span class="nc" id="L259">		Connection con = null;</span>
+		try {
+
+<span class="nc" id="L262">			UserBean userBean = new UserBean();</span>
+			 
+<span class="nc" id="L264">			Statement stmt = null;</span>
+<span class="nc" id="L265">			ResultSet rs = null;</span>
+<span class="nc" id="L266">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L267">			stmt = con.createStatement();</span>
+
+<span class="nc" id="L269">			userBean.setUserId(userId);</span>
+<span class="nc" id="L270">			String userDetailQuery = &quot;select a.user_id,a.user_name,c.name,d.name 'parent',b.offline_status,&quot;</span>
+					+ &quot;b.login_status,b.is_offline from st_lms_user_master a,st_lms_ret_offline_master b,&quot;
+					+ &quot;st_lms_organization_master c,st_lms_organization_master d where a.user_id=b.user_id &quot;
+					+ &quot;and c.organization_id=a.organization_id and c.organization_id=b.organization_id and &quot;
+					+ &quot;d.organization_id=c.parent_id and a.user_id=&quot;
+					+ userId
+					+ &quot;&quot;;
+
+<span class="nc" id="L278">			System.out.println(userDetailQuery);</span>
+<span class="nc" id="L279">			rs = stmt.executeQuery(userDetailQuery);</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L281">				userBean.setUserName(rs.getString(TableConstants.USER_NAME));</span>
+<span class="nc" id="L282">				userBean.setUserOrgName(rs.getString(TableConstants.ORG_NAME));</span>
+<span class="nc" id="L283">				userBean.setParentOrgName(rs.getString(&quot;parent&quot;));</span>
+<span class="nc" id="L284">				userBean.setOfflineStatus(rs.getString(&quot;offline_status&quot;));</span>
+<span class="nc" id="L285">				userBean.setLoginStatus(rs.getString(&quot;login_status&quot;));</span>
+<span class="nc" id="L286">				userBean.setIsOffline(rs.getString(&quot;is_offline&quot;));</span>
+			}
+<span class="nc" id="L288">			return userBean;</span>
+
+<span class="nc" id="L290">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L292">			e.printStackTrace();</span>
+<span class="nc" id="L293">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L295">			try {</span>
+<span class="nc bnc" id="L296" title="All 4 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L297">					con.close();</span>
+				}
+<span class="nc" id="L299">			} catch (SQLException se) {</span>
+<span class="nc" id="L300">				se.printStackTrace();</span>
+<span class="nc" id="L301">			}</span>
+		}
+	}
+
+	public void resetPassword(int userid, String autoPass, String email,
+			String userName, String firstName, String lastName)
+			throws LMSException {
+<span class="nc" id="L308">		String projectName = ServletActionContext.getServletContext()</span>
+				.getContextPath();
+<span class="nc" id="L310">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L312">			con.setAutoCommit(false);</span>
+
+<span class="nc" id="L314">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L315">			System.out</span>
+					.println(&quot;auto password is&quot; + MD5Encoder.encode(autoPass));
+<span class="nc" id="L317">			String updatePass = QueryManager.updateST3UserPass()</span>
+					+ &quot; auto_password='1', password='&quot;
+					+ MD5Encoder.encode(autoPass) + &quot;'where user_id='&quot; + userid
+					+ &quot;'&quot;;
+<span class="nc" id="L321">			stmt.executeUpdate(updatePass);</span>
+
+			// reset password
+<span class="nc" id="L324">			PreparedStatement pstmt = con.prepareStatement(QueryManager</span>
+					.insertST3PasswordHistory());
+<span class="nc" id="L326">			pstmt.setInt(1, userid);</span>
+<span class="nc" id="L327">			pstmt.setString(2, MD5Encoder.encode(autoPass));</span>
+<span class="nc" id="L328">			pstmt.setTimestamp(3, new java.sql.Timestamp(new java.util.Date()</span>
+					.getTime()));
+<span class="nc" id="L330">			pstmt.setString(4, &quot;1&quot;);</span>
+<span class="nc" id="L331">			pstmt.execute();</span>
+<span class="nc" id="L332">			con.commit();</span>
+<span class="nc" id="L333">			String msgFor = &quot;Welcome to our gaming system Your password has been reset your login details are&quot;;</span>
+<span class="nc" id="L334">			String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot; + firstName + &quot; &quot;</span>
+					+ lastName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot; + msgFor
+					+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;User Name :: &lt;/td&gt;&lt;td&gt;&quot;
+					+ userName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;password :: &lt;/td&gt;&lt;td&gt;&quot;
+					+ autoPass.toString()
+					+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;log on &lt;/td&gt;&lt;td&gt;&quot;
+					+ LMSFilterDispatcher.webLink + &quot;/&quot;
+					+ LMSFilterDispatcher.mailProjName
+					+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L343">			MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L344">			mailSend.setDaemon(true);</span>
+<span class="nc" id="L345">			mailSend.start();</span>
+			// MailSend.sendMailToUser(email,
+			// autoPass,userName,firstName,lastName,msgFor);
+
+<span class="nc" id="L349">		} catch (SQLException e) {</span>
+
+			try {
+<span class="nc bnc" id="L352" title="All 2 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L353">					con.rollback();</span>
+				}
+<span class="nc" id="L355">			} catch (SQLException se) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L357">				se.printStackTrace();</span>
+<span class="nc" id="L358">				throw new LMSException(&quot;Error During Rollback&quot;, se);</span>
+
+<span class="nc" id="L360">			}</span>
+<span class="nc" id="L361">			e.printStackTrace();</span>
+<span class="nc" id="L362">			throw new LMSException(e);</span>
+
+		} finally {
+<span class="nc" id="L365">			try {</span>
+<span class="nc bnc" id="L366" title="All 4 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L367">					con.close();</span>
+				}
+
+<span class="nc" id="L370">			} catch (SQLException see) {</span>
+<span class="nc" id="L371">				see.printStackTrace();</span>
+<span class="nc" id="L372">				throw new LMSException(&quot;Error During closing connection&quot;, see);</span>
+<span class="nc" id="L373">			}</span>
+		}
+
+<span class="nc" id="L376">	}</span>
+
+	public UserDetailsBean UserDetails(int userid, boolean chkOffline)
+			throws LMSException {
+
+<span class="nc" id="L381">		int userId = userid;</span>
+<span class="nc" id="L382">		int orgId = 0;</span>
+<span class="nc" id="L383">		Connection con = null;</span>
+		try {
+
+<span class="nc" id="L386">			UserDetailsBean userBean = null;</span>
+<span class="nc" id="L387">			List&lt;UserDetailsBean&gt; searchResults = new ArrayList&lt;UserDetailsBean&gt;();</span>
+<span class="nc" id="L388">			userBean = new UserDetailsBean();</span>
+<span class="nc" id="L389">			System.out.println(&quot;heeeeeee&quot;);</span>
+			 
+
+<span class="nc" id="L392">			Statement stmt1 = null;</span>
+<span class="nc" id="L393">			Statement stmt2 = null;</span>
+<span class="nc" id="L394">			Statement stmt3 = null;</span>
+<span class="nc" id="L395">			Statement stmt4 = null;</span>
+<span class="nc" id="L396">			Statement stmt5 = null;</span>
+<span class="nc" id="L397">			Statement stmt6 = null;</span>
+
+<span class="nc" id="L399">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L400">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L401">			stmt2 = con.createStatement();</span>
+<span class="nc" id="L402">			stmt3 = con.createStatement();</span>
+<span class="nc" id="L403">			stmt4 = con.createStatement();</span>
+<span class="nc" id="L404">			stmt5 = con.createStatement();</span>
+<span class="nc" id="L405">			stmt6 = con.createStatement();</span>
+			ResultSet rs1;
+			ResultSet rs3;
+			ResultSet rs4;
+
+<span class="nc" id="L410">			System.out.println(&quot; user id is  &quot; + userId);</span>
+<span class="nc" id="L411">			userBean.setUserId(userId);</span>
+<span class="nc" id="L412">			System.out.println(&quot;set id to bean   &quot; + userBean.getUserId());</span>
+			// String getorgID=QueryManager.getST3OrgId() + &quot; where
+			// user_id=&quot;+userId+&quot;(&quot;+QueryManager.getST3OrgDetails()+ &quot; where
+			// organization_id=&quot;+orgId+&quot;)&quot; ;
+<span class="nc" id="L416">			String getorgID = QueryManager.getUserAndOrgDetails() + &quot; user_id=&quot;</span>
+					+ userId + &quot;&quot;;
+
+<span class="nc" id="L419">			System.out.println(getorgID);</span>
+<span class="nc" id="L420">			rs1 = stmt1.executeQuery(getorgID);</span>
+			// rs1=stmt1.executeQuery(&quot;select organization_id from
+			// st_lms_user_master where user_id='&quot;+userId+&quot;'&quot;);
+
+<span class="nc bnc" id="L424" title="All 2 branches missed.">			while (rs1.next()) {</span>
+<span class="nc" id="L425">				orgId = rs1.getInt(TableConstants.ORG_ID);</span>
+<span class="nc" id="L426">				userBean.setOrgId(orgId);</span>
+<span class="nc" id="L427">				userBean.setUserName(rs1.getString(TableConstants.USER_NAME));</span>
+<span class="nc" id="L428">				userBean.setStatus(rs1.getString(TableConstants.STATUS));</span>
+<span class="nc" id="L429">				userBean.setOrgName(rs1.getString(TableConstants.ORG_NAME));</span>
+<span class="nc" id="L430">				userBean.setOrgType(rs1.getString(TableConstants.ORG_TYPE));</span>
+<span class="nc" id="L431">				userBean.setOrgAddr1(rs1.getString(TableConstants.ORG_ADDR1));</span>
+<span class="nc" id="L432">				userBean.setOrgAddr2(rs1.getString(TableConstants.ORG_ADDR2));</span>
+<span class="nc" id="L433">				userBean.setOrgCity(rs1.getString(TableConstants.ORG_CITY));</span>
+<span class="nc" id="L434">				String countryCode = rs1.getString(TableConstants.ORG_COUNTRY);</span>
+<span class="nc" id="L435">				String stateCode = rs1.getString(TableConstants.ORG_STATE);</span>
+<span class="nc" id="L436">				userBean.setOrgPin(rs1.getLong(TableConstants.ORG_PIN));</span>
+<span class="nc" id="L437">				userBean.setOrgCreditLimit(rs1</span>
+						.getDouble(TableConstants.CREDIT_LIMIT));
+<span class="nc" id="L439">				userBean.setOrgStatus(rs1.getString(TableConstants.ORG_STATUS));</span>
+
+<span class="nc" id="L441">				String countryName = QueryManager.getCountryAndStateName()</span>
+						+ &quot; cont.country_code='&quot; + countryCode
+						+ &quot;' and stat.state_code='&quot; + stateCode + &quot;'&quot;;
+<span class="nc" id="L444">				ResultSet countryList = stmt5.executeQuery(countryName);</span>
+<span class="nc bnc" id="L445" title="All 2 branches missed.">				while (countryList.next()) {</span>
+<span class="nc" id="L446">					userBean.setOrgCountry(countryList.getString(&quot;country&quot;));</span>
+<span class="nc" id="L447">					userBean.setOrgState(countryList.getString(&quot;state&quot;));</span>
+				}
+<span class="nc" id="L449">			}</span>
+
+			/*
+			 * System.out.println(&quot; org id is &quot; + orgId); String getOrgDetails =
+			 * QueryManager.getST3OrgDetails() + &quot; where
+			 * organization_id='&quot;+orgId+&quot;' &quot; ;
+			 * rs2=stmt2.executeQuery(getOrgDetails);
+			 * //rs2=stmt2.executeQuery(&quot;select * from
+			 * st_lms_organization_master where organization_id='&quot;+orgId+&quot;'&quot;);
+			 * while(rs2.next()) {
+			 * userBean.setOrgName(rs2.getString(TableConstants.ORG_NAME));
+			 * userBean.setOrgType(rs2.getString(TableConstants.ORG_TYPE));
+			 * userBean.setOrgAddr1(rs2.getString(TableConstants.ORG_ADDR1));
+			 * userBean.setOrgAddr2(rs2.getString(TableConstants.ORG_ADDR2));
+			 * userBean.setOrgCity(rs2.getString(TableConstants.ORG_CITY));
+			 * String countryCode=rs2.getString(TableConstants.ORG_COUNTRY);
+			 * String stateCode=rs2.getString(TableConstants.ORG_STATE); String
+			 * countryName=QueryManager.selectST3Country() + &quot; where
+			 * country_code='&quot;+countryCode+&quot;' &quot; ; ResultSet
+			 * countryList=stmt5.executeQuery(countryName);
+			 * 
+			 * //ResultSet countryList=stmt3.executeQuery(&quot;select name from
+			 * st_lms_country_master where country_code='&quot;+countryCode+&quot;'&quot;);
+			 * while(countryList.next()) {
+			 * userBean.setOrgCountry(countryList.getString(TableConstants.NAME)); }
+			 * 
+			 * String stateName=QueryManager.selectST3State() + &quot; where
+			 * state_code='&quot;+stateCode+&quot;' &quot; ; ResultSet
+			 * stateList=stmt6.executeQuery(stateName); //ResultSet
+			 * stateList=stmt3.executeQuery(&quot;select name from
+			 * st_lms_state_master where state_code='&quot;+stateCode+&quot;'&quot;);
+			 * 
+			 * while(stateList.next()) {
+			 * userBean.setOrgState(stateList.getString(TableConstants.NAME));
+			 * System.out.println(&quot;state is &quot;
+			 * +stateList.getString(TableConstants.NAME)); }
+			 * //userBean.setOrgCountry(rs2.getString(TableConstants.ORG_COUNTRY));
+			 * //userBean.setOrgState(rs2.getString(TableConstants.ORG_STATE));
+			 * System.out.println(&quot;state code is &quot;+
+			 * rs2.getString(TableConstants.ORG_STATE));
+			 * userBean.setOrgPin(rs2.getInt(TableConstants.ORG_PIN));
+			 * userBean.setOrgCreditLimit(rs2.getDouble(TableConstants.CREDIT_LIMIT));
+			 * userBean.setOrgStatus(rs2.getString(TableConstants.ORG_STATUS)); }
+			 * 
+			 */
+
+<span class="nc" id="L495">			String contactDetails = QueryManager.getST3ContactDetails()</span>
+					+ &quot; where user_id='&quot; + userId + &quot;'  &quot;;
+<span class="nc" id="L497">			rs3 = stmt3.executeQuery(contactDetails);</span>
+			// rs3=stmt3.executeQuery(&quot;select * from st_lms_user_contact_details
+			// where user_id='&quot;+userId+&quot;'&quot;);
+<span class="nc bnc" id="L500" title="All 2 branches missed.">			while (rs3.next()) {</span>
+<span class="nc" id="L501">				userBean.setFirstName(rs3.getString(TableConstants.FIRST_NAME));</span>
+<span class="nc" id="L502">				userBean.setLastName(rs3.getString(TableConstants.LAST_NAME));</span>
+<span class="nc" id="L503">				userBean.setEmailId(rs3.getString(TableConstants.EMAIL));</span>
+<span class="nc" id="L504">				userBean.setMobileNbr(rs3.getLong(TableConstants.MOBILE));</span>
+<span class="nc" id="L505">				userBean.setPhoneNbr(rs3.getLong(TableConstants.PHONE));</span>
+				// status=rs3.getString(&quot;status&quot;);
+
+			}
+
+			/*
+			 * String userStatus=QueryManager.getST3UserSearchQuery() + &quot; where
+			 * user_id='&quot;+userId+&quot;' &quot; ; rs4=stmt4.executeQuery(userStatus);
+			 * //rs4=stmt4.executeQuery(&quot;select status from st_lms_user_master
+			 * where user_id='&quot;+userId+&quot;'&quot;); while(rs4.next()) {
+			 * userBean.setStatus(rs4.getString(TableConstants.STATUS)); }
+			 */
+
+			// searchResults.add(userBean);
+<span class="nc bnc" id="L519" title="All 2 branches missed.">			if (chkOffline) {</span>
+<span class="nc" id="L520">				String offDetails = &quot;select is_offline from st_lms_ret_offline_master where user_id= &quot;</span>
+						+ userid + &quot; and organization_id= &quot; + orgId;
+<span class="nc" id="L522">				System.out.println(offDetails);</span>
+<span class="nc" id="L523">				rs4 = stmt6.executeQuery(offDetails);</span>
+<span class="nc bnc" id="L524" title="All 2 branches missed.">				if (rs4.next()) {</span>
+<span class="nc" id="L525">					userBean.setIsOffline(rs4.getString(&quot;is_offline&quot;));</span>
+				} else {
+<span class="nc" id="L527">					userBean.setIsOffline(&quot;NO&quot;);</span>
+				}
+			}
+<span class="nc" id="L530">			return userBean;</span>
+
+<span class="nc" id="L532">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L534">			e.printStackTrace();</span>
+<span class="nc" id="L535">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L537">			try {</span>
+<span class="nc bnc" id="L538" title="All 4 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L539">					con.close();</span>
+				}
+<span class="nc" id="L541">			} catch (SQLException se) {</span>
+<span class="nc" id="L542">				se.printStackTrace();</span>
+<span class="nc" id="L543">			}</span>
+		}
+
+		// return null;
+
+	}
+	
+	public boolean resetUserLoginAttempts(int userId){
+<span class="nc" id="L551">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L552">		int rows = 0;</span>
+<span class="nc" id="L553">		boolean status = false;</span>
+		try {
+<span class="nc" id="L555">			PreparedStatement pstmt = null;</span>
+<span class="nc" id="L556">			pstmt = con.prepareStatement(&quot;update st_lms_user_master set login_attempts = 0 where user_id = ?&quot;);</span>
+<span class="nc" id="L557">			pstmt.setInt(1,userId);</span>
+<span class="nc" id="L558">			rows = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L559" title="All 2 branches missed.">			if(rows != 0){</span>
+<span class="nc" id="L560">				status = true;</span>
+			}
+<span class="nc" id="L562">		} catch (SQLException ex) {</span>
+<span class="nc" id="L563">			ex.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L565">			try {</span>
+<span class="nc" id="L566">				con.close();</span>
+<span class="nc" id="L567">			} catch (SQLException e) {</span>
+<span class="nc" id="L568">				e.printStackTrace();</span>
+<span class="nc" id="L569">			}</span>
+<span class="nc" id="L570">		}</span>
+<span class="nc" id="L571">		return status;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

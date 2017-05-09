@@ -1,0 +1,1979 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SalesReturnHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common</a> &gt; <span class="el_source">SalesReturnHelper.java</span></div><h1>SalesReturnHelper.java</h1><pre class="source lang-java linenums">/*
+703002008002
+ * ï¿½ copyright 2007, SkilRock Technologies, A division of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * All Rights Reserved
+ * The contents of this file are the property of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * and are subject to a License agreement with Sugal &amp; Damani Lottery Agency Pvt. Ltd.; you may
+ * not use this file except in compliance with that License.  You may obtain a
+ * copy of that license from:
+ * Legal Department
+ * Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * 6/35,WEA, Karol Bagh,
+ * New Delhi
+ * India - 110005
+ * This software is distributed under the License and is provided on an ï¿½AS ISï¿½
+ * basis, without warranty of any kind, either express or implied, unless
+ * otherwise provided in the License.  See the License for governing rights and
+ * limitations under the License.
+ */
+
+package com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.StringTokenizer;
+
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.ActiveGameBean;
+import com.skilrock.lms.beans.BookBean;
+import com.skilrock.lms.beans.BookSaleReturnBean;
+import com.skilrock.lms.beans.CommVarGovtCommBean;
+import com.skilrock.lms.beans.GameBean;
+import com.skilrock.lms.beans.OrgInfoBean;
+import com.skilrock.lms.beans.PackBean;
+import com.skilrock.lms.beans.TicketBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.GenerateRecieptNo;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.GraphReportHelper;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+/**
+ * This helper class provides methods to verify packs and books and to get valid
+ * packs and books from verified books at the time of sale return
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L63">public class SalesReturnHelper {</span>
+<span class="nc" id="L64">private Log logger = LogFactory.getLog(SalesReturnHelper.class);</span>
+<span class="nc" id="L65">	String bookFlag = &quot;Invalid&quot;;</span>
+<span class="nc" id="L66">	String packFlag = &quot;Invalid&quot;;</span>
+	
+	
+	public String doTransaction(int game_id, int org_id, String orgName,
+			List&lt;PackBean&gt; packlist, List&lt;BookBean&gt; booklist, String rootPath,
+			int userOrgId, int userId, String newBookStatus, Connection conn)
+			throws LMSException {
+
+<span class="nc" id="L74">		int receipt_id = 0;</span>
+<span class="nc" id="L75">		int transaction_id = 0;</span>
+<span class="nc" id="L76">		double ticket_price = 0, book_price = 0;</span>
+<span class="nc" id="L77">		int nbr_of_tickets_per_book = 0, nbr_of_books_per_pack = 0;</span>
+<span class="nc" id="L78">		double agent_sale_comm_rate = 0;</span>
+<span class="nc" id="L79">		double prizePayOutPer = 0.0;</span>
+<span class="nc" id="L80">		double vat = 0.0;</span>
+<span class="nc" id="L81">		double govtComm = 0.0;</span>
+<span class="nc" id="L82">		double vatAmt = 0.0;</span>
+<span class="nc" id="L83">		double bookTaxableSale = 0.0;</span>
+<span class="nc" id="L84">		double govtCommAmt = 0.0;</span>
+<span class="nc" id="L85">		double commAmt = 0.0;</span>
+<span class="nc" id="L86">		double netAmt = 0.0;</span>
+<span class="nc" id="L87">		double taxableSale = 0.0;</span>
+<span class="nc" id="L88">		double vatBalance = 0.0;</span>
+<span class="nc" id="L89">		long ticketsInScheme = 0;</span>
+<span class="nc" id="L90">		String govtCommRule = null;</span>
+<span class="nc" id="L91">		double fixedAmt = 0.0;</span>
+<span class="nc" id="L92">		double netAmtOrg = 0.0;</span>
+<span class="nc" id="L93">		int DCId = 0;</span>
+<span class="nc" id="L94">		String bookNumber = &quot;&quot;;</span>
+<span class="nc" id="L95">		boolean isBookActivated = true;</span>
+
+<span class="nc" id="L97">		List&lt;Integer&gt; trnIdList = new ArrayList&lt;Integer&gt;();</span>
+
+		try {
+			// get books list from packlist and copy to booklist
+
+			// new book status on sales return
+			// String newBookStatus = &quot;INACTIVE&quot;;
+<span class="nc" id="L104">			logger.info(&quot;***Return Book Status Should be**************&quot;</span>
+					+ newBookStatus);
+<span class="nc bnc" id="L106" title="All 2 branches missed.">			if (packlist.size() != 0) {</span>
+<span class="nc" id="L107">				PackBean packbean = null;</span>
+<span class="nc" id="L108">				BookBean bookbean = null;</span>
+<span class="nc" id="L109">				Iterator&lt;PackBean&gt; packListItr = packlist.iterator();</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">				while (packListItr.hasNext()) {</span>
+<span class="nc" id="L111">					packbean = packListItr.next();</span>
+<span class="nc" id="L112">					String packNbr = packbean.getPackNumber();</span>
+<span class="nc" id="L113">					String querytoGetBookFrmPack = QueryManager</span>
+							.getST4BookNbrOfPackNbr();
+<span class="nc" id="L115">					PreparedStatement stmtbookFrmPack = conn</span>
+							.prepareStatement(querytoGetBookFrmPack);
+<span class="nc" id="L117">					stmtbookFrmPack.setString(1, packNbr);</span>
+<span class="nc" id="L118">					ResultSet set = stmtbookFrmPack.executeQuery();</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">					while (set.next()) {</span>
+
+<span class="nc" id="L121">						String bookNbrfromPack = set.getString(&quot;book_nbr&quot;);</span>
+
+<span class="nc" id="L123">						bookbean = new BookBean();</span>
+<span class="nc" id="L124">						bookbean.setBookNumber(bookNbrfromPack);</span>
+<span class="nc" id="L125">						bookbean.setValid(true);</span>
+<span class="nc" id="L126">						bookbean.setStatus(&quot;Book Is Valid&quot;);</span>
+<span class="nc" id="L127">						booklist.add(bookbean);</span>
+<span class="nc" id="L128">					}</span>
+
+<span class="nc" id="L130">				}</span>
+
+			}
+
+			// Getting Game Details using game id
+<span class="nc" id="L135">			String querytoGameDetail = QueryManager</span>
+					.getST4GameDetailsUsingGameId();
+<span class="nc" id="L137">			PreparedStatement stmtgamedeatil = conn</span>
+					.prepareStatement(querytoGameDetail);
+<span class="nc" id="L139">			stmtgamedeatil.setInt(1, game_id);</span>
+<span class="nc" id="L140">			ResultSet rsGameDetail = stmtgamedeatil.executeQuery();</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">			while (rsGameDetail.next()) {</span>
+<span class="nc" id="L142">				ticket_price = rsGameDetail.getDouble(&quot;ticket_price&quot;);</span>
+<span class="nc" id="L143">				nbr_of_tickets_per_book = rsGameDetail</span>
+						.getInt(&quot;nbr_of_tickets_per_book&quot;);
+<span class="nc" id="L145">				nbr_of_books_per_pack = rsGameDetail</span>
+						.getInt(&quot;nbr_of_books_per_pack&quot;);
+<span class="nc" id="L147">				agent_sale_comm_rate = rsGameDetail</span>
+						.getDouble(&quot;agent_sale_comm_rate&quot;);
+<span class="nc" id="L149">				prizePayOutPer = rsGameDetail.getDouble(&quot;prize_payout_ratio&quot;);</span>
+<span class="nc" id="L150">				vat = rsGameDetail.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L151">				govtComm = rsGameDetail.getDouble(&quot;govt_comm_rate&quot;);</span>
+<span class="nc" id="L152">				vatBalance = rsGameDetail.getDouble(&quot;vat_balance&quot;);</span>
+<span class="nc" id="L153">				ticketsInScheme = rsGameDetail.getLong(&quot;tickets_in_scheme&quot;);</span>
+<span class="nc" id="L154">				govtCommRule = rsGameDetail.getString(&quot;govt_comm_type&quot;);</span>
+<span class="nc" id="L155">				fixedAmt = rsGameDetail.getDouble(&quot;fixed_amt&quot;);</span>
+			}
+<span class="nc" id="L157">			book_price = ticket_price * nbr_of_tickets_per_book;</span>
+
+			BookSaleReturnBean bookSaleRetBean;
+<span class="nc" id="L160">			ArrayList&lt;BookSaleReturnBean&gt; bookSaleReturnList = new ArrayList&lt;BookSaleReturnBean&gt;();</span>
+<span class="nc" id="L161">			String bookNbr, packNbr = null;</span>
+<span class="nc" id="L162">			double commVariance = 0.0;</span>
+<span class="nc" id="L163">			double govtCommRate = 0.0;</span>
+			ResultSet rsCommVar;
+<span class="nc" id="L165">			Iterator iteratorCommVar = booklist.iterator();</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">			while (iteratorCommVar.hasNext()) {</span>
+<span class="nc" id="L167">				bookSaleRetBean = new BookSaleReturnBean();</span>
+<span class="nc" id="L168">				bookNbr = ((BookBean) iteratorCommVar.next()).getBookNumber();</span>
+<span class="nc" id="L169">				String commVarianceQuery = &quot;select transacrion_sale_comm_rate,transaction_gov_comm_rate,transaction_date from st_se_game_inv_detail where current_owner=? and current_owner_id=? and game_id=? and book_nbr=? and transaction_at=? order by transaction_date desc limit 1 &quot;;</span>
+<span class="nc" id="L170">				PreparedStatement commVariaceStmt = conn</span>
+						.prepareStatement(commVarianceQuery);
+<span class="nc" id="L172">				commVariaceStmt.setString(1, &quot;AGENT&quot;);</span>
+<span class="nc" id="L173">				commVariaceStmt.setInt(2, org_id);</span>
+<span class="nc" id="L174">				commVariaceStmt.setInt(3, game_id);</span>
+<span class="nc" id="L175">				commVariaceStmt.setString(4, bookNbr);</span>
+<span class="nc" id="L176">				commVariaceStmt.setString(5, &quot;BO&quot;);</span>
+<span class="nc" id="L177">				rsCommVar = commVariaceStmt.executeQuery();</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">				while (rsCommVar.next()) {</span>
+<span class="nc" id="L179">					commVariance = rsCommVar</span>
+							.getDouble(&quot;transacrion_sale_comm_rate&quot;);
+<span class="nc" id="L181">					govtCommRate = rsCommVar</span>
+							.getDouble(&quot;transaction_gov_comm_rate&quot;);
+				}
+<span class="nc" id="L184">				commAmt = commAmt + book_price * commVariance * 0.01;</span>
+<span class="nc" id="L185">				netAmt = netAmt + book_price * (1 - commVariance * 0.01);</span>
+<span class="nc" id="L186">				govtCommAmt = book_price * govtCommRate * .01;</span>
+
+<span class="nc" id="L188">				vatAmt = vatAmt</span>
+						+ CommonMethods.calculateVat(book_price, commVariance,
+								prizePayOutPer, govtCommRate, vat,
+								govtCommRule, fixedAmt, ticketsInScheme);
+				/*
+				 * bookTaxableSale = (((book_price * (100 - (commVariance +
+				 * prizePayOutPer + govtCommRate))) / 100) * 100) / (100 + vat);
+				 */
+				// bookTaxableSale=vatAmt/(vat * 0.01);
+<span class="nc" id="L197">				bookTaxableSale = CommonMethods.calTaxableSale(book_price,</span>
+						commVariance, prizePayOutPer, govtCommRate, vat);
+
+<span class="nc" id="L200">				bookSaleRetBean.setBookNumber(bookNbr);</span>
+<span class="nc" id="L201">				bookSaleRetBean.setBookCommVariance(commVariance);</span>
+<span class="nc" id="L202">				bookSaleRetBean.setDefaultCommVariance(agent_sale_comm_rate);</span>
+<span class="nc" id="L203">				bookSaleRetBean.setTotalSaleComm(commVariance);</span>
+<span class="nc" id="L204">				bookSaleRetBean.setTotalSaleGovtComm(govtCommRate);</span>
+<span class="nc" id="L205">				bookSaleRetBean.setGovtCommAmt(govtCommAmt);</span>
+<span class="nc" id="L206">				bookSaleRetBean.setBookVatAmt(vatAmt);</span>
+<span class="nc" id="L207">				bookSaleRetBean.setBookCommAmt(commAmt);</span>
+<span class="nc" id="L208">				bookSaleRetBean.setBookNetAmt(netAmt);</span>
+<span class="nc" id="L209">				bookSaleRetBean.setBookTaxableSale(bookTaxableSale);</span>
+<span class="nc" id="L210">				bookSaleReturnList.add(bookSaleRetBean);</span>
+<span class="nc" id="L211">				commVariance = 0.0;</span>
+<span class="nc" id="L212">				govtCommRate = 0.0;</span>
+<span class="nc" id="L213">				bookTaxableSale = 0.0;</span>
+<span class="nc" id="L214">				govtCommAmt = 0.0;</span>
+<span class="nc" id="L215">				vatAmt = 0.0;</span>
+<span class="nc" id="L216">				commAmt = 0.0;</span>
+<span class="nc" id="L217">				netAmt = 0.0;</span>
+
+<span class="nc" id="L219">			}</span>
+
+			// get comm variance history
+
+<span class="nc" id="L223">			List&lt;CommVarGovtCommBean&gt; commVariancelist = new ArrayList&lt;CommVarGovtCommBean&gt;();</span>
+			CommVarGovtCommBean commVarGovtCommBean;
+
+<span class="nc" id="L226">			String queryCommVarHistory = &quot;select DISTINCT transacrion_sale_comm_rate,transaction_gov_comm_rate from st_se_game_inv_detail where current_owner_id=&quot;</span>
+					+ org_id + &quot; and game_id=&quot; + game_id;
+<span class="nc" id="L228">			PreparedStatement stmtCommVarHistory = conn</span>
+					.prepareStatement(queryCommVarHistory);
+<span class="nc" id="L230">			ResultSet rsCommVarHistory = stmtCommVarHistory.executeQuery();</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">			while (rsCommVarHistory.next()) {</span>
+<span class="nc" id="L232">				commVarGovtCommBean = new CommVarGovtCommBean();</span>
+<span class="nc" id="L233">				commVarGovtCommBean.setCommVariance(rsCommVarHistory</span>
+						.getDouble(&quot;transacrion_sale_comm_rate&quot;));
+<span class="nc" id="L235">				commVarGovtCommBean.setGovtComm(rsCommVarHistory</span>
+						.getDouble(&quot;transaction_gov_comm_rate&quot;));
+<span class="nc" id="L237">				commVariancelist.add(commVarGovtCommBean);</span>
+				// commVarianceSet.add(rsCommVarHistory.getDouble(&quot;transacrion_sale_comm_rate&quot;));
+			}
+<span class="nc" id="L240">			System.out</span>
+					.println(&quot; 22222222222222222222222size for comm var history &quot;
+							+ commVariancelist.size()
+							+ &quot;pstmt &quot;
+							+ stmtCommVarHistory);
+			Iterator iteratorBookSaleReturn;
+			// Iterator iteratorCommVarHistory= commVarianceSet.iterator();
+<span class="nc" id="L247">			Iterator iteratorCommVarHistory = commVariancelist.iterator();</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">			while (iteratorCommVarHistory.hasNext()) {</span>
+<span class="nc" id="L249">				boolean bookCommVarMatch = false;</span>
+				// logger.info(&quot;comm var from history--------------------
+				// &quot;);
+<span class="nc" id="L252">				Double totCommAmt = 0.0;</span>
+<span class="nc" id="L253">				Double totVatAmt = 0.0;</span>
+<span class="nc" id="L254">				Double totNetAmt = 0.0;</span>
+<span class="nc" id="L255">				Double totTaxableSale = 0.0;</span>
+<span class="nc" id="L256">				Double totGovtComm = 0.0;</span>
+
+<span class="nc" id="L258">				List bookListforSingleTrn = null;</span>
+<span class="nc" id="L259">				bookListforSingleTrn = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L260">				double commFromHistory = 0.0;</span>
+<span class="nc" id="L261">				double govtCommFromHistory = 0.0;</span>
+				// commFromHistory=(Double)iteratorCommVarHistory.next();
+
+<span class="nc" id="L264">				CommVarGovtCommBean commBean = (CommVarGovtCommBean) iteratorCommVarHistory</span>
+						.next();
+<span class="nc" id="L266">				commFromHistory = commBean.getCommVariance();</span>
+<span class="nc" id="L267">				govtCommFromHistory = commBean.getGovtComm();</span>
+
+				// logger.info(&quot;comm var from history--------------------
+				// &quot;+commFromHistory);
+<span class="nc" id="L271">				iteratorBookSaleReturn = bookSaleReturnList.iterator();</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">				while (iteratorBookSaleReturn.hasNext()) {</span>
+<span class="nc" id="L273">					bookSaleRetBean = (BookSaleReturnBean) iteratorBookSaleReturn</span>
+							.next();
+<span class="nc" id="L275">					double bookCommVariance = 0.0;</span>
+<span class="nc" id="L276">					double bookGovtCommVariance = 0.0;</span>
+<span class="nc" id="L277">					bookCommVariance = bookSaleRetBean.getTotalSaleComm();</span>
+<span class="nc" id="L278">					bookGovtCommVariance = bookSaleRetBean</span>
+							.getTotalSaleGovtComm();
+					// logger.info(&quot;commFromHistory &quot; + commFromHistory +
+					// &quot;bookCommVariance &quot; + bookCommVariance);
+					// logger.info(&quot;GovtcommFromHistory &quot; +
+					// govtCommFromHistory + &quot;bookGovtCommVariance &quot; +
+					// bookGovtCommVariance);
+<span class="nc bnc" id="L285" title="All 4 branches missed.">					if (commFromHistory == bookCommVariance</span>
+							&amp;&amp; govtCommFromHistory == bookGovtCommVariance) {
+						// logger.info(&quot;inside
+<span class="nc" id="L288">						boolean isSaleTransactionExist = true;</span>
+						// if%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%&quot;);
+<span class="nc bnc" id="L290" title="All 2 branches missed.">						if(&quot;YES&quot;.equals(Utility.getPropertyValue(&quot;IS_SCRATCH_NEW_FLOW_ENABLED&quot;))){</span>
+<span class="nc" id="L291">							bookNumber = bookSaleRetBean.getBookNumber();</span>
+<span class="nc" id="L292">								String saleTransactionQuery = &quot;select current_owner_id from st_se_game_inv_status where book_nbr = '&quot;+bookSaleRetBean.getBookNumber()+&quot;' and agent_invoice_id IS NOT NULL&quot;;	</span>
+<span class="nc" id="L293">								Statement saleTransactionQueryStmt = conn.createStatement();		</span>
+<span class="nc" id="L294">								ResultSet saleTransactionQueryResultSet = saleTransactionQueryStmt.executeQuery(saleTransactionQuery);		</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">								if (saleTransactionQueryResultSet.next()) {</span>
+<span class="nc" id="L296">									isSaleTransactionExist = true;</span>
+								} else{
+<span class="nc" id="L298">									isSaleTransactionExist = false;</span>
+								}
+						}
+<span class="nc bnc" id="L301" title="All 2 branches missed.">						if(isSaleTransactionExist){</span>
+<span class="nc" id="L302">							bookCommVarMatch = true;</span>
+<span class="nc" id="L303">							isBookActivated = false;</span>
+<span class="nc" id="L304">							totCommAmt = totCommAmt</span>
+									+ bookSaleRetBean.getBookCommAmt();
+<span class="nc" id="L306">							totVatAmt = totVatAmt + bookSaleRetBean.getBookVatAmt();</span>
+<span class="nc" id="L307">							totTaxableSale = totTaxableSale</span>
+									+ bookSaleRetBean.getBookTaxableSale();
+							// logger.info(&quot;hello :::::::: &quot; + totTaxableSale
+							// + &quot;history detail &quot;
+							// +bookSaleRetBean.getBookTaxableSale());
+<span class="nc" id="L312">							totGovtComm = totGovtComm</span>
+									+ bookSaleRetBean.getGovtCommAmt();
+<span class="nc" id="L314">							totNetAmt = totNetAmt + bookSaleRetBean.getBookNetAmt();</span>
+<span class="nc" id="L315">							bookListforSingleTrn.add(bookSaleRetBean</span>
+									.getBookNumber());
+						}
+					}
+
+<span class="nc" id="L320">				}</span>
+<span class="nc" id="L321">				netAmtOrg = netAmtOrg + totNetAmt;</span>
+
+<span class="nc bnc" id="L323" title="All 2 branches missed.">				if (bookCommVarMatch) {</span>
+
+					// insert in LMS transaction master
+<span class="nc" id="L326">					String QueryLMSTransMaster = QueryManager</span>
+							.insertInLMSTransactionMaster();
+<span class="nc" id="L328">					PreparedStatement stmtLMSTransmas = conn</span>
+							.prepareStatement(QueryLMSTransMaster);
+<span class="nc" id="L330">					stmtLMSTransmas.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L331">					stmtLMSTransmas.executeUpdate();</span>
+
+					// Get Transaction Id From the table.
+<span class="nc" id="L334">					ResultSet rsTransId = stmtLMSTransmas.getGeneratedKeys();</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">					while (rsTransId.next()) {</span>
+<span class="nc" id="L336">						transaction_id = rsTransId.getInt(1);</span>
+<span class="nc" id="L337">						trnIdList.add(transaction_id);</span>
+					}
+
+<span class="nc" id="L340">					logger.info(&quot;transaction_id:  &quot; + transaction_id);</span>
+
+					// 1. Insert Entry in st_lms_bo_transaction_master Table.
+<span class="nc" id="L343">					String queryTranMas = QueryManager</span>
+							.insertInBOTransactionMaster();
+<span class="nc" id="L345">					PreparedStatement stmtTransmas = conn</span>
+							.prepareStatement(queryTranMas);
+
+<span class="nc" id="L348">					stmtTransmas.setInt(1, transaction_id);</span>
+<span class="nc" id="L349">					stmtTransmas.setInt(2, userId);</span>
+<span class="nc" id="L350">					stmtTransmas.setInt(3, userOrgId);</span>
+<span class="nc" id="L351">					stmtTransmas.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L352">					stmtTransmas.setInt(5, org_id);</span>
+<span class="nc" id="L353">					stmtTransmas.setTimestamp(6, new java.sql.Timestamp(</span>
+							new java.util.Date().getTime()));
+<span class="nc" id="L355">					stmtTransmas.setString(7, &quot;SALE_RET&quot;);</span>
+
+					/*
+					 * stmtTransmas.setString(1, &quot;AGENT&quot;);
+					 * stmtTransmas.setInt(2, org_id);
+					 * stmtTransmas.setTimestamp(3, new java.sql.Timestamp(new
+					 * java.util.Date().getTime())); stmtTransmas.setString(4,
+					 * &quot;SALE_RET&quot;);
+					 */
+
+<span class="nc" id="L365">					stmtTransmas.executeUpdate();</span>
+
+					// 2. Insert Entry in st_se_bo_agent_transaction table.
+<span class="nc" id="L368">					String queryBoAgtTrans = QueryManager</span>
+							.getST4InsertBoAgentTransaction();
+<span class="nc" id="L370">					PreparedStatement stmtBoAgtTrans = conn</span>
+							.prepareStatement(queryBoAgtTrans);
+<span class="nc" id="L372">					stmtBoAgtTrans.setInt(1, transaction_id);</span>
+<span class="nc" id="L373">					stmtBoAgtTrans.setInt(2, bookListforSingleTrn.size());</span>
+<span class="nc" id="L374">					stmtBoAgtTrans.setInt(3, game_id);</span>
+<span class="nc" id="L375">					stmtBoAgtTrans.setInt(4, org_id);</span>
+<span class="nc" id="L376">					stmtBoAgtTrans.setDouble(5, book_price</span>
+							* bookListforSingleTrn.size());
+<span class="nc" id="L378">					stmtBoAgtTrans.setDouble(6, totCommAmt);</span>
+<span class="nc" id="L379">					stmtBoAgtTrans.setDouble(7, totNetAmt);</span>
+<span class="nc" id="L380">					stmtBoAgtTrans.setString(8, &quot;SALE_RET&quot;);</span>
+<span class="nc" id="L381">					stmtBoAgtTrans.setDouble(9, totVatAmt);</span>
+<span class="nc" id="L382">					stmtBoAgtTrans.setDouble(10, totTaxableSale);</span>
+<span class="nc" id="L383">					stmtBoAgtTrans.setDouble(11, totGovtComm);</span>
+<span class="nc" id="L384">					stmtBoAgtTrans.executeUpdate();</span>
+
+<span class="nc" id="L386">					String detHistoryInsQuery = &quot;insert into st_se_game_ticket_inv_history(game_id, book_nbr, &quot;</span>
+							+ &quot; current_owner, current_owner_id, date, done_by_oid, done_by_uid, cur_rem_tickets, &quot;
+							+ &quot; active_tickets_upto, sold_tickets, status) values (?,?,?,?,?,?,?,?,?,?,?)&quot;;
+<span class="nc" id="L389">					PreparedStatement detHistoryInsPstmt = conn</span>
+							.prepareStatement(detHistoryInsQuery);
+
+					// fetch game details from game master
+<span class="nc" id="L393">					String fetchGameDetQuery = &quot;select nbr_of_tickets_per_book from st_se_game_master where game_id =&quot;</span>
+							+ game_id;
+<span class="nc" id="L395">					Statement fetchGameDetStmt = conn.createStatement();</span>
+<span class="nc" id="L396">					ResultSet fetchGameDetRs = fetchGameDetStmt</span>
+							.executeQuery(fetchGameDetQuery);
+<span class="nc" id="L398">					int noOfTktPerBooks = -1;</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">					if (fetchGameDetRs.next()) {</span>
+<span class="nc" id="L400">						noOfTktPerBooks = fetchGameDetRs</span>
+								.getInt(&quot;nbr_of_tickets_per_book&quot;);
+					}
+
+					// 6. Insert in to st_se_game_inv_detail table.
+<span class="nc bnc" id="L405" title="All 2 branches missed.">					for (int i = 0; i &lt; bookListforSingleTrn.size(); i++) {</span>
+<span class="nc" id="L406">						String bknbr = (String) bookListforSingleTrn.get(i);</span>
+						// logger.info(&quot;//Get the pack number of book
+						// number. &quot;);
+						// Get the pack number of book number.
+<span class="nc" id="L410">						String pknbr = null;</span>
+<span class="nc" id="L411">						String queryTogetPackNbr = QueryManager</span>
+								.getST4PackNbrOfBookNbr();
+<span class="nc" id="L413">						PreparedStatement stm = conn</span>
+								.prepareStatement(queryTogetPackNbr);
+<span class="nc" id="L415">						stm.setString(1, bknbr);</span>
+<span class="nc" id="L416">						ResultSet resultSet = stm.executeQuery();</span>
+<span class="nc bnc" id="L417" title="All 2 branches missed.">						while (resultSet.next()) {</span>
+<span class="nc" id="L418">							pknbr = resultSet.getString(&quot;pack_nbr&quot;);</span>
+						}
+
+<span class="nc" id="L421">						String queryGameInvDtl = &quot;insert into st_se_game_inv_detail (transaction_id,game_id,pack_nbr, book_nbr,current_owner,current_owner_id,transaction_date,transaction_at,transacrion_sale_comm_rate,transaction_gov_comm_rate,transaction_purchase_comm_rate,warehouse_id,book_status) select ?,?,?,?,?,?,?,?,transacrion_sale_comm_rate,transaction_gov_comm_rate,transaction_purchase_comm_rate,warehouse_id,book_status from st_se_game_inv_detail where book_nbr=? and transaction_at=? order by transaction_date desc limit 1&quot;;</span>
+<span class="nc" id="L422">						PreparedStatement stmtGameInvDtl = conn</span>
+								.prepareStatement(queryGameInvDtl);
+<span class="nc" id="L424">						stmtGameInvDtl.setInt(1, transaction_id);</span>
+<span class="nc" id="L425">						stmtGameInvDtl.setInt(2, game_id);</span>
+<span class="nc" id="L426">						stmtGameInvDtl.setString(3, pknbr);</span>
+<span class="nc" id="L427">						stmtGameInvDtl.setString(4, bknbr);</span>
+<span class="nc" id="L428">						stmtGameInvDtl.setString(5, &quot;BO&quot;);</span>
+<span class="nc" id="L429">						stmtGameInvDtl.setInt(6, userOrgId);</span>
+<span class="nc" id="L430">						stmtGameInvDtl.setTimestamp(7, new java.sql.Timestamp(</span>
+								new java.util.Date().getTime()));
+<span class="nc" id="L432">						stmtGameInvDtl.setString(8, &quot;BO&quot;);</span>
+<span class="nc" id="L433">						stmtGameInvDtl.setString(9, bknbr);</span>
+<span class="nc" id="L434">						stmtGameInvDtl.setString(10, &quot;BO&quot;);</span>
+
+<span class="nc" id="L436">						stmtGameInvDtl.executeUpdate();</span>
+
+						// insert into detail history table Added by arun
+<span class="nc" id="L439">						detHistoryInsPstmt.setInt(1, game_id);</span>
+<span class="nc" id="L440">						detHistoryInsPstmt.setString(2, bknbr);</span>
+<span class="nc" id="L441">						detHistoryInsPstmt.setString(3, &quot;BO&quot;);</span>
+<span class="nc" id="L442">						detHistoryInsPstmt.setInt(4, userOrgId);</span>
+<span class="nc" id="L443">						detHistoryInsPstmt.setTimestamp(5,</span>
+								new java.sql.Timestamp(new java.util.Date()
+										.getTime()));
+<span class="nc" id="L446">						detHistoryInsPstmt.setInt(6, userOrgId);</span>
+<span class="nc" id="L447">						detHistoryInsPstmt.setInt(7, userId);</span>
+<span class="nc" id="L448">						detHistoryInsPstmt.setInt(8, noOfTktPerBooks);</span>
+						// logger.info(&quot;detHistoryInsPstmt ==
+						// &quot;+detHistoryInsPstmt);
+<span class="nc bnc" id="L451" title="All 2 branches missed.">						if (&quot;ACTIVE&quot;.equalsIgnoreCase(newBookStatus.trim())) {</span>
+<span class="nc" id="L452">							detHistoryInsPstmt.setInt(9, noOfTktPerBooks);</span>
+						} else {
+<span class="nc" id="L454">							detHistoryInsPstmt.setInt(9, 0);</span>
+						}
+<span class="nc" id="L456">						detHistoryInsPstmt.setInt(10, 0);</span>
+<span class="nc" id="L457">						detHistoryInsPstmt.setString(11, newBookStatus);</span>
+
+<span class="nc" id="L459">						detHistoryInsPstmt.execute();</span>
+						// ---------------------
+
+					}
+			}
+<span class="nc bnc" id="L464" title="All 2 branches missed.">				if(isBookActivated){</span>
+<span class="nc" id="L465">					String bknbr = bookNumber;</span>
+					// System.out.println(&quot;//Get the pack number of book
+					// number. &quot;);
+					// Get the pack number of book number.
+<span class="nc" id="L469">					String pknbr = null;</span>
+<span class="nc" id="L470">					String queryTogetPackNbr = QueryManager</span>
+							.getST4PackNbrOfBookNbr();
+<span class="nc" id="L472">					PreparedStatement stm = conn</span>
+							.prepareStatement(queryTogetPackNbr);
+<span class="nc" id="L474">					stm.setString(1, bknbr);</span>
+<span class="nc" id="L475">					ResultSet resultSet = stm.executeQuery();</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">					while (resultSet.next()) {</span>
+<span class="nc" id="L477">						pknbr = resultSet.getString(&quot;pack_nbr&quot;);</span>
+					}
+					
+<span class="nc" id="L480">					String queryGameInvDtl = &quot;insert into st_se_game_inv_detail (transaction_id,game_id,pack_nbr, book_nbr,current_owner,current_owner_id,transaction_date,transaction_at,transacrion_sale_comm_rate,transaction_gov_comm_rate,transaction_purchase_comm_rate,warehouse_id,book_status) select ?,?,?,?,?,?,?,?,transacrion_sale_comm_rate,transaction_gov_comm_rate,transaction_purchase_comm_rate,warehouse_id,book_status from st_se_game_inv_detail where book_nbr=? and transaction_at=? order by transaction_date desc limit 1&quot;;</span>
+<span class="nc" id="L481">					PreparedStatement stmtGameInvDtl = conn</span>
+							.prepareStatement(queryGameInvDtl);
+<span class="nc" id="L483">					stmtGameInvDtl.setInt(1, transaction_id);</span>
+<span class="nc" id="L484">					stmtGameInvDtl.setInt(2, game_id);</span>
+<span class="nc" id="L485">					stmtGameInvDtl.setString(3, pknbr);</span>
+<span class="nc" id="L486">					stmtGameInvDtl.setString(4, bknbr);</span>
+<span class="nc" id="L487">					stmtGameInvDtl.setString(5, &quot;BO&quot;);</span>
+<span class="nc" id="L488">					stmtGameInvDtl.setInt(6, userOrgId);</span>
+<span class="nc" id="L489">					stmtGameInvDtl.setTimestamp(7, new java.sql.Timestamp(</span>
+							new java.util.Date().getTime()));
+<span class="nc" id="L491">					stmtGameInvDtl.setString(8, &quot;BO&quot;);</span>
+<span class="nc" id="L492">					stmtGameInvDtl.setString(9, bknbr);</span>
+<span class="nc" id="L493">					stmtGameInvDtl.setString(10, &quot;BO&quot;);</span>
+
+<span class="nc" id="L495">					stmtGameInvDtl.executeUpdate();</span>
+			}
+<span class="nc" id="L497">			}</span>
+
+<span class="nc" id="L499">			logger.info(&quot;5. Update st_se_game_inv_status Table.	&quot;);</span>
+			// 5. Update st_se_game_inv_status Table.
+<span class="nc bnc" id="L501" title="All 2 branches missed.">			for (int i = 0; i &lt; bookSaleReturnList.size(); i++) {</span>
+<span class="nc" id="L502">				String bknbr = ((BookSaleReturnBean) bookSaleReturnList.get(i))</span>
+						.getBookNumber();
+<span class="nc" id="L504">				String queryGameInvStatus = QueryManager</span>
+						.getST4UdateGameInvStatusForBook();
+<span class="nc" id="L506">				PreparedStatement stmtGameInvStatus = conn</span>
+						.prepareStatement(queryGameInvStatus);
+<span class="nc" id="L508">				stmtGameInvStatus.setString(1, newBookStatus);</span>
+<span class="nc" id="L509">				stmtGameInvStatus.setInt(2, userOrgId);</span>
+<span class="nc" id="L510">				stmtGameInvStatus.setString(3, null);</span>
+<span class="nc" id="L511">				stmtGameInvStatus.setInt(4, game_id);</span>
+<span class="nc" id="L512">				stmtGameInvStatus.setString(5, bknbr);</span>
+<span class="nc" id="L513">				stmtGameInvStatus.executeUpdate();</span>
+
+			}
+
+			// get auto generated treciept number
+<span class="nc" id="L518">			Statement autoGenRecptPstmtBOCRNote = null;</span>
+			// String getLatestRecieptNumberBO=&quot;SELECT * from
+			// st_bo_receipt_gen_mapping where receipt_type=? ORDER BY
+			// generated_id DESC LIMIT 1 &quot;;
+<span class="nc" id="L522">			String queryRcpt = &quot;SELECT * from st_lms_bo_receipts where receipt_type like ('CR_NOTE%')  ORDER BY generated_id DESC LIMIT 1&quot;;</span>
+<span class="nc" id="L523">			autoGenRecptPstmtBOCRNote = conn.createStatement();</span>
+			// autoGenRecptPstmtBO.setString(1, &quot;CR_NOTE&quot;);
+<span class="nc" id="L525">			logger.info(&quot;queryRcpt--&quot; + queryRcpt);</span>
+<span class="nc" id="L526">			ResultSet recieptRsBO = autoGenRecptPstmtBOCRNote</span>
+					.executeQuery(queryRcpt);
+<span class="nc" id="L528">			String lastRecieptNoGeneratedBO = null;</span>
+
+<span class="nc bnc" id="L530" title="All 2 branches missed.">			while (recieptRsBO.next()) {</span>
+<span class="nc" id="L531">				lastRecieptNoGeneratedBO = recieptRsBO</span>
+						.getString(&quot;generated_id&quot;);
+			}
+
+<span class="nc" id="L535">			String autoGeneRecieptNoBO = GenerateRecieptNo.getRecieptNo(</span>
+					&quot;CR_NOTE&quot;, lastRecieptNoGeneratedBO, &quot;BO&quot;);
+
+			// get auto generated delivery Challan number
+			// String getLatestDSRCNumber=&quot;SELECT * from
+			// st_bo_receipt_gen_mapping where receipt_type=? ORDER BY
+			// generated_id DESC LIMIT 1 &quot;;
+			// autoGenRecptPstmtBO=conn.prepareStatement(getLatestDSRCNumber);
+<span class="nc" id="L543">			PreparedStatement autoGenRecptPstmtBO = null;</span>
+<span class="nc" id="L544">			autoGenRecptPstmtBO = conn.prepareStatement(QueryManager</span>
+					.getBOLatestReceiptNb());
+<span class="nc" id="L546">			autoGenRecptPstmtBO.setString(1, &quot;DSRCHALLAN&quot;);</span>
+<span class="nc" id="L547">			ResultSet DCRs = autoGenRecptPstmtBO.executeQuery();</span>
+<span class="nc" id="L548">			String lastDSRCNoGenerated = null;</span>
+
+<span class="nc bnc" id="L550" title="All 2 branches missed.">			while (DCRs.next()) {</span>
+<span class="nc" id="L551">				lastDSRCNoGenerated = DCRs.getString(&quot;generated_id&quot;);</span>
+			}
+
+<span class="nc" id="L554">			String autoGeneDCNo = null;</span>
+<span class="nc" id="L555">			autoGeneDCNo = GenerateRecieptNo.getRecieptNo(&quot;DSRCHALLAN&quot;,</span>
+					lastDSRCNoGenerated, &quot;BO&quot;);
+
+			// insert into receipts master
+
+<span class="nc" id="L560">			PreparedStatement stmtRecptId = conn.prepareStatement(QueryManager</span>
+					.insertInReceiptMaster());
+<span class="nc" id="L562">			stmtRecptId.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L563">			stmtRecptId.executeUpdate();</span>
+
+<span class="nc" id="L565">			ResultSet rsRecptId = stmtRecptId.getGeneratedKeys();</span>
+<span class="nc bnc" id="L566" title="All 2 branches missed.">			while (rsRecptId.next()) {</span>
+<span class="nc" id="L567">				receipt_id = rsRecptId.getInt(1);</span>
+			}
+
+			// Insert Entry in st_bo_receipt table.
+			// String queryRecptId=QueryManager.getST4InsertBoReceipts();
+<span class="nc" id="L572">			stmtRecptId = conn.prepareStatement(QueryManager</span>
+					.insertInBOReceipts());
+
+<span class="nc" id="L575">			stmtRecptId.setInt(1, receipt_id);</span>
+<span class="nc" id="L576">			stmtRecptId.setString(2, &quot;CR_NOTE&quot;);</span>
+<span class="nc" id="L577">			stmtRecptId.setInt(3, org_id);</span>
+<span class="nc" id="L578">			stmtRecptId.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L579">			stmtRecptId.setString(5, autoGeneRecieptNoBO);</span>
+<span class="nc" id="L580">			stmtRecptId.setTimestamp(6, Util.getCurrentTimeStamp());</span>
+
+			/*
+			 * stmtRecptId.setString(1, &quot;CR_NOTE&quot;); stmtRecptId.setInt(2,
+			 * org_id);
+			 */
+
+<span class="nc" id="L587">			stmtRecptId.executeUpdate();</span>
+
+			// insert reciept id for delivery challan
+<span class="nc" id="L590">			stmtRecptId = conn.prepareStatement(QueryManager</span>
+					.insertInReceiptMaster());
+<span class="nc" id="L592">			stmtRecptId.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L593">			stmtRecptId.executeUpdate();</span>
+
+<span class="nc" id="L595">			ResultSet rsDC = stmtRecptId.getGeneratedKeys();</span>
+<span class="nc bnc" id="L596" title="All 2 branches missed.">			while (rsDC.next()) {</span>
+<span class="nc" id="L597">				DCId = rsDC.getInt(1);</span>
+			}
+<span class="nc" id="L599">			stmtRecptId = conn.prepareStatement(QueryManager</span>
+					.insertInBOReceipts());
+<span class="nc" id="L601">			stmtRecptId.setInt(1, DCId);</span>
+<span class="nc" id="L602">			stmtRecptId.setString(2, &quot;DSRCHALLAN&quot;);</span>
+<span class="nc" id="L603">			stmtRecptId.setInt(3, org_id);</span>
+<span class="nc" id="L604">			stmtRecptId.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L605">			stmtRecptId.setString(5, autoGeneDCNo);</span>
+<span class="nc" id="L606">			stmtRecptId.setTimestamp(6, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L607">			stmtRecptId.execute();</span>
+
+			// 4. Insert Entry in st_lms_bo_receipts_trn_mapping table.
+<span class="nc" id="L610">			PreparedStatement stmtRcptTrnMapping = conn</span>
+					.prepareStatement(QueryManager.insertBOReceiptTrnMapping());
+<span class="nc bnc" id="L612" title="All 2 branches missed.">			for (int i = 0; i &lt; trnIdList.size(); i++) {</span>
+<span class="nc" id="L613">				stmtRcptTrnMapping.setInt(1, receipt_id);</span>
+<span class="nc" id="L614">				stmtRcptTrnMapping.setInt(2, (Integer) trnIdList.get(i));</span>
+<span class="nc" id="L615">				stmtRcptTrnMapping.executeUpdate();</span>
+			}
+
+			// 4. Insert Entry in st_lms_bo_receipts_trn_mapping table for
+			// delivery
+			// challan
+<span class="nc bnc" id="L621" title="All 2 branches missed.">			for (int i = 0; i &lt; trnIdList.size(); i++) {</span>
+<span class="nc" id="L622">				stmtRcptTrnMapping.setInt(1, DCId);</span>
+<span class="nc" id="L623">				stmtRcptTrnMapping.setInt(2, (Integer) trnIdList.get(i));</span>
+<span class="nc" id="L624">				stmtRcptTrnMapping.executeUpdate();</span>
+			}
+
+			// insert into invoice and delivery challan mapping table
+<span class="nc" id="L628">			String insertCRNoteDCMapping = &quot;insert into st_se_bo_invoice_delchallan_mapping(id,generated_invoice_id,generated_del_challan_id) values(?,?,?)&quot;;</span>
+<span class="nc" id="L629">			PreparedStatement boCRNoteDCMappingStmt = conn</span>
+					.prepareStatement(insertCRNoteDCMapping);
+<span class="nc" id="L631">			boCRNoteDCMappingStmt.setInt(1, receipt_id);</span>
+<span class="nc" id="L632">			boCRNoteDCMappingStmt.setString(2, autoGeneRecieptNoBO);</span>
+<span class="nc" id="L633">			boCRNoteDCMappingStmt.setString(3, autoGeneDCNo);</span>
+<span class="nc" id="L634">			boCRNoteDCMappingStmt.executeUpdate();</span>
+
+<span class="nc" id="L636">			boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(netAmtOrg, &quot;TRANSACTION&quot;, &quot;SALE_RET&quot;, org_id,</span>
+					0, &quot;AGENT&quot;, 0, conn);
+			
+<span class="nc bnc" id="L639" title="All 2 branches missed.">			if(!isValid)</span>
+<span class="nc" id="L640">				throw new LMSException();</span>
+			
+			/*boolean isUpdateDone = OrgCreditUpdation.updateCreditLimitForAgent(
+					org_id, &quot;SALE_RET&quot;, netAmtOrg, conn);*/
+
+//			session.setAttribute(&quot;DEL_CHALLAN_ID&quot;, DCId);
+//			if (receipt_id &gt; 0) {
+//				GraphReportHelper graphReportHelper = new GraphReportHelper();
+//				graphReportHelper.createTextReportBO(receipt_id, orgName,
+//						userOrgId, rootPath);
+//			}
+
+<span class="nc" id="L652">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L654">			e.printStackTrace();</span>
+<span class="nc" id="L655">			throw new LMSException(e);</span>
+<span class="nc" id="L656">		}</span>
+<span class="nc" id="L657">		return String.valueOf(DCId) + &quot;Nxt&quot; + String.valueOf(receipt_id);</span>
+	}
+
+	/**
+	 * This method is used to make entry into database for sale return for valid
+	 * packs and books
+	 * 
+	 * @param game_id
+	 * @param org_id
+	 * @param orgName
+	 * @param packlist
+	 *            is Listy of valid packs
+	 * @param booklist
+	 *            is list of valid books
+	 * @param rootPath
+	 * @return void
+	 * @throws LMSException
+	 */
+
+	public int doTransaction(int game_id, int org_id, String orgName,
+			List&lt;PackBean&gt; packlist, List&lt;BookBean&gt; booklist, String rootPath,
+			int userOrgId, HttpSession session, int userId, String newBookStatus)
+			throws LMSException {
+<span class="nc" id="L680">			Connection conn = null;</span>
+<span class="nc" id="L681">			int receipt_id = 0;</span>
+		
+		try {
+<span class="nc" id="L684">			conn = DBConnect.getConnection();</span>
+<span class="nc" id="L685">			conn.setAutoCommit(false);</span>
+			
+<span class="nc" id="L687">			String returnValue = doTransaction(game_id, org_id, orgName, packlist, booklist, rootPath, userOrgId, userId, newBookStatus, conn);</span>
+			
+<span class="nc" id="L689">			conn.commit();</span>
+<span class="nc" id="L690">			session.setAttribute(&quot;DEL_CHALLAN_ID&quot;, Integer.parseInt(returnValue.split(&quot;Nxt&quot;)[0]));</span>
+<span class="nc" id="L691">			receipt_id = Integer.parseInt(returnValue.split(&quot;Nxt&quot;)[1]);</span>
+<span class="nc bnc" id="L692" title="All 2 branches missed.">			if (receipt_id &gt; 0) {</span>
+<span class="nc" id="L693">				GraphReportHelper graphReportHelper = new GraphReportHelper();</span>
+<span class="nc" id="L694">				graphReportHelper.createTextReportBO(receipt_id, orgName,</span>
+						userOrgId, rootPath);
+			}
+
+<span class="nc" id="L698">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L700">			e.printStackTrace();</span>
+<span class="nc" id="L701">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L703">			try {</span>
+<span class="nc bnc" id="L704" title="All 4 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L705">					conn.close();</span>
+				}
+<span class="nc" id="L707">			} catch (SQLException e1) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L709">				e1.printStackTrace();</span>
+<span class="nc" id="L710">			}</span>
+<span class="nc" id="L711">		}</span>
+<span class="nc" id="L712">		return receipt_id;</span>
+	}
+
+	/**
+	 * This method is used to verify the books for sale return
+	 * 
+	 * @param bookList
+	 * @param game_id
+	 * @param org_id
+	 * @return List of verified books
+	 */
+	// Do Bulk Verification Of Books.
+	public List&lt;BookBean&gt; doVerifiedBooks(List&lt;BookBean&gt; bookList, int game_id,
+			int org_id, String isRetOnline, int gameNbr, String newBookStatus)
+			throws LMSException {
+<span class="nc" id="L727">		Connection conn = DBConnect.getConnection();</span>
+<span class="nc" id="L728">		System.out</span>
+				.println(&quot;connection created here =============================&quot;);
+		try {
+<span class="nc" id="L731">			System.out</span>
+					.println(&quot;Enter in to the bulk Book verification@@@@@@@@@@@@@@@@@@@@@@&quot;);
+<span class="nc" id="L733">			List&lt;BookBean&gt; list = new ArrayList&lt;BookBean&gt;();</span>
+<span class="nc" id="L734">			Iterator&lt;BookBean&gt; iterator = bookList.iterator();</span>
+<span class="nc" id="L735">			BookBean bean = null;</span>
+<span class="nc" id="L736">			String bknbr = null;</span>
+			// boolean bookExistancecheck = false;
+			// boolean ownercheck = false;
+			// boolean pwtCheck = false;
+			// boolean pwtCheckTemp = false;
+<span class="nc" id="L741">			boolean bookValidity = false;</span>
+
+<span class="nc bnc" id="L743" title="All 2 branches missed.">			while (iterator.hasNext()) {</span>
+<span class="nc" id="L744">				bean = (BookBean) iterator.next();</span>
+<span class="nc" id="L745">				bknbr = bean.getBookNumber();</span>
+
+<span class="nc bnc" id="L747" title="All 2 branches missed.">				if (bknbr != null) {</span>
+<span class="nc" id="L748">					bookValidity = verifyBook(game_id, bknbr, org_id, conn,</span>
+							newBookStatus);
+<span class="nc bnc" id="L750" title="All 2 branches missed.">					if (bookValidity) {</span>
+<span class="nc" id="L751">						logger.info(&quot;book is valid &quot; + bknbr);</span>
+<span class="nc" id="L752">						bean.setValid(true);</span>
+<span class="nc" id="L753">						bean.setStatus(&quot;Book Is Valid&quot;);</span>
+<span class="nc" id="L754">						list.add(bean);</span>
+<span class="nc" id="L755">						setPackFlag(&quot;Valid&quot;);</span>
+					} else {
+<span class="nc" id="L757">						logger.info(&quot;book is Invalid &quot; + bknbr);</span>
+<span class="nc" id="L758">						bean.setValid(false);</span>
+<span class="nc" id="L759">						bean.setStatus(&quot;Book Is InValid&quot;);</span>
+<span class="nc" id="L760">						list.add(bean);</span>
+					}
+				}
+				/*
+				 * if(bknbr!=null){
+				 * 
+				 * 
+				 * logger.info(&quot;Book is not null&quot;+bknbr);
+				 * bookExistancecheck = verifyBookWithExistance(game_id, bknbr,
+				 * org_id, conn); ownercheck = verifyBookWithOwner(game_id,
+				 * bknbr, org_id,isRetOnline, conn); pwtCheck =
+				 * verifyBookValidityWithPWT(game_id, bknbr, conn,gameNbr);
+				 * pwtCheckTemp=verifyBookValidityWithPWTTempTable(game_id,
+				 * bknbr, conn);
+				 * 
+				 * logger.info(&quot;bookExistancecheck:
+				 * &quot;+bookExistancecheck); logger.info(&quot;ownercheck:
+				 * &quot;+ownercheck); logger.info(&quot;pwtCheck: &quot;+pwtCheck); }
+				 * if(ownercheck == true &amp;&amp; pwtCheck == true &amp;&amp;
+				 * bookExistancecheck == true &amp;&amp; pwtCheckTemp==true){
+				 * logger.info(&quot;book is valid &quot;+bknbr);
+				 * bean.setValid(true); bean.setStatus(&quot;Book Is Valid&quot;);
+				 * list.add(bean); setPackFlag(&quot;Valid&quot;); } else{
+				 * logger.info(&quot;book is Invalid &quot;+bknbr);
+				 * bean.setValid(false); bean.setStatus(&quot;Book Is InValid&quot;);
+				 * list.add(bean); }
+				 */
+			}
+<span class="nc" id="L788">			logger.info(&quot;verified booklist:  &quot; + list);</span>
+<span class="nc" id="L789">			System.out</span>
+					.println(&quot;@@@@@@@@@@@@@@@@@@@@@@@@@@ bulk book verification is complete&quot;);
+
+<span class="nc" id="L792">			return list;</span>
+<span class="nc" id="L793">		} catch (Exception e) {</span>
+<span class="nc" id="L794">			e.printStackTrace();</span>
+<span class="nc" id="L795">			throw new LMSException(&quot;error in sale return&quot;);</span>
+		} finally {
+<span class="nc" id="L797">			try {</span>
+<span class="nc" id="L798">				conn.close();</span>
+<span class="nc" id="L799">			} catch (SQLException e) {</span>
+<span class="nc" id="L800">				e.printStackTrace();</span>
+<span class="nc" id="L801">				e.printStackTrace();</span>
+<span class="nc" id="L802">			}</span>
+		}
+	}
+
+	/**
+	 * This method inside helper class is used to verify the packs for sale
+	 * return
+	 * 
+	 * @param packList
+	 *            is the list of packs
+	 * @param game_id
+	 *            is games Id
+	 * @param org_id
+	 *            Is Organization Id
+	 * @return List of verified packs
+	 */
+	// Do Bulk Verification Of Packs.
+	public List&lt;PackBean&gt; doVerifiedPacks(List&lt;PackBean&gt; packList, int game_id,
+			int org_id, String isRetOnline, int gameNbr) throws LMSException {
+<span class="nc" id="L821">		System.out</span>
+				.println(&quot;Enter in to the bulk pack verification============================&quot;);
+<span class="nc" id="L823">		List&lt;PackBean&gt; list = new ArrayList&lt;PackBean&gt;();</span>
+<span class="nc" id="L824">		Iterator&lt;PackBean&gt; iterator = packList.iterator();</span>
+<span class="nc" id="L825">		PackBean bean = null;</span>
+<span class="nc" id="L826">		String pknbr = null;</span>
+		// boolean packExistancecheck = false;
+		// boolean ownercheck = false;
+		// boolean pwtCheck = false;
+		// boolean pwtCheckTemp = false;
+<span class="nc" id="L831">		boolean isValidPack = false;</span>
+<span class="nc" id="L832">		Connection conn = null;</span>
+		try {
+			 
+<span class="nc" id="L835">			conn = DBConnect.getConnection();</span>
+
+<span class="nc bnc" id="L837" title="All 2 branches missed.">			while (iterator.hasNext()) {</span>
+<span class="nc" id="L838">				bean = (PackBean) iterator.next();</span>
+<span class="nc" id="L839">				pknbr = bean.getPackNumber();</span>
+
+<span class="nc bnc" id="L841" title="All 2 branches missed.">				if (pknbr != null) {</span>
+<span class="nc" id="L842">					isValidPack = verifyPack(game_id, pknbr, org_id, conn);</span>
+<span class="nc bnc" id="L843" title="All 2 branches missed.">					if (isValidPack) {</span>
+<span class="nc" id="L844">						logger.info(&quot;pack is valid &quot; + pknbr);</span>
+<span class="nc" id="L845">						bean.setValid(true);</span>
+<span class="nc" id="L846">						bean.setStatus(&quot;Pack Is Valid&quot;);</span>
+<span class="nc" id="L847">						setPackFlag(&quot;Valid&quot;);</span>
+<span class="nc" id="L848">						list.add(bean);</span>
+					} else {
+<span class="nc" id="L850">						logger.info(&quot;pack is Invalid &quot; + pknbr);</span>
+<span class="nc" id="L851">						bean.setValid(false);</span>
+<span class="nc" id="L852">						bean.setStatus(&quot;Pack Is InValid&quot;);</span>
+<span class="nc" id="L853">						list.add(bean);</span>
+					}
+				}
+
+				/*
+				 * if(pknbr!=null){
+				 * 
+				 * logger.info(&quot;Pack is not null&quot;+pknbr);
+				 * 
+				 * packExistancecheck = verifyPackWithExistance(game_id, pknbr,
+				 * org_id); ownercheck = verifyPackWithOwner(game_id, pknbr,
+				 * org_id,isRetOnline); pwtCheck =
+				 * verifyPackValidityWithPWT(game_id, pknbr,gameNbr);
+				 * pwtCheckTemp=verifyPackValidityWithPWTTempTable(game_id,
+				 * pknbr);
+				 * 
+				 * logger.info(&quot;packExistancecheck:
+				 * &quot;+packExistancecheck); logger.info(&quot;ownercheck:
+				 * &quot;+ownercheck); logger.info(&quot;pwtCheck: &quot;+pwtCheck); }
+				 * 
+				 * if(ownercheck == true &amp;&amp; pwtCheck == true &amp;&amp;
+				 * packExistancecheck == true &amp;&amp; pwtCheckTemp==true){
+				 * logger.info(&quot;pack is valid &quot;+pknbr);
+				 * bean.setValid(true); bean.setStatus(&quot;Pack Is Valid&quot;);
+				 * setPackFlag(&quot;Valid&quot;); list.add(bean); } else{
+				 * logger.info(&quot;pack is Invalid &quot;+pknbr);
+				 * 
+				 * bean.setValid(false); bean.setStatus(&quot;Pack Is InValid&quot;);
+				 * 
+				 * list.add(bean); }
+				 */
+			}
+<span class="nc" id="L885">		} catch (Exception e) {</span>
+<span class="nc" id="L886">			e.printStackTrace();</span>
+<span class="nc" id="L887">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L889">			try {</span>
+<span class="nc" id="L890">				conn.close();</span>
+<span class="nc" id="L891">			} catch (SQLException e) {</span>
+<span class="nc" id="L892">				e.printStackTrace();</span>
+<span class="nc" id="L893">				e.printStackTrace();</span>
+<span class="nc" id="L894">			}</span>
+<span class="nc" id="L895">		}</span>
+<span class="nc" id="L896">		logger.info(&quot;verified pack list:  &quot; + list);</span>
+<span class="nc" id="L897">		System.out</span>
+				.println(&quot;============================ bulk pack verification is complete&quot;);
+<span class="nc" id="L899">		return list;</span>
+	}
+
+	public String getBookFlag() {
+<span class="nc" id="L903">		return bookFlag;</span>
+
+	}
+
+	public String getBookNbrFromTicketNo(String ticket_nbr) {
+<span class="nc" id="L908">		String book_nbr = &quot;&quot;;</span>
+<span class="nc" id="L909">		StringTokenizer st = new StringTokenizer(ticket_nbr, &quot;-&quot;);</span>
+<span class="nc bnc" id="L910" title="All 2 branches missed.">		for (int i = 0; i &lt; 2; i++) {</span>
+<span class="nc bnc" id="L911" title="All 2 branches missed.">			if (st.hasMoreTokens()) {</span>
+<span class="nc" id="L912">				book_nbr = book_nbr + st.nextToken();</span>
+<span class="nc bnc" id="L913" title="All 2 branches missed.">				if (i == 0) {</span>
+<span class="nc" id="L914">					book_nbr = book_nbr + &quot;-&quot;;</span>
+				}
+			}
+		}
+<span class="nc" id="L918">		return book_nbr;</span>
+	}
+
+	public int getGameId(List&lt;ActiveGameBean&gt; activeGameList,
+			String gameNbr_Name) {
+<span class="nc" id="L923">		ActiveGameBean bean = null;</span>
+<span class="nc bnc" id="L924" title="All 2 branches missed.">		if (activeGameList != null) {</span>
+<span class="nc bnc" id="L925" title="All 2 branches missed.">			for (int i = 0; i &lt; activeGameList.size(); i++) {</span>
+<span class="nc" id="L926">				bean = activeGameList.get(i);</span>
+<span class="nc bnc" id="L927" title="All 2 branches missed.">				if (gameNbr_Name.equals(bean.getGameNbr_Name())) {</span>
+<span class="nc" id="L928">					return bean.getGameId();</span>
+				}
+			}
+		}
+<span class="nc" id="L932">		return 0;</span>
+	}
+
+	/**
+	 * this method inside helper class is used to get the game ID from the game
+	 * name
+	 * 
+	 * @param game_Name
+	 * @return int (game Id)
+	 */
+	// Get Game Id From Data Base Using the Game Name.
+	public int getGameIdFromDataBase(String game_Name) {
+<span class="nc" id="L944">		Connection connection = null;</span>
+<span class="nc" id="L945">		PreparedStatement Pstmt = null;</span>
+<span class="nc" id="L946">		ResultSet resultSet = null;</span>
+<span class="nc" id="L947">		String query = QueryManager.getST4GameDetailsUsingGameName();</span>
+<span class="nc" id="L948">		int game_id = 0;</span>
+		try {
+			 
+<span class="nc" id="L951">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L952">			Pstmt = connection.prepareStatement(query);</span>
+<span class="nc" id="L953">			Pstmt.setString(1, game_Name);</span>
+<span class="nc" id="L954">			resultSet = Pstmt.executeQuery();</span>
+<span class="nc bnc" id="L955" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L956">				game_id = resultSet.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L957">				return game_id;</span>
+			}
+<span class="nc" id="L959">		} catch (SQLException e) {</span>
+<span class="nc" id="L960">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L962">			try {</span>
+<span class="nc bnc" id="L963" title="All 8 branches missed.">				if (Pstmt != null) {</span>
+<span class="nc" id="L964">					Pstmt.close();</span>
+				}
+<span class="nc bnc" id="L966" title="All 8 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L967">					connection.close();</span>
+				}
+<span class="nc" id="L969">			} catch (SQLException e) {</span>
+<span class="nc" id="L970">				e.printStackTrace();</span>
+<span class="nc" id="L971">			}</span>
+<span class="nc" id="L972">		}</span>
+<span class="nc" id="L973">		return 0;</span>
+	}
+
+	public ArrayList getGameList(int orgId) {
+		 
+<span class="nc" id="L978">		ArrayList&lt;GameBean&gt; list = new ArrayList&lt;GameBean&gt;();</span>
+<span class="nc" id="L979">		GameBean gameBean = null;</span>
+		Connection con;
+<span class="nc" id="L981">		con = DBConnect.getConnection();</span>
+
+		//Statement stmt1 = null;
+<span class="nc" id="L984">		Statement stmt2 = null;</span>
+
+		//ResultSet rs1 = null;
+<span class="nc" id="L987">		ResultSet rs2 = null;</span>
+
+		try {
+			//stmt1 = con.createStatement();
+<span class="nc" id="L991">			stmt2 = con.createStatement();</span>
+
+<span class="nc" id="L993">			logger.info(&quot;Url&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;...&quot; + orgId);</span>
+
+			/*String owid = &quot;select organization_id from st_lms_organization_master where name = '&quot;
+					+ orgName + &quot;'&quot;;
+			rs1 = stmt1.executeQuery(owid);
+			int orgId = 0;
+			while (rs1.next()) {
+				orgId = rs1.getInt(&quot;organization_id&quot;);
+			}*/
+			// java.sql.Date currentDate= new java.sql.Date(new
+			// Date().getTime());
+
+<span class="nc" id="L1005">			String gmdetail = &quot;select distinct p.game_id, p.game_name,p.game_nbr,p.sale_end_date  from st_se_game_master p, st_se_game_inv_status e where e.game_id = p.game_id and e.current_owner_id='&quot;</span>
+					+ orgId
+					+ &quot;' and p.game_status in('OPEN','SALE_HOLD','SALE_CLOSE')&quot;;
+<span class="nc" id="L1008">			rs2 = stmt2.executeQuery(gmdetail);</span>
+<span class="nc bnc" id="L1009" title="All 2 branches missed.">			while (rs2.next()) {</span>
+<span class="nc" id="L1010">				gameBean = new GameBean();</span>
+<span class="nc" id="L1011">				gameBean.setGameId(rs2.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L1012">				gameBean.setGameNbr(rs2.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L1013">				gameBean.setGameName(rs2.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L1014">				gameBean.setSaleEndDate(rs2.getDate(&quot;sale_end_date&quot;));</span>
+<span class="nc" id="L1015">				list.add(gameBean);</span>
+			}
+<span class="nc" id="L1017">		} catch (SQLException e) {</span>
+<span class="nc" id="L1018">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1020">			try {</span>
+<span class="nc bnc" id="L1021" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L1022">					con.close();</span>
+				}
+<span class="nc" id="L1024">			} catch (SQLException se) {</span>
+<span class="nc" id="L1025">				se.printStackTrace();</span>
+<span class="nc" id="L1026">			}</span>
+<span class="nc" id="L1027">		}</span>
+
+<span class="nc" id="L1029">		return list;</span>
+
+	} // End getCharacters()
+
+	public int getOrganizationId(List&lt;OrgInfoBean&gt; organizationBeanList,
+			String organization_Name) {
+<span class="nc" id="L1035">		OrgInfoBean bean = null;</span>
+<span class="nc bnc" id="L1036" title="All 2 branches missed.">		if (organizationBeanList != null) {</span>
+<span class="nc bnc" id="L1037" title="All 2 branches missed.">			for (int i = 0; i &lt; organizationBeanList.size(); i++) {</span>
+<span class="nc" id="L1038">				bean = organizationBeanList.get(i);</span>
+<span class="nc bnc" id="L1039" title="All 2 branches missed.">				if (organization_Name.equals(bean.getOrganization_Name())) {</span>
+<span class="nc" id="L1040">					return bean.getOrganizationId();</span>
+				}
+			}
+		}
+<span class="nc" id="L1044">		return 0;</span>
+	}
+
+	/**
+	 * This method inside helper class is used to get the organization Id by
+	 * Organization Name
+	 * 
+	 * @param organization_Name
+	 * @return int (organizatiuon Id)
+	 */
+	// Get Organization Id From Data Base Using Organization Name.
+	public int getOrganizationIdFromDataBase(String organization_Name) {
+<span class="nc" id="L1056">		Connection connection = null;</span>
+<span class="nc" id="L1057">		PreparedStatement Pstmt = null;</span>
+<span class="nc" id="L1058">		ResultSet resultSet = null;</span>
+<span class="nc" id="L1059">		String query = QueryManager.getST4OrganizationIdUsingOrganizationName();</span>
+<span class="nc" id="L1060">		int organization_id = 0;</span>
+		try {
+			 
+<span class="nc" id="L1063">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L1064">			Pstmt = connection.prepareStatement(query);</span>
+<span class="nc" id="L1065">			Pstmt.setString(1, organization_Name);</span>
+<span class="nc" id="L1066">			resultSet = Pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1067" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1068">				organization_id = resultSet</span>
+						.getInt(TableConstants.ORGANIZATION_ID);
+			}
+<span class="nc" id="L1071">		} catch (SQLException e) {</span>
+<span class="nc" id="L1072">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1074">			try {</span>
+<span class="nc bnc" id="L1075" title="All 6 branches missed.">				if (Pstmt != null) {</span>
+<span class="nc" id="L1076">					Pstmt.close();</span>
+				}
+<span class="nc bnc" id="L1078" title="All 6 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L1079">					connection.close();</span>
+				}
+<span class="nc" id="L1081">			} catch (SQLException e) {</span>
+<span class="nc" id="L1082">				e.printStackTrace();</span>
+<span class="nc" id="L1083">			}</span>
+<span class="nc" id="L1084">		}</span>
+<span class="nc" id="L1085">		return organization_id;</span>
+	}
+
+	// For Get The OrganizationBean of Agents in a list.
+	/**
+	 * This method is used to get the Agents Organizations Name
+	 * 
+	 * @return List of Organizations Information
+	 */
+	public List&lt;OrgInfoBean&gt; getOrganizations() {
+<span class="nc" id="L1095">		Connection connection = null;</span>
+<span class="nc" id="L1096">		Statement statement = null;</span>
+<span class="nc" id="L1097">		ResultSet resultSet = null;</span>
+		try {
+<span class="nc" id="L1099">			OrgInfoBean orgBean = null;</span>
+<span class="nc" id="L1100">			List&lt;OrgInfoBean&gt; orgList = new ArrayList&lt;OrgInfoBean&gt;();</span>
+			 
+<span class="nc" id="L1102">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L1103">			statement = connection.createStatement();</span>
+<span class="nc" id="L1104">			String query = QueryManager.getST4AgentOrganizationSearchQuery()</span>
+					+ &quot; order by name&quot;;
+<span class="nc" id="L1106">			resultSet = statement.executeQuery(query);</span>
+<span class="nc bnc" id="L1107" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1108">				orgBean = new OrgInfoBean();</span>
+<span class="nc" id="L1109">				orgBean.setOrganizationId(resultSet</span>
+						.getInt(TableConstants.ORGANIZATION_ID));
+<span class="nc" id="L1111">				orgBean.setOrganiztion_Type(resultSet</span>
+						.getString(TableConstants.ORGANIZATION_TYPE));
+<span class="nc" id="L1113">				orgBean.setOrganization_Name(resultSet</span>
+						.getString(TableConstants.ORGANIZATION_NAME));
+<span class="nc" id="L1115">				orgList.add(orgBean);</span>
+			}
+<span class="nc" id="L1117">			return orgList;</span>
+<span class="nc" id="L1118">		} catch (SQLException e) {</span>
+<span class="nc" id="L1119">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1121">			try {</span>
+<span class="nc bnc" id="L1122" title="All 6 branches missed.">				if (statement != null) {</span>
+<span class="nc" id="L1123">					statement.close();</span>
+				}
+<span class="nc bnc" id="L1125" title="All 6 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L1126">					connection.close();</span>
+				}
+<span class="nc" id="L1128">			} catch (SQLException se) {</span>
+<span class="nc" id="L1129">				se.printStackTrace();</span>
+<span class="nc" id="L1130">			}</span>
+<span class="nc" id="L1131">		}</span>
+<span class="nc" id="L1132">		return null;</span>
+	}
+
+	public String getPackFlag() {
+<span class="nc" id="L1136">		return packFlag;</span>
+
+	}
+
+	public String getTicketNbrFromTicketNo(String ticket_nbr) {
+<span class="nc" id="L1141">		String tkt_nbr = &quot;&quot;;</span>
+<span class="nc" id="L1142">		StringTokenizer st = new StringTokenizer(ticket_nbr, &quot;-&quot;);</span>
+<span class="nc bnc" id="L1143" title="All 2 branches missed.">		for (int i = 0; i &lt; 3; i++) {</span>
+<span class="nc bnc" id="L1144" title="All 2 branches missed.">			if (st.hasMoreTokens()) {</span>
+<span class="nc" id="L1145">				tkt_nbr = st.nextToken();</span>
+			}
+		}
+<span class="nc" id="L1148">		return tkt_nbr;</span>
+	}
+
+	public List&lt;BookBean&gt; getVerifiedBooks(List&lt;BookBean&gt; bookList,
+			int game_id, int org_id) {
+<span class="nc" id="L1153">		return bookList;</span>
+	}
+
+	public List&lt;PackBean&gt; getVerifiedPacks(List&lt;PackBean&gt; packList,
+			int game_id, int org_id) {
+<span class="nc" id="L1158">		return packList;</span>
+	}
+
+	public List&lt;TicketBean&gt; getVerifiedTickets(List&lt;TicketBean&gt; ticketBean,
+			int game_id) {
+<span class="nc" id="L1163">		List&lt;TicketBean&gt; verifyResults = new ArrayList&lt;TicketBean&gt;();</span>
+<span class="nc" id="L1164">		Connection connection = null;</span>
+<span class="nc" id="L1165">		PreparedStatement preparedStatement1 = null;</span>
+<span class="nc" id="L1166">		PreparedStatement preparedStatement2 = null;</span>
+<span class="nc" id="L1167">		PreparedStatement preparedStatement3 = null;</span>
+<span class="nc" id="L1168">		ResultSet resultSet1 = null;</span>
+<span class="nc" id="L1169">		ResultSet resultSet2 = null;</span>
+<span class="nc" id="L1170">		ResultSet resultSet3 = null;</span>
+		try {
+			 
+<span class="nc" id="L1173">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L1174">			String query1 = QueryManager</span>
+					.getST4CurrentOwnerDetailsUsingGameBookNbr();
+<span class="nc" id="L1176">			String query2 = QueryManager.getST4PwtTicketDetailsUsingTicketNbr();</span>
+<span class="nc" id="L1177">			String query3 = QueryManager.getST4GameDetailsUsingGameId();</span>
+
+<span class="nc" id="L1179">			Iterator&lt;TicketBean&gt; iterator = ticketBean.iterator();</span>
+<span class="nc bnc" id="L1180" title="All 2 branches missed.">			while (iterator.hasNext()) {</span>
+<span class="nc" id="L1181">				String ticket_nbr = null;</span>
+<span class="nc" id="L1182">				int size = 0;</span>
+<span class="nc" id="L1183">				ticket_nbr = iterator.next().getTicketNumber();</span>
+<span class="nc" id="L1184">				size = ticket_nbr.length();</span>
+
+<span class="nc bnc" id="L1186" title="All 2 branches missed.">				if (size != 0) {</span>
+
+<span class="nc" id="L1188">					TicketBean bean = new TicketBean();</span>
+<span class="nc" id="L1189">					bean.setTicketNumber(ticket_nbr);</span>
+<span class="nc" id="L1190">					String book_nbr = getBookNbrFromTicketNo(ticket_nbr);</span>
+<span class="nc" id="L1191">					int actual_tkt_nbr = Integer</span>
+							.parseInt(getTicketNbrFromTicketNo(ticket_nbr));
+<span class="nc" id="L1193">					logger.info(&quot;Book No is: &quot; + book_nbr);</span>
+
+<span class="nc" id="L1195">					preparedStatement1 = connection.prepareStatement(query1);</span>
+<span class="nc" id="L1196">					preparedStatement1.setInt(1, game_id);</span>
+<span class="nc" id="L1197">					preparedStatement1.setString(2, book_nbr);</span>
+<span class="nc" id="L1198">					resultSet1 = preparedStatement1.executeQuery();</span>
+
+<span class="nc bnc" id="L1200" title="All 2 branches missed.">					if (resultSet1.next()) {</span>
+
+<span class="nc bnc" id="L1202" title="All 2 branches missed.">						if (resultSet1.getString(&quot;current_owner&quot;).equals(</span>
+								&quot;RETAILER&quot;)) {
+
+<span class="nc" id="L1205">							preparedStatement2 = connection</span>
+									.prepareStatement(query2);
+<span class="nc" id="L1207">							preparedStatement2.setString(1, ticket_nbr);</span>
+<span class="nc" id="L1208">							resultSet2 = preparedStatement2.executeQuery();</span>
+
+<span class="nc bnc" id="L1210" title="All 2 branches missed.">							if (resultSet2.next()) {</span>
+<span class="nc" id="L1211">								bean.setValid(false);</span>
+<span class="nc" id="L1212">								bean.setStatus(&quot;Ticket's PWT Has Been Paid.&quot;);</span>
+<span class="nc" id="L1213">								verifyResults.add(bean);</span>
+<span class="nc" id="L1214">								System.out</span>
+										.println(&quot;Ticket IS exist in pwt table.&quot;);
+							} else {
+<span class="nc" id="L1217">								preparedStatement3 = connection</span>
+										.prepareStatement(query3);
+<span class="nc" id="L1219">								preparedStatement3.setInt(1, game_id);</span>
+<span class="nc" id="L1220">								resultSet3 = preparedStatement3.executeQuery();</span>
+<span class="nc bnc" id="L1221" title="All 2 branches missed.">								if (resultSet3.next()) {</span>
+<span class="nc bnc" id="L1222" title="All 2 branches missed.">									if (resultSet3</span>
+											.getInt(&quot;nbr_of_tickets_per_book&quot;) &lt;= actual_tkt_nbr) {
+<span class="nc" id="L1224">										bean.setValid(false);</span>
+<span class="nc" id="L1225">										bean.setStatus(&quot;Ticket Is Fake.&quot;);</span>
+<span class="nc" id="L1226">										verifyResults.add(bean);</span>
+<span class="nc" id="L1227">										System.out</span>
+												.println(&quot;Ticket number is fake.&quot;);
+									} else {
+<span class="nc" id="L1230">										bean.setValid(true);</span>
+<span class="nc" id="L1231">										bean</span>
+												.setStatus(&quot;Ticket Is Valid For PWT.&quot;);
+<span class="nc" id="L1233">										verifyResults.add(bean);</span>
+<span class="nc" id="L1234">										System.out</span>
+												.println(&quot;Ticket IS valid for pwt. (Means not fake and not in pwt table)&quot;);
+									}
+								}
+							}
+						} else {
+<span class="nc" id="L1240">							bean.setValid(false);</span>
+<span class="nc" id="L1241">							bean</span>
+									.setStatus(&quot;Ticket's Owner Is Not Valid. Or Ticket Is In Our Stock In Our Chain&quot;);
+<span class="nc" id="L1243">							verifyResults.add(bean);</span>
+<span class="nc" id="L1244">							logger.info(&quot;Ticket owner is not Retailer.&quot;);</span>
+						}
+					} else {
+<span class="nc" id="L1247">						bean.setValid(false);</span>
+<span class="nc" id="L1248">						bean.setStatus(&quot;Ticket Is Not Of The Our Company.&quot;);</span>
+<span class="nc" id="L1249">						verifyResults.add(bean);</span>
+<span class="nc" id="L1250">						logger.info(&quot;Ticket Is not of the company.&quot;);</span>
+					}
+				}
+<span class="nc" id="L1253">			}</span>
+<span class="nc" id="L1254">			logger.info(&quot;The verified List Is: &quot; + verifyResults);</span>
+<span class="nc" id="L1255">			return verifyResults;</span>
+<span class="nc" id="L1256">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1258">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1260">			try {</span>
+<span class="nc bnc" id="L1261" title="All 6 branches missed.">				if (preparedStatement1 != null) {</span>
+<span class="nc" id="L1262">					preparedStatement1.close();</span>
+				}
+<span class="nc bnc" id="L1264" title="All 6 branches missed.">				if (preparedStatement2 != null) {</span>
+<span class="nc" id="L1265">					preparedStatement2.close();</span>
+				}
+<span class="nc" id="L1267">			} catch (SQLException e) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L1269">				e.printStackTrace();</span>
+<span class="nc" id="L1270">			}</span>
+<span class="nc" id="L1271">		}</span>
+
+<span class="nc" id="L1273">		return null;</span>
+	}
+
+	public List&lt;BookBean&gt; saveBookData(int game_id, int org_id,
+			List&lt;BookBean&gt; bookList) {
+<span class="nc" id="L1278">		return bookList;</span>
+	}
+
+	public List&lt;PackBean&gt; savePackData(int game_id, int org_id,
+			List&lt;PackBean&gt; packList) {
+<span class="nc" id="L1283">		return packList;</span>
+	}
+
+	public List&lt;TicketBean&gt; saveTicketsData(int game_id,
+			List&lt;TicketBean&gt; verifiedTicketList) {
+<span class="nc" id="L1288">		List&lt;TicketBean&gt; savedResults = new ArrayList&lt;TicketBean&gt;();</span>
+<span class="nc" id="L1289">		Connection connection = null;</span>
+<span class="nc" id="L1290">		PreparedStatement Pstmt = null;</span>
+<span class="nc" id="L1291">		ResultSet resultSet = null;</span>
+<span class="nc" id="L1292">		String query = QueryManager.updateIntoPwtTicketsInv();</span>
+		try {
+			 
+<span class="nc" id="L1295">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L1296">			Pstmt = connection.prepareStatement(query);</span>
+<span class="nc" id="L1297">			Iterator&lt;TicketBean&gt; iterator = verifiedTicketList.iterator();</span>
+<span class="nc bnc" id="L1298" title="All 2 branches missed.">			while (iterator.hasNext()) {</span>
+<span class="nc" id="L1299">				String ticket_nbr = null;</span>
+<span class="nc" id="L1300">				boolean isValid = false;</span>
+<span class="nc" id="L1301">				int size = 0;</span>
+<span class="nc" id="L1302">				TicketBean ticketBean = (TicketBean) iterator.next();</span>
+<span class="nc" id="L1303">				isValid = ticketBean.getIsValid();</span>
+<span class="nc bnc" id="L1304" title="All 2 branches missed.">				if (isValid == true) {</span>
+<span class="nc" id="L1305">					ticket_nbr = ticketBean.getTicketNumber();</span>
+<span class="nc" id="L1306">					String book_nbr = getBookNbrFromTicketNo(ticket_nbr);</span>
+<span class="nc" id="L1307">					Pstmt.setString(1, ticket_nbr);</span>
+<span class="nc" id="L1308">					Pstmt.setInt(2, game_id);</span>
+<span class="nc" id="L1309">					Pstmt.setString(3, book_nbr);</span>
+<span class="nc" id="L1310">					Pstmt.executeUpdate();</span>
+
+<span class="nc" id="L1312">					TicketBean bean = new TicketBean();</span>
+<span class="nc" id="L1313">					bean.setTicketNumber(ticket_nbr);</span>
+<span class="nc" id="L1314">					bean.setValid(isValid);</span>
+<span class="nc" id="L1315">					savedResults.add(bean);</span>
+				}
+<span class="nc" id="L1317">			}</span>
+<span class="nc" id="L1318">			return savedResults;</span>
+<span class="nc" id="L1319">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1321">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1323">			try {</span>
+<span class="nc bnc" id="L1324" title="All 6 branches missed.">				if (Pstmt != null) {</span>
+<span class="nc" id="L1325">					Pstmt.close();</span>
+				}
+
+<span class="nc" id="L1328">			} catch (SQLException e) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L1330">				e.printStackTrace();</span>
+<span class="nc" id="L1331">			}</span>
+<span class="nc" id="L1332">		}</span>
+
+<span class="nc" id="L1334">		return null;</span>
+	}
+
+	/**
+	 * This method is used to get the valid books from verified books
+	 * 
+	 * @param bookBeanList
+	 * @return List(BookBean type) of valid books
+	 */
+	// Get Valid Books from the verified book list.
+	public List&lt;BookBean&gt; selectValidBooks(List&lt;BookBean&gt; bookBeanList) {
+<span class="nc" id="L1345">		List&lt;BookBean&gt; validBookBeanList = new ArrayList&lt;BookBean&gt;();</span>
+<span class="nc" id="L1346">		BookBean bean = null;</span>
+<span class="nc" id="L1347">		Iterator&lt;BookBean&gt; itr = bookBeanList.iterator();</span>
+<span class="nc bnc" id="L1348" title="All 2 branches missed.">		while (itr.hasNext()) {</span>
+<span class="nc" id="L1349">			bean = itr.next();</span>
+<span class="nc bnc" id="L1350" title="All 2 branches missed.">			if (bean.getIsValid() == true) {</span>
+<span class="nc" id="L1351">				validBookBeanList.add(bean);</span>
+			}
+		}
+<span class="nc" id="L1354">		return validBookBeanList;</span>
+	}
+
+	/**
+	 * This method is used to get the valid packs from verified packs
+	 * 
+	 * @param packBeanList
+	 * @return List of PackBean type of valid packs
+	 */
+	// Get Valid Packs from the verified pack list.
+	public List&lt;PackBean&gt; selectValidPacks(List&lt;PackBean&gt; packBeanList) {
+<span class="nc" id="L1365">		List&lt;PackBean&gt; validPackBeanList = new ArrayList&lt;PackBean&gt;();</span>
+<span class="nc" id="L1366">		PackBean bean = null;</span>
+<span class="nc" id="L1367">		Iterator&lt;PackBean&gt; itr = packBeanList.iterator();</span>
+<span class="nc bnc" id="L1368" title="All 2 branches missed.">		while (itr.hasNext()) {</span>
+<span class="nc" id="L1369">			bean = itr.next();</span>
+<span class="nc bnc" id="L1370" title="All 2 branches missed.">			if (bean.getIsValid() == true) {</span>
+<span class="nc" id="L1371">				validPackBeanList.add(bean);</span>
+			}
+		}
+<span class="nc" id="L1374">		return validPackBeanList;</span>
+	}
+
+	void setBookFlag(String bookflag) {
+<span class="nc" id="L1378">		bookFlag = bookflag;</span>
+
+<span class="nc" id="L1380">	}</span>
+
+	void setPackFlag(String packflag) {
+<span class="nc" id="L1383">		packFlag = packflag;</span>
+
+<span class="nc" id="L1385">	}</span>
+
+	/**
+	 * This method is used to check book validy only by current owner id and
+	 * status
+	 */
+
+	public boolean verifyBook(int game_id, String bknbr, int org_id,
+			Connection conn, String newBookStatus) throws LMSException {
+<span class="nc" id="L1394">		System.out</span>
+				.println(&quot;Enter In To verify book with owner ******************************&quot;);
+
+<span class="nc" id="L1397">		boolean bookflag = false;</span>
+		try {
+<span class="nc" id="L1399">			String query1 = QueryManager</span>
+					.getST4CurrentOwnerDetailsUsingGameBookNbr();
+<span class="nc" id="L1401">			PreparedStatement pstmt = conn.prepareStatement(query1);</span>
+<span class="nc" id="L1402">			pstmt.setInt(1, game_id);</span>
+<span class="nc" id="L1403">			pstmt.setString(2, bknbr);</span>
+<span class="nc" id="L1404">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1405" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc bnc" id="L1406" title="All 6 branches missed.">				if (org_id == rs.getInt(&quot;current_owner_id&quot;)</span>
+						&amp;&amp; rs.getString(&quot;book_status&quot;).equals(newBookStatus)
+						&amp;&amp; &quot;AGENT&quot;.equalsIgnoreCase(rs
+								.getString(&quot;current_owner&quot;))) {
+<span class="nc" id="L1410">					bookflag = true;</span>
+				}
+			}
+						
+
+<span class="nc" id="L1415">			System.out</span>
+					.println(&quot;************************* book is verified and flag is &quot;
+							+ bookflag + &quot; for book &quot; + bknbr);
+<span class="nc" id="L1418">			return bookflag;</span>
+<span class="nc" id="L1419">		} catch (SQLException e) {</span>
+<span class="nc" id="L1420">			e.printStackTrace();</span>
+<span class="nc" id="L1421">			throw new LMSException(&quot;Exception while book verification&quot;);</span>
+		}
+
+	}
+
+	/**
+	 * This method is used to check book for paid pwts
+	 * 
+	 * @param game_id
+	 * @param bknbr
+	 *            is poch number
+	 * @return boolean
+	 */
+	// Check Book Verification For PWT Tickets.
+	public boolean verifyBookValidityWithPWT(int game_id, String bknbr,
+			Connection con, int gameNbr) {
+
+<span class="nc" id="L1438">		System.out</span>
+				.println(&quot;Enter In To verify book with PWT ^^^^^^^^^^^^^^^^^^^^^^^&quot;);
+
+<span class="nc" id="L1441">		boolean bookPwtFlag = true;</span>
+		 
+<span class="nc" id="L1443">		Connection conn = null;</span>
+		// conn= DBConnect.getConnection();
+<span class="nc" id="L1445">		conn = con;</span>
+<span class="nc" id="L1446">		String query6 = QueryManager.getST4BookOfTicketsOfPwt();</span>
+		PreparedStatement stmt6;
+		try {
+<span class="nc" id="L1449">			stmt6 = conn.prepareStatement(query6);</span>
+<span class="nc" id="L1450">			stmt6.setInt(1, gameNbr);</span>
+<span class="nc" id="L1451">			stmt6.setInt(2, game_id);</span>
+<span class="nc" id="L1452">			stmt6.setString(3, bknbr);</span>
+<span class="nc" id="L1453">			ResultSet rs = stmt6.executeQuery();</span>
+<span class="nc bnc" id="L1454" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1455">				bookPwtFlag = false;</span>
+			}
+
+<span class="nc bnc" id="L1458" title="All 2 branches missed.">			if (bookPwtFlag == false) {</span>
+<span class="nc" id="L1459">				logger.info(&quot;bookPwtFlag is not valid: &quot; + bookPwtFlag);</span>
+			} else {
+<span class="nc" id="L1461">				logger.info(&quot;bookPwtFlag is valid: &quot; + bookPwtFlag);</span>
+			}
+
+<span class="nc" id="L1464">			System.out</span>
+					.println(&quot;^^^^^^^^^^^^^^^^^^^^^^^^book verify for PWT is complete&quot;);
+<span class="nc" id="L1466">			return bookPwtFlag;</span>
+<span class="nc" id="L1467">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1469">			e.printStackTrace();</span>
+<span class="nc" id="L1470">		} finally {</span>
+			/*
+			 * try{ if(conn!=null) conn.close(); }catch(SQLException se){
+			 * se.printStackTrace(); }
+			 */
+<span class="nc" id="L1475">		}</span>
+<span class="nc" id="L1476">		return bookPwtFlag;</span>
+	}
+
+	/**
+	 * This method is used to check book for paid pwts
+	 * 
+	 * @param game_id
+	 * @param bknbr
+	 *            is poch number
+	 * @return boolean
+	 */
+	// Check Book Verification For PWT Tickets.
+	public boolean verifyBookValidityWithPWTTempTable(int game_id,
+			String bknbr, Connection con) {
+
+<span class="nc" id="L1491">		System.out</span>
+				.println(&quot;Enter In To verify book with PWT ^^^^^^^^^^^^^^^^^^^^^^^&quot;);
+
+<span class="nc" id="L1494">		boolean bookPwtFlag = true;</span>
+		 
+<span class="nc" id="L1496">		Connection conn = null;</span>
+		// conn= DBConnect.getConnection();
+<span class="nc" id="L1498">		conn = con;</span>
+<span class="nc" id="L1499">		String query6 = QueryManager.getST4BookOfTicketsOfPwtTmpTable();</span>
+		PreparedStatement stmt6;
+		try {
+<span class="nc" id="L1502">			stmt6 = conn.prepareStatement(query6);</span>
+<span class="nc" id="L1503">			stmt6.setInt(1, game_id);</span>
+<span class="nc" id="L1504">			stmt6.setString(2, bknbr);</span>
+<span class="nc" id="L1505">			ResultSet rs = stmt6.executeQuery();</span>
+<span class="nc bnc" id="L1506" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1507">				bookPwtFlag = false;</span>
+			}
+
+<span class="nc bnc" id="L1510" title="All 2 branches missed.">			if (bookPwtFlag == false) {</span>
+<span class="nc" id="L1511">				logger.info(&quot;bookPwtFlag is not valid: &quot; + bookPwtFlag);</span>
+			} else {
+<span class="nc" id="L1513">				logger.info(&quot;bookPwtFlag is valid: &quot; + bookPwtFlag);</span>
+			}
+
+<span class="nc" id="L1516">			System.out</span>
+					.println(&quot;^^^^^^^^^^^^^^^^^^^^^^^^book verify for PWT is complete in temporary table&quot;);
+<span class="nc" id="L1518">			return bookPwtFlag;</span>
+<span class="nc" id="L1519">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1521">			e.printStackTrace();</span>
+<span class="nc" id="L1522">		} finally {</span>
+			// try{
+			// if(conn!=null)
+			// conn.close();
+			// }catch(SQLException se){
+			// se.printStackTrace();
+			// }
+<span class="nc" id="L1529">		}</span>
+<span class="nc" id="L1530">		return bookPwtFlag;</span>
+	}
+
+	/**
+	 * This method is used to check whether book number exists for organization
+	 * 
+	 * @param game_id
+	 * @param bknbr
+	 * @param org_id
+	 * @return boolean
+	 */
+	// Check Book Verification for Existence.
+	public boolean verifyBookWithExistance(int game_id, String bknbr,
+			int org_id, Connection con) {
+<span class="nc" id="L1544">		System.out</span>
+				.println(&quot;Enter In To verify Book with Existence -----------------------------&quot;);
+<span class="nc" id="L1546">		boolean bookExistenceflag = true;</span>
+		 
+<span class="nc" id="L1548">		Connection conn = null;</span>
+		// conn= DBConnect.getConnection();
+<span class="nc" id="L1550">		conn = con;</span>
+<span class="nc" id="L1551">		PreparedStatement stmt1 = null;</span>
+<span class="nc" id="L1552">		String query1 = QueryManager.getST4BookValidityQuery();</span>
+		try {
+<span class="nc" id="L1554">			stmt1 = conn.prepareStatement(query1);</span>
+<span class="nc" id="L1555">			stmt1.setInt(1, game_id);</span>
+<span class="nc" id="L1556">			stmt1.setString(2, bknbr);</span>
+<span class="nc" id="L1557">			ResultSet rs1 = stmt1.executeQuery();</span>
+<span class="nc bnc" id="L1558" title="All 2 branches missed.">			while (rs1.next()) {</span>
+<span class="nc bnc" id="L1559" title="All 2 branches missed.">				if (!(rs1.getInt(&quot;total&quot;) &gt; 0)) {</span>
+<span class="nc" id="L1560">					bookExistenceflag = false;</span>
+					// logger.info(&quot;Book No. :&quot;+bknbr +&quot; is not Exist in
+					// Organization. Totla count is: &quot;+rs1.getInt(&quot;total&quot;));
+				}
+			}
+<span class="nc bnc" id="L1565" title="All 2 branches missed.">			if (bookExistenceflag == false) {</span>
+<span class="nc" id="L1566">				logger.info(&quot;bookExistenceflag is not Exist: &quot;</span>
+						+ bookExistenceflag);
+			} else {
+<span class="nc" id="L1569">				logger.info(&quot;bookExistenceflag is Exist: &quot;</span>
+						+ bookExistenceflag);
+			}
+<span class="nc" id="L1572">			System.out</span>
+					.println(&quot;----------------------------- verify book with Existence is complete&quot;);
+<span class="nc" id="L1574">			return bookExistenceflag;</span>
+<span class="nc" id="L1575">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1577">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1579">			try {</span>
+<span class="nc bnc" id="L1580" title="All 6 branches missed.">				if (stmt1 != null) {</span>
+<span class="nc" id="L1581">					stmt1.close();</span>
+					// if(conn!=null)
+					// conn.close();
+				}
+<span class="nc" id="L1585">			} catch (SQLException e) {</span>
+<span class="nc" id="L1586">				e.printStackTrace();</span>
+<span class="nc" id="L1587">			}</span>
+<span class="nc" id="L1588">		}</span>
+<span class="nc" id="L1589">		return bookExistenceflag;</span>
+	}
+
+	/**
+	 * This method is used to verify book owner
+	 * 
+	 * @param game_id
+	 * @param bknbr
+	 * @param org_id
+	 * @return boolean
+	 */
+
+	// Check Book Verification for Owner.
+	public boolean verifyBookWithOwner(int game_id, String bknbr, int org_id,
+			String isRetOnline, Connection con) {
+
+<span class="nc" id="L1605">		System.out</span>
+				.println(&quot;Enter In To verify book with owner ******************************&quot;);
+
+<span class="nc" id="L1608">		boolean bookflag = false;</span>
+		 
+<span class="nc" id="L1610">		Connection conn = null;</span>
+		// conn= DBConnect.getConnection();
+<span class="nc" id="L1612">		conn = con;</span>
+		try {
+<span class="nc" id="L1614">			String query1 = QueryManager</span>
+					.getST4CurrentOwnerDetailsUsingGameBookNbr();
+<span class="nc" id="L1616">			PreparedStatement stmt1 = conn.prepareStatement(query1);</span>
+<span class="nc" id="L1617">			stmt1.setInt(1, game_id);</span>
+<span class="nc" id="L1618">			stmt1.setString(2, bknbr);</span>
+<span class="nc" id="L1619">			ResultSet rs1 = stmt1.executeQuery();</span>
+
+<span class="nc bnc" id="L1621" title="All 2 branches missed.">			if (isRetOnline.equals(&quot;NO&quot;)) {</span>
+<span class="nc bnc" id="L1622" title="All 2 branches missed.">				while (rs1.next()) {</span>
+<span class="nc bnc" id="L1623" title="All 2 branches missed.">					if (org_id == rs1.getInt(&quot;current_owner_id&quot;)) {</span>
+<span class="nc" id="L1624">						bookflag = true;</span>
+						// logger.info(&quot;bookflag: &quot;+bookflag);
+					}
+				}
+			}
+
+			else {
+<span class="nc bnc" id="L1631" title="All 2 branches missed.">				while (rs1.next()) {</span>
+<span class="nc bnc" id="L1632" title="All 6 branches missed.">					if (!(rs1.getString(&quot;book_status&quot;) == null)</span>
+							&amp;&amp; org_id == rs1.getInt(&quot;current_owner_id&quot;)
+							&amp;&amp; rs1.getString(&quot;book_status&quot;).equals(&quot;INACTIVE&quot;)) {
+<span class="nc" id="L1635">						bookflag = true;</span>
+						// logger.info(&quot;bookflag: &quot;+bookflag + &quot;book
+						// status &quot; + rs1.getString(&quot;book_status&quot;));
+					}
+				}
+
+			}
+
+<span class="nc bnc" id="L1643" title="All 2 branches missed.">			if (bookflag == false) {</span>
+<span class="nc" id="L1644">				logger.info(&quot;bookflag is not valid: &quot; + bookflag);</span>
+			} else {
+<span class="nc" id="L1646">				logger.info(&quot;bookflag is valid: &quot; + bookflag);</span>
+			}
+
+<span class="nc" id="L1649">			System.out</span>
+					.println(&quot;************************* verify pack with owner is complete&quot;);
+<span class="nc" id="L1651">			return bookflag;</span>
+
+<span class="nc" id="L1653">		} catch (SQLException e) {</span>
+<span class="nc" id="L1654">			e.printStackTrace();</span>
+<span class="nc" id="L1655">		} finally {</span>
+			// try{
+			// if(conn!=null)
+			// conn.close();
+			// }catch(SQLException se){
+			// se.printStackTrace();
+			// }
+<span class="nc" id="L1662">		}</span>
+
+<span class="nc" id="L1664">		return bookflag;</span>
+	}
+
+	/**
+	 * This method is used to check pack validy only by current owner id and
+	 * status
+	 */
+
+	public boolean verifyPack(int game_id, String pknbr, int org_id,
+			Connection conn) throws LMSException {
+<span class="nc" id="L1674">		System.out</span>
+				.println(&quot;Enter In To verify pack ******************************&quot;);
+
+<span class="nc" id="L1677">		boolean bookflag = false;</span>
+		try {
+			// String query1=
+			// QueryManager.getST4CurrentOwnerDetailsUsingGameBookNbr();
+<span class="nc" id="L1681">			PreparedStatement pstmt = conn</span>
+					.prepareStatement(&quot;select book_status,current_owner_id,current_owner from st_se_game_inv_status where game_id=? and pack_nbr = ?&quot;);
+<span class="nc" id="L1683">			pstmt.setInt(1, game_id);</span>
+<span class="nc" id="L1684">			pstmt.setString(2, pknbr);</span>
+<span class="nc" id="L1685">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1686" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc bnc" id="L1687" title="All 6 branches missed.">				if (org_id != rs.getInt(&quot;current_owner_id&quot;)</span>
+						&amp;&amp; !&quot;ACTIVE&quot;.equalsIgnoreCase(rs
+								.getString(&quot;book_status&quot;))
+						&amp;&amp; !&quot;AGENT&quot;.equalsIgnoreCase(rs
+								.getString(&quot;current_owner&quot;))) {
+<span class="nc" id="L1692">					return bookflag;</span>
+				} else {
+<span class="nc" id="L1694">					bookflag = true;</span>
+				}
+			}
+<span class="nc" id="L1697">			System.out</span>
+					.println(&quot;************************* pack is verified and flag is &quot;
+							+ bookflag + &quot; for pack &quot; + pknbr);
+<span class="nc" id="L1700">			return bookflag;</span>
+<span class="nc" id="L1701">		} catch (SQLException e) {</span>
+<span class="nc" id="L1702">			e.printStackTrace();</span>
+<span class="nc" id="L1703">			throw new LMSException(</span>
+					&quot;Exception while pack verification in sale return @ BO&quot;);
+		}
+	}
+
+	/**
+	 * This method inside helper class is used to verify pack eith pwt(either
+	 * pwt is paid or not)
+	 * 
+	 * @param game_id
+	 * @param pknbr
+	 * @return boolean
+	 */
+	// Check Pack Verification For PWT tickets.
+	public boolean verifyPackValidityWithPWT(int game_id, String pknbr,
+			int gameNbr) throws LMSException {
+
+<span class="nc" id="L1720">		System.out</span>
+				.println(&quot;Enter In To verify pack with PWT +++++++++++++++++++++++++++++&quot;);
+
+<span class="nc" id="L1723">		boolean packPwtFlag = true;</span>
+		 
+<span class="nc" id="L1725">		Connection conn = null;</span>
+<span class="nc" id="L1726">		conn = DBConnect.getConnection();</span>
+<span class="nc" id="L1727">		String query6 = QueryManager</span>
+				.getST4PWTDetailsForBookNbrUsingGamePackNbr();
+		PreparedStatement stmt6;
+		try {
+<span class="nc" id="L1731">			stmt6 = conn.prepareStatement(query6);</span>
+<span class="nc" id="L1732">			stmt6.setInt(1, gameNbr);</span>
+<span class="nc" id="L1733">			stmt6.setInt(2, game_id);</span>
+<span class="nc" id="L1734">			stmt6.setInt(3, game_id);</span>
+<span class="nc" id="L1735">			stmt6.setString(4, pknbr);</span>
+<span class="nc" id="L1736">			ResultSet rs = stmt6.executeQuery();</span>
+<span class="nc bnc" id="L1737" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1738">				packPwtFlag = false;</span>
+			}
+<span class="nc bnc" id="L1740" title="All 2 branches missed.">			if (packPwtFlag == false) {</span>
+<span class="nc" id="L1741">				logger.info(&quot;packPwtFlag is not valid: &quot; + packPwtFlag);</span>
+			} else {
+<span class="nc" id="L1743">				logger.info(&quot;packPwtFlag is valid: &quot; + packPwtFlag);</span>
+			}
+
+<span class="nc" id="L1746">			System.out</span>
+					.println(&quot;+++++++++++++++++++++ verify pack with PWT is complete&quot;);
+<span class="nc" id="L1748">			return packPwtFlag;</span>
+<span class="nc" id="L1749">		} catch (SQLException e) {</span>
+<span class="nc" id="L1750">			e.printStackTrace();</span>
+<span class="nc" id="L1751">			throw new LMSException(&quot;sql exception &quot;, e);</span>
+
+		} finally {
+<span class="nc" id="L1754">			try {</span>
+<span class="nc bnc" id="L1755" title="All 4 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L1756">					conn.close();</span>
+				}
+<span class="nc" id="L1758">			} catch (SQLException se) {</span>
+<span class="nc" id="L1759">				se.printStackTrace();</span>
+<span class="nc" id="L1760">				throw new LMSException(&quot;error during closing connection &quot;, se);</span>
+
+<span class="nc" id="L1762">			}</span>
+		}
+
+		// return packPwtFlag;
+	}
+
+	// Check Pack Verification For PWT tickets.
+	public boolean verifyPackValidityWithPWTTempTable(int game_id, String pknbr)
+			throws LMSException {
+
+<span class="nc" id="L1772">		System.out</span>
+				.println(&quot;Enter In To verify pack with PWT +++++++++++++++++++++++++++++&quot;);
+
+<span class="nc" id="L1775">		boolean packPwtFlag = true;</span>
+		 
+<span class="nc" id="L1777">		Connection conn = null;</span>
+<span class="nc" id="L1778">		conn = DBConnect.getConnection();</span>
+<span class="nc" id="L1779">		String query6 = QueryManager</span>
+				.getST4PWTDetailsForBookNbrUsingGamePackNbrTempTable();
+		PreparedStatement stmt6;
+		try {
+<span class="nc" id="L1783">			stmt6 = conn.prepareStatement(query6);</span>
+<span class="nc" id="L1784">			stmt6.setInt(1, game_id);</span>
+<span class="nc" id="L1785">			stmt6.setInt(2, game_id);</span>
+<span class="nc" id="L1786">			stmt6.setString(3, pknbr);</span>
+<span class="nc" id="L1787">			ResultSet rs = stmt6.executeQuery();</span>
+<span class="nc bnc" id="L1788" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1789">				packPwtFlag = false;</span>
+			}
+<span class="nc bnc" id="L1791" title="All 2 branches missed.">			if (packPwtFlag == false) {</span>
+<span class="nc" id="L1792">				logger.info(&quot;packPwtFlag is not valid: &quot; + packPwtFlag);</span>
+			} else {
+<span class="nc" id="L1794">				logger.info(&quot;packPwtFlag is valid: &quot; + packPwtFlag);</span>
+			}
+
+<span class="nc" id="L1797">			System.out</span>
+					.println(&quot;+++++++++++++++++++++ verify pack with PWT is complete in temporary table&quot;);
+<span class="nc" id="L1799">			return packPwtFlag;</span>
+<span class="nc" id="L1800">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1802">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1804">			try {</span>
+<span class="nc bnc" id="L1805" title="All 6 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L1806">					conn.close();</span>
+				}
+
+<span class="nc" id="L1809">			} catch (SQLException se) {</span>
+<span class="nc" id="L1810">				se.printStackTrace();</span>
+<span class="nc" id="L1811">			}</span>
+<span class="nc" id="L1812">		}</span>
+
+<span class="nc" id="L1814">		return packPwtFlag;</span>
+	}
+
+	/**
+	 * This method is used to check whether pack is valid for the game
+	 * 
+	 * @param game_id
+	 * @param pknbr
+	 * @param org_id
+	 * @return boolean
+	 */
+	// Check Pack Verification for Existence.
+	public boolean verifyPackWithExistance(int game_id, String pknbr, int org_id) {
+<span class="nc" id="L1827">		System.out</span>
+				.println(&quot;Enter In To verify pack with Existence -----------------------------&quot;);
+<span class="nc" id="L1829">		boolean packExistenceflag = true;</span>
+		 
+<span class="nc" id="L1831">		Connection conn = null;</span>
+<span class="nc" id="L1832">		conn = DBConnect.getConnection();</span>
+<span class="nc" id="L1833">		PreparedStatement stmt1 = null;</span>
+<span class="nc" id="L1834">		String query1 = QueryManager.getST4PackValidityQuery();</span>
+		try {
+<span class="nc" id="L1836">			stmt1 = conn.prepareStatement(query1);</span>
+<span class="nc" id="L1837">			stmt1.setInt(1, game_id);</span>
+<span class="nc" id="L1838">			stmt1.setString(2, pknbr);</span>
+<span class="nc" id="L1839">			ResultSet rs1 = stmt1.executeQuery();</span>
+<span class="nc bnc" id="L1840" title="All 2 branches missed.">			while (rs1.next()) {</span>
+<span class="nc bnc" id="L1841" title="All 2 branches missed.">				if (!(rs1.getInt(&quot;total&quot;) &gt; 0)) {</span>
+<span class="nc" id="L1842">					packExistenceflag = false;</span>
+					// logger.info(&quot;Pack No. :&quot;+pknbr +&quot; is not Exist in
+					// Organization. Totla count is: &quot;+rs1.getInt(&quot;total&quot;));
+				}
+			}
+<span class="nc bnc" id="L1847" title="All 2 branches missed.">			if (packExistenceflag == false) {</span>
+<span class="nc" id="L1848">				logger.info(&quot;packflag is not Exist: &quot;</span>
+						+ packExistenceflag);
+			} else {
+<span class="nc" id="L1851">				logger.info(&quot;packflag is Exist: &quot; + packExistenceflag);</span>
+
+			}
+<span class="nc" id="L1854">			System.out</span>
+					.println(&quot;----------------------------- verify pack with Existence is complete&quot;);
+<span class="nc" id="L1856">			return packExistenceflag;</span>
+<span class="nc" id="L1857">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1859">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1861">			try {</span>
+<span class="nc bnc" id="L1862" title="All 6 branches missed.">				if (stmt1 != null) {</span>
+<span class="nc" id="L1863">					stmt1.close();</span>
+				}
+<span class="nc bnc" id="L1865" title="All 6 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L1866">					conn.close();</span>
+				}
+<span class="nc" id="L1868">			} catch (SQLException e) {</span>
+<span class="nc" id="L1869">				e.printStackTrace();</span>
+<span class="nc" id="L1870">			}</span>
+<span class="nc" id="L1871">		}</span>
+<span class="nc" id="L1872">		return packExistenceflag;</span>
+	}
+
+	/**
+	 * This method is used to check the current owner of the pack
+	 * 
+	 * @param game_id
+	 * @param pknbr
+	 * @param org_id
+	 * @return boolean
+	 */
+	// Check Pack Verification for Owner.
+	public boolean verifyPackWithOwner(int game_id, String pknbr, int org_id,
+			String isRetOnline) {
+<span class="nc" id="L1886">		System.out</span>
+				.println(&quot;Enter In To verify pack with owner -----------------------------&quot;);
+<span class="nc" id="L1888">		boolean packflag = true;</span>
+		 
+<span class="nc" id="L1890">		Connection conn = null;</span>
+<span class="nc" id="L1891">		conn = DBConnect.getConnection();</span>
+<span class="nc" id="L1892">		PreparedStatement stmt1 = null;</span>
+<span class="nc" id="L1893">		String query1 = QueryManager</span>
+				.getST4CurrentOwnerDetailsAndBookNbrUsingGamePackNbr();
+		try {
+<span class="nc" id="L1896">			stmt1 = conn.prepareStatement(query1);</span>
+<span class="nc" id="L1897">			stmt1.setInt(1, game_id);</span>
+<span class="nc" id="L1898">			stmt1.setString(2, pknbr);</span>
+<span class="nc" id="L1899">			ResultSet rs1 = stmt1.executeQuery();</span>
+
+<span class="nc bnc" id="L1901" title="All 2 branches missed.">			if (isRetOnline.equals(&quot;NO&quot;)) {</span>
+<span class="nc bnc" id="L1902" title="All 2 branches missed.">				while (rs1.next()) {</span>
+<span class="nc bnc" id="L1903" title="All 2 branches missed.">					if (!(org_id == rs1.getInt(&quot;current_owner_id&quot;))) {</span>
+<span class="nc" id="L1904">						packflag = false;</span>
+						// logger.info(&quot;Pack No. :&quot;+pknbr +&quot; of Book no
+						// :&quot;+rs1.getString(&quot;book_nbr&quot;)+ &quot; is of the
+						// Organization: &quot;+rs1.getInt(&quot;current_owner_id&quot;)+&quot; not
+						// of the salected Organization: &quot;+org_id);
+					}
+				}
+			} else {
+<span class="nc bnc" id="L1912" title="All 2 branches missed.">				while (rs1.next()) {</span>
+<span class="nc bnc" id="L1913" title="All 6 branches missed.">					if (rs1.getString(&quot;book_status&quot;) == null</span>
+							|| !(org_id == rs1.getInt(&quot;current_owner_id&quot;))
+							|| !rs1.getString(&quot;book_status&quot;).equals(&quot;INACTIVE&quot;)) {
+<span class="nc" id="L1916">						packflag = false;</span>
+						// logger.info(&quot;Pack No. :&quot;+pknbr +&quot; of Book no
+						// :&quot;+rs1.getString(&quot;book_nbr&quot;)+ &quot; is of the
+						// Organization: &quot;+rs1.getInt(&quot;current_owner_id&quot;)+&quot; not
+						// of the salected Organization: &quot;+org_id);
+						// logger.info(&quot;book status for this pack is &quot; +
+						// rs1.getString(&quot;book_status&quot;));
+					}
+				}
+			}
+
+<span class="nc bnc" id="L1927" title="All 2 branches missed.">			if (packflag == false) {</span>
+<span class="nc" id="L1928">				logger.info(&quot;packflag is not valid: &quot; + packflag);</span>
+			} else {
+<span class="nc" id="L1930">				logger.info(&quot;packflag is valis: &quot; + packflag);</span>
+			}
+<span class="nc" id="L1932">			System.out</span>
+					.println(&quot;----------------------------- verify pack with owner is complete&quot;);
+<span class="nc" id="L1934">			return packflag;</span>
+<span class="nc" id="L1935">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1937">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1939">			try {</span>
+<span class="nc bnc" id="L1940" title="All 6 branches missed.">				if (stmt1 != null) {</span>
+<span class="nc" id="L1941">					stmt1.close();</span>
+				}
+<span class="nc bnc" id="L1943" title="All 6 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L1944">					conn.close();</span>
+				}
+<span class="nc" id="L1946">			} catch (SQLException e) {</span>
+<span class="nc" id="L1947">				e.printStackTrace();</span>
+<span class="nc" id="L1948">			}</span>
+<span class="nc" id="L1949">		}</span>
+
+<span class="nc" id="L1951">		return packflag;</span>
+	}
+	
+	public boolean showCreditNote(int receipt_id) {
+<span class="nc" id="L1955">		boolean showCreditNote = false; </span>
+<span class="nc" id="L1956">		Connection conn = null;</span>
+<span class="nc" id="L1957">		PreparedStatement preparedStatement = null;</span>
+<span class="nc" id="L1958">		ResultSet rs = null;</span>
+<span class="nc" id="L1959">		String query =  &quot;select sbtm.transaction_id,transaction_type,sbr.receipt_type,sbr.generated_id, sbr.voucher_date from st_lms_bo_receipts_trn_mapping sbrtm,st_lms_bo_transaction_master sbtm,st_lms_bo_receipts sbr where sbrtm.receipt_id=? and  sbrtm.transaction_id=sbtm.transaction_id and sbr.receipt_id=sbrtm.receipt_id&quot;;</span>
+		try {
+<span class="nc" id="L1961">			conn = DBConnect.getConnection();</span>
+<span class="nc" id="L1962">			preparedStatement = conn.prepareStatement(query);</span>
+<span class="nc" id="L1963">			preparedStatement.setInt(1, receipt_id);</span>
+<span class="nc" id="L1964">			rs = preparedStatement.executeQuery();</span>
+<span class="nc" id="L1965">			logger.info(preparedStatement);</span>
+
+<span class="nc bnc" id="L1967" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L1968">				showCreditNote = true;</span>
+			}
+<span class="nc" id="L1970">		} catch (SQLException e) {</span>
+<span class="nc" id="L1971">			logger.error(e);</span>
+		} finally {
+<span class="nc" id="L1973">			DBConnect.closeResource(conn,preparedStatement,rs);</span>
+<span class="nc" id="L1974">		}</span>
+
+<span class="nc" id="L1976">		return showCreditNote;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,2427 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BOPwtProcessHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.pwtMgmt.common</a> &gt; <span class="el_source">BOPwtProcessHelper.java</span></div><h1>BOPwtProcessHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.scratchService.pwtMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import com.skilrock.lms.beans.GamePlayerPWTBean;
+import com.skilrock.lms.beans.PlayerBean;
+import com.skilrock.lms.beans.PwtApproveRequestNPlrBean;
+import com.skilrock.lms.beans.PwtBean;
+import com.skilrock.lms.beans.TicketBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.GameUtilityHelper;
+import com.skilrock.lms.common.utility.GenerateRecieptNo;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.GraphReportHelper;
+
+<span class="nc" id="L33">public class BOPwtProcessHelper {</span>
+
+	private Connection connection;
+	private PreparedStatement pstmt;
+	private ResultSet result;
+
+	public String approvePendingPwts(int taskId, double pwtAmount,
+			int requestedById, String requesterType, int approvedByOrgId,
+			int approvedByUserId, int gameId, int gameNbr, String virnNbr,
+			String ticketNbr, String pwtAmtForMasterApproval, String channel,
+			String interfaceType) throws LMSException {
+		 
+		// Connection con=null;
+<span class="nc" id="L46">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L47">		ResultSet payLimitDetails = null;</span>
+<span class="nc" id="L48">		connection = DBConnect.getConnection();</span>
+<span class="nc" id="L49">		double agtPayLimit = 0.0;</span>
+<span class="nc" id="L50">		double retPayLimit = 0.0;</span>
+		String status;
+		String payReqForOrgType;
+<span class="nc" id="L53">		int payReqForOrgId = 0;</span>
+		String remarks;
+
+		try {
+<span class="nc" id="L57">			connection.setAutoCommit(false);</span>
+<span class="nc" id="L58">			String getPayLimits = null;</span>
+
+			// check if bomaster Approval required
+<span class="nc bnc" id="L61" title="All 2 branches missed.">			if (pwtAmount &gt;= Integer.parseInt(pwtAmtForMasterApproval)) {</span>
+				// go for master's approval
+<span class="nc" id="L63">				remarks = &quot;Pending For BO Master Approval&quot;;</span>
+<span class="nc" id="L64">				status = &quot;PND_MAS&quot;;</span>
+<span class="nc" id="L65">				String updateRequestStatus = &quot;update st_se_pwt_approval_request_master set req_status=?,requested_to_type=?,approved_by_type=?,approved_by_user_id=?,approved_by_org_id=?,approval_date=?,remarks=? where task_id=?&quot;;</span>
+<span class="nc" id="L66">				pstmt = connection.prepareStatement(updateRequestStatus);</span>
+<span class="nc" id="L67">				pstmt.setString(1, status);</span>
+<span class="nc" id="L68">				pstmt.setString(2, &quot;BO&quot;);</span>
+<span class="nc" id="L69">				pstmt.setString(3, &quot;BO&quot;);</span>
+<span class="nc" id="L70">				pstmt.setInt(4, approvedByUserId);</span>
+<span class="nc" id="L71">				pstmt.setInt(5, approvedByOrgId);</span>
+<span class="nc" id="L72">				pstmt.setDate(6, new java.sql.Date(new java.util.Date()</span>
+						.getTime()));
+<span class="nc" id="L74">				pstmt.setString(7, remarks);</span>
+<span class="nc" id="L75">				pstmt.setInt(8, taskId);</span>
+<span class="nc" id="L76">				int updatedRow = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">				if (updatedRow == 1) {</span>
+<span class="nc" id="L78">					System.out</span>
+							.println(&quot;Request status updated for BO Master Approval&quot;);
+				} else {
+<span class="nc" id="L81">					throw new LMSException(</span>
+							&quot;Exception while sending request for master approval&quot;);
+				}
+<span class="nc" id="L84">			} else {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">				if (requesterType.equals(&quot;RETAILER&quot;)) {</span>
+<span class="nc" id="L86">					getPayLimits = &quot;select organization_id,pay_limit from st_lms_oranization_limits where organization_id in(?,(select parent_id from st_lms_organization_master where organization_id=?))&quot;;</span>
+<span class="nc" id="L87">					pstmt = connection.prepareStatement(getPayLimits);</span>
+<span class="nc" id="L88">					pstmt.setInt(1, requestedById);</span>
+<span class="nc" id="L89">					pstmt.setInt(2, requestedById);</span>
+<span class="nc" id="L90">					payLimitDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L91">					int payByOrgRet = 0;</span>
+<span class="nc" id="L92">					int payByOrgAgt = 0;</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">					while (payLimitDetails.next()) {</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">						if (payLimitDetails.getInt(&quot;organization_id&quot;) == requestedById) {</span>
+<span class="nc" id="L95">							retPayLimit = payLimitDetails</span>
+									.getDouble(&quot;pay_limit&quot;);
+							// payReqForOrgId=payLimitDetails.getInt(&quot;organization_id&quot;);
+<span class="nc" id="L98">							payByOrgRet = payLimitDetails</span>
+									.getInt(&quot;organization_id&quot;);
+						} else {
+<span class="nc" id="L101">							agtPayLimit = payLimitDetails</span>
+									.getDouble(&quot;pay_limit&quot;);
+							// payReqForOrgId=payLimitDetails.getInt(&quot;organization_id&quot;);
+<span class="nc" id="L104">							payByOrgAgt = payLimitDetails</span>
+									.getInt(&quot;organization_id&quot;);
+						}
+					}
+<span class="nc bnc" id="L108" title="All 2 branches missed.">					if (pwtAmount &lt;= retPayLimit) { // go for retailer's payment</span>
+<span class="nc" id="L109">						status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L110">						payReqForOrgType = &quot;RETAILER&quot;;</span>
+<span class="nc" id="L111">						payReqForOrgId = payByOrgRet;</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">					} else if (pwtAmount &lt;= agtPayLimit) { // go for agent's</span>
+						// payment
+<span class="nc" id="L114">						status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L115">						payReqForOrgType = &quot;AGENT&quot;;</span>
+<span class="nc" id="L116">						payReqForOrgId = payByOrgAgt;</span>
+					} else { // go for BO's pending pwt
+<span class="nc" id="L118">						status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L119">						payReqForOrgType = &quot;BO&quot;;</span>
+<span class="nc" id="L120">						payReqForOrgId = approvedByOrgId; // Bo's organization</span>
+						// id
+					}
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">				} else if (requesterType.equals(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L125">					getPayLimits = &quot;select organization_id,pay_limit from st_lms_oranization_limits where organization_id=?&quot;;</span>
+<span class="nc" id="L126">					pstmt = connection.prepareStatement(getPayLimits);</span>
+<span class="nc" id="L127">					pstmt.setInt(1, requestedById);</span>
+<span class="nc" id="L128">					payLimitDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L129">					int payByOrgAgt = 0;</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">					while (payLimitDetails.next()) {</span>
+<span class="nc" id="L131">						agtPayLimit = payLimitDetails.getDouble(&quot;pay_limit&quot;);</span>
+						// payReqForOrgId=payLimitDetails.getInt(&quot;organization_id&quot;);
+<span class="nc" id="L133">						payByOrgAgt = payLimitDetails.getInt(&quot;organization_id&quot;);</span>
+					}
+<span class="nc bnc" id="L135" title="All 2 branches missed.">					if (pwtAmount &lt;= agtPayLimit) { // go for agent's payment</span>
+<span class="nc" id="L136">						status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L137">						payReqForOrgType = &quot;AGENT&quot;;</span>
+						// payReqForOrgId=approvedByOrgId;
+<span class="nc" id="L139">						payReqForOrgId = payByOrgAgt;</span>
+					} else { // go for BO's pending pwt
+<span class="nc" id="L141">						status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L142">						payReqForOrgType = &quot;BO&quot;;</span>
+<span class="nc" id="L143">						payReqForOrgId = approvedByOrgId; // Bo's organization</span>
+						// id
+					}
+
+<span class="nc" id="L147">				} else { // go for BO's pending pwt</span>
+<span class="nc" id="L148">					status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L149">					payReqForOrgType = &quot;BO&quot;;</span>
+<span class="nc" id="L150">					payReqForOrgId = approvedByOrgId; // Bo's organization id</span>
+				}
+
+				// update the request table for pwt payments
+
+<span class="nc" id="L155">				remarks = &quot;Payment should be done at &quot; + payReqForOrgType;</span>
+<span class="nc" id="L156">				String updateRequestStatus = &quot;update st_se_pwt_approval_request_master set req_status=?,approved_by_type=?,approved_by_user_id=?,approved_by_org_id=?,pay_req_for_org_type=?,pay_request_for_org_id=?,approval_date=?,remarks=? where task_id=?&quot;;</span>
+<span class="nc" id="L157">				pstmt = connection.prepareStatement(updateRequestStatus);</span>
+<span class="nc" id="L158">				pstmt.setString(1, status);</span>
+<span class="nc" id="L159">				pstmt.setString(2, &quot;BO&quot;);</span>
+<span class="nc" id="L160">				pstmt.setInt(3, approvedByUserId);</span>
+<span class="nc" id="L161">				pstmt.setInt(4, approvedByOrgId);</span>
+<span class="nc" id="L162">				pstmt.setString(5, payReqForOrgType);</span>
+<span class="nc" id="L163">				pstmt.setInt(6, payReqForOrgId);</span>
+<span class="nc" id="L164">				pstmt.setDate(7, new java.sql.Date(new java.util.Date()</span>
+						.getTime()));
+<span class="nc" id="L166">				pstmt.setString(8, remarks);</span>
+<span class="nc" id="L167">				pstmt.setInt(9, taskId);</span>
+<span class="nc" id="L168">				int updatedRow = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">				if (updatedRow == 1) {</span>
+<span class="nc" id="L170">					System.out</span>
+							.println(&quot;Request status updated by BO for Approval&quot;);
+				} else {
+<span class="nc" id="L173">					throw new LMSException(</span>
+							&quot;Exception while approving request By BO&quot;);
+				}
+			}
+			// update the ticket_inv_detail table
+<span class="nc" id="L178">			CommonFunctionsHelper commHelper = new CommonFunctionsHelper();</span>
+<span class="nc" id="L179">			commHelper.updateTicketInvTable(ticketNbr, ticketNbr.split(&quot;-&quot;)[0]</span>
+					+ &quot;-&quot; + ticketNbr.split(&quot;-&quot;)[1], gameNbr, gameId, status,
+					approvedByUserId, approvedByOrgId, &quot;UPDATE&quot;, requestedById,
+					channel, interfaceType, connection);
+
+			// update pwt inventory table
+<span class="nc" id="L185">			boolean isPwtUpdate = commHelper.updateVirnStatus(gameNbr, status,</span>
+					gameId, virnNbr, connection,MD5Encoder.encode(ticketNbr));
+<span class="nc bnc" id="L187" title="All 2 branches missed.">			if (!isPwtUpdate) {</span>
+<span class="nc" id="L188">				throw new LMSException(&quot;Error ::: pwt table not updated &quot;);</span>
+			}
+
+<span class="nc" id="L191">			connection.commit();</span>
+<span class="nc" id="L192">			return remarks;</span>
+
+<span class="nc" id="L194">		} catch (SQLException e) {</span>
+<span class="nc" id="L195">			e.printStackTrace();</span>
+<span class="nc" id="L196">			throw new LMSException(&quot;sql exception&quot;, e);</span>
+		}
+
+	}
+
+	public String approvePendingPwtsByMas(int taskId, double pwtAmount,
+			int requestedById, String requesterType, int approvedByOrgId,
+			int approvedByUserId, int gameId, int gameNbr, String virnNbr,
+			String ticketNbr, String pwtAmtForMasterApproval, String channel,
+			String interfaceType) throws LMSException {
+		 
+		// Connection con=null;
+<span class="nc" id="L208">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L209">		ResultSet payLimitDetails = null;</span>
+<span class="nc" id="L210">		connection = DBConnect.getConnection();</span>
+<span class="nc" id="L211">		double agtPayLimit = 0.0;</span>
+<span class="nc" id="L212">		double retPayLimit = 0.0;</span>
+		String status;
+		String payReqForOrgType;
+<span class="nc" id="L215">		int payReqForOrgId = 0;</span>
+		String remarks;
+
+		try {
+<span class="nc" id="L219">			connection.setAutoCommit(false);</span>
+<span class="nc" id="L220">			String getPayLimits = null;</span>
+<span class="nc" id="L221">			System.out.println(&quot;requestedById--&quot; + requestedById + &quot;--&quot;);</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">			if (requesterType.equals(&quot;RETAILER&quot;)) {</span>
+<span class="nc" id="L223">				getPayLimits = &quot;select organization_id,pay_limit from st_lms_oranization_limits where organization_id in(?,(select parent_id from st_lms_organization_master where organization_id=?))&quot;;</span>
+<span class="nc" id="L224">				pstmt = connection.prepareStatement(getPayLimits);</span>
+<span class="nc" id="L225">				pstmt.setInt(1, requestedById);</span>
+<span class="nc" id="L226">				pstmt.setInt(2, requestedById);</span>
+<span class="nc" id="L227">				payLimitDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L228">				int payByOrgRet = 0;</span>
+<span class="nc" id="L229">				int payByOrgAgt = 0;</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">				while (payLimitDetails.next()) {</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">					if (payLimitDetails.getInt(&quot;organization_id&quot;) == requestedById) {</span>
+<span class="nc" id="L232">						retPayLimit = payLimitDetails.getDouble(&quot;pay_limit&quot;);</span>
+						// payReqForOrgId=payLimitDetails.getInt(&quot;organization_id&quot;);
+<span class="nc" id="L234">						payByOrgRet = payLimitDetails.getInt(&quot;organization_id&quot;);</span>
+					} else {
+<span class="nc" id="L236">						agtPayLimit = payLimitDetails.getDouble(&quot;pay_limit&quot;);</span>
+						// payReqForOrgId=payLimitDetails.getInt(&quot;organization_id&quot;);
+<span class="nc" id="L238">						payByOrgAgt = payLimitDetails.getInt(&quot;organization_id&quot;);</span>
+					}
+				}
+<span class="nc bnc" id="L241" title="All 2 branches missed.">				if (pwtAmount &lt;= retPayLimit) { // go for retailer's payment</span>
+<span class="nc" id="L242">					status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L243">					payReqForOrgType = &quot;RETAILER&quot;;</span>
+<span class="nc" id="L244">					payReqForOrgId = payByOrgRet;</span>
+				}
+
+<span class="nc bnc" id="L247" title="All 2 branches missed.">				else if (pwtAmount &lt;= agtPayLimit) { // go for agent's</span>
+					// payment
+<span class="nc" id="L249">					status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L250">					payReqForOrgType = &quot;AGENT&quot;;</span>
+<span class="nc" id="L251">					payReqForOrgId = payByOrgAgt;</span>
+				} else { // go for BO's pending pwt
+<span class="nc" id="L253">					status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L254">					payReqForOrgType = &quot;BO&quot;;</span>
+<span class="nc" id="L255">					payReqForOrgId = approvedByOrgId; // Bo's organization id</span>
+				}
+
+<span class="nc bnc" id="L258" title="All 2 branches missed.">			} else if (requesterType.equals(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L259">				getPayLimits = &quot;select organization_id,pay_limit from st_lms_oranization_limits where organization_id=?&quot;;</span>
+<span class="nc" id="L260">				pstmt = connection.prepareStatement(getPayLimits);</span>
+<span class="nc" id="L261">				pstmt.setInt(1, requestedById);</span>
+<span class="nc" id="L262">				payLimitDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L263">				int payByOrgAgt = 0;</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">				while (payLimitDetails.next()) {</span>
+<span class="nc" id="L265">					agtPayLimit = payLimitDetails.getDouble(&quot;pay_limit&quot;);</span>
+					// payReqForOrgId=payLimitDetails.getInt(&quot;organization_id&quot;);
+<span class="nc" id="L267">					payByOrgAgt = payLimitDetails.getInt(&quot;organization_id&quot;);</span>
+				}
+
+<span class="nc bnc" id="L270" title="All 2 branches missed.">				if (pwtAmount &lt;= agtPayLimit) { // go for agent's payment</span>
+<span class="nc" id="L271">					status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L272">					payReqForOrgType = &quot;AGENT&quot;;</span>
+<span class="nc" id="L273">					payReqForOrgId = payByOrgAgt;</span>
+				} else { // go for BO's pending pwt
+<span class="nc" id="L275">					status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L276">					payReqForOrgType = &quot;BO&quot;;</span>
+<span class="nc" id="L277">					payReqForOrgId = approvedByOrgId; // Bo's organization id</span>
+				}
+<span class="nc" id="L279">				System.out.println(&quot;payByOrgAgt--&quot; + payByOrgAgt + &quot;--&quot;</span>
+						+ &quot;pwtAmount&quot; + pwtAmount + &quot;--agtPayLimit&quot;
+						+ agtPayLimit);
+
+<span class="nc" id="L283">			} else { // go for BO's pending pwt</span>
+<span class="nc" id="L284">				status = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L285">				payReqForOrgType = &quot;BO&quot;;</span>
+<span class="nc" id="L286">				payReqForOrgId = approvedByOrgId; // Bo's organization id</span>
+			}
+
+			// update the request table for pwt payments
+
+<span class="nc" id="L291">			remarks = &quot;Payment should be done at &quot; + payReqForOrgType;</span>
+<span class="nc" id="L292">			String updateRequestStatus = &quot;update st_se_pwt_approval_request_master set req_status=?,approved_by_type=?,approved_by_user_id=?,approved_by_org_id=?,pay_req_for_org_type=?,pay_request_for_org_id=?,approval_date=?,remarks=? where task_id=?&quot;;</span>
+<span class="nc" id="L293">			pstmt = connection.prepareStatement(updateRequestStatus);</span>
+<span class="nc" id="L294">			pstmt.setString(1, status);</span>
+<span class="nc" id="L295">			pstmt.setString(2, &quot;BO&quot;);</span>
+<span class="nc" id="L296">			pstmt.setInt(3, approvedByUserId);</span>
+<span class="nc" id="L297">			pstmt.setInt(4, approvedByOrgId);</span>
+<span class="nc" id="L298">			pstmt.setString(5, payReqForOrgType);</span>
+<span class="nc" id="L299">			pstmt.setInt(6, payReqForOrgId);</span>
+<span class="nc" id="L300">			pstmt.setDate(7, new java.sql.Date(new java.util.Date().getTime()));</span>
+<span class="nc" id="L301">			pstmt.setString(8, remarks);</span>
+<span class="nc" id="L302">			pstmt.setInt(9, taskId);</span>
+<span class="nc" id="L303">			int updatedRow = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">			if (updatedRow == 1) {</span>
+<span class="nc" id="L305">				System.out.println(&quot;Request status updated by BO for Approval&quot;);</span>
+			} else {
+<span class="nc" id="L307">				throw new LMSException(</span>
+						&quot;Exception while approving request By BO&quot;);
+			}
+
+			// update the ticket_inv_detail table
+<span class="nc" id="L312">			CommonFunctionsHelper commHelper = new CommonFunctionsHelper();</span>
+<span class="nc" id="L313">			commHelper.updateTicketInvTable(ticketNbr, ticketNbr.split(&quot;-&quot;)[0]</span>
+					+ &quot;-&quot; + ticketNbr.split(&quot;-&quot;)[1], gameNbr, gameId, status,
+					approvedByUserId, approvedByOrgId, &quot;UPDATE&quot;, requestedById,
+					channel, interfaceType, connection);
+
+			// update pwt inventory table
+<span class="nc" id="L319">			boolean isPwtUpdate = commHelper.updateVirnStatus(gameNbr, status,</span>
+					gameId, virnNbr, connection,MD5Encoder.encode(ticketNbr));
+<span class="nc bnc" id="L321" title="All 2 branches missed.">			if (!isPwtUpdate) {</span>
+<span class="nc" id="L322">				throw new LMSException(&quot;Error ::: pwt table not updated &quot;);</span>
+			}
+
+<span class="nc" id="L325">			connection.commit();</span>
+<span class="nc" id="L326">			return remarks;</span>
+
+<span class="nc" id="L328">		} catch (SQLException e) {</span>
+<span class="nc" id="L329">			e.printStackTrace();</span>
+<span class="nc" id="L330">			throw new LMSException(&quot;sql exception&quot;, e);</span>
+		}
+
+	}
+
+	/**
+	 * This function is used to check the ticket validity with owner
+	 * 
+	 * @param gameNbr
+	 * @param bookNbr
+	 * @param ticketNbrDigit
+	 * @param gameId
+	 * @param connection
+	 * @return ticketBean
+	 * @throws SQLException
+	 */
+	public TicketBean checkTicketStatus(String gameNbr, String bookNbr,
+			String ticketNbrDigit, int gameId, Connection connection,
+			boolean isDirPlr) throws SQLException {
+<span class="nc" id="L349">		TicketBean bean = new TicketBean();</span>
+<span class="nc" id="L350">		bean.setTicketNumber(bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L351">		System.out.println(&quot;Book No is: &quot; + bookNbr</span>
+				+ &quot;  actual ticket number is &quot; + ticketNbrDigit);
+
+<span class="nc" id="L354">		String query1 = QueryManager</span>
+				.getST4CurrentOwnerDetailsUsingGameBookNbr();
+<span class="nc" id="L356">		pstmt = connection.prepareStatement(query1);</span>
+<span class="nc" id="L357">		pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L358">		pstmt.setString(2, bookNbr);</span>
+<span class="nc" id="L359">		result = pstmt.executeQuery();</span>
+<span class="nc" id="L360">		System.out.println(&quot;pstmt == &quot; + pstmt);</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">		if (result.next()) {</span>
+<span class="nc" id="L362">			String ownerType = result.getString(&quot;current_owner&quot;);</span>
+<span class="nc" id="L363">			String bookStatus = result.getString(&quot;book_status&quot;);</span>
+<span class="nc bnc" id="L364" title="All 8 branches missed.">			if ((&quot;RETAILER&quot;.equalsIgnoreCase(ownerType.trim()) || &quot;AGENT&quot;</span>
+					.equalsIgnoreCase(ownerType.trim()))
+					&amp;&amp; (&quot;ACTIVE&quot;.equalsIgnoreCase(bookStatus) || &quot;CLAIMED&quot;
+							.equalsIgnoreCase(bookStatus))) {
+<span class="nc" id="L368">				bean.setBookStatus(bookStatus);</span>
+				// check the status of ticket
+<span class="nc" id="L370">				String query2 = QueryManager</span>
+						.getST4PwtTicketDetailsUsingGameNbr();
+<span class="nc" id="L372">				PreparedStatement pstmt2 = connection.prepareStatement(query2);</span>
+<span class="nc" id="L373">				pstmt2.setInt(1, Integer.parseInt(gameNbr));</span>
+<span class="nc" id="L374">				pstmt2.setString(2, bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L375">				ResultSet resultSet2 = pstmt2.executeQuery();</span>
+<span class="nc" id="L376">				System.out.println(&quot;inside if = &quot; + pstmt2);</span>
+				// required to be reviewed
+<span class="nc bnc" id="L378" title="All 2 branches missed.">				if (resultSet2.next()) {</span>
+<span class="nc" id="L379">					String ticketStatus = resultSet2.getString(&quot;status&quot;);</span>
+
+					/*
+					 * if(ticketStatus.equalsIgnoreCase(&quot;CLAIM_RET&quot;) &amp;&amp;
+					 * isDirPlr){ bean.setValid(false); bean.setStatus(&quot;Already
+					 * paid to Retailer&quot;); bean.setMessageCode(&quot;222010&quot;);
+					 * bean.setValidity(&quot;InValid Ticket&quot;);
+					 * System.out.println(&quot;Ticket's PWT Has Bean Paid By
+					 * Agent.&quot;); }else
+					 * if(ticketStatus.equalsIgnoreCase(&quot;CLAIM_RET&quot;) &amp;&amp;
+					 * !isDirPlr){ bean.setValid(true);
+					 * bean.setBook_nbr(bookNbr);
+					 * bean.setGameNbr(Integer.parseInt(gameNbr));
+					 * bean.setTicketGameId(gameId);
+					 * bean.setTicketNumber(bookNbr+&quot;-&quot;+ticketNbrDigit);
+					 * bean.setStatus(&quot; &quot;); bean.setMessageCode(&quot;221001&quot;);
+					 * bean.setUpdateTicketType(&quot;UPDATE&quot;);
+					 * bean.setValidity(&quot;Valid Ticket&quot;);
+					 * System.out.println(&quot;Ticket IS valid to Pay&quot;); }
+					 */
+<span class="nc bnc" id="L399" title="All 2 branches missed.">					if (ticketStatus.equalsIgnoreCase(&quot;MISSING&quot;)) {</span>
+<span class="nc" id="L400">						bean.setValid(false);</span>
+<span class="nc" id="L401">						bean.setStatus(&quot;Ticket staus is MISSING in DATABASE&quot;);</span>
+<span class="nc" id="L402">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L403">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L404">						System.out.println(&quot;Ticket is MISSING.&quot;);</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;CLAIM_RET_CLM&quot;)) {</span>
+<span class="nc" id="L406">						bean.setValid(false);</span>
+<span class="nc" id="L407">						bean</span>
+								.setStatus(&quot;Paid to Retailer by Agent and pending to claim by Agent at BO as auto scrap&quot;);
+<span class="nc" id="L409">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L410">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L411">						System.out</span>
+								.println(&quot;Paid to retailer By Agent and pending to claim at bo by agent as uato sarap&quot;);
+<span class="nc bnc" id="L413" title="All 2 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_RET_CLM_AUTO&quot;)) {
+<span class="nc" id="L415">						bean.setValid(false);</span>
+<span class="nc" id="L416">						bean</span>
+								.setStatus(&quot;Paid to Retailer by Agent and pending to claim by Agent at BO as auto scrap&quot;);
+<span class="nc" id="L418">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L419">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L420">						System.out</span>
+								.println(&quot;Paid to retailer As Auto Scrap and pending to claim at bo as AUTO Scrap&quot;);
+<span class="nc bnc" id="L422" title="All 4 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;CLAIM_RET_UNCLM&quot;)</span>
+							&amp;&amp; !isDirPlr) {
+<span class="nc" id="L424">						bean.setValid(true);</span>
+<span class="nc" id="L425">						bean.setBook_nbr(bookNbr);</span>
+<span class="nc" id="L426">						bean.setGameNbr(Integer.parseInt(gameNbr));</span>
+<span class="nc" id="L427">						bean.setTicketGameId(gameId);</span>
+<span class="nc" id="L428">						bean.setTicketNumber(bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L429">						bean.setStatus(&quot; CLAIM_RET_UNCLM &quot;);</span>
+<span class="nc" id="L430">						bean.setMessageCode(&quot;221001&quot;);</span>
+<span class="nc" id="L431">						bean.setUpdateTicketType(&quot;UPDATE&quot;);</span>
+<span class="nc" id="L432">						bean.setValidity(&quot;Valid Ticket&quot;);</span>
+<span class="nc" id="L433">						System.out</span>
+								.println(&quot;Ticket IS valid to Pay and Already paid to retailer by agent&quot;);
+<span class="nc bnc" id="L435" title="All 4 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;CLAIM_RET_UNCLM&quot;)</span>
+							&amp;&amp; isDirPlr) {
+<span class="nc" id="L437">						bean.setValid(false);</span>
+<span class="nc" id="L438">						bean</span>
+								.setStatus(&quot;Paid to Retailer by Agent and pending to claim by Agent at BO as Ticket Verification&quot;);
+<span class="nc" id="L440">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L441">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L442">						System.out</span>
+								.println(&quot;Ticket IS not Valid to Pay and Already paid to retailer by agent&quot;);
+<span class="nc bnc" id="L444" title="All 2 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_RET_AGT_TEMP&quot;)) {
+<span class="nc" id="L446">						bean.setValid(false);</span>
+<span class="nc" id="L447">						bean</span>
+								.setStatus(&quot;Already Verified in Bulk Receipt at BO, Fianl Payment Pending&quot;);
+<span class="nc" id="L449">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L450">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L451">						System.out</span>
+								.println(&quot;Already Verified in Bulk Receipt at BO, Fianl Payment Pending&quot;);
+<span class="nc bnc" id="L453" title="All 4 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;RETURN&quot;)</span>
+							&amp;&amp; !isDirPlr) {
+<span class="nc" id="L455">						bean.setValid(false);</span>
+<span class="nc" id="L456">						bean</span>
+								.setStatus(&quot;Ticket once Verified and Return to Player for Verification as Direct Player PWT at BO&quot;);
+<span class="nc" id="L458">						bean.setMessageCode(&quot;222007&quot;);</span>
+<span class="nc" id="L459">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L460">						System.out</span>
+								.println(&quot;Ticket Is valid for pwt. But Ticket Is High Prize Ticket, So Go for Direct PWT.  &quot;);
+<span class="nc bnc" id="L462" title="All 4 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;RETURN&quot;)</span>
+							&amp;&amp; isDirPlr) {
+<span class="nc" id="L464">						bean.setValid(true);</span>
+<span class="nc" id="L465">						bean.setBook_nbr(bookNbr);</span>
+<span class="nc" id="L466">						bean.setGameNbr(Integer.parseInt(gameNbr));</span>
+<span class="nc" id="L467">						bean.setTicketGameId(gameId);</span>
+<span class="nc" id="L468">						bean.setTicketNumber(bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L469">						bean</span>
+								.setStatus(&quot; Ticket is Valid and has been Returned.&quot;);
+<span class="nc" id="L471">						bean.setMessageCode(&quot;221001&quot;);</span>
+<span class="nc" id="L472">						bean.setUpdateTicketType(&quot;UPDATE&quot;);</span>
+<span class="nc" id="L473">						bean.setValidity(&quot;Valid Ticket&quot;);</span>
+<span class="nc" id="L474">						System.out</span>
+								.println(&quot;Ticket IS valid for direct player PWT&quot;);
+<span class="nc bnc" id="L476" title="All 2 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;CLAIM_AGT&quot;)) {</span>
+<span class="nc" id="L477">						bean.setValid(false);</span>
+<span class="nc" id="L478">						bean.setStatus(&quot;Already paid to Agent&quot;);</span>
+<span class="nc" id="L479">						bean.setMessageCode(&quot;222005&quot;);</span>
+<span class="nc" id="L480">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L481">						System.out</span>
+								.println(&quot;Ticket's PWT Has Bean Paid By BO To Agent.&quot;);
+<span class="nc bnc" id="L483" title="All 2 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;CLAIM_AGT_AUTO&quot;)) {</span>
+<span class="nc" id="L484">						bean.setValid(false);</span>
+<span class="nc" id="L485">						bean.setStatus(&quot;Already paid to Agent as auto scrap.&quot;);</span>
+<span class="nc" id="L486">						bean.setMessageCode(&quot;222005&quot;);</span>
+<span class="nc" id="L487">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L488">						System.out</span>
+								.println(&quot;Ticket's PWT Has Bean Paid By BO To AGent as Auto Scrap&quot;);
+<span class="nc bnc" id="L490" title="All 2 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;CLAIM_AGT_TEMP&quot;)) {</span>
+<span class="nc" id="L491">						bean.setValid(false);</span>
+<span class="nc" id="L492">						bean</span>
+								.setStatus(&quot;Already Verified in Bulk Receipt at BO/AGENT&quot;);
+<span class="nc" id="L494">						bean.setMessageCode(&quot;222008&quot;);</span>
+<span class="nc" id="L495">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L496">						System.out</span>
+								.println(&quot;Ticket number is verified for temp table&quot;);
+					}
+					/*
+					 * else if(ticketStatus.equalsIgnoreCase(&quot;CLAIM_PLR&quot;)){
+					 * bean.setValid(false); bean.setStatus(&quot;Already paid as
+					 * Direct Player PWT&quot;); bean.setMessageCode(&quot;222006&quot;);
+					 * bean.setValidity(&quot;InValid Ticket&quot;);
+					 * System.out.println(&quot;Ticket Is High Prize Ticket, Ticket's
+					 * PWT Has Been Paid. &quot;); }
+					 */
+<span class="nc bnc" id="L507" title="All 2 branches missed.">					else if (ticketStatus.equalsIgnoreCase(&quot;CLAIM_PLR_BO&quot;)) {</span>
+<span class="nc" id="L508">						bean.setValid(false);</span>
+<span class="nc" id="L509">						bean</span>
+								.setStatus(&quot;Already paid as Direct Player PWT To Player By BO&quot;);
+<span class="nc" id="L511">						bean.setMessageCode(&quot;222006&quot;);</span>
+<span class="nc" id="L512">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L513">						System.out</span>
+								.println(&quot;Ticket Is High Prize Ticket, Ticket's PWT Has Been Paid. &quot;);
+					}
+
+<span class="nc bnc" id="L517" title="All 4 branches missed.">					else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM&quot;)
+							&amp;&amp; isDirPlr) {
+<span class="nc" id="L520">						bean.setValid(false);</span>
+<span class="nc" id="L521">						bean</span>
+								.setStatus(&quot;Paid to Player by Retailer and pending to claim by Retailer at Agent as Ticket Verification&quot;);
+<span class="nc" id="L523">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L524">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L525">						System.out</span>
+								.println(&quot;Ticket's PWT Has Bean Paid By Agent.&quot;);
+<span class="nc bnc" id="L527" title="All 4 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM&quot;)
+							&amp;&amp; !isDirPlr) {
+<span class="nc" id="L530">						bean.setValid(true);</span>
+<span class="nc" id="L531">						bean.setBook_nbr(bookNbr);</span>
+<span class="nc" id="L532">						bean.setGameNbr(Integer.parseInt(gameNbr));</span>
+<span class="nc" id="L533">						bean.setTicketGameId(gameId);</span>
+<span class="nc" id="L534">						bean.setTicketNumber(bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L535">						bean</span>
+								.setStatus(&quot;Ticket is Valid and paid to player by retailer. &quot;);
+<span class="nc" id="L537">						bean.setMessageCode(&quot;221001&quot;);</span>
+<span class="nc" id="L538">						bean.setUpdateTicketType(&quot;UPDATE&quot;);</span>
+<span class="nc" id="L539">						bean.setValidity(&quot;Valid Ticket&quot;);</span>
+<span class="nc" id="L540">						System.out.println(&quot;Ticket IS valid to Pay&quot;);</span>
+<span class="nc bnc" id="L541" title="All 2 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_RET_CLM&quot;)) {
+<span class="nc" id="L543">						bean.setValid(false);</span>
+<span class="nc" id="L544">						bean</span>
+								.setStatus(&quot;Paid to Player By Retailer and inside Retailer's Claimable balance&quot;);
+<span class="nc" id="L546">						bean.setMessageCode(&quot;221002&quot;);</span>
+<span class="nc" id="L547">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L548">						System.out</span>
+								.println(&quot;Ticket IS valid for pwt. (Ticket has been paid to player by retailer so retailer should be paid by agent)&quot;);
+<span class="nc bnc" id="L550" title="All 4 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_AGT_UNCLM_DIR&quot;)
+							&amp;&amp; isDirPlr) {
+<span class="nc" id="L553">						bean.setValid(false);</span>
+<span class="nc" id="L554">						bean</span>
+								.setStatus(&quot;Already paid to Player By Agent and pending to claim by Agent at BO as Ticket Verification &quot;);
+<span class="nc" id="L556">						bean.setMessageCode(&quot;TBD&quot;);</span>
+<span class="nc" id="L557">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L558">						System.out</span>
+								.println(&quot;Ticket's PWT Has Bean Paid By Agent.&quot;);
+<span class="nc bnc" id="L560" title="All 4 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_AGT_UNCLM_DIR&quot;)
+							&amp;&amp; !isDirPlr) {
+<span class="nc" id="L563">						bean.setValid(true);</span>
+<span class="nc" id="L564">						bean.setBook_nbr(bookNbr);</span>
+<span class="nc" id="L565">						bean.setGameNbr(Integer.parseInt(gameNbr));</span>
+<span class="nc" id="L566">						bean.setTicketGameId(gameId);</span>
+<span class="nc" id="L567">						bean.setTicketNumber(bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L568">						bean</span>
+								.setStatus(&quot; Ticket is Valid and paid to a player by Agent. &quot;);
+<span class="nc" id="L570">						bean.setMessageCode(&quot;221001&quot;);</span>
+<span class="nc" id="L571">						bean.setUpdateTicketType(&quot;UPDATE&quot;);</span>
+<span class="nc" id="L572">						bean.setValidity(&quot;Valid Ticket&quot;);</span>
+<span class="nc" id="L573">						System.out.println(&quot;Ticket IS valid to Pay&quot;);</span>
+<span class="nc bnc" id="L574" title="All 2 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_AGT_TEMP&quot;)) {
+<span class="nc" id="L576">						bean.setValid(false);</span>
+<span class="nc" id="L577">						bean</span>
+								.setStatus(&quot;Already Verified in Bulk Receipt at BO, Fianl Payment Pending&quot;);
+<span class="nc" id="L579">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L580">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L581">						System.out</span>
+								.println(&quot;Already Verified in Bulk Receipt at BO, Fianl Payment Pending&quot;);
+					}
+
+<span class="nc bnc" id="L585" title="All 2 branches missed.">					else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_AGT_CLM_DIR&quot;)) {
+<span class="nc" id="L587">						bean.setValid(false);</span>
+<span class="nc" id="L588">						bean.setStatus(&quot;Agent has claimed as CLAIMABLE&quot;);</span>
+<span class="nc" id="L589">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L590">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L591">						System.out</span>
+								.println(&quot;Ticket's PWT Has Bean Paid By Agent.&quot;);
+					}
+
+					/*
+					 * else
+					 * if(ticketStatus.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM&quot;)){
+					 * bean.setValid(true); bean.setBook_nbr(bookNbr);
+					 * bean.setGameNbr(Integer.parseInt(gameNbr));
+					 * bean.setTicketGameId(gameId);
+					 * bean.setTicketNumber(bookNbr+&quot;-&quot;+ticketNbrDigit);
+					 * bean.setStatus(&quot;&quot;); bean.setMessageCode(&quot;Undefined&quot;);
+					 * bean.setUpdateTicketType(&quot;UPDATE&quot;);
+					 * bean.setValidity(&quot;Valid Ticket&quot;);
+					 * System.out.println(&quot;Ticket IS Not valid for pwt. (Claimed
+					 * by retailer in Unclaimed &quot; + &quot;Balanced)&quot;); }
+					 */
+<span class="nc bnc" id="L608" title="All 2 branches missed.">					else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_RET_CLM_DIR&quot;)) {
+<span class="nc" id="L610">						bean.setValid(false);</span>
+<span class="nc" id="L611">						bean</span>
+								.setStatus(&quot;Paid to player by retailer and inside retailer's Claimable so Ticket is Invalid.&quot;);
+<span class="nc" id="L613">						bean.setMessageCode(&quot;221002&quot;);</span>
+<span class="nc" id="L614">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L615">						System.out</span>
+								.println(&quot;Ticket IS valid for pwt. (Ticket has been paid to player by retailer so retailer should be paid by agent)&quot;);
+					}
+
+<span class="nc bnc" id="L619" title="All 4 branches missed.">					else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM_DIR&quot;)
+							&amp;&amp; isDirPlr) {
+<span class="nc" id="L622">						bean.setValid(false);</span>
+<span class="nc" id="L623">						bean.setStatus(&quot;Already paid to Player by Retailer&quot;);</span>
+<span class="nc" id="L624">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L625">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L626">						System.out</span>
+								.println(&quot;Ticket's PWT Has Bean Paid By Agent.&quot;);
+<span class="nc bnc" id="L628" title="All 4 branches missed.">					} else if (ticketStatus</span>
+							.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM_DIR&quot;)
+							&amp;&amp; !isDirPlr) {
+<span class="nc" id="L631">						bean.setValid(true);</span>
+<span class="nc" id="L632">						bean.setBook_nbr(bookNbr);</span>
+<span class="nc" id="L633">						bean.setGameNbr(Integer.parseInt(gameNbr));</span>
+<span class="nc" id="L634">						bean.setTicketGameId(gameId);</span>
+<span class="nc" id="L635">						bean.setTicketNumber(bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L636">						bean</span>
+								.setStatus(&quot; Ticket is Valid and paid to a player by retailer. &quot;);
+<span class="nc" id="L638">						bean.setMessageCode(&quot;221001&quot;);</span>
+<span class="nc" id="L639">						bean.setUpdateTicketType(&quot;UPDATE&quot;);</span>
+<span class="nc" id="L640">						bean.setValidity(&quot;Valid Ticket&quot;);</span>
+<span class="nc" id="L641">						System.out.println(&quot;Ticket IS valid to Pay&quot;);</span>
+<span class="nc bnc" id="L642" title="All 2 branches missed.">					} else if (ticketStatus.equalsIgnoreCase(&quot;PND_MAS&quot;)) {</span>
+<span class="nc" id="L643">						bean.setValid(false);</span>
+<span class="nc" id="L644">						bean</span>
+								.setStatus(&quot;This VIRN has Beean requested for BO Master Approval&quot;);
+<span class="nc" id="L646">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L647">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L648">						System.out</span>
+								.println(&quot;This VIRN has Beean requested for BO Master Approval&quot;);
+					}
+
+<span class="nc bnc" id="L652" title="All 2 branches missed.">					else if (ticketStatus.equalsIgnoreCase(&quot;PND_PAY&quot;)) {</span>
+<span class="nc" id="L653">						bean.setValid(false);</span>
+<span class="nc" id="L654">						bean</span>
+								.setStatus(&quot;This VIRN has Beean Approved And Pending to Payment&quot;);
+<span class="nc" id="L656">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L657">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L658">						System.out</span>
+								.println(&quot;This VIRN has Beean Approved And Pending to Payment&quot;);
+					}
+
+<span class="nc bnc" id="L662" title="All 2 branches missed.">					else if (ticketStatus.equalsIgnoreCase(&quot;REQUESTED&quot;)) {</span>
+<span class="nc" id="L663">						bean.setValid(false);</span>
+<span class="nc" id="L664">						bean</span>
+								.setStatus(&quot;This VIRN has Beean Already claimed and requested for Approval&quot;);
+<span class="nc" id="L666">						bean.setMessageCode(&quot;222010&quot;);</span>
+<span class="nc" id="L667">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L668">						System.out</span>
+								.println(&quot;This VIRN has Beean Already claimed and requested for Approval&quot;);
+					}
+
+					/*
+					 * else
+					 * if(ticketStatus.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM_DIR&quot;)){
+					 * bean.setValid(true); bean.setBook_nbr(bookNbr);
+					 * bean.setGameNbr(Integer.parseInt(gameNbr));
+					 * bean.setTicketGameId(gameId);
+					 * bean.setTicketNumber(bookNbr+&quot;-&quot;+ticketNbrDigit);
+					 * bean.setStatus(&quot;&quot;); bean.setMessageCode(&quot;Undefined&quot;);
+					 * bean.setUpdateTicketType(&quot;UPDATE&quot;);
+					 * bean.setValidity(&quot;Valid Ticket&quot;);
+					 * System.out.println(&quot;Ticket IS Not valid for pwt. (Claimed
+					 * by retailer To A Player in Unclaimed &quot; + &quot;Balanced)&quot;); }
+					 */
+					/*
+					 * else if(ticketStatus.equalsIgnoreCase(&quot;CLAIM_PLR_RET&quot;)) {
+					 * bean.setValid(false); bean.setStatus(&quot; &quot;);
+					 * bean.setMessageCode(&quot;221002&quot;); bean.setValidity(&quot;InValid
+					 * Ticket&quot;); System.out.println(&quot;Ticket IS valid for pwt.
+					 * (Ticket has been paid to player by retailer so retailer
+					 * should be paid by agent)&quot;); }
+					 */
+					else {
+<span class="nc" id="L694">						bean.setValid(false);</span>
+<span class="nc" id="L695">						bean.setMessageCode(&quot;TBD&quot;);</span>
+<span class="nc" id="L696">						bean.setStatus(&quot;Undefined Status of Ticket's PWT: &quot;</span>
+								+ ticketStatus);
+<span class="nc" id="L698">						bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L699">						System.out.println(&quot;Undefined Status of Ticket's PWT&quot;);</span>
+					}
+
+<span class="nc" id="L702">				} else { // check if this ticket is in temporary table</span>
+					/*
+					 * String query4 = &quot;select * from st_se_tmp_pwt_tickets_inv
+					 * where ticket_nbr = ?&quot;; pstmt =
+					 * connection.prepareStatement(query4); pstmt.setString(1,
+					 * bookNbr+&quot;-&quot;+ticketNbrDigit); ResultSet resultSet5 =
+					 * pstmt.executeQuery(); if(resultSet5.next()){
+					 * bean.setValid(false); bean.setStatus(&quot;Already Verified in
+					 * Bulk Receipt at BO/AGENT&quot;);
+					 * bean.setMessageCode(&quot;222008&quot;); bean.setValidity(&quot;InValid
+					 * Ticket&quot;); System.out.println(&quot;Ticket number is verified
+					 * for temp table&quot;); } else {
+					 */
+<span class="nc" id="L715">					bean.setValid(true);</span>
+<span class="nc" id="L716">					bean.setBook_nbr(bookNbr);</span>
+<span class="nc" id="L717">					bean.setGameNbr(Integer.parseInt(gameNbr));</span>
+<span class="nc" id="L718">					bean.setTicketGameId(gameId);</span>
+<span class="nc" id="L719">					bean.setTicketNumber(bookNbr + &quot;-&quot; + ticketNbrDigit);</span>
+<span class="nc" id="L720">					bean.setStatus(&quot;Ticket IS valid for pwt.&quot;);</span>
+<span class="nc" id="L721">					bean.setMessageCode(&quot;TBD&quot;);</span>
+<span class="nc" id="L722">					bean.setUpdateTicketType(&quot;INSERT&quot;);</span>
+<span class="nc" id="L723">					bean.setValidity(&quot;Valid Ticket&quot;);</span>
+<span class="nc" id="L724">					System.out</span>
+							.println(&quot;Ticket IS valid for pwt.(Means not fake and not in pwt table)&quot;);
+					// }
+				}
+
+<span class="nc" id="L729">			} else { // when book owner is 'BO' OR book status is 'INACTIVE'</span>
+<span class="nc" id="L730">				bean.setValid(false);</span>
+<span class="nc" id="L731">				bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc bnc" id="L732" title="All 2 branches missed.">				if (&quot;BO&quot;.equalsIgnoreCase(ownerType)) {</span>
+<span class="nc" id="L733">					bean.setStatus(&quot;Ticket is in stock of BO&quot;);</span>
+<span class="nc" id="L734">					bean.setMessageCode(&quot;222003&quot;);</span>
+<span class="nc" id="L735">					System.out.println(&quot;Ticket owner is BO.&quot;);</span>
+				} else {
+<span class="nc" id="L737">					bean.setStatus(&quot;Ticket is Not stock of BO&quot;);</span>
+<span class="nc" id="L738">					bean.setMessageCode(&quot;222003&quot;);</span>
+<span class="nc" id="L739">					System.out</span>
+							.println(&quot;Ticket status is not 'ACTIVE' or 'CLAIMED'&quot;);
+				}
+			}
+<span class="nc" id="L743">		} else { // when book is not found in st_se_game_inv_status table</span>
+<span class="nc" id="L744">			bean.setValid(false);</span>
+<span class="nc" id="L745">			bean.setStatus(&quot;Number Format Error/Out of Range Please Check&quot;);</span>
+<span class="nc" id="L746">			bean.setMessageCode(&quot;222002&quot;);</span>
+<span class="nc" id="L747">			bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L748">			System.out.println(&quot;Ticket Is not of the company.&quot;);</span>
+		}
+
+<span class="nc" id="L751">		return bean;</span>
+	}
+
+	public boolean denyPWTProcess(int taskId, String virnCode, int gameId,
+			String ticketNbr, String denyPwtStatus, int gameNbr, int userId,
+			int userOrgId, String channel, String interfaceType)
+			throws LMSException {
+
+<span class="nc" id="L759">		boolean statusChange = false;</span>
+		// Connection connection=null;
+		 
+<span class="nc" id="L762">		connection = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L764">			connection.setAutoCommit(false);</span>
+<span class="nc" id="L765">			CommonFunctionsHelper commonHelper = new CommonFunctionsHelper();</span>
+			// update direct playe temp table
+			// 'CANCELLED_PERMANENT':'Permanent Cancellation',
+			// 'UNCLM_CANCELLED':'Temporary Cancellation'
+<span class="nc" id="L769">			String tempPwtStatus = &quot;&quot;;</span>
+<span class="nc" id="L770">			String pwtStatus = &quot;&quot;;</span>
+<span class="nc" id="L771">			int isPwtTicketDelete = 0;</span>
+<span class="nc" id="L772">			System.out.println(&quot;Deny type is  &quot; + denyPwtStatus);</span>
+<span class="nc bnc" id="L773" title="All 2 branches missed.">			if (&quot;Permanent Cancellation&quot;.equalsIgnoreCase(denyPwtStatus.trim())) {</span>
+<span class="nc" id="L774">				System.out.println(&quot;INside permanent cancellation &quot;</span>
+						+ &quot;denyPwtStatus &quot; + denyPwtStatus);
+<span class="nc" id="L776">				tempPwtStatus = &quot;CANCEL&quot;;</span>
+<span class="nc" id="L777">				pwtStatus = &quot;CANCELLED_PERMANENT&quot;;</span>
+<span class="nc" id="L778">				commonHelper.updateTicketInvTable(ticketNbr, &quot;&quot;, gameNbr,</span>
+						gameId, &quot;CANCELLED_PERMANENT&quot;, userId, userOrgId,
+						&quot;UPDATE&quot;, 0, channel, interfaceType, connection);
+<span class="nc bnc" id="L781" title="All 2 branches missed.">			} else if (&quot;Temporary Cancellation&quot;.equalsIgnoreCase(denyPwtStatus</span>
+					.trim())) {
+<span class="nc" id="L783">				System.out.println(&quot;INside Temporary cancellation &quot;</span>
+						+ &quot;denyPwtStatus &quot; + denyPwtStatus);
+<span class="nc" id="L785">				tempPwtStatus = &quot;CANCEL&quot;;</span>
+<span class="nc" id="L786">				pwtStatus = &quot;UNCLM_CANCELLED&quot;;</span>
+				// delete entry in case of Temporary Cancellation
+<span class="nc" id="L788">				isPwtTicketDelete = commonHelper.updateTicketInvTable(</span>
+						ticketNbr, &quot;&quot;, gameNbr, gameId, &quot;&quot;, userId, userOrgId,
+						&quot;DELETE&quot;, 0, channel, interfaceType, connection);
+
+				/*
+				 * PreparedStatement
+				 * pstmtPwtTicketUpdate=connection.prepareStatement(&quot;delete from
+				 * st_se_pwt_tickets_inv_? where game_id=? and ticket_nbr=?&quot;);
+				 * pstmtPwtTicketUpdate.setInt(1,gameNbr);
+				 * pstmtPwtTicketUpdate.setInt(2,gameId);
+				 * pstmtPwtTicketUpdate.setString(3,ticketNbr);
+				 * System.out.println(&quot;update ticket table:: &quot; +
+				 * pstmtPwtTicketUpdate);
+				 * isPwtTicketDelete=pstmtPwtTicketUpdate.executeUpdate();
+				 * System.out.println(&quot;query is &quot; + pstmtPwtTicketUpdate);
+				 */
+			}
+
+<span class="nc" id="L806">			PreparedStatement pstmt = connection</span>
+					.prepareStatement(&quot;update st_se_pwt_approval_request_master set req_status=?,approved_by_type=?,approved_by_user_id=?,approved_by_org_id=?,approval_date=?,remarks=? where task_id=?&quot;);
+<span class="nc" id="L808">			pstmt.setString(1, tempPwtStatus);</span>
+<span class="nc" id="L809">			pstmt.setString(2, &quot;BO&quot;);</span>
+<span class="nc" id="L810">			pstmt.setInt(3, userId);</span>
+<span class="nc" id="L811">			pstmt.setInt(4, userOrgId);</span>
+<span class="nc" id="L812">			pstmt.setDate(5, new java.sql.Date(new java.util.Date().getTime()));</span>
+<span class="nc" id="L813">			pstmt.setString(6, &quot;request Denied by BO As &quot;</span>
+					+ denyPwtStatus.trim());
+<span class="nc" id="L815">			pstmt.setInt(7, taskId);</span>
+<span class="nc" id="L816">			int isUpdate = pstmt.executeUpdate();</span>
+<span class="nc" id="L817">			System.out.println(&quot;update request temporary table ==&quot; + pstmt);</span>
+
+			// update pwt inv table status
+<span class="nc" id="L820">			PreparedStatement pstmtPwtInvUpdate = connection</span>
+					.prepareStatement(&quot;update st_se_pwt_inv_? set status=? where virn_code=? and game_id=?&quot;);
+<span class="nc" id="L822">			pstmtPwtInvUpdate.setInt(1, gameNbr);</span>
+<span class="nc" id="L823">			pstmtPwtInvUpdate.setString(2, pwtStatus);</span>
+<span class="nc" id="L824">			pstmtPwtInvUpdate.setString(3, virnCode);</span>
+<span class="nc" id="L825">			pstmtPwtInvUpdate.setInt(4, gameId);</span>
+<span class="nc" id="L826">			int isPwtupdate = pstmtPwtInvUpdate.executeUpdate();</span>
+<span class="nc" id="L827">			System.out.println(&quot;update st_pwt_inv ==&quot; + pstmtPwtInvUpdate);</span>
+
+<span class="nc bnc" id="L829" title="All 8 branches missed.">			if (&quot;Temporary Cancellation&quot;.equalsIgnoreCase(denyPwtStatus.trim())</span>
+					&amp;&amp; isUpdate == 1 &amp;&amp; isPwtupdate == 1
+					&amp;&amp; isPwtTicketDelete == 1) {
+<span class="nc" id="L832">				System.out.println(&quot;inside temporary commit &quot;);</span>
+<span class="nc" id="L833">				statusChange = true;</span>
+<span class="nc" id="L834">				connection.commit();</span>
+<span class="nc bnc" id="L835" title="All 6 branches missed.">			} else if (&quot;Permanent Cancellation&quot;.equalsIgnoreCase(denyPwtStatus</span>
+					.trim())
+					&amp;&amp; isUpdate == 1 &amp;&amp; isPwtupdate == 1) {
+<span class="nc" id="L838">				System.out.println(&quot;inside permanent commit &quot;);</span>
+<span class="nc" id="L839">				statusChange = true;</span>
+<span class="nc" id="L840">				connection.commit();</span>
+			}
+
+<span class="nc" id="L843">		} catch (SQLException e) {</span>
+<span class="nc" id="L844">			e.printStackTrace();</span>
+<span class="nc" id="L845">			throw new LMSException(e);</span>
+		} finally {
+
+<span class="nc" id="L848">			try {</span>
+<span class="nc bnc" id="L849" title="All 4 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L850">					connection.close();</span>
+				}
+<span class="nc" id="L852">			} catch (SQLException se) {</span>
+<span class="nc" id="L853">				se.printStackTrace();</span>
+<span class="nc" id="L854">				throw new LMSException(se);</span>
+<span class="nc" id="L855">			}</span>
+
+		}
+
+<span class="nc" id="L859">		return statusChange;</span>
+
+	}
+
+	public String doDirectPlrPwtPayAtBO(int gameId, int playerId,
+			double pwtAmt, double tax, String virnCode, int taskId,
+			String chequeNbr, String draweeBank, String issuingParty,
+			java.sql.Date chqDate, String paymentType, int userOrgId,
+			int userId, int gameNbr, String ticketNbr, String boOrgName,
+			String rootPath, String channel, String interfaceType)
+			throws LMSException {
+
+<span class="nc" id="L871">		long transaction_id = -1;</span>
+<span class="nc" id="L872">		double net_amt = 0.0;</span>
+<span class="nc" id="L873">		List&lt;Long&gt; transIdList = new ArrayList&lt;Long&gt;();</span>
+		 
+		String receiptIdNGeneratedNo;
+		try {
+<span class="nc" id="L877">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L878">			connection.setAutoCommit(false);</span>
+			// insert into LMS transaction master
+<span class="nc" id="L880">			pstmt = connection.prepareStatement(QueryManager</span>
+					.insertInLMSTransactionMaster());
+<span class="nc" id="L882">			pstmt.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L883">			pstmt.executeUpdate();</span>
+
+<span class="nc" id="L885">			result = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L886" title="All 2 branches missed.">			if (result.next()) {</span>
+<span class="nc" id="L887">				transaction_id = result.getLong(1);</span>
+<span class="nc" id="L888">				transIdList.add(transaction_id);</span>
+
+				// insert in st bo transaction master
+<span class="nc" id="L891">				pstmt = connection.prepareStatement(QueryManager</span>
+						.insertInBOTransactionMaster());
+<span class="nc" id="L893">				pstmt.setLong(1, transaction_id);</span>
+<span class="nc" id="L894">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L895">				pstmt.setInt(3, userOrgId);</span>
+<span class="nc" id="L896">				pstmt.setString(4, &quot;PLAYER&quot;);</span>
+<span class="nc" id="L897">				pstmt.setInt(5, playerId);</span>
+<span class="nc" id="L898">				pstmt.setTimestamp(6, new java.sql.Timestamp(</span>
+						new java.util.Date().getTime()));
+<span class="nc" id="L900">				pstmt.setString(7, &quot;PWT_PLR&quot;);</span>
+<span class="nc" id="L901">				pstmt.executeUpdate();</span>
+
+<span class="nc" id="L903">				net_amt = pwtAmt - tax;</span>
+<span class="nc" id="L904">				pstmt = connection.prepareStatement(QueryManager</span>
+						.getST5DirectPlayerTransactionQuery());
+<span class="nc" id="L906">				pstmt.setInt(1, taskId);</span>
+<span class="nc" id="L907">				pstmt.setString(2, ticketNbr);</span>
+<span class="nc" id="L908">				pstmt.setString(3, virnCode);</span>
+<span class="nc" id="L909">				pstmt.setLong(4, transaction_id);</span>
+<span class="nc" id="L910">				pstmt.setInt(5, gameId);</span>
+<span class="nc" id="L911">				pstmt.setInt(6, playerId);</span>
+<span class="nc" id="L912">				pstmt.setDouble(7, pwtAmt);</span>
+<span class="nc" id="L913">				pstmt.setDouble(8, tax);</span>
+<span class="nc" id="L914">				pstmt.setDouble(9, net_amt);</span>
+<span class="nc" id="L915">				pstmt.setTimestamp(10, new java.sql.Timestamp(</span>
+						new java.util.Date().getTime()));
+<span class="nc" id="L917">				pstmt.setString(11, paymentType);</span>
+
+<span class="nc bnc" id="L919" title="All 4 branches missed.">				if (&quot;cash&quot;.equalsIgnoreCase(paymentType)</span>
+						|| &quot;TPT&quot;.equalsIgnoreCase(paymentType)) {
+<span class="nc" id="L921">					pstmt.setObject(12, null);</span>
+<span class="nc" id="L922">					pstmt.setObject(13, null);</span>
+<span class="nc" id="L923">					pstmt.setObject(14, null);</span>
+<span class="nc" id="L924">					pstmt.setObject(15, null);</span>
+<span class="nc bnc" id="L925" title="All 2 branches missed.">				} else if (&quot;cheque&quot;.equalsIgnoreCase(paymentType)) {</span>
+<span class="nc" id="L926">					pstmt.setString(12, chequeNbr);</span>
+<span class="nc" id="L927">					pstmt.setDate(13, chqDate);</span>
+<span class="nc" id="L928">					pstmt.setString(14, draweeBank);</span>
+<span class="nc" id="L929">					pstmt.setString(15, issuingParty);</span>
+				}
+<span class="nc" id="L931">				pstmt.executeUpdate();</span>
+
+				// update total prize remaining of that game
+				// GameUtilityHelper.updateNoOfPrizeRem(gameId, pwtAmt,
+				// &quot;CLAIM_PLR&quot;, virnCode, connection,gameNbr);
+<span class="nc" id="L936">				GameUtilityHelper.updateNoOfPrizeRemNewZim(gameId, pwtAmt,</span>
+						&quot;CLAIM_PLR_BO&quot;, virnCode, connection, gameNbr,MD5Encoder.encode(ticketNbr));
+
+				// update pwt ticket inv table
+<span class="nc" id="L940">				CommonFunctionsHelper commonHelper = new CommonFunctionsHelper();</span>
+<span class="nc" id="L941">				commonHelper.updateTicketInvTable(ticketNbr, ticketNbr</span>
+						.split(&quot;-&quot;)[0]
+						+ &quot;-&quot; + ticketNbr.split(&quot;-&quot;)[1], gameNbr, gameId,
+						&quot;CLAIM_PLR_BO&quot;, userId, userOrgId, &quot;UPDATE&quot;, playerId,
+						channel, interfaceType, connection);
+
+				// update pwt inv table
+<span class="nc" id="L948">				commonHelper.updateVirnStatus(gameNbr, &quot;CLAIM_PLR_BO&quot;, gameId,</span>
+						virnCode, connection,MD5Encoder.encode(ticketNbr));
+
+				// update status of of requested id entries into
+				// st_se_pwt_approval_request_master
+<span class="nc" id="L953">				String updateAppTable = &quot;update  st_se_pwt_approval_request_master  set req_status ='PAID', &quot;</span>
+						+ &quot;remarks ='Payment Done', payment_done_by_type =?, payment_done_by =? ,transaction_id=? where  task_id = ?&quot;;
+<span class="nc" id="L955">				pstmt = connection.prepareStatement(updateAppTable);</span>
+<span class="nc" id="L956">				pstmt.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L957">				pstmt.setInt(2, userOrgId);</span>
+<span class="nc" id="L958">				pstmt.setLong(3, transaction_id);</span>
+<span class="nc" id="L959">				pstmt.setInt(4, taskId);</span>
+<span class="nc" id="L960">				int j = pstmt.executeUpdate();</span>
+<span class="nc" id="L961">				System.out.println(&quot;total row updated = &quot; + j</span>
+						+ &quot; ,  requested id &quot; + taskId + &quot; status updated = &quot;
+						+ pstmt);
+<span class="nc bnc" id="L964" title="All 2 branches missed.">				if (j &lt; 1) {</span>
+<span class="nc" id="L965">					throw new LMSException(</span>
+							&quot;st_se_pwt_approval_request_master table not updated.&quot;);
+				}
+
+				// now generate Recipet at BO End
+<span class="nc" id="L970">				receiptIdNGeneratedNo = commonHelper.generateReceiptBo(</span>
+						connection, playerId, &quot;PLAYER&quot;, transIdList);
+<span class="nc bnc" id="L972" title="All 2 branches missed.">				if (receiptIdNGeneratedNo != null) {</span>
+<span class="nc" id="L973">					connection.commit();</span>
+				} else {
+<span class="nc" id="L975">					throw new LMSException(</span>
+							&quot;Error during generating receipts for PWT :: &quot;);
+				}
+<span class="nc bnc" id="L978" title="All 2 branches missed.">				if (Integer.parseInt(receiptIdNGeneratedNo.split(&quot;-&quot;)[0]) &gt; 0) {</span>
+<span class="nc" id="L979">					GraphReportHelper graphReportHelper = new GraphReportHelper();</span>
+					// graphReportHelper.createTextReportPlayer(Integer.parseInt((receiptIdNGeneratedNo.split(&quot;-&quot;)[0])),rootPath,boOrgName,pwtAmt,tax,playerId,userOrgId);
+<span class="nc" id="L981">					graphReportHelper.createTextReportPlayer(taskId, rootPath,</span>
+							&quot;SCRATCH_GAME&quot;);
+				}
+
+<span class="nc" id="L985">			} else {</span>
+<span class="nc" id="L986">				throw new LMSException(</span>
+						&quot;Exception :: Transaction Id is not generated:: transaction Id is &quot;
+								+ transaction_id);
+			}
+<span class="nc" id="L990">			return receiptIdNGeneratedNo.split(&quot;-&quot;)[1];</span>
+<span class="nc" id="L991">		} catch (SQLException e) {</span>
+<span class="nc" id="L992">			e.printStackTrace();</span>
+<span class="nc" id="L993">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L995">			try {</span>
+<span class="nc bnc" id="L996" title="All 4 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L997">					connection.close();</span>
+				}
+<span class="nc" id="L999">			} catch (SQLException se) {</span>
+<span class="nc" id="L1000">				se.printStackTrace();</span>
+<span class="nc" id="L1001">				throw new LMSException(se);</span>
+<span class="nc" id="L1002">			}</span>
+		}
+	}
+
+	public PwtApproveRequestNPlrBean getRequestDetails(int taskId,
+			String partyType) throws LMSException {
+		 
+		// Connection con=null;
+<span class="nc" id="L1010">		PreparedStatement pstmt = null;</span>
+		ResultSet resultFromDb;
+<span class="nc" id="L1012">		connection = DBConnect.getConnection();</span>
+		try {
+
+<span class="nc" id="L1015">			String getPwtDetailsQuery = null;</span>
+
+<span class="nc bnc" id="L1017" title="All 2 branches missed.">			if (&quot;AGENT&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1018">				getPwtDetailsQuery = &quot;select a.task_id,a.requested_by_org_id,a.requester_type,a.party_type,a.party_id,a.request_id,a.pwt_amt,a.tax_amt,a.net_amt,a.req_status,a.ticket_nbr,a.virn_code,a.remarks,a.game_id,d.game_name,d.game_nbr,c.name from st_se_pwt_approval_request_master a ,st_se_game_master d,st_lms_organization_master c  where 1=1 and d.game_id=a.game_id   and task_id=? and party_type='AGENT' and c.organization_id=a.party_id&quot;;</span>
+<span class="nc bnc" id="L1019" title="All 2 branches missed.">			} else if (&quot;PLAYER&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1020">				getPwtDetailsQuery = &quot;select a.task_id,a.requested_by_org_id,a.requester_type,a.party_type,a.request_id,a.party_id,a.pwt_amt,a.tax_amt,a.net_amt,a.req_status,a.ticket_nbr,a.virn_code,a.remarks,a.game_id,b.first_name,b.last_name,b.city,b.phone_nbr,b.player_id,b.bank_acc_nbr,b.bank_name,b.bank_branch,b.location_city,d.game_name,d.game_nbr from st_se_pwt_approval_request_master a , st_lms_player_master b ,st_se_game_master d where 1=1 and d.game_id=a.game_id   and a.task_id=? and party_type='PLAYER' and a.party_id=b.player_id&quot;;</span>
+			} else {
+<span class="nc" id="L1022">				throw new LMSException(&quot;Error because party type is &quot;</span>
+						+ partyType);
+			}
+
+<span class="nc" id="L1026">			System.out.println(&quot;query to get pwt details :&quot;</span>
+					+ getPwtDetailsQuery);
+<span class="nc" id="L1028">			pstmt = connection.prepareStatement(getPwtDetailsQuery);</span>
+<span class="nc" id="L1029">			pstmt.setInt(1, taskId);</span>
+<span class="nc" id="L1030">			resultFromDb = pstmt.executeQuery();</span>
+			// PlayerBean plrBean=new PlayerBean();
+<span class="nc" id="L1032">			PwtApproveRequestNPlrBean plrPwtBean = new PwtApproveRequestNPlrBean();</span>
+<span class="nc bnc" id="L1033" title="All 2 branches missed.">			while (resultFromDb.next()) {</span>
+				// collect player info
+<span class="nc bnc" id="L1035" title="All 2 branches missed.">				if (resultFromDb.getString(&quot;party_type&quot;).equals(&quot;PLAYER&quot;)) {</span>
+					// plrBean.setFirstName(resultFromDb.getString(&quot;first_name&quot;));
+					// plrBean.setLastName(resultFromDb.getString(&quot;last_name&quot;));
+<span class="nc" id="L1038">					plrPwtBean.setPartyName(resultFromDb</span>
+							.getString(&quot;first_name&quot;)
+							+ &quot; &quot; + resultFromDb.getString(&quot;last_name&quot;));
+<span class="nc" id="L1041">					plrPwtBean</span>
+							.setPhone_nbr(resultFromDb.getString(&quot;phone_nbr&quot;));
+<span class="nc" id="L1043">					plrPwtBean.setCity(resultFromDb.getString(&quot;city&quot;));</span>
+<span class="nc" id="L1044">					plrPwtBean.setBankActNbr(resultFromDb</span>
+							.getString(&quot;bank_acc_nbr&quot;));
+<span class="nc" id="L1046">					plrPwtBean.setBankBranch(resultFromDb</span>
+							.getString(&quot;bank_branch&quot;));
+<span class="nc" id="L1048">					plrPwtBean.setBankCity(resultFromDb</span>
+							.getString(&quot;location_city&quot;));
+<span class="nc" id="L1050">					plrPwtBean.setBankName(resultFromDb.getString(&quot;bank_name&quot;));</span>
+					// plrBean.setPlrCity(resultFromDb.getString(&quot;city&quot;));
+					// plrBean.setPlrId(resultFromDb.getInt(&quot;player_id&quot;));
+<span class="nc bnc" id="L1053" title="All 2 branches missed.">				} else if (resultFromDb.getString(&quot;party_type&quot;).equals(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L1054">					plrPwtBean.setPartyName(resultFromDb.getString(&quot;name&quot;));</span>
+				}
+
+				// collect pwt info
+<span class="nc" id="L1058">				plrPwtBean.setPartyType(resultFromDb.getString(&quot;party_type&quot;));</span>
+<span class="nc" id="L1059">				plrPwtBean.setPartyId(resultFromDb.getInt(&quot;party_id&quot;));</span>
+<span class="nc" id="L1060">				plrPwtBean.setPwt_amt(resultFromDb.getDouble(&quot;pwt_amt&quot;));</span>
+<span class="nc" id="L1061">				plrPwtBean.setComm_amt(resultFromDb.getDouble(&quot;tax_amt&quot;));</span>
+<span class="nc" id="L1062">				plrPwtBean.setNet_amt(resultFromDb.getDouble(&quot;net_amt&quot;));</span>
+<span class="nc" id="L1063">				plrPwtBean.setTicket_nbr(resultFromDb.getString(&quot;ticket_nbr&quot;));</span>
+<span class="nc" id="L1064">				plrPwtBean.setVirn_nbr(resultFromDb.getString(&quot;virn_code&quot;));</span>
+<span class="nc" id="L1065">				plrPwtBean.setRemarks(resultFromDb.getString(&quot;remarks&quot;));</span>
+<span class="nc" id="L1066">				plrPwtBean.setTask_id(resultFromDb.getInt(&quot;task_id&quot;));</span>
+<span class="nc" id="L1067">				plrPwtBean.setRequest_id(resultFromDb.getString(&quot;request_id&quot;));</span>
+<span class="nc" id="L1068">				plrPwtBean.setRequested_by_org_id(resultFromDb</span>
+						.getInt(&quot;requested_by_org_id&quot;));
+<span class="nc" id="L1070">				plrPwtBean.setGame_id(resultFromDb.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L1071">				plrPwtBean.setGame_nbr(resultFromDb.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L1072">				plrPwtBean.setRequester_type(resultFromDb</span>
+						.getString(&quot;requester_type&quot;));
+
+			}
+			// List plrPwtDetails=new ArrayList();
+			// plrPwtDetails.add(plrBean);
+			// plrPwtDetails.add(plePwtBean);
+
+<span class="nc" id="L1080">			return plrPwtBean;</span>
+
+<span class="nc" id="L1082">		} catch (SQLException se) {</span>
+<span class="nc" id="L1083">			se.printStackTrace();</span>
+<span class="nc" id="L1084">			throw new LMSException();</span>
+		}
+		// return null;
+
+	}
+
+	/**
+	 * This method is used to get requested pwts from request table
+	 * 
+	 */
+	public List&lt;PwtApproveRequestNPlrBean&gt; getRequestedPwts(String requestId,
+			int requestedById, String requesterType, String firstName,
+			String lastName, String status, int requestedToOrgId,
+			String partyType) throws LMSException {
+
+		
+<span class="nc" id="L1100">		Statement stmtGetReqDetails = null;</span>
+		ResultSet reqDetails;
+<span class="nc" id="L1102">		connection = DBConnect.getConnection();</span>
+<span class="nc" id="L1103">		StringBuilder getRequestDetailsQuery = null;</span>
+<span class="nc" id="L1104">		new StringBuilder(</span>
+				&quot;select a.task_id,a.party_type,a.pwt_amt,a.requested_by_org_id,a.request_id,a.req_status,a.request_date,a.remarks,a.ticket_nbr,a.virn_code,a.game_id,a.requester_type,b.first_name,b.last_name,b.city,b.phone_nbr,c.name,d.game_name,d.game_nbr from st_se_pwt_approval_request_master a left join st_lms_player_master b on a.party_id=b.player_id,st_lms_organization_master c,st_se_game_master d  where 1=1 and c.organization_id=a.requested_by_org_id and d.game_id=a.game_id  &quot;);
+
+<span class="nc bnc" id="L1107" title="All 2 branches missed.">		if (&quot;PLAYER&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1108">			getRequestDetailsQuery = new StringBuilder(</span>
+					&quot;select a.task_id,a.party_type,a.pwt_amt,a.requested_by_org_id,a.request_id,a.req_status,a.request_date,a.remarks,a.ticket_nbr,a.virn_code,a.game_id,a.requester_type,b.first_name,b.last_name,b.city,b.phone_nbr,c.name,d.game_name,d.game_nbr from st_se_pwt_approval_request_master a left join st_lms_player_master b on a.party_id=b.player_id,st_lms_organization_master c,st_se_game_master d  where 1=1 and c.organization_id=a.requested_by_org_id and d.game_id=a.game_id  &quot;);
+<span class="nc bnc" id="L1110" title="All 4 branches missed.">			if (firstName != null &amp;&amp; !&quot;&quot;.equals(firstName)) {</span>
+<span class="nc" id="L1111">				getRequestDetailsQuery.append(&quot; and b.first_name='&quot; + firstName</span>
+						+ &quot;'&quot;);
+			}
+<span class="nc bnc" id="L1114" title="All 4 branches missed.">			if (lastName != null &amp;&amp; !&quot;&quot;.equals(lastName)) {</span>
+<span class="nc" id="L1115">				getRequestDetailsQuery.append(&quot; and b.last_name='&quot; + lastName</span>
+						+ &quot;'&quot;);
+			}
+
+<span class="nc bnc" id="L1119" title="All 4 branches missed.">		} else if (&quot;RETAILER&quot;.equals(partyType) || &quot;AGENT&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1120">			getRequestDetailsQuery = new StringBuilder(</span>
+					&quot;select a.task_id,a.party_type,a.pwt_amt,a.requested_by_org_id,a.request_id,a.req_status,a.request_date,a.remarks,a.ticket_nbr,a.virn_code,a.game_id,a.requester_type,c.name,d.game_name,d.game_nbr from st_se_pwt_approval_request_master a ,st_lms_organization_master c,st_se_game_master d  where 1=1 and c.organization_id=a.requested_by_org_id and d.game_id=a.game_id &quot;);
+
+		}
+		// getRequestDetailsQuery.append(&quot; and
+		// a.requested_to_org_id=&quot;+requestedToOrgId);
+
+<span class="nc bnc" id="L1127" title="All 6 branches missed.">		if (requesterType != null &amp;&amp; !&quot;&quot;.equalsIgnoreCase(requesterType)</span>
+				&amp;&amp; !&quot;ALL&quot;.equalsIgnoreCase(requesterType)) {
+<span class="nc" id="L1129">			getRequestDetailsQuery.append(&quot; and a.requester_type='&quot;</span>
+					+ requesterType + &quot;'&quot;);
+		}
+
+<span class="nc" id="L1133">		getRequestDetailsQuery.append(&quot; and a.party_type='&quot; + partyType + &quot;'&quot;);</span>
+
+<span class="nc bnc" id="L1135" title="All 4 branches missed.">		if (requestId != null &amp;&amp; !&quot;&quot;.equals(requestId)) {</span>
+<span class="nc" id="L1136">			getRequestDetailsQuery.append(&quot; and a.request_id='&quot; + requestId</span>
+					+ &quot;'&quot;);
+		}
+<span class="nc bnc" id="L1139" title="All 2 branches missed.">		if (requestedById &gt; 0) {</span>
+<span class="nc" id="L1140">			getRequestDetailsQuery.append(&quot; and a.requested_by_org_id=&quot;</span>
+					+ requestedById);
+		}
+
+<span class="nc bnc" id="L1144" title="All 6 branches missed.">		if (status != null &amp;&amp; !&quot;&quot;.equals(status) &amp;&amp; !&quot;All&quot;.equals(status)) {</span>
+<span class="nc" id="L1145">			getRequestDetailsQuery.append(&quot; and a.req_status='&quot; + status + &quot;'&quot;);</span>
+		}
+
+<span class="nc" id="L1148">		System.out.println(&quot;requests Details Query:: &quot;</span>
+				+ getRequestDetailsQuery.toString());
+		try {
+<span class="nc" id="L1151">			List&lt;PwtApproveRequestNPlrBean&gt; pwtReqDetailsList = new ArrayList&lt;PwtApproveRequestNPlrBean&gt;();</span>
+			PwtApproveRequestNPlrBean pwtAppReqPlrBean;
+<span class="nc" id="L1153">			stmtGetReqDetails = connection.createStatement();</span>
+<span class="nc" id="L1154">			reqDetails = stmtGetReqDetails.executeQuery(getRequestDetailsQuery</span>
+					.toString());
+<span class="nc bnc" id="L1156" title="All 2 branches missed.">			while (reqDetails.next()) {</span>
+<span class="nc" id="L1157">				pwtAppReqPlrBean = new PwtApproveRequestNPlrBean();</span>
+<span class="nc" id="L1158">				pwtAppReqPlrBean.setRequest_id(reqDetails</span>
+						.getString(&quot;request_id&quot;));
+<span class="nc" id="L1160">				pwtAppReqPlrBean.setTask_id(reqDetails.getInt(&quot;task_id&quot;));</span>
+<span class="nc" id="L1161">				pwtAppReqPlrBean.setRequested_by_org_id(reqDetails</span>
+						.getInt(&quot;requested_by_org_id&quot;));
+<span class="nc" id="L1163">				pwtAppReqPlrBean.setRequester_type(reqDetails</span>
+						.getString(&quot;requester_type&quot;));
+<span class="nc" id="L1165">				pwtAppReqPlrBean.setReq_status(reqDetails</span>
+						.getString(&quot;req_status&quot;));
+<span class="nc" id="L1167">				pwtAppReqPlrBean.setRequest_date(reqDetails</span>
+						.getDate(&quot;request_date&quot;));
+<span class="nc" id="L1169">				pwtAppReqPlrBean.setRemarks(reqDetails.getString(&quot;remarks&quot;));</span>
+<span class="nc" id="L1170">				pwtAppReqPlrBean.setTicket_nbr(reqDetails</span>
+						.getString(&quot;ticket_nbr&quot;));
+<span class="nc" id="L1172">				pwtAppReqPlrBean.setVirn_nbr(reqDetails.getString(&quot;virn_code&quot;));</span>
+<span class="nc" id="L1173">				pwtAppReqPlrBean.setRequestedByOrgName(reqDetails</span>
+						.getString(&quot;name&quot;));
+<span class="nc" id="L1175">				pwtAppReqPlrBean</span>
+						.setGame_name(reqDetails.getString(&quot;game_name&quot;));
+<span class="nc" id="L1177">				pwtAppReqPlrBean.setGame_nbr(reqDetails.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L1178">				pwtAppReqPlrBean.setGame_id(reqDetails.getInt(&quot;game_id&quot;));</span>
+
+<span class="nc bnc" id="L1180" title="All 2 branches missed.">				if (&quot;PLAYER&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1181">					pwtAppReqPlrBean.setPartyName(reqDetails</span>
+							.getString(&quot;first_name&quot;)
+							+ &quot; &quot; + reqDetails.getString(&quot;last_name&quot;));
+					// pwtAppReqPlrBean.setFirst_name(reqDetails.getString(&quot;first_name&quot;));
+					// pwtAppReqPlrBean.setLast_name(reqDetails.getString(&quot;last_name&quot;));
+<span class="nc" id="L1186">					pwtAppReqPlrBean.setCity(reqDetails.getString(&quot;city&quot;));</span>
+<span class="nc" id="L1187">					pwtAppReqPlrBean.setPhone_nbr(reqDetails</span>
+							.getString(&quot;phone_nbr&quot;));
+				} else {
+<span class="nc" id="L1190">					pwtAppReqPlrBean.setPartyName(reqDetails.getString(&quot;name&quot;));</span>
+				}
+<span class="nc" id="L1192">				pwtAppReqPlrBean.setPartyType(reqDetails</span>
+						.getString(&quot;party_type&quot;));
+<span class="nc" id="L1194">				pwtAppReqPlrBean.setPwt_amt(reqDetails.getDouble(&quot;pwt_amt&quot;));</span>
+<span class="nc" id="L1195">				pwtReqDetailsList.add(pwtAppReqPlrBean);</span>
+			}
+<span class="nc" id="L1197">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L1198">			return pwtReqDetailsList;</span>
+<span class="nc" id="L1199">		} catch (SQLException e) {</span>
+<span class="nc" id="L1200">			e.printStackTrace();</span>
+<span class="nc" id="L1201">			throw new LMSException(&quot;sql Exception&quot;, e);</span>
+		}
+
+	}
+
+	/**
+	 * This method is used to get pending pwts to pay from request table
+	 */
+	public List&lt;PwtApproveRequestNPlrBean&gt; getRequestsPwtsToPay(
+			String requestId, int pendingAtAgtOrgId, String firstName,
+			String lastName, String status, int payByOrgId,
+			String paymentPendingAt, String partyType,UserInfoBean userInfoBean) throws LMSException {
+
+		
+<span class="nc" id="L1215">		Statement stmtGetReqDetails = null;</span>
+		ResultSet reqDetails;
+<span class="nc" id="L1217">		String subQueryForRoleHead = &quot;&quot;;</span>
+<span class="nc" id="L1218">		connection = DBConnect.getConnection();</span>
+
+<span class="nc" id="L1220">		StringBuilder getRequestDetailsQuery = null;</span>
+		
+<span class="nc bnc" id="L1222" title="All 2 branches missed.">		if(&quot;BO&quot;.equals(userInfoBean.getUserType())){</span>
+<span class="nc" id="L1223">			subQueryForRoleHead = &quot; and (a.requested_by_user_id = &quot;+userInfoBean.getUserId() +&quot; or a.requested_by_org_id in (select agent_id from st_lms_role_agent_mapping  where role_id = &quot;+userInfoBean.getRoleId()+&quot;))&quot;;</span>
+		}
+<span class="nc bnc" id="L1225" title="All 6 branches missed.">		if (partyType != null &amp;&amp; !&quot;&quot;.equals(partyType)</span>
+				&amp;&amp; &quot;PLAYER&quot;.equals(partyType)) {
+<span class="nc" id="L1227">			getRequestDetailsQuery = new StringBuilder(</span>
+					&quot;select a.party_type,a.task_id,a.pwt_amt,a.requested_by_org_id,a.request_id,a.req_status,a.request_date,a.remarks,a.ticket_nbr,a.virn_code,a.game_id,b.first_name,b.last_name,b.city,b.phone_nbr,c.name,d.game_name,d.game_nbr from st_se_pwt_approval_request_master a left join st_lms_player_master b on a.party_id=b.player_id,st_lms_organization_master c,st_se_game_master d  where 1=1 and c.organization_id=a.requested_by_org_id and d.game_id=a.game_id and (a.party_type='PLAYER'|| a.party_type='ANONYMOUS') &quot;);
+<span class="nc bnc" id="L1229" title="All 4 branches missed.">			if (firstName != null &amp;&amp; !&quot;&quot;.equals(firstName)) {</span>
+<span class="nc" id="L1230">				getRequestDetailsQuery.append(&quot; and b.first_name='&quot; + firstName</span>
+						+ &quot;'&quot;);
+			}
+<span class="nc bnc" id="L1233" title="All 4 branches missed.">			if (lastName != null &amp;&amp; !&quot;&quot;.equals(lastName)) {</span>
+<span class="nc" id="L1234">				getRequestDetailsQuery.append(&quot; and b.last_name='&quot; + lastName</span>
+						+ &quot;'&quot;);
+			}
+<span class="nc bnc" id="L1237" title="All 2 branches missed.">			if (!&quot;ALL&quot;.equals(paymentPendingAt)) {</span>
+<span class="nc bnc" id="L1238" title="All 2 branches missed.">				if (payByOrgId != 0) {</span>
+<span class="nc" id="L1239">					getRequestDetailsQuery</span>
+							.append(&quot; and a.pay_request_for_org_id=&quot;
+									+ payByOrgId);
+				}
+<span class="nc" id="L1243">				getRequestDetailsQuery.append(&quot; and a.pay_req_for_org_type='&quot;</span>
+						+ paymentPendingAt + &quot;'&quot;);
+			}
+<span class="nc bnc" id="L1246" title="All 6 branches missed.">		} else if (partyType != null &amp;&amp; !&quot;&quot;.equals(partyType)</span>
+				&amp;&amp; &quot;AGENT&quot;.equals(partyType)) {
+<span class="nc" id="L1248">			getRequestDetailsQuery = new StringBuilder(</span>
+					&quot;select a.party_type,a.task_id,a.pwt_amt,a.requested_by_org_id,a.request_id,a.req_status,a.request_date,a.remarks,a.ticket_nbr,a.virn_code,a.game_id,c.name,d.game_name,d.game_nbr from st_se_pwt_approval_request_master a ,st_lms_organization_master c,st_se_game_master d  where 1=1 and c.organization_id=a.party_id and d.game_id=a.game_id and a.party_type='AGENT'&quot;);
+
+<span class="nc bnc" id="L1251" title="All 2 branches missed.">			if (pendingAtAgtOrgId != 0) {</span>
+<span class="nc" id="L1252">				getRequestDetailsQuery.append(&quot; and a.party_id=&quot;</span>
+						+ pendingAtAgtOrgId + &quot;&quot;);
+			}
+
+<span class="nc bnc" id="L1256" title="All 2 branches missed.">			if (!&quot;ALL&quot;.equals(paymentPendingAt)) {</span>
+<span class="nc bnc" id="L1257" title="All 2 branches missed.">				if (payByOrgId != 0) {</span>
+<span class="nc" id="L1258">					getRequestDetailsQuery</span>
+							.append(&quot; and a.pay_request_for_org_id=&quot;
+									+ payByOrgId);
+				}
+<span class="nc" id="L1262">				getRequestDetailsQuery.append(&quot; and a.pay_req_for_org_type='&quot;</span>
+						+ paymentPendingAt + &quot;'&quot;);
+			}
+		} else {
+<span class="nc" id="L1266">			throw new LMSException(</span>
+					&quot;LMS EXCeption You have selected Wrong party type :: &quot;
+							+ partyType);
+		}
+
+<span class="nc bnc" id="L1271" title="All 4 branches missed.">		if (requestId != null &amp;&amp; !&quot;&quot;.equals(requestId)) {</span>
+<span class="nc" id="L1272">			getRequestDetailsQuery.append(&quot; and a.request_id='&quot; + requestId</span>
+					+ &quot;'&quot;);
+		}
+
+<span class="nc bnc" id="L1276" title="All 4 branches missed.">		if (status != null &amp;&amp; !&quot;&quot;.equals(status)) {</span>
+<span class="nc" id="L1277">			getRequestDetailsQuery.append(&quot; and a.req_status='&quot; + status + &quot;'&quot;);</span>
+		}
+
+<span class="nc" id="L1280">		System.out.println(&quot;requests Details Query:: &quot;</span>
+				+ getRequestDetailsQuery.toString());
+		try {
+<span class="nc" id="L1283">			List&lt;PwtApproveRequestNPlrBean&gt; pwtReqDetailsList = new ArrayList&lt;PwtApproveRequestNPlrBean&gt;();</span>
+			PwtApproveRequestNPlrBean pwtAppReqPlrBean;
+<span class="nc" id="L1285">			stmtGetReqDetails = connection.createStatement();</span>
+<span class="nc" id="L1286">			reqDetails = stmtGetReqDetails.executeQuery(getRequestDetailsQuery</span>
+					.toString()+subQueryForRoleHead);
+<span class="nc bnc" id="L1288" title="All 2 branches missed.">			while (reqDetails.next()) {</span>
+<span class="nc" id="L1289">				pwtAppReqPlrBean = new PwtApproveRequestNPlrBean();</span>
+<span class="nc" id="L1290">				pwtAppReqPlrBean.setRequest_id(reqDetails</span>
+						.getString(&quot;request_id&quot;));
+<span class="nc" id="L1292">				pwtAppReqPlrBean.setTask_id(reqDetails.getInt(&quot;task_id&quot;));</span>
+<span class="nc" id="L1293">				pwtAppReqPlrBean.setRequested_by_org_id(reqDetails</span>
+						.getInt(&quot;requested_by_org_id&quot;));
+<span class="nc" id="L1295">				pwtAppReqPlrBean.setReq_status(reqDetails</span>
+						.getString(&quot;req_status&quot;));
+<span class="nc" id="L1297">				pwtAppReqPlrBean.setRequest_date(reqDetails</span>
+						.getDate(&quot;request_date&quot;));
+<span class="nc" id="L1299">				pwtAppReqPlrBean.setRemarks(reqDetails.getString(&quot;remarks&quot;));</span>
+<span class="nc" id="L1300">				pwtAppReqPlrBean.setTicket_nbr(reqDetails</span>
+						.getString(&quot;ticket_nbr&quot;));
+<span class="nc" id="L1302">				pwtAppReqPlrBean.setVirn_nbr(reqDetails.getString(&quot;virn_code&quot;));</span>
+<span class="nc" id="L1303">				pwtAppReqPlrBean.setRetailer_name(reqDetails.getString(&quot;name&quot;));</span>
+<span class="nc" id="L1304">				pwtAppReqPlrBean</span>
+						.setGame_name(reqDetails.getString(&quot;game_name&quot;));
+<span class="nc" id="L1306">				pwtAppReqPlrBean.setGame_nbr(reqDetails.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L1307">				pwtAppReqPlrBean.setGame_id(reqDetails.getInt(&quot;game_id&quot;));</span>
+
+				// pwtAppReqPlrBean.setFirst_name(reqDetails.getString(&quot;first_name&quot;));
+				// pwtAppReqPlrBean.setLast_name(reqDetails.getString(&quot;last_name&quot;));
+<span class="nc bnc" id="L1311" title="All 2 branches missed.">				if (&quot;PLAYER&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1312">					pwtAppReqPlrBean.setPartyName(reqDetails</span>
+							.getString(&quot;first_name&quot;)
+							+ &quot; &quot; + reqDetails.getString(&quot;last_name&quot;));
+<span class="nc" id="L1315">					pwtAppReqPlrBean.setCity(reqDetails.getString(&quot;city&quot;));</span>
+<span class="nc" id="L1316">					pwtAppReqPlrBean.setPhone_nbr(reqDetails</span>
+							.getString(&quot;phone_nbr&quot;));
+<span class="nc bnc" id="L1318" title="All 2 branches missed.">				} else if (&quot;AGENT&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1319">					pwtAppReqPlrBean.setPartyName(reqDetails.getString(&quot;name&quot;));</span>
+				}
+<span class="nc" id="L1321">				pwtAppReqPlrBean.setPartyType(reqDetails</span>
+						.getString(&quot;party_type&quot;));
+<span class="nc" id="L1323">				pwtAppReqPlrBean.setPwt_amt(reqDetails.getDouble(&quot;pwt_amt&quot;));</span>
+<span class="nc" id="L1324">				pwtReqDetailsList.add(pwtAppReqPlrBean);</span>
+			}
+<span class="nc" id="L1326">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L1327">			return pwtReqDetailsList;</span>
+<span class="nc" id="L1328">		} catch (SQLException e) {</span>
+<span class="nc" id="L1329">			e.printStackTrace();</span>
+<span class="nc" id="L1330">			throw new LMSException(&quot;sql Exception&quot;, e);</span>
+		}
+
+	}
+
+	public List&lt;GamePlayerPWTBean&gt; getUnapprovedPwt() throws LMSException {
+		 
+<span class="nc" id="L1337">		Connection con = null;</span>
+		PreparedStatement pstmt;
+		GamePlayerPWTBean gamePlayerBean;
+<span class="nc" id="L1340">		List&lt;GamePlayerPWTBean&gt; gamePlayerBeanList = new ArrayList&lt;GamePlayerPWTBean&gt;();</span>
+		try {
+<span class="nc" id="L1342">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L1343">			String getUnapprovePwtQuery = &quot;select b.game_name,b.game_nbr,a.pwt_receipt_id,a.player_id,a.game_id,a.virn_code,a.pwt_amt,a.status,a.ticket_nbr from st_se_direct_player_pwt_temp_receipt a,st_se_game_master b where a.status=? and a.game_id=b.game_id&quot;;</span>
+
+<span class="nc" id="L1345">			pstmt = con.prepareStatement(getUnapprovePwtQuery);</span>
+<span class="nc" id="L1346">			pstmt.setString(1, &quot;PND_ADM&quot;);</span>
+<span class="nc" id="L1347">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1348" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1349">				gamePlayerBean = new GamePlayerPWTBean();</span>
+<span class="nc" id="L1350">				gamePlayerBean.setPlayerReceiptId(rs.getInt(&quot;pwt_receipt_id&quot;));</span>
+<span class="nc" id="L1351">				gamePlayerBean.setPlrId(rs.getInt(&quot;player_id&quot;));</span>
+<span class="nc" id="L1352">				gamePlayerBean.setPwtAmt(rs.getDouble(&quot;pwt_amt&quot;));</span>
+<span class="nc" id="L1353">				gamePlayerBean.setTicketNbr(rs.getString(&quot;ticket_nbr&quot;));</span>
+<span class="nc" id="L1354">				gamePlayerBean.setGameId(rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L1355">				gamePlayerBean.setGameName(rs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L1356">				gamePlayerBean.setGameNbr(rs.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L1357">				gamePlayerBean.setVirnCode(rs.getString(&quot;virn_code&quot;));</span>
+<span class="nc" id="L1358">				gamePlayerBeanList.add(gamePlayerBean);</span>
+			}
+
+<span class="nc" id="L1361">			return gamePlayerBeanList;</span>
+
+<span class="nc" id="L1363">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L1365">			e.printStackTrace();</span>
+
+		} finally {
+<span class="nc" id="L1368">			try {</span>
+
+<span class="nc bnc" id="L1370" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L1371">					con.close();</span>
+				}
+<span class="nc" id="L1373">			} catch (SQLException se) {</span>
+<span class="nc" id="L1374">				se.printStackTrace();</span>
+<span class="nc" id="L1375">			}</span>
+<span class="nc" id="L1376">		}</span>
+<span class="nc" id="L1377">		return null;</span>
+
+	}
+
+	public String payPendingPwt(int taskId, double pwtAmount, double taxAmt,
+			double netAmt, int partyId, String partyType, String ticketNbr,
+			String virnNbr, int gameId, int payByOrgId, int payByUserId,
+			String payByOrgName, String paymentType, String chqNbr,
+			String draweeBank, String chequeDate, String issuiningParty,
+			int gameNbr, String rootPath, String channel, String interfaceType)
+			throws LMSException {
+
+		// this field will be removed from st agent pwt table so no need to pass
+		// this variable for time being put it as zero instead of fetching
+		// userid from database
+<span class="nc" id="L1392">		String autoGeneratedReceiptNo = null;</span>
+<span class="nc" id="L1393">		int partyUserId = 0;</span>
+<span class="nc" id="L1394">		List&lt;PwtBean&gt; pwtList = new ArrayList&lt;PwtBean&gt;();</span>
+<span class="nc" id="L1395">		PwtBean pwtBean = new PwtBean();</span>
+<span class="nc" id="L1396">		pwtBean.setPwtAmount(String.valueOf(pwtAmount));</span>
+<span class="nc" id="L1397">		pwtBean.setEncVirnCode(virnNbr);</span>
+<span class="nc" id="L1398">		pwtBean.setValid(true);</span>
+<span class="nc" id="L1399">		pwtList.add(pwtBean);</span>
+
+<span class="nc" id="L1401">		CommonFunctionsHelper commonHelper = new CommonFunctionsHelper();</span>
+		String receipts;
+<span class="nc bnc" id="L1403" title="All 2 branches missed.">		if (&quot;AGENT&quot;.equals(partyType)) {</span>
+<span class="nc" id="L1404">			receipts = commonHelper.boEndAgtPWTPaymentProcess(pwtList, gameId,</span>
+					payByOrgName, payByOrgId, partyId, partyUserId, rootPath,
+					partyUserId, gameNbr);
+<span class="nc" id="L1407">			autoGeneratedReceiptNo = receipts.split(&quot;-&quot;)[1];</span>
+<span class="nc bnc" id="L1408" title="All 2 branches missed.">		} else if (&quot;PLAYER&quot;.equals(partyType)) {</span>
+			// do direct Player payment at Bo End
+<span class="nc" id="L1410">			DateFormat dateFormat = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L1411">			java.sql.Date chqDate = null;</span>
+			try {
+<span class="nc bnc" id="L1413" title="All 4 branches missed.">				if (!&quot;&quot;.equalsIgnoreCase(chequeDate) &amp;&amp; chequeDate != null) {</span>
+<span class="nc" id="L1414">					chqDate = new java.sql.Date(dateFormat.parse(chequeDate)</span>
+							.getTime());
+				}
+<span class="nc" id="L1417">			} catch (ParseException e) {</span>
+<span class="nc" id="L1418">				e.printStackTrace();</span>
+<span class="nc" id="L1419">				throw new LMSException(</span>
+						&quot;Exception date parsing  while pwt payments at BO end &quot;,
+						e);
+<span class="nc" id="L1422">			}</span>
+
+<span class="nc" id="L1424">			autoGeneratedReceiptNo = doDirectPlrPwtPayAtBO(gameId, partyId,</span>
+					pwtAmount, taxAmt, virnNbr, taskId, chqNbr, draweeBank,
+					issuiningParty, chqDate, paymentType, payByOrgId,
+					payByUserId, gameNbr, ticketNbr, payByOrgName, rootPath,
+					channel, interfaceType);
+<span class="nc" id="L1429">			System.out.println(&quot;auto generated receipt number is  &quot;</span>
+					+ autoGeneratedReceiptNo);
+<span class="nc" id="L1431">		} else {</span>
+<span class="nc" id="L1432">			throw new LMSException(</span>
+					&quot;Exception Ocurred :: Party Type is not Selected Properly :: Only Agent and Player can claim at BO End :: Party Type is: &quot;
+							+ partyType);
+		}
+<span class="nc" id="L1436">		return autoGeneratedReceiptNo;</span>
+	}
+
+	public Map plrRegistrationAndApproval(UserInfoBean userInfoBean,
+			Map pwtDetails, String playerType, int playerId,
+			PlayerBean plrBean, String rootPath) throws LMSException {
+<span class="nc" id="L1442">		Map pwtAppMap = new TreeMap();</span>
+<span class="nc" id="L1443">		TicketBean tktBean = (TicketBean) pwtDetails.get(&quot;tktBean&quot;);</span>
+<span class="nc" id="L1444">		PwtBean pwtBean = (PwtBean) pwtDetails.get(&quot;pwtBean&quot;);</span>
+
+		try {
+<span class="nc" id="L1447">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L1448">			connection.setAutoCommit(false);</span>
+			// register player
+<span class="nc bnc" id="L1450" title="All 2 branches missed.">			if (plrBean != null) {</span>
+<span class="nc" id="L1451">				playerId = new PlayerVerifyHelperForApp().registerPlayer(</span>
+						plrBean, connection);
+			}
+<span class="nc" id="L1454">			System.out.println(&quot;Player id is &quot; + playerId</span>
+					+ &quot; for that approval required&quot;);
+<span class="nc bnc" id="L1456" title="All 2 branches missed.">			if (playerId &lt;= 0) {</span>
+<span class="nc" id="L1457">				throw new LMSException(</span>
+						&quot;error while player registration process player id is&quot;
+								+ playerId);
+			}
+
+<span class="nc" id="L1462">			System.out.println(&quot;is Approval required = '&quot; + pwtBean.getAppReq()</span>
+					+ &quot;' , to  '&quot; + userInfoBean.getUserType()
+					+ &quot;' of orgId = &quot; + userInfoBean.getUserOrgId()
+					+ &quot; and user id = &quot; + userInfoBean.getUserId());
+			// if approval is required request would be sent to Back office
+			// master else request would be sent to bo payments
+
+<span class="nc" id="L1469">			int reqToOrgId = 0;</span>
+<span class="nc" id="L1470">			String reqToOrgType = null;</span>
+<span class="nc" id="L1471">			String remarks = null;</span>
+<span class="nc" id="L1472">			String reqStatus = null;</span>
+<span class="nc" id="L1473">			String approvedByType = null;</span>
+<span class="nc" id="L1474">			int approvedByUserId = 0;</span>
+<span class="nc" id="L1475">			int approvedByOrgId = 0;</span>
+
+<span class="nc bnc" id="L1477" title="All 2 branches missed.">			if (pwtBean.getAppReq()) { // means approval from BO master is</span>
+				// required
+				// get Back office organization and user id
+<span class="nc" id="L1480">				reqToOrgId = userInfoBean.getParentOrgId();</span>
+<span class="nc" id="L1481">				reqToOrgType = &quot;BO&quot;;</span>
+<span class="nc" id="L1482">				remarks = &quot;requested to BO master  For Approval&quot;;</span>
+<span class="nc" id="L1483">				reqStatus = &quot;PND_MAS&quot;;</span>
+
+			} else {
+				// go for pending payments
+<span class="nc" id="L1487">				reqToOrgId = userInfoBean.getUserOrgId();</span>
+<span class="nc" id="L1488">				reqToOrgType = userInfoBean.getUserType();</span>
+<span class="nc" id="L1489">				remarks = &quot;Auto Approved By BO&quot;;</span>
+<span class="nc" id="L1490">				reqStatus = &quot;PND_PAY&quot;;</span>
+<span class="nc" id="L1491">				approvedByType = &quot;BO&quot;;</span>
+<span class="nc" id="L1492">				approvedByUserId = userInfoBean.getUserId();</span>
+<span class="nc" id="L1493">				approvedByOrgId = reqToOrgId;</span>
+			}
+
+<span class="nc" id="L1496">			System.out.println(&quot;Approval requested to orgId = &quot; + reqToOrgId</span>
+					+ &quot;  and user type = &quot; + reqToOrgType);
+
+			// generate TEMP receipt for Approval
+			// GenerateRecieptNo.get
+<span class="nc" id="L1501">			String recIdForApp = GenerateRecieptNo.generateRequestId(&quot;REQUEST&quot;);</span>
+
+			// insert into Approval table
+<span class="nc" id="L1504">			String insertAppQuery = &quot;insert into  st_se_pwt_approval_request_master (party_type ,request_id,party_id,ticket_nbr,virn_code,game_id,pwt_amt,tax_amt,net_amt,req_status,requester_type,requested_by_user_id,requested_by_org_id,requested_to_org_id,requested_to_type,approved_by_type, approved_by_user_id , approved_by_org_id,pay_req_for_org_type,pay_request_for_org_id,approval_date,request_date, remarks) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L1505">			System.out.println(&quot;insertAppQuery = &quot; + insertAppQuery);</span>
+<span class="nc" id="L1506">			pstmt = connection.prepareStatement(insertAppQuery);</span>
+<span class="nc" id="L1507">			pstmt.setString(1, playerType.toUpperCase());</span>
+<span class="nc" id="L1508">			pstmt.setString(2, recIdForApp);</span>
+
+<span class="nc" id="L1510">			boolean isPlr = &quot;player&quot;.equalsIgnoreCase(playerType.trim());</span>
+<span class="nc bnc" id="L1511" title="All 2 branches missed.">			if (isPlr) {</span>
+<span class="nc" id="L1512">				pstmt.setInt(3, playerId);</span>
+			} else {
+<span class="nc" id="L1514">				pstmt.setObject(3, null);</span>
+			}
+
+<span class="nc" id="L1517">			pstmt.setString(4, tktBean.getTicketNumber());</span>
+<span class="nc" id="L1518">			pstmt.setString(5, pwtBean.getEncVirnCode());</span>
+<span class="nc" id="L1519">			pstmt.setInt(6, tktBean.getTicketGameId());</span>
+<span class="nc" id="L1520">			pstmt.setDouble(7, Double.parseDouble(pwtBean.getPwtAmount()));</span>
+<span class="nc" id="L1521">			pstmt.setDouble(8, 0.0);</span>
+<span class="nc" id="L1522">			pstmt.setDouble(9, Double.parseDouble(pwtBean.getPwtAmount()));</span>
+<span class="nc" id="L1523">			pstmt.setString(10, reqStatus);</span>
+<span class="nc" id="L1524">			pstmt.setString(11, userInfoBean.getUserType());</span>
+<span class="nc" id="L1525">			pstmt.setInt(12, userInfoBean.getUserId());</span>
+<span class="nc" id="L1526">			pstmt.setInt(13, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L1527">			pstmt.setInt(14, reqToOrgId);</span>
+<span class="nc" id="L1528">			pstmt.setString(15, reqToOrgType);</span>
+<span class="nc bnc" id="L1529" title="All 2 branches missed.">			if (pwtBean.getAppReq()) {</span>
+<span class="nc" id="L1530">				pstmt.setObject(16, null);</span>
+<span class="nc" id="L1531">				pstmt.setObject(17, null);</span>
+<span class="nc" id="L1532">				pstmt.setObject(18, null);</span>
+<span class="nc" id="L1533">				pstmt.setObject(19, null);</span>
+<span class="nc" id="L1534">				pstmt.setObject(20, null);</span>
+<span class="nc" id="L1535">				pstmt.setObject(21, null);</span>
+			} else {
+<span class="nc" id="L1537">				pstmt.setString(16, approvedByType);</span>
+<span class="nc" id="L1538">				pstmt.setInt(17, approvedByUserId);</span>
+<span class="nc" id="L1539">				pstmt.setInt(18, approvedByOrgId);</span>
+<span class="nc" id="L1540">				pstmt.setString(19, approvedByType);</span>
+<span class="nc" id="L1541">				pstmt.setInt(20, approvedByOrgId);</span>
+<span class="nc" id="L1542">				pstmt.setTimestamp(21, new java.sql.Timestamp(</span>
+						new java.util.Date().getTime()));
+			}
+
+<span class="nc" id="L1546">			pstmt.setTimestamp(22, new java.sql.Timestamp(new java.util.Date()</span>
+					.getTime()));
+<span class="nc" id="L1548">			pstmt.setString(23, remarks);</span>
+
+<span class="nc" id="L1550">			System.out.println(&quot;insertAppQuery pppppp = &quot; + pstmt);</span>
+<span class="nc" id="L1551">			pstmt.executeUpdate();</span>
+
+<span class="nc" id="L1553">			System.out.println(&quot;insertion into pwt temp request  table = &quot;</span>
+					+ pstmt);
+<span class="nc" id="L1555">			ResultSet rs = pstmt.getGeneratedKeys();</span>
+<span class="nc" id="L1556">			int reqId = 0;</span>
+<span class="nc bnc" id="L1557" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L1558">				reqId = rs.getInt(1);</span>
+			} else {
+<span class="nc" id="L1560">				throw new LMSException(</span>
+						&quot;NO Data Inserted in st_se_pwt_approval_request_master table&quot;);
+			}
+
+			// update main ticket table
+<span class="nc" id="L1565">			CommonFunctionsHelper commonFunction = new CommonFunctionsHelper();</span>
+<span class="nc" id="L1566">			commonFunction.updateTicketInvTable(tktBean.getTicketNumber(),</span>
+					tktBean.getBook_nbr(), tktBean.getGameNbr(), tktBean
+							.getTicketGameId(), reqStatus, userInfoBean
+							.getUserId(), userInfoBean.getUserOrgId(), tktBean
+							.getUpdateTicketType(), playerId, userInfoBean
+							.getChannel(), userInfoBean.getInterfaceType(),
+					connection);
+
+			// update book status from active to claimed in table
+			// st_se_game_inv_status table here
+<span class="nc bnc" id="L1576" title="All 2 branches missed.">			if (&quot;ACTIVE&quot;.equalsIgnoreCase(tktBean.getBookStatus())) {</span>
+<span class="nc" id="L1577">				commonFunction.updateBookStatus(tktBean.getTicketGameId(),</span>
+						tktBean.getBook_nbr(), connection, &quot;CLAIMED&quot;);
+			}
+<span class="nc" id="L1580">			commonFunction.updatePwtDateAndTierTickets(tktBean, connection);</span>
+
+			// update main pwt(virn table)
+<span class="nc" id="L1583">			commonFunction.updateVirnStatus(tktBean.getGameNbr(), reqStatus,</span>
+					tktBean.getTicketGameId(), pwtBean.getEncVirnCode(),
+					connection,MD5Encoder.encode(tktBean.getTicketNumber()));
+<span class="nc" id="L1586">			connection.commit();</span>
+
+<span class="nc" id="L1588">			pwtAppMap.put(&quot;recId&quot;, recIdForApp);</span>
+<span class="nc" id="L1589">			pwtAppMap.put(&quot;reqId&quot;, reqId);</span>
+<span class="nc" id="L1590">			pwtAppMap.putAll(pwtDetails);</span>
+<span class="nc" id="L1591">			pwtAppMap.put(&quot;remarks&quot;, remarks);</span>
+
+			// now generate temporary receipt for player
+<span class="nc" id="L1594">			GraphReportHelper graphHelpwr = new GraphReportHelper();</span>
+<span class="nc" id="L1595">			graphHelpwr.createTextReportTempPlayerReceipt(reqId + &quot;&quot;, &quot;BO&quot;,</span>
+					rootPath, &quot;SCRATCH_GAME&quot;);
+
+<span class="nc" id="L1598">			return pwtAppMap;</span>
+
+<span class="nc" id="L1600">		} catch (Exception e) {</span>
+<span class="nc" id="L1601">			e.printStackTrace();</span>
+<span class="nc" id="L1602">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc bnc" id="L1604" title="All 4 branches missed.">			if (connection != null) {</span>
+				try {
+<span class="nc" id="L1606">					connection.close();</span>
+<span class="nc" id="L1607">				} catch (SQLException e) {</span>
+<span class="nc" id="L1608">					e.printStackTrace();</span>
+<span class="nc" id="L1609">					throw new LMSException(e);</span>
+<span class="nc" id="L1610">				}</span>
+			}
+		}
+	}
+
+	public Map&lt;String, Object&gt; verifyAndSaveTicketNVirnDirPlr(String ticketNbr,
+			String virnNbr, int gameId, String gameNbr, String gameName,
+			UserInfoBean userInfoBean, String pwtAmtForMasterApproval)
+			throws LMSException {
+
+		try {
+<span class="nc" id="L1621">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L1622">			connection.setAutoCommit(false);</span>
+			// validate the ticket
+<span class="nc" id="L1624">			Map&lt;String, Object&gt; detailMap = new TreeMap&lt;String, Object&gt;();</span>
+			// add '-' if ticket nymber does not contains '-' using game format
+			// digits
+
+			// check ticket format
+			// added by yogesh
+<span class="nc" id="L1630">			CommonFunctionsHelper commonFunction = new CommonFunctionsHelper();</span>
+<span class="nc" id="L1631">			TicketBean tktBean = commonFunction.isTicketFormatValid(ticketNbr,</span>
+					gameId, connection);
+<span class="nc bnc" id="L1633" title="All 2 branches missed.">			if (tktBean != null) {</span>
+<span class="nc" id="L1634">				ticketNbr = tktBean.getTicketNumber();</span>
+			}
+<span class="nc bnc" id="L1636" title="All 4 branches missed.">			if (tktBean != null &amp;&amp; !tktBean.getIsValid()) {</span>
+<span class="nc" id="L1637">				detailMap.put(&quot;returnType&quot;, &quot;input&quot;);</span>
+<span class="nc" id="L1638">				tktBean.setTicketNumber(ticketNbr);</span>
+<span class="nc" id="L1639">				detailMap.put(&quot;tktBean&quot;, tktBean);</span>
+<span class="nc" id="L1640">				return detailMap;</span>
+			}
+<span class="nc bnc" id="L1642" title="All 2 branches missed.">			if (!new RetailerPwtProcessHelper().canClaimBO(ticketNbr,userInfoBean.getRoleId())) {</span>
+<span class="nc" id="L1643">				TicketBean bean = new TicketBean();</span>
+<span class="nc" id="L1644">				bean.setValid(false);</span>
+<span class="nc" id="L1645">				bean.setStatus(&quot;UNAUTHORIZED USER&quot;);</span>
+<span class="nc" id="L1646">				bean.setMessageCode(&quot;221001&quot;);</span>
+<span class="nc" id="L1647">				bean.setValidity(&quot;InValid Ticket&quot;);</span>
+<span class="nc" id="L1648">				bean.setTicketNumber(ticketNbr);</span>
+<span class="nc" id="L1649">				detailMap.put(&quot;returnType&quot;, &quot;input&quot;);</span>
+<span class="nc" id="L1650">				bean.setTicketNumber(ticketNbr);</span>
+<span class="nc" id="L1651">				detailMap.put(&quot;tktBean&quot;, bean);</span>
+<span class="nc" id="L1652">				return detailMap;</span>
+			}
+			// tktArr[0]='game NBR', tktArr[1]='Book NBR', tktArr[2]='Ticket NBR
+<span class="nc" id="L1655">			String tktArr[] = tktBean.getTicketNumber().split(&quot;-&quot;);</span>
+<span class="nc" id="L1656">			tktBean = checkTicketStatus(tktArr[0], tktArr[0] + &quot;-&quot; + tktArr[1],</span>
+					tktArr[2], gameId, connection, true);
+<span class="nc bnc" id="L1658" title="All 4 branches missed.">			if (tktBean != null &amp;&amp; !tktBean.getIsValid()) {</span>
+<span class="nc" id="L1659">				detailMap.put(&quot;returnType&quot;, &quot;input&quot;);</span>
+<span class="nc" id="L1660">				tktBean.setTicketNumber(ticketNbr);</span>
+<span class="nc" id="L1661">				detailMap.put(&quot;tktBean&quot;, tktBean);</span>
+<span class="nc" id="L1662">				return detailMap;</span>
+			}
+
+<span class="nc" id="L1665">			tktBean.setTicketGameId(gameId);</span>
+<span class="nc" id="L1666">			tktBean.setTicketNumber(tktArr[0] + &quot;-&quot; + tktArr[1] + &quot;-&quot;</span>
+					+ tktArr[2]);
+<span class="nc" id="L1668">			tktBean.setBook_nbr(tktArr[0] + &quot;-&quot; + tktArr[1]);</span>
+<span class="nc" id="L1669">			tktBean.setGameNbr(Integer.parseInt(tktArr[0]));</span>
+<span class="nc" id="L1670">			detailMap.put(&quot;tktBean&quot;, tktBean);</span>
+
+			// validate VIRN nbr
+<span class="nc" id="L1673">			PwtBean pwtBean = verifyPwtVirnDirPlr(gameId, virnNbr, Integer</span>
+					.parseInt(gameNbr), connection, userInfoBean,
+					pwtAmtForMasterApproval, ticketNbr);
+<span class="nc bnc" id="L1676" title="All 4 branches missed.">			if (pwtBean != null &amp;&amp; pwtBean.getIsValid()) {</span>
+<span class="nc" id="L1677">				detailMap.put(&quot;tktBean&quot;, tktBean);</span>
+<span class="nc" id="L1678">				detailMap.put(&quot;pwtBean&quot;, pwtBean);</span>
+<span class="nc" id="L1679">				detailMap.put(&quot;returnType&quot;, &quot;registration&quot;);</span>
+<span class="nc" id="L1680">				System.out.println(&quot;go to registration limit&quot;);</span>
+				// connection.commit();
+<span class="nc" id="L1682">				return detailMap;</span>
+
+			} else {
+<span class="nc" id="L1685">				detailMap.put(&quot;tktBean&quot;, tktBean);</span>
+<span class="nc" id="L1686">				detailMap.put(&quot;pwtBean&quot;, pwtBean);</span>
+<span class="nc" id="L1687">				detailMap.put(&quot;returnType&quot;, &quot;input&quot;);</span>
+<span class="nc" id="L1688">				return detailMap;</span>
+			}
+
+<span class="nc" id="L1691">		} catch (SQLException e) {</span>
+<span class="nc" id="L1692">			e.printStackTrace();</span>
+<span class="nc" id="L1693">			throw new LMSException(e);</span>
+<span class="nc" id="L1694">		} catch (Exception e) {</span>
+<span class="nc" id="L1695">			e.printStackTrace();</span>
+<span class="nc" id="L1696">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1698">			try {</span>
+<span class="nc" id="L1699">				connection.close();</span>
+<span class="nc" id="L1700">			} catch (SQLException e) {</span>
+<span class="nc" id="L1701">				e.printStackTrace();</span>
+<span class="nc" id="L1702">				throw new LMSException(e);</span>
+<span class="nc" id="L1703">			}</span>
+		}
+
+	}
+
+	private PwtBean verifyPwtVirnDirPlr(int gameId, String virnCode,
+			int gameNbr, Connection connection, UserInfoBean userInfoBean,
+			String pwtAmtForMasterApproval, String ticketNbr)
+			throws LMSException {
+
+<span class="nc" id="L1713">		PwtBean pwtBean = new PwtBean();</span>
+<span class="nc" id="L1714">		pwtBean.setVirnCode(virnCode);</span>
+<span class="nc" id="L1715">		pwtBean.setMessageCode(&quot;212013&quot;);</span>
+<span class="nc" id="L1716">		pwtBean.setMessage(&quot;Invalid VIRN or Can Not Verify&quot;);</span>
+<span class="nc" id="L1717">		pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+
+<span class="nc" id="L1719">		String encodedVirnCode = MD5Encoder.encode(virnCode);</span>
+<span class="nc" id="L1720">		pwtBean.setEncVirnCode(encodedVirnCode);</span>
+<span class="nc" id="L1721">		System.out.println(&quot;Encoded virn == &quot; + encodedVirnCode);</span>
+<span class="nc" id="L1722">		String encodedTktNo = MD5Encoder.encode(ticketNbr);</span>
+<span class="nc" id="L1723">		pwtBean.setEnctktNumber(encodedTktNo);</span>
+<span class="nc" id="L1724">		System.out.println(&quot;Encoded Ticket Number == &quot; + encodedTktNo);</span>
+		try {
+<span class="nc" id="L1726">			Statement statement = connection.createStatement();</span>
+<span class="nc" id="L1727">			Statement statement4 = connection.createStatement();</span>
+			ResultSet resultSet4;
+<span class="nc" id="L1729">			StringBuffer query = new StringBuffer();</span>
+			// query.append(QueryManager.getST1PWTBOCheckQuery()).append(
+			// &quot; st_se_pwt_inv_&quot; + gameNbr + &quot; where &quot;);
+			// query.append(&quot; game_id = &quot; + gameId).append(&quot; and virn_code in
+			// ('&quot;);
+			// query.append(encodedVirnCode).append(&quot;')&quot;).append(&quot; and id1='&quot;);
+			// query.append(encodedTktNo).append(&quot;'&quot;);
+
+<span class="nc" id="L1737">			query.append(QueryManager.getST1PWTBOCheckQuery()).append(</span>
+					&quot; st_se_pwt_inv_&quot; + gameNbr + &quot; where &quot;);
+<span class="nc" id="L1739">			query.append(&quot; game_id = &quot; + gameId).append(&quot; and virn_code='&quot;);</span>
+<span class="nc" id="L1740">			query.append(encodedVirnCode).append(&quot;'&quot;).append(&quot; and id1='&quot;);</span>
+<span class="nc bnc" id="L1741" title="All 2 branches missed.">			if(&quot;YES&quot;.equals(Utility.getPropertyValue(&quot;IS_SCRATCH_NEW_FLOW_ENABLED&quot;))){</span>
+<span class="nc" id="L1742">				query.append( encodedTktNo).append(&quot;'&quot;).append(&quot; and ticket_status in ('SOLD')&quot;);</span>
+			} else{
+<span class="nc" id="L1744">				query.append(encodedTktNo).append(&quot;'&quot;).append(&quot; and ticket_status in ('SOLD', 'ACTIVE')&quot;);</span>
+			}
+			
+
+<span class="nc" id="L1748">			System.out.println(&quot;GameId:&quot; + gameId + &quot;\nQuery:: &quot; + query);</span>
+
+<span class="nc" id="L1750">			ResultSet resultSet = statement.executeQuery(query.toString());</span>
+<span class="nc" id="L1751">			System.out.println(&quot;ResultSet:&quot; + resultSet + &quot;---&quot;</span>
+					+ resultSet.getFetchSize());
+<span class="nc bnc" id="L1753" title="All 2 branches missed.">			if (resultSet.next()) {</span>
+<span class="nc" id="L1754">				String vCode = resultSet</span>
+						.getString(TableConstants.SPI_VIRN_CODE);
+<span class="nc" id="L1756">				String pwtAmount = resultSet</span>
+						.getString(TableConstants.SPI_PWT_AMT);
+<span class="nc" id="L1758">				String prizeLevel = resultSet</span>
+						.getString(TableConstants.SPI_PRIZE_LEVEL);
+<span class="nc" id="L1760">				String prizeStatus = resultSet.getString(&quot;status&quot;);</span>
+<span class="nc" id="L1761">				System.out.println(&quot;Vcode : &quot; + vCode + &quot;\nPWT Amt : &quot;</span>
+						+ pwtAmount + &quot;\nPrize level : &quot; + prizeLevel
+						+ &quot;\nstatus : &quot; + prizeStatus);
+
+<span class="nc bnc" id="L1765" title="All 4 branches missed.">				if (prizeStatus.equalsIgnoreCase(&quot;UNCLM_PWT&quot;)</span>
+						|| prizeStatus.equalsIgnoreCase(&quot;UNCLM_CANCELLED&quot;)) {
+<span class="nc" id="L1767">					pwtBean.setPwtAmount(pwtAmount);</span>
+<span class="nc" id="L1768">					double pwtAmt = Double.parseDouble(pwtBean.getPwtAmount());</span>
+<span class="nc bnc" id="L1769" title="All 2 branches missed.">					boolean isPwtAmtForMasterApproval = pwtAmt &gt;= Double</span>
+							.parseDouble(pwtAmtForMasterApproval);
+<span class="nc" id="L1771">					pwtBean.setEncVirnCode(MD5Encoder.encode(pwtBean</span>
+							.getVirnCode()));
+<span class="nc bnc" id="L1773" title="All 2 branches missed.">					if (isPwtAmtForMasterApproval) {</span>
+<span class="nc" id="L1774">						System.out</span>
+								.println(&quot;pwt amount is greater then master approbal limit so go gor masyter approval&quot;);
+<span class="nc" id="L1776">						pwtBean.setValid(true);</span>
+<span class="nc" id="L1777">						pwtBean.setVerificationStatus(&quot;Valid Virn&quot;);</span>
+<span class="nc" id="L1778">						pwtBean.setMessage(&quot;Send for Master Approval&quot;);</span>
+<span class="nc" id="L1779">						pwtBean.setMessageCode(&quot;Undefined&quot;);</span>
+<span class="nc" id="L1780">						pwtBean.setAppReq(isPwtAmtForMasterApproval);</span>
+<span class="nc" id="L1781">						return pwtBean;</span>
+					} else {// if PWT amount is in agents payment limit
+<span class="nc" id="L1783">						double highPrize = Double.parseDouble(Utility.getPropertyValue(&quot;HIGH_PRIZE_AMT&quot;));</span>
+<span class="nc bnc" id="L1784" title="All 2 branches missed.">						if(pwtAmt &gt; highPrize) {</span>
+<span class="nc" id="L1785">							pwtBean.setHighLevel(true);</span>
+						}
+<span class="nc" id="L1787">						System.out</span>
+								.println(&quot;should be send to payment process and it is auto approved&quot;);
+<span class="nc" id="L1789">						pwtBean.setValid(true);</span>
+<span class="nc" id="L1790">						pwtBean.setVerificationStatus(&quot;Valid Virn&quot;);</span>
+<span class="nc" id="L1791">						pwtBean</span>
+								.setMessage(&quot;Should pay to retailer after registration by agent&quot;);
+<span class="nc" id="L1793">						return pwtBean;</span>
+					}
+<span class="nc bnc" id="L1795" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_RET_UNCLM&quot;)) {</span>
+<span class="nc" id="L1796">					String orgname = null;</span>
+<span class="nc" id="L1797">					String receiptNumber = null;</span>
+<span class="nc" id="L1798">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L1799">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L1800">					String retDetailsQuery = &quot;select a.name,c.generated_id,e.transaction_date from st_lms_organization_master a,st_se_agent_pwt b,st_lms_agent_receipts c,st_lms_agent_transaction_master e where b.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and b.game_id=&quot;
+							+ gameId
+							+ &quot; and a.organization_id=b.retailer_org_id and b.transaction_id=e.transaction_id and c.receipt_id=(select receipt_id from st_lms_agent_receipts_trn_mapping where transaction_id=e.transaction_id)&quot;;
+<span class="nc" id="L1805">					resultSet4 = statement4.executeQuery(retDetailsQuery);</span>
+<span class="nc bnc" id="L1806" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L1807">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L1808">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L1809">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+<span class="nc" id="L1812">					pwtBean.setValid(false);</span>
+<span class="nc" id="L1813">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L1814">					pwtBean.setMessage(&quot;Already Paid to Retailer: &quot; + orgname</span>
+							+ &quot; on Voucher Number: &quot; + receiptNumber + &quot; at &quot;
+							+ receiptTime);
+<span class="nc" id="L1817">					pwtBean.setMessageCode(&quot;212001&quot;);</span>
+
+<span class="nc bnc" id="L1819" title="All 2 branches missed.">				} else if (prizeStatus</span>
+						.equalsIgnoreCase(&quot;CLAIM_PLR_AGT_UNCLM_DIR&quot;)) {
+					// get player details from st Agent direct player
+					// details************8
+
+<span class="nc" id="L1824">					String agtOrgNAme = null;</span>
+<span class="nc" id="L1825">					String playerFirstName = null;</span>
+<span class="nc" id="L1826">					String playerLastName = null;</span>
+<span class="nc" id="L1827">					String playercity = null;</span>
+<span class="nc" id="L1828">					String receiptNumber = null;</span>
+<span class="nc" id="L1829">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L1830">					statement4 = connection.createStatement();</span>
+					// String plrDetailsQuery=&quot;select first_name,last_name,city
+					// from st_lms_player_master where player_id in (select
+					// player_id from st_se_direct_player_pwt where
+					// virn_code='&quot;+enVirnCode+&quot;' and game_id=&quot;+gameId+&quot;)&quot;;
+					// String plrDetailsQuery=&quot;select
+					// b.first_name,b.last_name,b.city,a.transaction_date,c.generated_id
+					// from st_se_direct_player_pwt a,st_lms_player_master
+					// b,st_lms_bo_receipts c where a.virn_code='&quot;+enVirnCode+&quot;'
+					// and a.game_id=&quot;+gameId+&quot; and a.player_id=b.player_id and
+					// c.receipt_id=(select receipt_id from
+					// st_lms_bo_receipts_trn_mapping where
+					// transaction_id=a.transaction_id)&quot;;
+<span class="nc" id="L1843">					String plrDetailsQuery = &quot;select b.first_name,b.last_name,b.city,a.transaction_date,c.generated_id,d.name from st_se_agt_direct_player_pwt a,st_lms_player_master b,st_lms_agent_receipts c,st_lms_organization_master d where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.player_id=b.player_id and c.receipt_id=(select receipt_id from st_lms_agent_receipts_trn_mapping where transaction_id=a.transaction_id) and d.organization_id=a.agent_org_id&quot;;
+<span class="nc" id="L1848">					System.out.println(&quot;query for get player name &quot;</span>
+							+ plrDetailsQuery);
+<span class="nc" id="L1850">					resultSet4 = statement4.executeQuery(plrDetailsQuery);</span>
+<span class="nc bnc" id="L1851" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L1852">						playerFirstName = resultSet4.getString(&quot;first_name&quot;);</span>
+<span class="nc" id="L1853">						playerLastName = resultSet4.getString(&quot;last_name&quot;);</span>
+<span class="nc" id="L1854">						playercity = resultSet4.getString(&quot;city&quot;);</span>
+<span class="nc" id="L1855">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L1856">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+<span class="nc" id="L1858">						agtOrgNAme = resultSet4.getString(&quot;name&quot;);</span>
+					}
+
+<span class="nc" id="L1861">					pwtBean.setMessage(&quot;Already Paid to Player: &quot;</span>
+							+ playerFirstName + &quot; &quot; + playerLastName + &quot; &quot;
+							+ playercity + &quot; By Agent: &quot; + agtOrgNAme
+							+ &quot; on Voucher Number: &quot; + receiptNumber + &quot; at &quot;
+							+ receiptTime);
+<span class="nc" id="L1866">					pwtBean.setValid(false);</span>
+<span class="nc" id="L1867">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L1868">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+
+<span class="nc bnc" id="L1870" title="All 2 branches missed.">				} else if (prizeStatus</span>
+						.equalsIgnoreCase(&quot;CLAIM_PLR_AGT_CLM_DIR&quot;)) {
+<span class="nc" id="L1872">					String agtOrgNAme = null;</span>
+<span class="nc" id="L1873">					String playerFirstName = null;</span>
+<span class="nc" id="L1874">					String playerLastName = null;</span>
+<span class="nc" id="L1875">					String playercity = null;</span>
+<span class="nc" id="L1876">					String receiptNumber = null;</span>
+<span class="nc" id="L1877">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L1878">					statement4 = connection.createStatement();</span>
+					// String plrDetailsQuery=&quot;select first_name,last_name,city
+					// from st_lms_player_master where player_id in (select
+					// player_id from st_se_direct_player_pwt where
+					// virn_code='&quot;+enVirnCode+&quot;' and game_id=&quot;+gameId+&quot;)&quot;;
+					// String plrDetailsQuery=&quot;select
+					// b.first_name,b.last_name,b.city,a.transaction_date,c.generated_id
+					// from st_se_direct_player_pwt a,st_lms_player_master
+					// b,st_lms_bo_receipts c where a.virn_code='&quot;+enVirnCode+&quot;'
+					// and a.game_id=&quot;+gameId+&quot; and a.player_id=b.player_id and
+					// c.receipt_id=(select receipt_id from
+					// st_lms_bo_receipts_trn_mapping where
+					// transaction_id=a.transaction_id)&quot;;
+<span class="nc" id="L1891">					String plrDetailsQuery = &quot;select b.first_name,b.last_name,b.city,a.transaction_date,c.generated_id,d.name from st_se_agt_direct_player_pwt a,st_lms_player_master b,st_lms_agent_receipts c,st_lms_organization_master d where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.player_id=b.player_id and c.receipt_id=(select receipt_id from st_lms_agent_receipts_trn_mapping where transaction_id=a.transaction_id) and d.organization_id=a.agent_org_id&quot;;
+<span class="nc" id="L1896">					System.out.println(&quot;query for get player name &quot;</span>
+							+ plrDetailsQuery);
+<span class="nc" id="L1898">					resultSet4 = statement4.executeQuery(plrDetailsQuery);</span>
+<span class="nc bnc" id="L1899" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L1900">						playerFirstName = resultSet4.getString(&quot;first_name&quot;);</span>
+<span class="nc" id="L1901">						playerLastName = resultSet4.getString(&quot;last_name&quot;);</span>
+<span class="nc" id="L1902">						playercity = resultSet4.getString(&quot;city&quot;);</span>
+<span class="nc" id="L1903">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L1904">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+<span class="nc" id="L1906">						agtOrgNAme = resultSet4.getString(&quot;name&quot;);</span>
+					}
+<span class="nc" id="L1908">					pwtBean.setValid(false);</span>
+<span class="nc" id="L1909">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L1910">					pwtBean.setMessage(&quot;Already Paid to Player: &quot;</span>
+							+ playerFirstName + &quot; &quot; + playerLastName + &quot; &quot;
+							+ playercity + &quot; By Agent: &quot; + agtOrgNAme
+							+ &quot; on Voucher Number: &quot; + receiptNumber + &quot; at &quot;
+							+ receiptTime + &quot; in claimmable balance&quot;);
+<span class="nc" id="L1915">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+
+<span class="nc bnc" id="L1917" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_AGT_TEMP&quot;)) {</span>
+<span class="nc" id="L1918">					String orgname = null;</span>
+<span class="nc" id="L1919">					String receiptNumber = null;</span>
+<span class="nc" id="L1920">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L1921">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L1922">					String partyDetailsQuery = &quot;select a.receipt_id,a.date_entered ,b.name from st_se_tmp_pwt_inv a,st_lms_organization_master b  where virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and game_id=&quot;
+							+ gameId
+							+ &quot; and organization_id=(select organization_id from st_lms_user_master where user_id=a.user_id)&quot;;
+<span class="nc" id="L1927">					resultSet4 = statement4.executeQuery(partyDetailsQuery);</span>
+<span class="nc bnc" id="L1928" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L1929">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L1930">						receiptNumber = resultSet4.getString(&quot;receipt_id&quot;);</span>
+<span class="nc" id="L1931">						receiptTime = resultSet4.getTimestamp(&quot;date_entered&quot;);</span>
+					}
+<span class="nc" id="L1933">					pwtBean.setValid(false);</span>
+<span class="nc" id="L1934">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L1935">					pwtBean</span>
+							.setMessage(&quot;Already Verified in Bulk Receipt at BO for agent: &quot;
+									+ orgname
+									+ &quot; on Bulk Receipt Number: &quot;
+									+ receiptNumber
+									+ &quot; at &quot;
+									+ receiptTime
+									+ &quot;, Final Payment Pending&quot;);
+<span class="nc" id="L1943">					pwtBean.setMessageCode(&quot;112001&quot;);</span>
+
+<span class="nc bnc" id="L1945" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_PLR_AGT_TEMP&quot;)) {</span>
+<span class="nc" id="L1946">					String orgname = null;</span>
+<span class="nc" id="L1947">					String receiptNumber = null;</span>
+<span class="nc" id="L1948">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L1949">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L1950">					String partyDetailsQuery = &quot;select a.receipt_id,a.date_entered ,b.name from st_se_tmp_pwt_inv a,st_lms_organization_master b  where virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and game_id=&quot;
+							+ gameId
+							+ &quot; and organization_id=(select organization_id from st_lms_user_master where user_id=a.user_id)&quot;;
+<span class="nc" id="L1955">					resultSet4 = statement4.executeQuery(partyDetailsQuery);</span>
+<span class="nc bnc" id="L1956" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L1957">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L1958">						receiptNumber = resultSet4.getString(&quot;receipt_id&quot;);</span>
+<span class="nc" id="L1959">						receiptTime = resultSet4.getTimestamp(&quot;date_entered&quot;);</span>
+					}
+<span class="nc" id="L1961">					pwtBean.setValid(false);</span>
+<span class="nc" id="L1962">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L1963">					pwtBean</span>
+							.setMessage(&quot;Already Verified in Bulk Receipt at BO for agent: &quot;
+									+ orgname
+									+ &quot; on Bulk Receipt Number: &quot;
+									+ receiptNumber
+									+ &quot; at &quot;
+									+ receiptTime
+									+ &quot;, Final Payment Pending&quot;);
+<span class="nc" id="L1971">					pwtBean.setMessageCode(&quot;112001&quot;);</span>
+
+<span class="nc bnc" id="L1973" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_RET_AGT_TEMP&quot;)) {</span>
+<span class="nc" id="L1974">					String orgname = null;</span>
+<span class="nc" id="L1975">					String receiptNumber = null;</span>
+<span class="nc" id="L1976">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L1977">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L1978">					String partyDetailsQuery = &quot;select a.receipt_id,a.date_entered ,b.name from st_se_tmp_pwt_inv a,st_lms_organization_master b  where virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and game_id=&quot;
+							+ gameId
+							+ &quot; and organization_id=(select organization_id from st_lms_user_master where user_id=a.user_id)&quot;;
+<span class="nc" id="L1983">					resultSet4 = statement4.executeQuery(partyDetailsQuery);</span>
+<span class="nc bnc" id="L1984" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L1985">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L1986">						receiptNumber = resultSet4.getString(&quot;receipt_id&quot;);</span>
+<span class="nc" id="L1987">						receiptTime = resultSet4.getTimestamp(&quot;date_entered&quot;);</span>
+					}
+<span class="nc" id="L1989">					pwtBean.setValid(false);</span>
+<span class="nc" id="L1990">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L1991">					pwtBean</span>
+							.setMessage(&quot;Already Verified in Bulk Receipt at BO for agent: &quot;
+									+ orgname
+									+ &quot; on Bulk Receipt Number: &quot;
+									+ receiptNumber
+									+ &quot; at &quot;
+									+ receiptTime
+									+ &quot;, Final Payment Pending&quot;);
+<span class="nc" id="L1999">					pwtBean.setMessageCode(&quot;112001&quot;);</span>
+
+<span class="nc bnc" id="L2001" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_AGT&quot;)) {</span>
+<span class="nc" id="L2002">					String orgname = null;</span>
+<span class="nc" id="L2003">					String receiptNumber = null;</span>
+<span class="nc" id="L2004">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2005">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L2006">					String agtDetailsQuery = &quot;select a.name,c.generated_id,e.transaction_date from st_lms_organization_master a,st_se_bo_pwt b,st_lms_bo_receipts c,st_lms_bo_transaction_master e where b.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and b.game_id=&quot;
+							+ gameId
+							+ &quot; and a.organization_id=b.agent_org_id and b.transaction_id=e.transaction_id and c.receipt_id=(select receipt_id from st_lms_bo_receipts_trn_mapping where transaction_id=e.transaction_id)&quot;;
+<span class="nc" id="L2011">					System.out.println(&quot;query for get org name &quot;</span>
+							+ agtDetailsQuery);
+<span class="nc" id="L2013">					resultSet4 = statement4.executeQuery(agtDetailsQuery);</span>
+<span class="nc bnc" id="L2014" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2015">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L2016">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L2017">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+<span class="nc" id="L2020">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2021">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2022">					pwtBean.setMessage(&quot;Already Paid to Agent: &quot; + orgname</span>
+							+ &quot; on Voucher Number: &quot; + receiptNumber + &quot; at &quot;
+							+ receiptTime);
+<span class="nc" id="L2025">					pwtBean.setMessageCode(&quot;112003&quot;);</span>
+
+<span class="nc bnc" id="L2027" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_AGT_AUTO&quot;)) {</span>
+<span class="nc" id="L2028">					String orgname = null;</span>
+<span class="nc" id="L2029">					String receiptNumber = null;</span>
+<span class="nc" id="L2030">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2031">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L2032">					String agtDetailsQuery = &quot;select a.name,c.generated_id,e.transaction_date from st_lms_organization_master a,st_se_bo_pwt b,st_lms_bo_receipts c,st_lms_bo_transaction_master e where b.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and b.game_id=&quot;
+							+ gameId
+							+ &quot; and a.organization_id=b.agent_org_id and b.transaction_id=e.transaction_id and c.receipt_id=(select receipt_id from st_lms_bo_receipts_trn_mapping where transaction_id=e.transaction_id)&quot;;
+<span class="nc" id="L2037">					resultSet4 = statement4.executeQuery(agtDetailsQuery);</span>
+<span class="nc bnc" id="L2038" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2039">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L2040">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L2041">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+<span class="nc" id="L2044">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2045">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2046">					pwtBean.setMessage(&quot;Already Paid As Auto Scrap to Agent: &quot;</span>
+							+ orgname + &quot; on Voucher Number: &quot; + receiptNumber
+							+ &quot; at &quot; + receiptTime);
+<span class="nc" id="L2049">					pwtBean.setMessageCode(&quot;112003&quot;);</span>
+<span class="nc bnc" id="L2050" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_PLR_BO&quot;)) {</span>
+<span class="nc" id="L2051">					String playerFirstName = null;</span>
+<span class="nc" id="L2052">					String playerLastName = null;</span>
+<span class="nc" id="L2053">					String playercity = null;</span>
+<span class="nc" id="L2054">					String receiptNumber = null;</span>
+<span class="nc" id="L2055">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2056">					statement4 = connection.createStatement();</span>
+					// String plrDetailsQuery=&quot;select first_name,last_name,city
+					// from st_lms_player_master where player_id in (select
+					// player_id from st_se_direct_player_pwt where
+					// virn_code='&quot;+enVirnCode+&quot;' and game_id=&quot;+gameId+&quot;)&quot;;
+<span class="nc" id="L2061">					String plrDetailsQuery = &quot;select b.first_name,b.last_name,b.city,a.transaction_date,c.generated_id from st_se_direct_player_pwt a,st_lms_player_master b,st_lms_bo_receipts c where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.player_id=b.player_id and c.receipt_id=(select receipt_id from st_lms_bo_receipts_trn_mapping where transaction_id=a.transaction_id)&quot;;
+<span class="nc" id="L2066">					System.out.println(&quot;query for get player name &quot;</span>
+							+ plrDetailsQuery);
+<span class="nc" id="L2068">					resultSet4 = statement4.executeQuery(plrDetailsQuery);</span>
+<span class="nc bnc" id="L2069" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2070">						playerFirstName = resultSet4.getString(&quot;first_name&quot;);</span>
+<span class="nc" id="L2071">						playerLastName = resultSet4.getString(&quot;last_name&quot;);</span>
+<span class="nc" id="L2072">						playercity = resultSet4.getString(&quot;city&quot;);</span>
+<span class="nc" id="L2073">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L2074">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+<span class="nc" id="L2077">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2078">					pwtBean</span>
+							.setMessage(&quot;Already Paid By BO as Direct Player PWT to Player: &quot;
+									+ playerFirstName
+									+ &quot; &quot;
+									+ playerLastName
+									+ &quot;,&quot;
+									+ playercity
+									+ &quot; on Voucher Number &quot;
+									+ receiptNumber + &quot; at &quot; + receiptTime);
+<span class="nc" id="L2087">					pwtBean.setMessageCode(&quot;112005&quot;);</span>
+<span class="nc" id="L2088">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc bnc" id="L2089" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM&quot;)) {</span>
+					// show info of retailer if available from at retailer PWT
+
+<span class="nc" id="L2092">					String orgname = null;</span>
+<span class="nc" id="L2093">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2094">					statement4 = connection.createStatement();</span>
+					// String agtDetailsQuery=&quot;select name from
+					// st_lms_organization_master where organization_id in
+					// (select agent_org_id from st_se_bo_pwt where
+					// virn_code='&quot;+enVirnCode+&quot;' and game_id=&quot;+gameId+&quot;)&quot;;
+
+					// String agtDetailsQuery=&quot;select
+					// a.name,c.generated_id,e.transaction_date from
+					// st_lms_organization_master a,st_se_bo_pwt
+					// b,st_lms_bo_receipts c,st_lms_bo_transaction_master e
+					// where b.virn_code='&quot;+enVirnCode+&quot;' and
+					// b.game_id=&quot;+gameId+&quot; and a.organization_id=b.agent_org_id
+					// and b.transaction_id=e.transaction_id and
+					// c.receipt_id=(select receipt_id from
+					// st_lms_bo_receipts_trn_mapping where
+					// transaction_id=e.transaction_id)&quot;;
+<span class="nc" id="L2110">					String retDetailsQuery = &quot;select a.name,e.transaction_date from st_lms_organization_master a,st_se_retailer_pwt b,st_lms_retailer_transaction_master e where b.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and b.game_id=&quot;
+							+ gameId
+							+ &quot; and a.organization_id=b.retailer_org_id and b.transaction_id=e.transaction_id&quot;;
+
+<span class="nc" id="L2116">					System.out.println(&quot;query for get org name &quot;</span>
+							+ retDetailsQuery);
+<span class="nc" id="L2118">					resultSet4 = statement4.executeQuery(retDetailsQuery);</span>
+<span class="nc bnc" id="L2119" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2120">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L2121">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+
+<span class="nc" id="L2125">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2126">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2127">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+<span class="nc" id="L2128">					pwtBean</span>
+							.setMessage(&quot;This VIRN No. has been paid to Player by retailer:&quot;
+									+ orgname
+									+ &quot; on Voucher &quot;
+									+ receiptTime
+									+ &quot; but not claimed by retailer to agent &quot;);
+					// pwtBean.setMessage(&quot;This VIRN No. has been paid to Player
+					// by retailer but not claimed by retailer to agent &quot;);
+
+<span class="nc bnc" id="L2137" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_PLR_RET_CLM&quot;)) {</span>
+					// show info of retailer if available from at retailer PWT
+<span class="nc" id="L2139">					String orgname = null;</span>
+<span class="nc" id="L2140">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2141">					statement4 = connection.createStatement();</span>
+					// String agtDetailsQuery=&quot;select name from
+					// st_lms_organization_master where organization_id in
+					// (select agent_org_id from st_se_bo_pwt where
+					// virn_code='&quot;+enVirnCode+&quot;' and game_id=&quot;+gameId+&quot;)&quot;;
+
+					// String agtDetailsQuery=&quot;select
+					// a.name,c.generated_id,e.transaction_date from
+					// st_lms_organization_master a,st_se_bo_pwt
+					// b,st_lms_bo_receipts c,st_lms_bo_transaction_master e
+					// where b.virn_code='&quot;+enVirnCode+&quot;' and
+					// b.game_id=&quot;+gameId+&quot; and a.organization_id=b.agent_org_id
+					// and b.transaction_id=e.transaction_id and
+					// c.receipt_id=(select receipt_id from
+					// st_lms_bo_receipts_trn_mapping where
+					// transaction_id=e.transaction_id)&quot;;
+<span class="nc" id="L2157">					String retDetailsQuery = &quot;select a.name,e.transaction_date from st_lms_organization_master a,st_se_retailer_pwt b,st_lms_retailer_transaction_master e where b.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and b.game_id=&quot;
+							+ gameId
+							+ &quot; and a.organization_id=b.retailer_org_id and b.transaction_id=e.transaction_id&quot;;
+
+<span class="nc" id="L2163">					System.out.println(&quot;query for get org name &quot;</span>
+							+ retDetailsQuery);
+<span class="nc" id="L2165">					resultSet4 = statement4.executeQuery(retDetailsQuery);</span>
+<span class="nc bnc" id="L2166" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2167">						orgname = resultSet4.getString(&quot;name&quot;);</span>
+<span class="nc" id="L2168">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+
+<span class="nc" id="L2172">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2173">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2174">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+<span class="nc" id="L2175">					pwtBean</span>
+							.setMessage(&quot;This VIRN No. has been paid to Player by retailer:&quot;
+									+ orgname
+									+ &quot; on Voucher &quot;
+									+ receiptTime
+									+ &quot; but not claimed by retailer to agent &quot;);
+
+<span class="nc bnc" id="L2182" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;MISSING&quot;)) {</span>
+<span class="nc" id="L2183">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2184">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2185">					pwtBean.setMessage(&quot;VIRN is from MISSING Status&quot;);</span>
+<span class="nc" id="L2186">					pwtBean.setMessageCode(&quot;&quot;);</span>
+
+<span class="nc bnc" id="L2188" title="All 2 branches missed.">				} else if (prizeStatus</span>
+						.equalsIgnoreCase(&quot;CLAIM_PLR_RET_UNCLM_DIR&quot;)) {
+					// show info of retailer if available from at retailer
+					// direct player
+<span class="nc" id="L2192">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2193">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2194">					pwtBean.setMessageCode(&quot;112005&quot;);</span>
+<span class="nc" id="L2195">					pwtBean</span>
+							.setMessage(&quot;This VIRN No. has been paid to Player by retailer but not claimed by retailer to agent &quot;);
+
+<span class="nc bnc" id="L2198" title="All 2 branches missed.">				} else if (prizeStatus</span>
+						.equalsIgnoreCase(&quot;CLAIM_PLR_RET_CLM_DIR&quot;)) {
+					// show info of retailer if available from at retailer
+					// derect palyer PWT
+<span class="nc" id="L2202">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2203">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2204">					pwtBean</span>
+							.setMessage(&quot;This VIRN No. has been paid to Player by retailer As Claimmable &quot;);
+
+<span class="nc bnc" id="L2207" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_RET_TEMP&quot;)) {</span>
+<span class="nc" id="L2208">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2209">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2210">					pwtBean</span>
+							.setMessage(&quot;Already Verified in Bulk Receipt at Agent,Final Payment Pending&quot;);
+<span class="nc" id="L2212">					pwtBean.setMessageCode(&quot;112006&quot;);</span>
+
+<span class="nc bnc" id="L2214" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_RET_CLM&quot;)) {</span>
+					// show agent and retailers name
+<span class="nc" id="L2216">					String agtOrgname = null;</span>
+<span class="nc" id="L2217">					String retOrgName = null;</span>
+<span class="nc" id="L2218">					String receiptNumber = null;</span>
+<span class="nc" id="L2219">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2220">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L2221">					String agtDetailsQuery = &quot;select  b.transaction_date,c.generated_id,(select name from st_lms_organization_master where organization_id=a.retailer_org_id) 'agt_name' ,(select name from st_lms_organization_master where organization_id=a.retailer_org_id) 'ret_name'  from st_se_agent_pwt a,st_lms_agent_transaction_master b,st_lms_agent_receipts c where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.transaction_id=b.transaction_id  and c.receipt_id=(select receipt_id from st_lms_agent_receipts_trn_mapping where transaction_id=b.transaction_id)&quot;;
+
+<span class="nc" id="L2227">					System.out.println(&quot;query for get org name &quot;</span>
+							+ agtDetailsQuery);
+<span class="nc" id="L2229">					resultSet4 = statement4.executeQuery(agtDetailsQuery);</span>
+<span class="nc bnc" id="L2230" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2231">						agtOrgname = resultSet4.getString(&quot;agt_name&quot;);</span>
+<span class="nc" id="L2232">						retOrgName = resultSet4.getString(&quot;ret_name&quot;);</span>
+<span class="nc" id="L2233">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L2234">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+<span class="nc" id="L2237">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2238">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2239">					pwtBean</span>
+							.setMessage(&quot;Paid to retailer: &quot;
+									+ retOrgName
+									+ &quot; By Agent: &quot;
+									+ agtOrgname
+									+ &quot; Voucher Number:&quot;
+									+ receiptNumber
+									+ &quot; on &quot;
+									+ receiptTime
+									+ &quot; and pending to claim at bo by agent as uato sarap&quot;);
+<span class="nc" id="L2249">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+
+<span class="nc bnc" id="L2251" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_RET_CLM_AUTO&quot;)) {</span>
+					// show agent and retailers name
+<span class="nc" id="L2253">					String agtOrgname = null;</span>
+<span class="nc" id="L2254">					String retOrgName = null;</span>
+<span class="nc" id="L2255">					String receiptNumber = null;</span>
+<span class="nc" id="L2256">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2257">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L2258">					String agtDetailsQuery = &quot;select  b.transaction_date,c.generated_id,(select name from st_lms_organization_master where organization_id=a.retailer_org_id) 'agt_name' ,(select name from st_lms_organization_master where organization_id=a.retailer_org_id) 'ret_name'  from st_se_agent_pwt a,st_lms_agent_transaction_master b,st_lms_agent_receipts c where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.transaction_id=b.transaction_id  and c.receipt_id=(select receipt_id from st_lms_agent_receipts_trn_mapping where transaction_id=b.transaction_id)&quot;;
+
+<span class="nc" id="L2264">					System.out.println(&quot;query for get org name &quot;</span>
+							+ agtDetailsQuery);
+<span class="nc" id="L2266">					resultSet4 = statement4.executeQuery(agtDetailsQuery);</span>
+<span class="nc bnc" id="L2267" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2268">						agtOrgname = resultSet4.getString(&quot;agt_name&quot;);</span>
+<span class="nc" id="L2269">						retOrgName = resultSet4.getString(&quot;ret_name&quot;);</span>
+<span class="nc" id="L2270">						receiptNumber = resultSet4.getString(&quot;generated_id&quot;);</span>
+<span class="nc" id="L2271">						receiptTime = resultSet4</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+<span class="nc" id="L2274">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2275">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2276">					pwtBean</span>
+							.setMessage(&quot;Paid to retailer: &quot;
+									+ retOrgName
+									+ &quot; By Agent: &quot;
+									+ agtOrgname
+									+ &quot; Voucher Number:&quot;
+									+ receiptNumber
+									+ &quot; on &quot;
+									+ receiptTime
+									+ &quot; As Auto Scrap and pending to claim at bo as AUTO Scrap&quot;);
+<span class="nc" id="L2286">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+
+<span class="nc bnc" id="L2288" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CLAIM_PLR_RET_TEMP&quot;)) {</span>
+<span class="nc" id="L2289">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2290">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2291">					pwtBean</span>
+							.setMessage(&quot;Already Verified in Bulk Receipt at Agent,Final Payment Pending&quot;);
+<span class="nc" id="L2293">					pwtBean.setMessageCode(&quot;112007&quot;);</span>
+
+<span class="nc bnc" id="L2295" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;REQUESTED&quot;)) {</span>
+					// show request details from request table with history
+<span class="nc" id="L2297">					String reqByOrgName = null;</span>
+<span class="nc" id="L2298">					String reqToOrgName = null;</span>
+<span class="nc" id="L2299">					String reqByType = null;</span>
+<span class="nc" id="L2300">					String reqToType = null;</span>
+<span class="nc" id="L2301">					String receiptNumber = null;</span>
+<span class="nc" id="L2302">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2303">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L2304">					String reqDetailsQuery = &quot;select a.requester_type,a.requested_to_type,a.request_id,a.request_date,(select name from st_lms_organization_master where organization_id=a.requested_by_org_id) as reqByName,(select name from st_lms_organization_master where organization_id=a.requested_to_org_id) as reqToName from st_se_pwt_approval_request_master a where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.req_status='REQUESTED'&quot;;
+
+<span class="nc" id="L2310">					System.out.println(&quot;query for get org name &quot;</span>
+							+ reqDetailsQuery);
+<span class="nc" id="L2312">					resultSet4 = statement4.executeQuery(reqDetailsQuery);</span>
+<span class="nc bnc" id="L2313" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2314">						reqByOrgName = resultSet4.getString(&quot;reqByName&quot;);</span>
+<span class="nc" id="L2315">						reqToOrgName = resultSet4.getString(&quot;reqToName&quot;);</span>
+<span class="nc" id="L2316">						reqByType = resultSet4.getString(&quot;requester_type&quot;);</span>
+<span class="nc" id="L2317">						reqToType = resultSet4.getString(&quot;requested_to_type&quot;);</span>
+<span class="nc" id="L2318">						receiptNumber = resultSet4.getString(&quot;request_id&quot;);</span>
+<span class="nc" id="L2319">						receiptTime = resultSet4.getTimestamp(&quot;request_date&quot;);</span>
+					}
+
+<span class="nc" id="L2322">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2323">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2324">					pwtBean.setMessage(&quot;This VIRN is requested by &quot; + reqByType</span>
+							+ &quot;: &quot; + reqByOrgName + &quot;To &quot; + reqToType + &quot;: &quot;
+							+ reqToOrgName + &quot; for Approval with Voucher id: &quot;
+							+ receiptNumber + &quot; on &quot; + receiptTime);
+<span class="nc" id="L2328">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+
+<span class="nc bnc" id="L2330" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;PND_MAS&quot;)) {</span>
+					// details of by and to and date and voucher
+<span class="nc" id="L2332">					String reqByOrgName = null;</span>
+<span class="nc" id="L2333">					String reqToOrgName = null;</span>
+<span class="nc" id="L2334">					String reqByType = null;</span>
+<span class="nc" id="L2335">					String reqToType = null;</span>
+<span class="nc" id="L2336">					String receiptNumber = null;</span>
+<span class="nc" id="L2337">					Timestamp receiptTime = null;</span>
+<span class="nc" id="L2338">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L2339">					String reqDetailsQuery = &quot;select a.requester_type,a.requested_to_type,a.request_id,a.request_date,(select name from st_lms_organization_master where organization_id=a.requested_by_org_id) as reqByName,(select name from st_lms_organization_master where organization_id=a.requested_to_org_id) as reqToName from st_se_pwt_approval_request_master a where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.req_status='PND_MAS'&quot;;
+
+<span class="nc" id="L2345">					System.out.println(&quot;query for get org name &quot;</span>
+							+ reqDetailsQuery);
+<span class="nc" id="L2347">					resultSet4 = statement4.executeQuery(reqDetailsQuery);</span>
+<span class="nc bnc" id="L2348" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+<span class="nc" id="L2349">						reqByOrgName = resultSet4.getString(&quot;reqByName&quot;);</span>
+<span class="nc" id="L2350">						reqToOrgName = resultSet4.getString(&quot;reqToName&quot;);</span>
+<span class="nc" id="L2351">						reqByType = resultSet4.getString(&quot;requester_type&quot;);</span>
+<span class="nc" id="L2352">						reqToType = resultSet4.getString(&quot;requested_to_type&quot;);</span>
+<span class="nc" id="L2353">						receiptNumber = resultSet4.getString(&quot;request_id&quot;);</span>
+<span class="nc" id="L2354">						receiptTime = resultSet4.getTimestamp(&quot;request_date&quot;);</span>
+					}
+
+<span class="nc" id="L2357">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2358">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2359">					pwtBean.setMessage(&quot;This VIRN is requested by &quot; + reqByType</span>
+							+ &quot;: &quot; + reqByOrgName + &quot;To &quot; + reqToType + &quot;: &quot;
+							+ reqToOrgName
+							+ &quot; for master Approval with Voucher id: &quot;
+							+ receiptNumber + &quot; on &quot; + receiptTime);
+<span class="nc" id="L2364">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+
+<span class="nc bnc" id="L2366" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;PND_PAY&quot;)) {</span>
+					// show details for payment by and to
+<span class="nc" id="L2368">					String reqToOrgName = null;</span>
+<span class="nc" id="L2369">					String reqToType = null;</span>
+<span class="nc" id="L2370">					String receiptNumber = null;</span>
+<span class="nc" id="L2371">					statement4 = connection.createStatement();</span>
+<span class="nc" id="L2372">					String reqDetailsQuery = &quot;select a.request_id,a.pay_req_for_org_type,(select name from st_lms_organization_master where organization_id=a.pay_request_for_org_id) as payByName from st_se_pwt_approval_request_master a where a.virn_code='&quot;</span>
+							+ encodedVirnCode
+							+ &quot;' and a.game_id=&quot;
+							+ gameId
+							+ &quot; and a.req_status='PND_PAY'&quot;;
+
+<span class="nc" id="L2378">					System.out.println(&quot;query for get org name &quot;</span>
+							+ reqDetailsQuery);
+<span class="nc" id="L2380">					resultSet4 = statement4.executeQuery(reqDetailsQuery);</span>
+<span class="nc bnc" id="L2381" title="All 2 branches missed.">					while (resultSet4.next()) {</span>
+
+<span class="nc" id="L2383">						reqToOrgName = resultSet4.getString(&quot;payByName&quot;);</span>
+<span class="nc" id="L2384">						reqToType = resultSet4</span>
+								.getString(&quot;pay_req_for_org_type&quot;);
+<span class="nc" id="L2386">						receiptNumber = resultSet4.getString(&quot;request_id&quot;);</span>
+					}
+
+<span class="nc" id="L2389">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2390">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2391">					pwtBean.setMessage(&quot;This VIRN is requested To &quot; + reqToType</span>
+							+ &quot;: &quot; + reqToOrgName
+							+ &quot;for payment with Voucher id: &quot; + receiptNumber);
+<span class="nc" id="L2394">					pwtBean.setMessageCode(&quot;112009&quot;);</span>
+
+<span class="nc bnc" id="L2396" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;NO_PRIZE_PWT&quot;)) {</span>
+<span class="nc" id="L2397">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2398">					pwtBean.setVerificationStatus(&quot;Valid Virn&quot;);</span>
+<span class="nc" id="L2399">					pwtBean.setMessage(&quot;No Prize&quot;);</span>
+<span class="nc" id="L2400">					pwtBean.setMessageCode(&quot;&quot;);</span>
+
+<span class="nc bnc" id="L2402" title="All 2 branches missed.">				} else if (prizeStatus.equalsIgnoreCase(&quot;CANCELLED_PERMANENT&quot;)) {</span>
+<span class="nc" id="L2403">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2404">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2405">					pwtBean</span>
+							.setMessage(&quot;Tampered/Damaged/Defaced VIRN as noted at BO&quot;);
+<span class="nc" id="L2407">					pwtBean.setMessageCode(&quot;112009&quot;);</span>
+
+				} else {
+<span class="nc" id="L2410">					pwtBean.setValid(false);</span>
+<span class="nc" id="L2411">					pwtBean.setVerificationStatus(&quot;InValid Virn&quot;);</span>
+<span class="nc" id="L2412">					pwtBean.setMessage(&quot;UNDEFINED STATUS OF PWT:: &quot;</span>
+							+ prizeStatus);
+<span class="nc" id="L2414">					pwtBean.setMessageCode(&quot;TBD&quot;);</span>
+				}
+			}
+<span class="nc" id="L2417">		} catch (SQLException e) {</span>
+<span class="nc" id="L2418">			e.printStackTrace();</span>
+<span class="nc" id="L2419">			throw new LMSException(e);</span>
+<span class="nc" id="L2420">		}</span>
+
+<span class="nc" id="L2422">		return pwtBean;</span>
+
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

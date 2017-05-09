@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DailySecurityNLevySettlementDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.scheduler.daoImpl</a> &gt; <span class="el_source">DailySecurityNLevySettlementDaoImpl.java</span></div><h1>DailySecurityNLevySettlementDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.scheduler.daoImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L22">public class DailySecurityNLevySettlementDaoImpl{</span>
+<span class="nc" id="L23">	static Log logger=LogFactory.getLog(ResponsibleGaming.class);</span>
+	
+	private static DailySecurityNLevySettlementDaoImpl classInstance;
+
+	public static synchronized DailySecurityNLevySettlementDaoImpl getInstance() {
+<span class="nc bnc" id="L28" title="All 2 branches missed.">		if(classInstance == null)</span>
+<span class="nc" id="L29">			classInstance = new DailySecurityNLevySettlementDaoImpl();</span>
+<span class="nc" id="L30">		return classInstance;</span>
+	}
+	
+	public void updateCollectedSdofAllRetailer(String startDate,String endDate,Connection con) throws LMSException{
+<span class="nc" id="L34">		Statement stmt=null;</span>
+<span class="nc" id="L35">		String updateQry=null;</span>
+<span class="nc" id="L36">		String gameQuery=null;</span>
+<span class="nc" id="L37">		ResultSet rs=null;</span>
+<span class="nc" id="L38">		int updatedRow=0;</span>
+		try{
+<span class="nc" id="L40">			logger.info(&quot;INSIDE DailyUpdateLevyNSecuityDeposit_SCHEDULER updateCollectedSdofAllRetailer Method &quot;);</span>
+<span class="nc" id="L41">			gameQuery = &quot; select game_id from st_dg_game_master where closing_time &gt; '&quot;+startDate+&quot;' or closing_time is null&quot;;</span>
+<span class="nc" id="L42">			stmt = con.createStatement();</span>
+			int gameId;
+<span class="nc" id="L44">			rs = stmt.executeQuery(gameQuery);</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L46">				gameId=rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L47">				updateQry=&quot;UPDATE  st_lms_organization_security_levy_master slm INNER JOIN (SELECT mainSaleTB.organization_id, (saleSd-cancelSd) collectedSd FROM (SELECT organization_id,ifnull(saleSd,0.0) saleSd FROM st_lms_organization_master om LEFT OUTER JOIN (SELECT  s.retailer_org_id  sorgid,sum(ret_sd_amt)  saleSd FROM st_dg_ret_sale_&quot;+gameId+&quot; s INNER JOIN st_lms_retailer_transaction_master t ON s.transaction_id=t.transaction_id  WHERE t.transaction_date&gt;'&quot;+startDate+&quot;' and t.transaction_date &lt;='&quot;+endDate+&quot;' GROUP BY sorgid  ) retSaleTB ON om.organization_id=retSaleTB.sorgid WHERE om.organization_type='RETAILER') mainSaleTB INNER JOIN ( SELECT organization_id,ifnull(cancelSd,0.0) cancelSd FROM st_lms_organization_master om LEFT OUTER JOIN (SELECT s.retailer_org_id  corgid,sum(ret_sd_amt)  cancelSd FROM st_dg_ret_sale_refund_&quot;+gameId+&quot; s INNER JOIN st_lms_retailer_transaction_master t ON s.transaction_id=t.transaction_id  WHERE t.transaction_date&gt;'&quot;+startDate+&quot;' AND t.transaction_date &lt;='&quot;+endDate+&quot;' GROUP BY corgid) retCancelTB  ON om.organization_id=retCancelTB.corgid WHERE om.organization_type='RETAILER') mainCancelTB ON mainSaleTB.organization_id=mainCancelTB.organization_id )mainTB ON slm.organization_id=mainTB.organization_id   SET collected_security_deposit=collected_security_deposit+collectedSd where collectedSd &lt;&gt;0&quot;;</span>
+<span class="nc" id="L48">				stmt=con.createStatement();</span>
+<span class="nc" id="L49">				updatedRow=stmt.executeUpdate(updateQry);</span>
+<span class="nc" id="L50">				logger.info(updatedRow+&quot; Records updated in st_lms_organization_security_levy_master &quot;);</span>
+			}
+<span class="nc" id="L52">		}catch (SQLException e) {</span>
+<span class="nc" id="L53">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally{
+<span class="nc" id="L55">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L56">		}</span>
+		
+<span class="nc" id="L58">	}</span>
+	
+	public void updateLevyNSdRateInOrgLimit(Connection con) throws LMSException{
+<span class="nc" id="L61">		Statement stmt=null;</span>
+<span class="nc" id="L62">		String updateQry=null;</span>
+<span class="nc" id="L63">		String qry=null;</span>
+<span class="nc" id="L64">		ResultSet rs=null;</span>
+<span class="nc" id="L65">		PreparedStatement pstmt=null;</span>
+<span class="nc" id="L66">		int userId=0;</span>
+<span class="nc" id="L67">		int updatedRow=0;</span>
+<span class="nc" id="L68">		List&lt;Integer&gt; orgIdList = new ArrayList&lt;Integer&gt;();</span>
+		try{
+<span class="nc" id="L70">			logger.info(&quot;inside DailyUpdateLevyNSecuityDeposit_SCHEDULER updateLevyNSdRateInOrgLimit method&quot;);</span>
+<span class="nc" id="L71">			qry=&quot;SELECT slm.organization_id,slm.expected_security_deposit,slm.collected_security_deposit,security_deposit_rate,levy_cat_type,levy_rate FROM st_lms_organization_security_levy_master slm INNER JOIN st_lms_oranization_limits ol ON slm.organization_id=ol.organization_id WHERE (levy_cat_type='CAT-1' AND levy_rate=&quot;+Utility.getPropertyValue(&quot;LEVY_CAT-2_PERCENTAGE&quot;)+&quot;) OR (levy_cat_type='CAT-2' AND levy_rate=&quot;+Utility.getPropertyValue(&quot;LEVY_CAT-1_PERCENTAGE&quot;)+&quot;) OR (collected_security_deposit&gt;=expected_security_deposit AND security_deposit_rate=&quot;+Utility.getPropertyValue(&quot;SECURITY_DEPOSIT_RATE&quot;)+&quot;)&quot;;</span>
+<span class="nc" id="L72">			stmt=con.createStatement();</span>
+<span class="nc" id="L73">			logger.info(&quot;org_id list that need to be updated:&quot;+qry);</span>
+<span class="nc" id="L74">			rs=stmt.executeQuery(qry);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L76">				orgIdList.add(rs.getInt(&quot;organization_id&quot;));</span>
+			}
+<span class="nc bnc" id="L78" title="All 2 branches missed.">			if(orgIdList.size()&gt;0){</span>
+<span class="nc" id="L79">				pstmt = con.prepareStatement(&quot;INSERT into st_lms_oranization_limits_history(date_changed,change_by_user_id,organization_id,verification_limit,approval_limit,pay_limit,scrap_limit,ola_deposit_limit,ola_withdrawal_limit,max_daily_claim_amt,claim_any_ticket,is_acting_as_bo_for_pwt,levy_rate,security_deposit_rate) SELECT ?,?,organization_id,verification_limit,approval_limit,pay_limit,scrap_limit,ola_deposit_limit,ola_withdrawal_limit,max_daily_claim_amt,claim_any_ticket,is_acting_as_bo_for_pwt,levy_rate,security_deposit_rate FROM st_lms_oranization_limits WHERE FIND_IN_SET(organization_id,?);&quot;);</span>
+<span class="nc" id="L80">				pstmt.setTimestamp(1, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L81">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L82">				pstmt.setString(3, orgIdList.toString().replace(&quot;[&quot;, &quot;&quot;).replace(&quot;]&quot;, &quot;&quot;).replace(&quot; &quot;, &quot;&quot;));</span>
+<span class="nc" id="L83">				logger.info(&quot;INSERT Limit history Table:&quot;+pstmt);</span>
+<span class="nc" id="L84">				updatedRow=pstmt.executeUpdate();</span>
+<span class="nc" id="L85">				logger.info(&quot;insert &gt;&gt;&quot;+updatedRow+&quot; &lt;&lt; Rows in st_lms_oranization_limits_history table&quot;);</span>
+				
+<span class="nc" id="L87">				updateQry=&quot;UPDATE st_lms_oranization_limits ol INNER JOIN   st_lms_organization_security_levy_master slm on ol.organization_id=slm.organization_id set levy_rate=IF(slm.levy_cat_type='CAT-1',&quot;+Utility.getPropertyValue(&quot;LEVY_CAT-1_PERCENTAGE&quot;)+&quot;,&quot;+Utility.getPropertyValue(&quot;LEVY_CAT-2_PERCENTAGE&quot;)+&quot;),security_deposit_rate=IF(slm.collected_security_deposit&gt;=expected_security_deposit,0,&quot;+Utility.getPropertyValue(&quot;SECURITY_DEPOSIT_RATE&quot;)+&quot;)&quot;;</span>
+<span class="nc" id="L88">				stmt=con.createStatement();</span>
+<span class="nc" id="L89">				logger.info(&quot;UPDATE Limit  Table:&quot;+updateQry);</span>
+<span class="nc" id="L90">				updatedRow=stmt.executeUpdate(updateQry);</span>
+<span class="nc" id="L91">				logger.info(&quot;UPDATE &gt;&gt;&quot;+updatedRow+&quot; &lt;&lt; Rows in st_lms_oranization_limits table&quot;);</span>
+			}else{
+<span class="nc" id="L93">				logger.info(&quot;No changes Done By DailyUpdateLevyNSecuityDeposit_SCHEDULER In Limit Table&quot;);</span>
+			}
+			
+<span class="nc" id="L96">		}catch (SQLException e) {</span>
+<span class="nc" id="L97">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L98">		} catch (Exception e) {</span>
+<span class="nc" id="L99">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally{
+<span class="nc" id="L101">			DBConnect.closeConnection(pstmt, rs);</span>
+<span class="nc" id="L102">			DBConnect.closeStmt(stmt);</span>
+<span class="nc" id="L103">		}</span>
+		
+<span class="nc" id="L105">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

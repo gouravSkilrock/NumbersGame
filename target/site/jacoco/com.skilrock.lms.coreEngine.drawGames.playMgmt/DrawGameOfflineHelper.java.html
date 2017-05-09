@@ -1,0 +1,547 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DrawGameOfflineHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">DrawGameOfflineHelper.java</span></div><h1>DrawGameOfflineHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.io.File;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import javax.servlet.ServletContext;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.utility.MailSender;
+
+<span class="nc" id="L28">public class DrawGameOfflineHelper {</span>
+<span class="nc" id="L29">	static Log logger = LogFactory.getLog(DrawGameOfflineHelper.class);</span>
+
+	public static boolean checkOfflineUser(int userId) {
+
+<span class="nc" id="L33">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L34">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L35">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L37">			String getUserQuery = &quot;select * from st_lms_ret_offline_master where user_id=&quot;+ userId + &quot;  and is_offline='YES'&quot;;</span>
+<span class="nc" id="L38">			pstmt = con.prepareStatement(getUserQuery);</span>
+<span class="nc" id="L39">			logger.debug(&quot;getUserQuery::::::&quot; + pstmt);</span>
+<span class="nc" id="L40">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L42">				return true;</span>
+			}
+<span class="nc" id="L44">		} catch (Exception e) {</span>
+<span class="nc" id="L45">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L47">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L48">		}</span>
+<span class="nc" id="L49">		return false;</span>
+	}
+
+	public static void checkUserAFUStatus(int gameNo) {
+<span class="nc" id="L53">		Timestamp AFUTime = null;</span>
+<span class="nc" id="L54">		int offFrzTime = 0;</span>
+<span class="nc" id="L55">		StringBuffer inactiveRet = new StringBuffer(&quot;0,&quot;);</span>
+<span class="nc" id="L56">		String fetchOffFrzTime = &quot;select offline_freeze_time from st_dg_game_master where game_nbr=&quot;</span>
+				+ gameNo;
+<span class="nc" id="L58">		String fetchOffRet = &quot;select user_id from st_lms_ret_offline_master where login_status='LOGIN' and last_AFU_time&lt;?&quot;;</span>
+
+<span class="nc" id="L60">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L61">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L62">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L64">			con.setAutoCommit(false);</span>
+<span class="nc" id="L65">			pstmt = con.prepareStatement(fetchOffFrzTime);</span>
+<span class="nc" id="L66">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L67">			logger.debug(&quot;******checkUserAFUStatus****1******&quot; + pstmt);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L69">				offFrzTime = rs.getInt(&quot;offline_freeze_time&quot;);</span>
+			}
+<span class="nc" id="L71">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L72">			cal.setTime(new Date());</span>
+<span class="nc" id="L73">			cal.add(Calendar.MINUTE, -offFrzTime);</span>
+<span class="nc" id="L74">			AFUTime = new Timestamp(cal.getTimeInMillis());</span>
+
+<span class="nc" id="L76">			pstmt = con.prepareStatement(fetchOffRet);</span>
+<span class="nc" id="L77">			pstmt.setTimestamp(1, AFUTime);</span>
+<span class="nc" id="L78">			logger.debug(&quot;******checkUserAFUStatus****2******&quot; + pstmt);</span>
+<span class="nc" id="L79">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L81">				inactiveRet.append(rs.getInt(&quot;user_id&quot;) + &quot;,&quot;);</span>
+			}
+<span class="nc" id="L83">			pstmt = con</span>
+					.prepareStatement(&quot;update st_lms_ret_offline_master set offline_status='INACTIVE' where user_id in (&quot;
+							+ inactiveRet
+									.deleteCharAt(inactiveRet.length() - 1)
+									.toString() + &quot;)&quot;);
+<span class="nc" id="L88">			logger.debug(&quot;******checkUserAFUStatus****3******&quot; + pstmt);</span>
+<span class="nc" id="L89">			pstmt.executeUpdate();</span>
+<span class="nc" id="L90">			con.commit();</span>
+<span class="nc" id="L91">		} catch (Exception e) {</span>
+<span class="nc" id="L92">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L94">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L95">		}</span>
+
+<span class="nc" id="L97">	}</span>
+
+	public static boolean fetchLoginStatus(int orgId) {
+
+<span class="nc" id="L101">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L102">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L103">		ResultSet rs = null;</span>
+<span class="nc" id="L104">		boolean isLogin = false;</span>
+		try {
+<span class="nc" id="L106">			String loginQry = &quot;select login_status from st_lms_ret_offline_master where organization_id= ? and is_offline='YES'&quot;;</span>
+<span class="nc" id="L107">			pstmt = con.prepareStatement(loginQry);</span>
+<span class="nc" id="L108">			pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L109">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc bnc" id="L111" title="All 4 branches missed.">				if (rs.getString(&quot;login_status&quot;) != null</span>
+						&amp;&amp; rs.getString(&quot;login_status&quot;).equals(&quot;LOGIN&quot;)) {
+<span class="nc" id="L113">					isLogin = true;</span>
+				}
+			}
+<span class="nc" id="L116">		} catch (Exception e) {</span>
+<span class="nc" id="L117">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L119">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L120">		}</span>
+<span class="nc" id="L121">		return isLogin;</span>
+	}
+
+	public static String fetchOfflineUserStatus(int orgId) {
+
+<span class="nc" id="L126">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L127">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L128">		ResultSet rs = null;</span>
+<span class="nc" id="L129">		String offStatus=&quot;INACTIVE&quot;;</span>
+		try {
+<span class="nc" id="L131">			String loginQry = &quot;select offline_status from st_lms_ret_offline_master where organization_id= ? and is_offline='YES'&quot;;</span>
+<span class="nc" id="L132">			pstmt = con.prepareStatement(loginQry);</span>
+<span class="nc" id="L133">			pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L134">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L136">				offStatus=rs.getString(&quot;offline_status&quot;);</span>
+			}
+<span class="nc" id="L138">		} catch (Exception e) {</span>
+<span class="nc" id="L139">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L141">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L142">		}</span>
+<span class="nc" id="L143">		return offStatus;</span>
+	}
+	
+	public static UserInfoBean fillUserBeanData(UserInfoBean userBean) {
+<span class="nc" id="L147">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L148">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L149">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L151">			pstmt = con</span>
+					.prepareStatement(&quot;select om.organization_id,om.organization_type,om.parent_id from st_lms_organization_master om,st_lms_user_master um where om.organization_id=um.organization_id and um.user_id=?&quot;);
+<span class="nc" id="L153">			pstmt.setInt(1, userBean.getUserId());</span>
+<span class="nc" id="L154">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L156">				userBean.setUserOrgId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L157">				userBean.setParentOrgId(rs.getInt(&quot;parent_id&quot;));</span>
+<span class="nc" id="L158">				userBean.setUserType(rs.getString(&quot;organization_type&quot;));</span>
+			}
+<span class="nc" id="L160">		} catch (Exception e) {</span>
+<span class="nc" id="L161">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L163">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L164">		}</span>
+
+<span class="nc" id="L166">		return userBean;</span>
+	}
+
+	// method added for inserting information about offline retailer
+
+	public static void sendMailToBo(File file, String errorMsg, String fileName) {
+<span class="nc" id="L172">		String FROM = &quot;lms.user@skilrock.com&quot;;</span>
+<span class="nc" id="L173">		String PASSWORD = &quot;skilrock&quot;;</span>
+<span class="nc" id="L174">		List&lt;String&gt; to = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L175">		to.add(&quot;support.wgrl@skilrock.com&quot;);</span>
+<span class="nc" id="L176">		to.add(&quot;error.wgrl@skilrock.com&quot;);</span>
+<span class="nc" id="L177">		String subject = &quot;Offline File Upload Having Problem: &quot; + errorMsg;</span>
+<span class="nc" id="L178">		String bodyText = errorMsg;</span>
+		try {
+<span class="nc" id="L180">			MailSender ms = new MailSender(FROM, PASSWORD, to, subject,</span>
+					bodyText, file, fileName);
+<span class="nc" id="L182">			ms.setDaemon(true);</span>
+<span class="nc" id="L183">			ms.start();</span>
+<span class="nc" id="L184">		} catch (Exception ex) {</span>
+<span class="nc" id="L185">			ex.printStackTrace();</span>
+<span class="nc" id="L186">		} finally {</span>
+
+<span class="nc" id="L188">		}</span>
+<span class="nc" id="L189">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public static String setAFUTime(UserInfoBean userInfoBean, ServletContext sc) {
+<span class="nc" id="L193">		String saleStartTime = (String) sc.getAttribute(&quot;SALE_START_TIME&quot;);</span>
+<span class="nc" id="L194">		String saleEndTime = (String) sc.getAttribute(&quot;SALE_END_TIME&quot;);</span>
+
+<span class="nc" id="L196">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L197">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L198">		boolean updateOffStatus = true;</span>
+		try {
+<span class="nc" id="L200">			con.setAutoCommit(false);</span>
+
+<span class="nc" id="L202">			String selQuery = &quot;select game_nbr from st_dg_game_master where is_offline='Y'&quot;;</span>
+<span class="nc" id="L203">			pstmt = con.prepareStatement(selQuery);</span>
+<span class="nc" id="L204">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L206">				selQuery = &quot;select status from st_dg_offline_files_? where retailer_user_id=? and status in('UPLOADED','LATE_UPLOAD','ERROR')&quot;;</span>
+<span class="nc" id="L207">				PreparedStatement newPstmt = con.prepareStatement(selQuery);</span>
+<span class="nc" id="L208">				newPstmt.setInt(1, rs.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L209">				newPstmt.setInt(2, userInfoBean.getUserId());</span>
+<span class="nc" id="L210">				ResultSet newRs = newPstmt.executeQuery();</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">				if (newRs.next()) {</span>
+<span class="nc" id="L212">					updateOffStatus = false;</span>
+<span class="nc" id="L213">					break;</span>
+				}
+<span class="nc" id="L215">			}</span>
+<span class="nc" id="L216">			String addStatusQry = &quot;&quot;;</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">			if (updateOffStatus) {</span>
+<span class="nc" id="L218">				addStatusQry = &quot; ,offline_status='ACTIVE' &quot;;</span>
+			}
+<span class="nc" id="L220">			String getUserQuery = &quot;update st_lms_ret_offline_master set last_AFU_time=? &quot;</span>
+					+ addStatusQry + &quot; where user_id=?&quot;;
+<span class="nc" id="L222">			pstmt = con.prepareStatement(getUserQuery);</span>
+<span class="nc" id="L223">			pstmt.setTimestamp(1, new Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L224">			pstmt.setInt(2, userInfoBean.getUserId());</span>
+<span class="nc" id="L225">			pstmt.executeUpdate();</span>
+<span class="nc" id="L226">			con.commit();</span>
+
+<span class="nc" id="L228">			String isOffline = &quot;&quot;;</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">			if (DrawGameOfflineHelper</span>
+					.checkOfflineUser(userInfoBean.getUserId())) {
+<span class="nc" id="L231">				isOffline = &quot;Y&quot;;</span>
+			} else {
+<span class="nc" id="L233">				isOffline = &quot;N&quot;;</span>
+			}
+
+<span class="nc" id="L236">			AjaxRequestHelper ajaxRequestHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L237">			ajaxRequestHelper.getAvlblCreditAmt(userInfoBean);</span>
+
+<span class="nc" id="L239">			Double bal1 = userInfoBean.getAvailableCreditLimit();</span>
+<span class="nc" id="L240">			double bal2 = userInfoBean.getClaimableBal();</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">			if (bal1 == null) {</span>
+<span class="nc" id="L242">				bal1 = 0.0;</span>
+			}
+<span class="nc" id="L244">			double bal = bal1 - bal2;</span>
+<span class="nc" id="L245">			NumberFormat nFormat = NumberFormat.getInstance();</span>
+<span class="nc" id="L246">			nFormat.setMinimumFractionDigits(2);</span>
+<span class="nc" id="L247">			String balance = nFormat.format(bal).replace(&quot;,&quot;, &quot;&quot;);</span>
+
+			//String balance = bal + &quot;00&quot;;
+<span class="nc" id="L250">			balance = balance.substring(0, balance.indexOf(&quot;.&quot;) + 3);</span>
+
+<span class="nc" id="L252">			return &quot;|isOffline:&quot;</span>
+					+ isOffline
+					+ &quot;|balance:&quot;
+					+ balance
+					+ &quot;|SALE_ST:&quot;
+					+ saleStartTime
+					+ &quot;|SALE_ET:&quot;
+					+ saleEndTime
+					+ &quot;|status:&quot;
+					+ fetchOfflineUserStatus(userInfoBean.getUserOrgId())
+					+ &quot;|userId:&quot;
+					+ userInfoBean.getUserId()
+					+ &quot;|GameInfo:&quot;
+					+ DrawGameRPOSHelper.embdDgData(true,
+							(TreeMap&lt;Integer, Map&lt;Integer, String&gt;&gt;) sc
+									.getAttribute(&quot;drawIdTableMap&quot;),
+							userInfoBean.getUserId(),userInfoBean.getUserOrgId(), 5.7) + &quot;|&quot;;
+<span class="nc" id="L269">		} catch (Exception e) {</span>
+<span class="nc" id="L270">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L272">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L273">		}</span>
+<span class="nc" id="L274">		return null;</span>
+	}
+
+	public static boolean setInactiveRetailer(int userId) {
+
+<span class="nc" id="L279">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L280">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L282">			con.setAutoCommit(false);</span>
+
+<span class="nc" id="L284">			String getUserQuery = &quot;update st_lms_ret_offline_master set offline_status='INACTIVE' where user_id=&quot;</span>
+					+ userId;
+<span class="nc" id="L286">			pstmt = con.prepareStatement(getUserQuery);</span>
+<span class="nc" id="L287">			pstmt.executeUpdate();</span>
+<span class="nc" id="L288">			con.commit();</span>
+<span class="nc" id="L289">			return true;</span>
+<span class="nc" id="L290">		} catch (Exception e) {</span>
+<span class="nc" id="L291">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L293">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L294">		}</span>
+<span class="nc" id="L295">		return false;</span>
+	}
+/**
+ * @deprecated use updateLoginStatus(int userId,Connection con)
+ * @param userId
+ * @return
+ */
+	public static String updateLoginStatus(int userId) {
+
+<span class="nc" id="L304">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L305">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L306">		ResultSet rs = null;</span>
+<span class="nc" id="L307">		String loginStatus = null;</span>
+		try {
+<span class="nc" id="L309">			String loginQry = &quot;select login_status from st_lms_ret_offline_master where user_id= ?&quot;;</span>
+<span class="nc" id="L310">			pstmt = con.prepareStatement(loginQry);</span>
+<span class="nc" id="L311">			pstmt.setInt(1, userId);</span>
+<span class="nc" id="L312">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L313" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L314">				loginStatus = rs.getString(&quot;login_status&quot;);</span>
+			}
+<span class="nc bnc" id="L316" title="All 4 branches missed.">			if (loginStatus != null &amp;&amp; loginStatus.equals(&quot;LOGIN&quot;)) {</span>
+<span class="nc" id="L317">				return &quot;LOGIN&quot;;</span>
+<span class="nc bnc" id="L318" title="All 4 branches missed.">			} else if (loginStatus != null &amp;&amp; loginStatus.equals(&quot;LOGOUT&quot;)) {</span>
+<span class="nc" id="L319">				String updLoginQuery = &quot;update st_lms_ret_offline_master set login_status='LOGIN', last_AFU_time = ? where user_id= ?&quot;;</span>
+<span class="nc" id="L320">				pstmt = con.prepareStatement(updLoginQuery);</span>
+<span class="nc" id="L321">				pstmt.setTimestamp(1, new Timestamp((new Date()).getTime()));</span>
+<span class="nc" id="L322">				pstmt.setInt(2, userId);</span>
+
+<span class="nc bnc" id="L324" title="All 2 branches missed.">				if (pstmt.executeUpdate() == 1) {</span>
+<span class="nc" id="L325">					return &quot;LOGOUT&quot;;</span>
+				}
+			}
+<span class="nc" id="L328">			logger.debug(&quot;loginQuery........&quot; + pstmt);</span>
+
+<span class="nc" id="L330">		} catch (Exception e) {</span>
+<span class="nc" id="L331">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L333">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L334">		}</span>
+<span class="nc" id="L335">		return &quot;INACTIVE&quot;;</span>
+	}
+
+	public static boolean updateLogoutSuccess(String userName) {
+
+<span class="nc" id="L340">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L341">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L343">			pstmt = con</span>
+					.prepareStatement(&quot;update st_lms_ret_offline_master set login_status='LOGOUT' where user_id=(select user_id from st_lms_user_master where user_name=?)&quot;);
+<span class="nc" id="L345">			pstmt.setString(1, userName);</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">			if (pstmt.executeUpdate() == 1) {</span>
+<span class="nc" id="L347">				return true;</span>
+			}
+
+<span class="nc" id="L350">		} catch (Exception e) {</span>
+<span class="nc" id="L351">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L353">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L354">		}</span>
+<span class="nc" id="L355">		return false;</span>
+	}
+
+	public int saveOfflineRetData(int userId, int orgId, String isOffline,
+			String deviceType, String terminalId, Connection connection,
+			String latLon, String cityName,String isLoginBinding,String []sim,String []simModelName,boolean isSimBind) throws SQLException {
+<span class="nc bnc" id="L361" title="All 2 branches missed.">		boolean loginBind = &quot;YES&quot;.equalsIgnoreCase(isLoginBinding) ? true : false;</span>
+<span class="nc" id="L362">		PreparedStatement psmt = null;</span>
+<span class="nc" id="L363">		Statement stmt = null;</span>
+<span class="nc" id="L364">		ResultSet rs = null;</span>
+<span class="nc" id="L365">		ResultSet rs1 = null;</span>
+<span class="nc" id="L366">		String cityCode = null;</span>
+<span class="nc" id="L367">		int retOfflineId = 0;</span>
+<span class="nc" id="L368">		String maxVerAvailable = null ;</span>
+<span class="nc" id="L369">		stmt = connection.createStatement();</span>
+<span class="nc" id="L370">		ArrayList&lt;String&gt; simColList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L371">		ArrayList&lt;String&gt; simNbrList = new ArrayList&lt;String&gt;();</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">		if(loginBind){</span>
+<span class="nc" id="L373">			String query =&quot;select serial_number from st_lms_ret_offline_master where  serial_number ='&quot;+terminalId+&quot;'&quot;;</span>
+<span class="nc" id="L374">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L376">				logger.info(&quot;terminal Already Assigned !!&quot;+query);</span>
+<span class="nc" id="L377">				return retOfflineId;</span>
+				
+			}
+<span class="nc" id="L380">			String versionFinder = &quot;select max(cast(`version` as decimal(5,2))) as exp_version  from st_lms_htpos_version_master where device_id = (select device_id from st_lms_htpos_device_master where device_type = '&quot;+deviceType+&quot;')  and status = 'ACTIVE';&quot; ;</span>
+<span class="nc" id="L381">			logger.info(&quot;Max Ver for &quot;+deviceType + &quot; : &quot; + versionFinder);</span>
+<span class="nc" id="L382">			rs = stmt.executeQuery(versionFinder);</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">			if(rs.next())</span>
+<span class="nc" id="L384">				maxVerAvailable = rs.getString(&quot;exp_version&quot;) ;</span>
+
+<span class="nc" id="L386">			logger.info(&quot;maxVerAvailable - &quot; + maxVerAvailable);</span>
+		}
+<span class="nc bnc" id="L388" title="All 2 branches missed.">		if(isSimBind){</span>
+		
+<span class="nc bnc" id="L390" title="All 2 branches missed.">			for(int i=0;i&lt;simModelName.length;i++){</span>
+				
+<span class="nc bnc" id="L392" title="All 2 branches missed.">				if(simModelName[i].trim()!=&quot;-1&quot;){</span>
+<span class="nc" id="L393">					String query =&quot;select inv_column_name from st_lms_inv_model_master where model_name='&quot;+simModelName[i]+&quot;'&quot;;</span>
+<span class="nc" id="L394">					rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L395" title="All 2 branches missed.">					if(rs.next()){</span>
+<span class="nc" id="L396">						simColList.add(rs.getString(&quot;inv_column_name&quot;));</span>
+<span class="nc" id="L397">						simNbrList.add(sim[i]);</span>
+<span class="nc" id="L398">						String simQry =&quot;select &quot;+rs.getString(&quot;inv_column_name&quot;)+&quot; from st_lms_ret_offline_master where  &quot;+rs.getString(&quot;inv_column_name&quot;)+&quot; ='&quot;+sim[i]+&quot;'&quot;;</span>
+<span class="nc" id="L399">						rs1 = stmt.executeQuery(simQry);</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">						if(rs1.next()){</span>
+<span class="nc" id="L401">							logger.info(&quot;sim Already Assigned !!&quot;+simQry);</span>
+<span class="nc" id="L402">							return retOfflineId;</span>
+							
+						}
+<span class="nc" id="L405">						rs1.close();</span>
+					}
+<span class="nc" id="L407">					rs.close();</span>
+					
+				}
+				
+				
+			}
+			
+			
+		}
+
+<span class="nc bnc" id="L417" title="All 2 branches missed.">		String queryAppender = (loginBind) ? &quot;,expected_version, is_download_available&quot; : &quot;&quot; ;</span>
+<span class="nc bnc" id="L418" title="All 2 branches missed.">		String parameterAppender = (loginBind) ? &quot;,?,?&quot; : &quot;&quot; ;</span>
+
+<span class="nc" id="L420">		rs = stmt.executeQuery(&quot;select city_code from st_lms_city_master where city_name='&quot;+cityName+&quot;' &quot;);</span>
+<span class="nc bnc" id="L421" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L422">			cityCode = rs.getString(&quot;city_code&quot;);</span>
+<span class="nc" id="L423">			String insOfflineRet = &quot;insert into st_lms_ret_offline_master(user_id,organization_id,offline_status,login_status,last_AFU_time,is_offline, serial_number,device_type ,lat,lon,city_code&quot;+ queryAppender +&quot; ) values(?,?,?,?,?,?,?,?,?,?,?&quot;+ parameterAppender +&quot;)&quot;;</span>
+
+<span class="nc" id="L425">			psmt = connection.prepareStatement(insOfflineRet);</span>
+<span class="nc" id="L426">			psmt.setInt(1, userId);</span>
+<span class="nc" id="L427">			psmt.setInt(2, orgId);</span>
+<span class="nc" id="L428">			psmt.setString(3, &quot;ACTIVE&quot;);</span>
+<span class="nc" id="L429">			psmt.setString(4, &quot;LOGOUT&quot;);</span>
+<span class="nc" id="L430">			psmt.setTimestamp(5, new java.sql.Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L431">			psmt.setString(6, isOffline);</span>
+<span class="nc" id="L432">			psmt.setString(7, terminalId);</span>
+<span class="nc" id="L433">			psmt.setString(8, deviceType);</span>
+<span class="nc" id="L434">			psmt.setString(9, latLon.split(&quot;:&quot;)[0]);</span>
+<span class="nc" id="L435">			psmt.setString(10, latLon.split(&quot;:&quot;)[1]);</span>
+<span class="nc" id="L436">			psmt.setString(11, cityCode);</span>
+<span class="nc bnc" id="L437" title="All 2 branches missed.">			if(loginBind)</span>
+			{
+<span class="nc" id="L439">				psmt.setString(12, maxVerAvailable);</span>
+<span class="nc" id="L440">				psmt.setString(13, &quot;YES&quot;);</span>
+			}
+<span class="nc" id="L442">			retOfflineId = psmt.executeUpdate();</span>
+<span class="nc bnc" id="L443" title="All 2 branches missed.">			if(isSimBind){</span>
+				
+<span class="nc" id="L445">				StringBuilder  updateStrBuider = new StringBuilder();</span>
+<span class="nc" id="L446">				updateStrBuider.append(&quot; update st_lms_ret_offline_master set &quot;);</span>
+<span class="nc bnc" id="L447" title="All 2 branches missed.">				for(int i=0;i&lt;simColList.size();i++){</span>
+<span class="nc bnc" id="L448" title="All 2 branches missed.">					if(i==0)updateStrBuider.append(simColList.get(i)+&quot;='&quot;+simNbrList.get(i)+&quot;' &quot;);</span>
+<span class="nc" id="L449">					else  updateStrBuider.append(&quot; ,&quot;+simColList.get(i)+&quot;='&quot;+simNbrList.get(i)+&quot;' &quot;); </span>
+				}
+<span class="nc" id="L451">				updateStrBuider.append(&quot; where organization_id=&quot;+orgId);</span>
+<span class="nc" id="L452">				psmt =connection.prepareStatement(updateStrBuider.toString());</span>
+<span class="nc" id="L453">				logger.debug(&quot; update sim nbrs qry&quot;+psmt);</span>
+<span class="nc" id="L454">				psmt.executeUpdate();</span>
+				
+				
+			}
+		
+<span class="nc" id="L459">		}</span>
+<span class="nc" id="L460">		rs.close();</span>
+<span class="nc" id="L461">		stmt.close();</span>
+		
+		
+<span class="nc" id="L464">		return retOfflineId;</span>
+	}
+	public static boolean checkOfflineUser(int userId,Connection con) {
+
+		
+<span class="nc" id="L469">		Statement stmt = null;</span>
+<span class="nc" id="L470">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L472">			String getUserQuery = &quot;select * from st_lms_ret_offline_master where user_id=&quot;+userId+&quot; and is_offline='YES'&quot;;</span>
+<span class="nc" id="L473">			stmt = con.createStatement();</span>
+<span class="nc" id="L474">			logger.info(&quot;getUserQuery::::::&quot; + getUserQuery);</span>
+<span class="nc" id="L475">			rs = stmt.executeQuery(getUserQuery);</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L477">				return true;</span>
+			}
+<span class="nc" id="L479">		} catch (Exception e) {</span>
+<span class="nc" id="L480">			logger.error(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L481">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L483">			DBConnect.closeStmt(stmt);</span>
+<span class="nc" id="L484">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L485">		}</span>
+<span class="nc" id="L486">		return false;</span>
+	}
+	
+	public static String fetchOfflineUserStatus(int orgId,Connection con) {
+
+		//	Connection con = DBConnect.getConnection();
+<span class="nc" id="L492">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L493">		ResultSet rs = null;</span>
+<span class="nc" id="L494">		String offStatus=&quot;INACTIVE&quot;;</span>
+		try {
+<span class="nc" id="L496">			String loginQry = &quot;select offline_status from st_lms_ret_offline_master where organization_id= ? and is_offline='YES'&quot;;</span>
+<span class="nc" id="L497">			pstmt = con.prepareStatement(loginQry);</span>
+<span class="nc" id="L498">			pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L499">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L500" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L501">				offStatus=rs.getString(&quot;offline_status&quot;);</span>
+			}
+<span class="nc" id="L503">		} catch (Exception e) {</span>
+<span class="nc" id="L504">			e.printStackTrace();</span>
+<span class="nc" id="L505">		} finally {</span>
+			//DBConnect.closeCon(con);
+<span class="nc" id="L507">		}</span>
+<span class="nc" id="L508">		return offStatus;</span>
+	}
+	public static String updateLoginStatus(int userId,Connection con) {
+
+		//	Connection con = DBConnect.getConnection();
+<span class="nc" id="L513">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L514">		ResultSet rs = null;</span>
+<span class="nc" id="L515">		String loginStatus = null;</span>
+		try {
+<span class="nc" id="L517">			String loginQry = &quot;select login_status from st_lms_ret_offline_master where user_id= ?&quot;;</span>
+<span class="nc" id="L518">			pstmt = con.prepareStatement(loginQry);</span>
+<span class="nc" id="L519">			pstmt.setInt(1, userId);</span>
+<span class="nc" id="L520">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L521" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L522">				loginStatus = rs.getString(&quot;login_status&quot;);</span>
+			}
+<span class="nc bnc" id="L524" title="All 4 branches missed.">			if (loginStatus != null &amp;&amp; loginStatus.equals(&quot;LOGIN&quot;)) {</span>
+<span class="nc" id="L525">				return &quot;LOGIN&quot;;</span>
+<span class="nc bnc" id="L526" title="All 4 branches missed.">			} else if (loginStatus != null &amp;&amp; loginStatus.equals(&quot;LOGOUT&quot;)) {</span>
+<span class="nc" id="L527">				String updLoginQuery = &quot;update st_lms_ret_offline_master set login_status='LOGIN', last_AFU_time = ? where user_id= ?&quot;;</span>
+<span class="nc" id="L528">				pstmt = con.prepareStatement(updLoginQuery);</span>
+<span class="nc" id="L529">				pstmt.setTimestamp(1, new Timestamp((new Date()).getTime()));</span>
+<span class="nc" id="L530">				pstmt.setInt(2, userId);</span>
+
+<span class="nc bnc" id="L532" title="All 2 branches missed.">				if (pstmt.executeUpdate() == 1) {</span>
+<span class="nc" id="L533">					return &quot;LOGOUT&quot;;</span>
+				}
+			}
+<span class="nc" id="L536">			logger.debug(&quot;loginQuery........&quot; + pstmt);</span>
+
+<span class="nc" id="L538">		} catch (Exception e) {</span>
+<span class="nc" id="L539">			e.printStackTrace();</span>
+<span class="nc" id="L540">		} finally {</span>
+			//DBConnect.closeCon(con);
+<span class="nc" id="L542">		}</span>
+<span class="nc" id="L543">		return &quot;INACTIVE&quot;;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

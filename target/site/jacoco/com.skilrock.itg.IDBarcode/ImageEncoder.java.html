@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ImageEncoder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.itg.IDBarcode</a> &gt; <span class="el_source">ImageEncoder.java</span></div><h1>ImageEncoder.java</h1><pre class="source lang-java linenums">package com.skilrock.itg.IDBarcode;
+
+import java.awt.Image;
+import java.awt.image.ColorModel;
+import java.awt.image.ImageConsumer;
+import java.awt.image.ImageProducer;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Hashtable;
+
+public abstract class ImageEncoder implements ImageConsumer {
+
+<span class="nc" id="L13">	private static final ColorModel rgbModel = ColorModel.getRGBdefault();</span>
+
+	private boolean accumulate;
+
+	private int accumulator[];
+
+	private boolean encoding;
+
+	private int height;
+
+	private int hintflags;
+
+	private IOException iox;
+
+	protected OutputStream out;
+
+	private final ImageProducer producer;
+
+	private boolean started;
+
+	private int width;
+
+	public ImageEncoder(Image image, OutputStream outputstream)
+			throws IOException {
+<span class="nc" id="L37">		this(image.getSource(), outputstream);</span>
+<span class="nc" id="L38">	}</span>
+
+	public ImageEncoder(ImageProducer imageproducer, OutputStream outputstream)
+<span class="nc" id="L41">			throws IOException {</span>
+<span class="nc" id="L42">		width = -1;</span>
+<span class="nc" id="L43">		height = -1;</span>
+<span class="nc" id="L44">		hintflags = 0;</span>
+<span class="nc" id="L45">		started = false;</span>
+<span class="nc" id="L46">		accumulate = false;</span>
+<span class="nc" id="L47">		producer = imageproducer;</span>
+<span class="nc" id="L48">		out = outputstream;</span>
+<span class="nc" id="L49">	}</span>
+
+	public synchronized void encode() throws IOException {
+<span class="nc" id="L52">		encoding = true;</span>
+<span class="nc" id="L53">		iox = null;</span>
+<span class="nc" id="L54">		producer.startProduction(this);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">		while (encoding) {</span>
+			try {
+<span class="nc" id="L57">				wait();</span>
+<span class="nc" id="L58">			} catch (InterruptedException interruptedexception) {</span>
+<span class="nc" id="L59">			}</span>
+		}
+<span class="nc bnc" id="L61" title="All 2 branches missed.">		if (iox != null) {</span>
+<span class="nc" id="L62">			throw iox;</span>
+		} else {
+<span class="nc" id="L64">			return;</span>
+		}
+	}
+
+	abstract void encodeDone() throws IOException;
+
+	private void encodeFinish() throws IOException {
+<span class="nc bnc" id="L71" title="All 2 branches missed.">		if (accumulate) {</span>
+<span class="nc" id="L72">			encodePixels(0, 0, width, height, accumulator, 0, width);</span>
+<span class="nc" id="L73">			accumulator = null;</span>
+<span class="nc" id="L74">			accumulate = false;</span>
+		}
+<span class="nc" id="L76">	}</span>
+
+	abstract void encodePixels(int i, int j, int k, int l, int ai[], int i1,
+			int j1) throws IOException;
+
+	private void encodePixelsWrapper(int i, int j, int k, int l, int ai[],
+			int i1, int j1) throws IOException {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">		if (!started) {</span>
+<span class="nc" id="L84">			started = true;</span>
+<span class="nc" id="L85">			encodeStart(width, height);</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if ((hintflags &amp; 2) == 0) {</span>
+<span class="nc" id="L87">				accumulate = true;</span>
+<span class="nc" id="L88">				accumulator = new int[width * height];</span>
+			}
+		}
+<span class="nc bnc" id="L91" title="All 2 branches missed.">		if (accumulate) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">			for (int k1 = 0; k1 &lt; l; k1++) {</span>
+<span class="nc" id="L93">				System.arraycopy(ai, k1 * j1 + i1, accumulator, (j + k1)</span>
+						* width + i, k);
+			}
+
+		} else {
+<span class="nc" id="L98">			encodePixels(i, j, k, l, ai, i1, j1);</span>
+		}
+<span class="nc" id="L100">	}</span>
+
+	abstract void encodeStart(int i, int j) throws IOException;
+
+	public void imageComplete(int i) {
+<span class="nc" id="L105">		producer.removeConsumer(this);</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">		if (i == 4) {</span>
+<span class="nc" id="L107">			iox = new IOException(&quot;image aborted&quot;);</span>
+		} else {
+			try {
+<span class="nc" id="L110">				encodeFinish();</span>
+<span class="nc" id="L111">				encodeDone();</span>
+<span class="nc" id="L112">			} catch (IOException ioexception) {</span>
+<span class="nc" id="L113">				iox = ioexception;</span>
+<span class="nc" id="L114">			}</span>
+		}
+<span class="nc" id="L116">		stop();</span>
+<span class="nc" id="L117">	}</span>
+
+	public void setColorModel(ColorModel colormodel1) {
+<span class="nc" id="L120">	}</span>
+
+	public void setDimensions(int i, int j) {
+<span class="nc" id="L123">		width = i;</span>
+<span class="nc" id="L124">		height = j;</span>
+<span class="nc" id="L125">	}</span>
+
+	public void setHints(int i) {
+<span class="nc" id="L128">		hintflags = i;</span>
+<span class="nc" id="L129">	}</span>
+
+	public void setPixels(int i, int j, int k, int l, ColorModel colormodel,
+			byte abyte0[], int i1, int j1) {
+<span class="nc" id="L133">		int ai[] = new int[k];</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">		for (int k1 = 0; k1 &lt; l; k1++) {</span>
+<span class="nc" id="L135">			int l1 = i1 + k1 * j1;</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">			for (int i2 = 0; i2 &lt; k; i2++) {</span>
+<span class="nc" id="L137">				ai[i2] = colormodel.getRGB(abyte0[l1 + i2] &amp; 0xff);</span>
+			}
+
+			try {
+<span class="nc" id="L141">				encodePixelsWrapper(i, j + k1, k, 1, ai, 0, k);</span>
+<span class="nc" id="L142">			} catch (IOException ioexception) {</span>
+<span class="nc" id="L143">				iox = ioexception;</span>
+<span class="nc" id="L144">				stop();</span>
+<span class="nc" id="L145">				return;</span>
+<span class="nc" id="L146">			}</span>
+		}
+
+<span class="nc" id="L149">	}</span>
+
+	public void setPixels(int i, int j, int k, int l, ColorModel colormodel,
+			int ai[], int i1, int j1) {
+<span class="nc bnc" id="L153" title="All 2 branches missed.">		if (colormodel == rgbModel) {</span>
+			try {
+<span class="nc" id="L155">				encodePixelsWrapper(i, j, k, l, ai, i1, j1);</span>
+<span class="nc" id="L156">			} catch (IOException ioexception) {</span>
+<span class="nc" id="L157">				iox = ioexception;</span>
+<span class="nc" id="L158">				stop();</span>
+<span class="nc" id="L159">				return;</span>
+<span class="nc" id="L160">			}</span>
+		} else {
+<span class="nc" id="L162">			int ai1[] = new int[k];</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">			for (int k1 = 0; k1 &lt; l; k1++) {</span>
+<span class="nc" id="L164">				int l1 = i1 + k1 * j1;</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">				for (int i2 = 0; i2 &lt; k; i2++) {</span>
+<span class="nc" id="L166">					ai1[i2] = colormodel.getRGB(ai[l1 + i2]);</span>
+				}
+
+				try {
+<span class="nc" id="L170">					encodePixelsWrapper(i, j + k1, k, 1, ai1, 0, k);</span>
+<span class="nc" id="L171">				} catch (IOException ioexception1) {</span>
+<span class="nc" id="L172">					iox = ioexception1;</span>
+<span class="nc" id="L173">					stop();</span>
+<span class="nc" id="L174">					return;</span>
+<span class="nc" id="L175">				}</span>
+			}
+
+		}
+<span class="nc" id="L179">	}</span>
+
+	public void setProperties(Hashtable hashtable) {
+<span class="nc" id="L182">	}</span>
+
+	private synchronized void stop() {
+<span class="nc" id="L185">		encoding = false;</span>
+<span class="nc" id="L186">		notifyAll();</span>
+<span class="nc" id="L187">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

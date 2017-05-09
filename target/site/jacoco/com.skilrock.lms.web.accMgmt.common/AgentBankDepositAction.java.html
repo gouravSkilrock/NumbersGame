@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AgentBankDepositAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.accMgmt.common</a> &gt; <span class="el_source">AgentBankDepositAction.java</span></div><h1>AgentBankDepositAction.java</h1><pre class="source lang-java linenums">
+package com.skilrock.lms.web.accMgmt.common;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.MultiBankDepositBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryHelper;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.coreEngine.accMgmt.common.AgentBankDepositHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.GraphReportHelper;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L37">public class AgentBankDepositAction extends ActionSupport implements ServletRequestAware,ServletResponseAware{</span>
+
+	private static final long serialVersionUID = 1L;
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+	private String orgType;
+	private String orgName;
+	private String retOrgName;
+	private String bankName;
+	private String receiptNum;
+	private String branchName;
+	private String depositDate;
+	private double totalAmount; 
+	private String receiptId;
+	private Map&lt;String, String&gt; bankMap;
+	private Map&lt;String, String&gt; agtMap;
+	private String finalPaymentData;
+	
+	private String agentOrgId;
+<span class="nc" id="L56">	private List&lt;MultiBankDepositBean&gt; bdList = null;</span>
+<span class="nc" id="L57">	private String currentDate=null;</span>
+	
+<span class="nc" id="L59">	Map&lt;String, byte[]&gt; receiptByteMap= null;</span>
+	
+	
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L63">		this.request = request;</span>
+<span class="nc" id="L64">	}</span>
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L66">		return response;</span>
+	}
+	public void setServletResponse(HttpServletResponse response) {
+<span class="nc" id="L69">		this.response = response;</span>
+<span class="nc" id="L70">	}</span>
+	public String getAgentOrgId() {
+<span class="nc" id="L72">		return agentOrgId;</span>
+	}
+	public void setAgentOrgId(String agentOrgId) {
+<span class="nc" id="L75">		this.agentOrgId = agentOrgId;</span>
+<span class="nc" id="L76">	}</span>
+	public String getOrgType() {
+<span class="nc" id="L78">		return orgType;</span>
+	}
+	public void setOrgType(String orgType) {
+<span class="nc" id="L81">		this.orgType = orgType;</span>
+<span class="nc" id="L82">	}</span>
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L84">		return request;</span>
+	}
+	
+	
+	public String start() throws LMSException {
+<span class="nc" id="L89">		QueryHelper qp = new QueryHelper();</span>
+<span class="nc" id="L90">		bankMap = qp.searchBanks();</span>
+<span class="nc" id="L91">		return SUCCESS;</span>
+	}
+	
+	public String save(){
+<span class="nc" id="L95">		String autoGeneRecieptNo=null;</span>
+<span class="nc" id="L96">	    String rootPath=null;</span>
+<span class="nc" id="L97">		AgentBankDepositHelper helper=null;</span>
+<span class="nc" id="L98">		HttpSession session=null;</span>
+<span class="nc" id="L99">		UserInfoBean userBean=null,agentInfoBean=null;</span>
+<span class="nc" id="L100">		HttpServletRequest request=null;</span>
+<span class="nc" id="L101">	    Connection con=null;</span>
+<span class="nc" id="L102">		int agentOrgId=0;</span>
+<span class="nc" id="L103">		int retOrgId=0;</span>
+		try{
+<span class="nc" id="L105">			helper=new AgentBankDepositHelper();</span>
+<span class="nc" id="L106">			request=ServletActionContext.getRequest();</span>
+<span class="nc" id="L107">			session=request.getSession();</span>
+<span class="nc" id="L108">			userBean=(UserInfoBean)session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L109">			rootPath=(String) session.getAttribute(&quot;ROOT_PATH&quot;);</span>
+<span class="nc" id="L110">			agentOrgId=Integer.parseInt(getOrgName());</span>
+<span class="nc" id="L111">			retOrgId=Integer.parseInt(getRetOrgName());</span>
+<span class="nc" id="L112">			agentInfoBean=CommonMethods.fetchUserData(agentOrgId);</span>
+<span class="nc" id="L113">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L114">			con.setAutoCommit(false);</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">			if(totalAmount&gt;0.0){</span>
+<span class="nc" id="L116">				autoGeneRecieptNo=helper.submitBankDepositAmt(agentOrgId, &quot;AGENT&quot;,  totalAmount,</span>
+					receiptNum, bankName, branchName, depositDate, userBean,con);
+<span class="nc bnc" id="L118" title="All 2 branches missed.">				if(orgType.equalsIgnoreCase(&quot;RETAILER&quot;)){</span>
+<span class="nc" id="L119">					autoGeneRecieptNo=helper.submitBankDepositAmtForRetailer(retOrgId,agentOrgId, agentInfoBean.getUserId(),orgType,  totalAmount,</span>
+							receiptNum, bankName, branchName, depositDate,con);	
+				}
+<span class="nc" id="L122">			    con.commit();	</span>
+			}else{
+<span class="nc" id="L124">				return NONE;</span>
+			}
+<span class="nc" id="L126">			GraphReportHelper graphReportHelper = new GraphReportHelper();</span>
+<span class="nc" id="L127">			int userOrgID = userBean.getUserOrgId();</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">			if(orgType.equalsIgnoreCase(&quot;AGENT&quot;)){</span>
+<span class="nc" id="L129">				String parentOrgName = null;</span>
+<span class="nc" id="L130">				parentOrgName = userBean.getOrgName();</span>
+<span class="nc" id="L131">				graphReportHelper.createTextReportBO(Integer.parseInt(autoGeneRecieptNo.split(&quot;Nxt&quot;)[0]), parentOrgName, userOrgID,</span>
+						rootPath);
+<span class="nc" id="L133">			}</span>
+			else{
+<span class="nc" id="L135">				graphReportHelper.createTextReportAgent(Integer.parseInt(autoGeneRecieptNo.split(&quot;Nxt&quot;)[0]), rootPath, agentOrgId, agentInfoBean.getOrgName());</span>
+			}	
+<span class="nc" id="L137">			receiptId=autoGeneRecieptNo.split(&quot;Nxt&quot;)[1];</span>
+<span class="nc" id="L138">		}catch (Exception e) {</span>
+<span class="nc" id="L139">			e.printStackTrace();</span>
+<span class="nc" id="L140">			return ERROR;</span>
+		}finally{
+<span class="nc" id="L142">				try{</span>
+<span class="nc bnc" id="L143" title="All 8 branches missed.">					if(con!=null){</span>
+<span class="nc" id="L144">						con.close();</span>
+					}
+<span class="nc" id="L146">				}catch(SQLException se){</span>
+<span class="nc" id="L147">					se.printStackTrace();</span>
+<span class="nc" id="L148">				}</span>
+<span class="nc" id="L149">		  }</span>
+<span class="nc" id="L150">		return SUCCESS;</span>
+	}
+	
+	public String fetchAgentAndBankDetails() throws LMSException {
+		
+<span class="nc" id="L155">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L156">		UserInfoBean uib = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L157">		int userOrgId = 0;</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">		if (uib != null)</span>
+<span class="nc" id="L159">			userOrgId = uib.getUserOrgId();</span>
+
+<span class="nc" id="L161">		bankMap = new QueryHelper().searchBanks();</span>
+<span class="nc" id="L162">		agtMap = AjaxRequestHelper.getOrgIdMap(userOrgId, &quot;AGENT&quot;);</span>
+<span class="nc" id="L163">		currentDate = Util.getCurrentTimeString().substring(0, 10);</span>
+<span class="nc" id="L164">		return SUCCESS;</span>
+	}
+	
+	public void fetchAvlCredit() throws IOException{
+<span class="nc" id="L168">		UserInfoBean bean = new UserInfoBean();</span>
+<span class="nc" id="L169">		bean.setUserOrgId(Integer.parseInt(agentOrgId));</span>
+<span class="nc" id="L170">		JSONObject obj = new JSONObject();</span>
+<span class="nc" id="L171">		obj.put(&quot;avlBal&quot;, new AjaxRequestHelper().getAvlblCreditAmt(bean));</span>
+		
+<span class="nc" id="L173">		response.setContentType(&quot;application/json&quot;);</span>
+<span class="nc" id="L174">		PrintWriter out = null;</span>
+<span class="nc" id="L175">		out = response.getWriter();</span>
+<span class="nc" id="L176">		out.print(obj.toString());</span>
+<span class="nc" id="L177">		out.flush();</span>
+<span class="nc" id="L178">		out.close(); </span>
+<span class="nc" id="L179">	}</span>
+	
+	public String savePaymentData(){
+		
+<span class="nc" id="L183">		MultiBankDepositBean depositBean = null;</span>
+<span class="nc" id="L184">		UserInfoBean userBean=null;</span>
+<span class="nc" id="L185">		HttpSession session=null;</span>
+<span class="nc" id="L186">		String rootPath=null;</span>
+		
+		try{
+<span class="nc" id="L189">				System.out.println(finalPaymentData);</span>
+				
+<span class="nc" id="L191">				request=ServletActionContext.getRequest();</span>
+<span class="nc" id="L192">				session=request.getSession();</span>
+<span class="nc" id="L193">				userBean=(UserInfoBean)session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L194">				rootPath=(String) session.getAttribute(&quot;ROOT_PATH&quot;);</span>
+			
+<span class="nc" id="L196">				JSONObject jObject = new JSONObject();</span>
+<span class="nc" id="L197">				jObject.put(&quot;finalData&quot;, finalPaymentData);</span>
+<span class="nc" id="L198">				JSONArray finalData = jObject.getJSONArray(&quot;finalData&quot;);</span>
+				
+<span class="nc" id="L200">				bdList = new ArrayList&lt;MultiBankDepositBean&gt;();</span>
+				
+<span class="nc bnc" id="L202" title="All 2 branches missed.">				for (int i=0; i&lt;finalData.size(); i++) {</span>
+<span class="nc" id="L203">				    JSONObject item = finalData.getJSONObject(i);</span>
+<span class="nc" id="L204">				    depositBean = new MultiBankDepositBean();</span>
+<span class="nc" id="L205">				    depositBean.setAgentOrgId(item.getInt(&quot;agtId&quot;));</span>
+<span class="nc" id="L206">				    depositBean.setAgtName(item.getString(&quot;agtName&quot;));</span>
+<span class="nc" id="L207">				    depositBean.setOrgType(&quot;AGENT&quot;);</span>
+<span class="nc" id="L208">				    depositBean.setTotalAmt(item.getDouble(&quot;depositAmt&quot;));</span>
+<span class="nc" id="L209">				    depositBean.setReceiptNo(item.getString(&quot;receiptNo&quot;));</span>
+<span class="nc" id="L210">				    depositBean.setBankName(item.getString(&quot;bankName&quot;));</span>
+<span class="nc" id="L211">				    depositBean.setBranchName(item.getString(&quot;branchName&quot;));</span>
+<span class="nc" id="L212">				    depositBean.setDepositDate(item.getString(&quot;depositDate&quot;));</span>
+<span class="nc" id="L213">				    bdList.add(depositBean);				    </span>
+				}
+				
+<span class="nc" id="L216">				new AgentBankDepositHelper().submitBankDepositAmt(bdList, userBean);</span>
+				
+				/*Generate Text Reports*/
+<span class="nc" id="L219">				Iterator&lt;MultiBankDepositBean&gt; itr = bdList.iterator();</span>
+<span class="nc" id="L220">				receiptByteMap = new HashMap&lt;String, byte[]&gt;();</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">				while(itr.hasNext()){</span>
+<span class="nc" id="L222">					depositBean = itr.next();					</span>
+<span class="nc" id="L223">					GraphReportHelper graphReportHelper = new GraphReportHelper();</span>
+<span class="nc" id="L224">					int userOrgID = userBean.getUserOrgId();</span>
+					
+<span class="nc bnc" id="L226" title="All 2 branches missed.">					if(&quot;AGENT&quot;.equalsIgnoreCase(depositBean.getOrgType())){</span>
+<span class="nc" id="L227">						String parentOrgName = userBean.getOrgName();</span>
+<span class="nc" id="L228">						byte[] repBytes = graphReportHelper.createMultiTextReportBO(Integer.parseInt(depositBean.getAutoGeneratedReceiptId().split(&quot;Nxt&quot;)[0]), parentOrgName, userOrgID, rootPath);</span>
+<span class="nc" id="L229">						receiptByteMap.put(depositBean.getAutoGeneratedReceiptId().split(&quot;Nxt&quot;)[1],repBytes);</span>
+					}
+<span class="nc" id="L231">					depositBean.setRefNo(depositBean.getAutoGeneratedReceiptId().split(&quot;Nxt&quot;)[1]);</span>
+<span class="nc" id="L232">				}</span>
+<span class="nc" id="L233">				session.setAttribute(&quot;RECEIPT_BYTE_MAP&quot;, receiptByteMap);</span>
+<span class="nc" id="L234">				setBdList(bdList);</span>
+<span class="nc" id="L235">			}catch(Exception e){</span>
+<span class="nc" id="L236">				e.printStackTrace();</span>
+<span class="nc" id="L237">				return ERROR;</span>
+<span class="nc" id="L238">			}</span>
+<span class="nc" id="L239">			return SUCCESS;	</span>
+		}
+	
+	public String getOrgName() {
+<span class="nc" id="L243">		return orgName;</span>
+	}
+	public void setOrgName(String orgName) {
+<span class="nc" id="L246">		this.orgName = orgName;</span>
+<span class="nc" id="L247">	}</span>
+	public String getRetOrgName() {
+<span class="nc" id="L249">		return retOrgName;</span>
+	}
+	public void setRetOrgName(String retOrgName) {
+<span class="nc" id="L252">		this.retOrgName = retOrgName;</span>
+<span class="nc" id="L253">	}</span>
+	public String getBankName() {
+<span class="nc" id="L255">		return bankName;</span>
+	}
+	public void setBankName(String bankName) {
+<span class="nc" id="L258">		this.bankName = bankName;</span>
+<span class="nc" id="L259">	}</span>
+	public String getReceiptNum() {
+<span class="nc" id="L261">		return receiptNum;</span>
+	}
+	public void setReceiptNum(String receiptNum) {
+<span class="nc" id="L264">		this.receiptNum = receiptNum;</span>
+<span class="nc" id="L265">	}</span>
+	public String getBranchName() {
+<span class="nc" id="L267">		return branchName;</span>
+	}
+	public void setBranchName(String branchName) {
+<span class="nc" id="L270">		this.branchName = branchName;</span>
+<span class="nc" id="L271">	}</span>
+	public String getDepositDate() {
+<span class="nc" id="L273">		return depositDate;</span>
+	}
+	public void setDepositDate(String depositDate) {
+<span class="nc" id="L276">		this.depositDate = depositDate;</span>
+<span class="nc" id="L277">	}</span>
+	public double getTotalAmount() {
+<span class="nc" id="L279">		return totalAmount;</span>
+	}
+	public void setTotalAmount(double totalAmount) {
+<span class="nc" id="L282">		this.totalAmount = totalAmount;</span>
+<span class="nc" id="L283">	}</span>
+	public void setReceiptId(String receiptId) {
+<span class="nc" id="L285">		this.receiptId = receiptId;</span>
+<span class="nc" id="L286">	}</span>
+	public String getReceiptId() {
+<span class="nc" id="L288">		return receiptId;	</span>
+	}	
+	public Map&lt;String, String&gt; getBankMap() {
+<span class="nc" id="L291">		return bankMap;</span>
+	}
+	public void setBankMap(Map&lt;String, String&gt; bankMap) {
+<span class="nc" id="L294">		this.bankMap = bankMap;</span>
+<span class="nc" id="L295">	}</span>
+	
+	public void setAgtMap(Map&lt;String, String&gt; agtMap) {
+<span class="nc" id="L298">		this.agtMap = agtMap;</span>
+<span class="nc" id="L299">	}</span>
+	public Map&lt;String, String&gt; getAgtMap() {
+<span class="nc" id="L301">		return agtMap;</span>
+	}
+	public void setFinalPaymentData(String finalPaymentData) {
+<span class="nc" id="L304">		this.finalPaymentData = finalPaymentData;</span>
+<span class="nc" id="L305">	}</span>
+	public String getFinalPaymentData() {
+<span class="nc" id="L307">		return finalPaymentData;</span>
+	}
+	public void setBdList(List&lt;MultiBankDepositBean&gt; bdList) {
+<span class="nc" id="L310">		this.bdList = bdList;</span>
+<span class="nc" id="L311">	}</span>
+	public List&lt;MultiBankDepositBean&gt; getBdList() {
+<span class="nc" id="L313">		return bdList;</span>
+	}
+	public void setCurrentDate(String currentDate) {
+<span class="nc" id="L316">		this.currentDate = currentDate;</span>
+<span class="nc" id="L317">	}</span>
+	public String getCurrentDate() {
+<span class="nc" id="L319">		return currentDate;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

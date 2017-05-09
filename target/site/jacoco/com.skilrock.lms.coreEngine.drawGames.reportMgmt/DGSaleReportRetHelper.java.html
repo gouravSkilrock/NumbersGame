@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DGSaleReportRetHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.reportMgmt</a> &gt; <span class="el_source">DGSaleReportRetHelper.java</span></div><h1>DGSaleReportRetHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.reportMgmt;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.SaleReportBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class DGSaleReportRetHelper {
+<span class="nc" id="L23">	static Log logger = LogFactory.getLog(DGSaleReportRetHelper.class);</span>
+<span class="nc" id="L24">	private Connection con = null;</span>
+
+	private Date endDate;
+	private int OrgId;
+	private Date startDate;
+
+<span class="nc" id="L30">	public DGSaleReportRetHelper(UserInfoBean userInfoBean, DateBeans dateBeans) {</span>
+<span class="nc" id="L31">		this.startDate = dateBeans.getFirstdate();</span>
+<span class="nc" id="L32">		this.endDate = dateBeans.getLastdate();</span>
+<span class="nc" id="L33">		this.OrgId = userInfoBean.getUserOrgId();</span>
+<span class="nc" id="L34">		logger.debug(&quot;collecting dates : first --- &quot; + startDate</span>
+				+ &quot;  last date -- &quot; + endDate);
+<span class="nc" id="L36">	}</span>
+
+	public List&lt;SaleReportBean&gt; getDGSaleDetailGameWise() {
+<span class="nc" id="L39">		List&lt;SaleReportBean&gt; list = new ArrayList&lt;SaleReportBean&gt;();</span>
+<span class="nc" id="L40">		SaleReportBean reportbean = null;</span>
+<span class="nc" id="L41">		con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L43">			List&lt;Integer&gt; gameNumList = Util.getGameNumberList();</span>
+<span class="nc" id="L44">			String saleCommonQry = &quot;select rtm.game_id, ifnull(sum(rs.mrp_amt),0) as saleMrp, ifNull(sum(rs.net_amt),0) as saleNet from st_lms_retailer_transaction_master rtm inner join st_dg_ret_sale_&quot;;</span>
+<span class="nc" id="L45">			String refundCommonQry = &quot;select rtm.game_id, ifnull(sum(rsr.mrp_amt),0) as refundMrp, ifNull(sum(rsr.net_amt),0) as refundNet from st_lms_retailer_transaction_master rtm inner join st_dg_ret_sale_refund_&quot;;</span>
+<span class="nc" id="L46">			StringBuilder saleQry = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L47">			StringBuilder saleRetQry = new StringBuilder(&quot;&quot;);</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">			for (int i = 0; i &lt; gameNumList.size(); i++) {</span>
+<span class="nc" id="L49">				saleQry.append(saleCommonQry + gameNumList.get(i) + &quot; rs on rtm.transaction_id = rs.transaction_id where rtm.transaction_type in ('DG_SALE', 'DG_SALE_OFFLINE') and (date(rtm.transaction_date) &gt;= &quot; + &quot;\&quot;&quot; + startDate + &quot;\&quot;&quot; + &quot;and date(rtm.transaction_date) &lt; &quot; + &quot;\&quot;&quot; + endDate + &quot;\&quot;&quot; + &quot;) and rtm.retailer_org_id = &quot; + OrgId + &quot; group by rs.game_id&quot;);</span>
+<span class="nc" id="L50">				saleRetQry.append(refundCommonQry + gameNumList.get(i) + &quot; rsr on rtm.transaction_id = rsr.transaction_id where rtm.transaction_type in ('DG_REFUND_CANCEL','DG_REFUND_FAILED') and (date(rtm.transaction_date) &gt;= &quot; + &quot;\&quot;&quot; + startDate + &quot;\&quot;&quot; + &quot; and date(rtm.transaction_date) &lt; &quot; + &quot;\&quot;&quot; + endDate  + &quot;\&quot;&quot; + &quot;)&quot; + &quot; and rtm.retailer_org_id = &quot; + OrgId + &quot; group by game_id&quot;);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">				if(i &lt; gameNumList.size() -1)</span>
+				{
+<span class="nc" id="L53">					saleQry.append(&quot; union &quot;);</span>
+<span class="nc" id="L54">					saleRetQry.append(&quot; union &quot;);</span>
+				}
+			}
+<span class="nc" id="L57">			String SaleReportGameWiseRetQuery = &quot;select naming.game_name as game_name, fine.SaleMrp as SaleMrp, fine.RefundMrp as RefundMrp, (fine.SaleMrp - fine.RefundMrp)as NetMrp, fine.SaleNet as SaleNet, fine.RefundNet as RefundNet, (fine.SaleNet - fine.RefundNet)as NetNet from (select sale.game_id, ifnull(sale.saleMrp,0) as SaleMrp, ifnull(refund.refundMrp,0)as RefundMrp, ifnull(sale.saleNet, 0) as SaleNet, ifnull(refund.refundNet, 0) as RefundNet from (&quot;</span>
+					+ saleQry.toString()
+					+ &quot;) as sale left outer join (&quot; 
+					+ saleRetQry.toString() 
+					+ &quot;)as refund on sale.game_id = refund.game_id)as fine,(select game_id, game_name from st_dg_game_master)as naming where fine.game_id = naming.game_id order by fine.game_id asc&quot;;
+			
+<span class="nc" id="L63">			Statement stmt = con</span>
+					.prepareStatement(SaleReportGameWiseRetQuery);
+
+<span class="nc" id="L66">			logger.debug(&quot;get the DG sale detail query -- &quot; + SaleReportGameWiseRetQuery);</span>
+<span class="nc" id="L67">			ResultSet rs = stmt.executeQuery(SaleReportGameWiseRetQuery);</span>
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L70">				reportbean = new SaleReportBean();</span>
+<span class="nc" id="L71">				reportbean.setSaleMrp(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;SaleMrp&quot;)));
+<span class="nc" id="L73">				reportbean.setSaleReturnMrp(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;RefundMrp&quot;)));
+<span class="nc" id="L75">				reportbean.setNetMrpAmt(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;SaleMrp&quot;)
+						- rs.getDouble(&quot;RefundMrp&quot;)));
+<span class="nc" id="L78">				reportbean.setSaleAmt(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;SaleNet&quot;)));
+<span class="nc" id="L80">				reportbean.setReturnAmt(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;RefundNet&quot;)));
+<span class="nc" id="L82">				reportbean.setNetAmt(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;SaleNet&quot;)
+						- rs.getDouble(&quot;RefundNet&quot;)));
+<span class="nc" id="L85">				reportbean.setGamename(rs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L86">				list.add(reportbean);</span>
+			}
+<span class="nc" id="L88">			rs.close();</span>
+<span class="nc" id="L89">			stmt.close();</span>
+		}
+
+<span class="nc" id="L92">		catch (SQLException e) {</span>
+<span class="nc" id="L93">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L94">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L96">			try {</span>
+<span class="nc bnc" id="L97" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L98">					con.close();</span>
+				}
+<span class="nc" id="L100">			} catch (SQLException e) {</span>
+<span class="nc" id="L101">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L102">				e.printStackTrace();</span>
+<span class="nc" id="L103">			}</span>
+<span class="nc" id="L104">		}</span>
+
+<span class="nc" id="L106">		return list;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

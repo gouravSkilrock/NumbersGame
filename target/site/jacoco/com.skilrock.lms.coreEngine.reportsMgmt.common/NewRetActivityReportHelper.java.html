@@ -1,0 +1,723 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NewRetActivityReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">NewRetActivityReportHelper.java</span></div><h1>NewRetActivityReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.NewRetActivityBean;
+import com.skilrock.lms.beans.ReportStatusBean;
+import com.skilrock.lms.beans.RetActivityColumnStatusBean;
+import com.skilrock.lms.beans.RetailerActivityHistoryBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.DBConnectReplica;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+
+
+<span class="nc" id="L33">public class NewRetActivityReportHelper {</span>
+
+<span class="nc" id="L35">	static Log logger = LogFactory.getLog(NewRetActivityReportHelper.class);</span>
+
+	public Map&lt;Integer, NewRetActivityBean&gt; fetchActivityTrx(int agentOrgId,
+			String selectMode, ReportStatusBean reportStatusBean) throws LMSException {
+<span class="nc" id="L39">		Connection con = null;</span>
+<span class="nc" id="L40">		Map&lt;Integer, NewRetActivityBean&gt; map = new LinkedHashMap&lt;Integer, NewRetActivityBean&gt;();</span>
+<span class="nc" id="L41">		NewRetActivityBean retActBean = null;</span>
+<span class="nc" id="L42">		String orgNameQry = null;</span>
+<span class="nc" id="L43">		StringBuilder address = null;</span>
+<span class="nc" id="L44">		Statement stmt = null;</span>
+		try {
+<span class="nc bnc" id="L46" title="All 4 branches missed.">			if (&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L47">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L49">				con = DBConnectReplica.getConnection();</span>
+<span class="nc" id="L50">			orgNameQry = getOrgNameQuery(agentOrgId, selectMode);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">			if (orgNameQry == null)</span>
+<span class="nc" id="L52">				throw new LMSException(&quot;Some Internal Error Occur : &quot;);</span>
+
+<span class="nc" id="L54">			stmt = con.createStatement();</span>
+<span class="nc" id="L55">			ResultSet rs = stmt.executeQuery(orgNameQry);</span>
+<span class="nc" id="L56">			Calendar calLastSaleDate = Calendar.getInstance();</span>
+<span class="nc" id="L57">			Calendar calCurrentDate =Calendar.getInstance();</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L59">				address = new StringBuilder();</span>
+<span class="nc" id="L60">				retActBean = new NewRetActivityBean();</span>
+<span class="nc" id="L61">				retActBean.setRetOrgId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L62">				retActBean.setLogin(rs.getTimestamp(&quot;last_login_time&quot;));</span>
+<span class="nc" id="L63">				retActBean.setRetName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L64">				retActBean.setRetParentName(rs.getString(&quot;parentorgCode&quot;));</span>
+<span class="nc" id="L65">				retActBean.setOrgStatus(rs.getString(&quot;organization_status&quot;));</span>
+<span class="nc" id="L66">				retActBean.setCurrentVersion(rs.getString(&quot;current_version&quot;));</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">				if(rs.getString(&quot;serial_number&quot;).equalsIgnoreCase(&quot;-1&quot;)||rs.getString(&quot;device_type&quot;).equalsIgnoreCase(&quot;-1&quot;)){</span>
+<span class="nc" id="L68">					retActBean.setTerminalId(&quot;NA-NA&quot;);</span>
+				}else{
+<span class="nc" id="L70">					retActBean.setTerminalId(rs.getString(&quot;device_type&quot;)+&quot;-&quot;+rs.getString(&quot;serial_number&quot;));</span>
+				}
+			
+<span class="nc" id="L73">				retActBean.setRetUserId(rs.getInt(&quot;user_id&quot;));</span>
+				//retActBean.setRetName(rs.getString(&quot;name&quot;));
+<span class="nc" id="L75">				retActBean.setLoginStatus(rs.getString(&quot;login_status&quot;));</span>
+				//retActBean.setRetParentName(rs.getString(&quot;parentName&quot;));
+<span class="nc" id="L77">				retActBean.setLocation(rs.getString(&quot;city&quot;));</span>
+<span class="nc bnc" id="L78" title="All 4 branches missed.">				if (rs.getString(&quot;lat&quot;)!=null &amp;&amp; !rs.getString(&quot;lat&quot;).equals(&quot;0.000000&quot;))</span>
+<span class="nc" id="L79">					address = address.append(rs.getString(&quot;lat&quot;)).append(&quot;Nxt&quot;)</span>
+							.append(rs.getString(&quot;lon&quot;));
+				else
+<span class="nc" id="L82">					address = new StringBuilder(&quot;0.000000&quot;);</span>
+<span class="nc" id="L83">				retActBean.setRetCoordinate(address.toString());</span>
+<span class="nc" id="L84">				retActBean.setRetAddress(rs.getString(&quot;city&quot;));</span>
+<span class="nc" id="L85">				retActBean.setLastOlaDepositTime(rs</span>
+						.getTimestamp(&quot;ola_last_deposit_time&quot;));
+<span class="nc" id="L87">				retActBean.setLastOlaWithdrawalTime(rs</span>
+						.getTimestamp(&quot;ola_last_withdrawal_time&quot;));
+<span class="nc" id="L89">				Timestamp dgLastSale =rs.getTimestamp(&quot;dg_last_sale_time&quot;);</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">				if(dgLastSale!=null){</span>
+<span class="nc" id="L91">					calLastSaleDate.setTimeInMillis(dgLastSale.getTime());</span>
+<span class="nc" id="L92">					retActBean.setDays(ReportUtility.getDaysBetweenDate(calLastSaleDate,calCurrentDate));</span>
+				}else {
+					
+<span class="nc" id="L95">					retActBean.setDays(-1);</span>
+				}
+<span class="nc" id="L97">				Timestamp sleLastSale =rs.getTimestamp(&quot;sle_last_sale_time&quot;);</span>
+
+<span class="nc bnc" id="L99" title="All 2 branches missed.">				if(sleLastSale!=null){</span>
+<span class="nc" id="L100">					calLastSaleDate.setTimeInMillis(sleLastSale.getTime());</span>
+<span class="nc" id="L101">					retActBean.setSleDays(ReportUtility.getDaysBetweenDate(calLastSaleDate,calCurrentDate));</span>
+				}else {
+<span class="nc" id="L103">					retActBean.setSleDays(-1);</span>
+				}
+<span class="nc" id="L105">				Timestamp iwLastSale =rs.getTimestamp(&quot;iw_last_sale_time&quot;);</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">				if(iwLastSale!=null){</span>
+<span class="nc" id="L107">					calLastSaleDate.setTimeInMillis(iwLastSale.getTime());</span>
+<span class="nc" id="L108">					retActBean.setIwDays(ReportUtility.getDaysBetweenDate(calLastSaleDate,calCurrentDate));</span>
+				}else {
+<span class="nc" id="L110">					retActBean.setIwDays(-1);</span>
+				}
+				
+<span class="nc" id="L113">				Timestamp vsLastSale = rs.getTimestamp(&quot;vs_last_sale_time&quot;);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">				if (vsLastSale != null) {</span>
+<span class="nc" id="L115">					calLastSaleDate.setTimeInMillis(vsLastSale.getTime());</span>
+<span class="nc" id="L116">					retActBean.setVsDays(ReportUtility.getDaysBetweenDate(</span>
+							calLastSaleDate, calCurrentDate));
+				} else {
+<span class="nc" id="L119">					retActBean.setVsDays(-1);</span>
+				}
+
+<span class="nc" id="L122">				retActBean.setDrawSale(dgLastSale);</span>
+<span class="nc" id="L123">				retActBean.setDrawPwt(rs.getTimestamp(&quot;dg_last_pwt_time&quot;));</span>
+<span class="nc" id="L124">				retActBean.setIwSale(rs.getTimestamp(&quot;iw_last_sale_time&quot;));</span>
+<span class="nc" id="L125">				retActBean.setIwPwt(rs.getTimestamp(&quot;iw_last_pwt_time&quot;));</span>
+<span class="nc" id="L126">				retActBean.setVsSale(rs.getTimestamp(&quot;vs_last_sale_time&quot;));</span>
+<span class="nc" id="L127">				retActBean.setVsPwt(rs.getTimestamp(&quot;vs_last_pwt_time&quot;));</span>
+<span class="nc" id="L128">				retActBean.setScratchSale(rs.getTimestamp(&quot;se_last_sale_time&quot;));</span>
+<span class="nc" id="L129">				retActBean.setScratchPwt(rs.getTimestamp(&quot;se_last_pwt_time&quot;));</span>
+<span class="nc" id="L130">				retActBean.setSleSale(rs.getTimestamp(&quot;sle_last_sale_time&quot;));</span>
+<span class="nc" id="L131">				retActBean.setSlePwt(rs.getTimestamp(&quot;sle_last_pwt_time&quot;));</span>
+<span class="nc" id="L132">				retActBean.setLastConDevice(rs</span>
+						.getString(&quot;last_connected_through&quot;));
+<span class="nc" id="L134">				retActBean.setLastCSSaleTime(rs</span>
+						.getTimestamp(&quot;cs_last_sale_time&quot;));
+<span class="nc" id="L136">				retActBean.setLastHeartBeatTime(rs</span>
+						.getTimestamp(&quot;last_HBT_time&quot;));
+<span class="nc" id="L138">				map.put(rs.getInt(&quot;organization_id&quot;), retActBean);</span>
+<span class="nc" id="L139">			}</span>
+<span class="nc" id="L140">		} catch (Exception e) {</span>
+<span class="nc" id="L141">			logger.error(&quot;Exception: &quot;, e);</span>
+<span class="nc" id="L142">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L144">				DBConnect.closeCon(con);</span>
+<span class="nc" id="L145">			}</span>
+<span class="nc" id="L146">		logger.debug(&quot;Size of data map :  &quot; + map.size());</span>
+<span class="nc" id="L147">		return map;</span>
+	}
+
+	public RetActivityColumnStatusBean setActReportColumnStatus(String actType,
+			String selectMode) {
+
+<span class="nc" id="L153">		RetActivityColumnStatusBean statusBean = new RetActivityColumnStatusBean();</span>
+<span class="nc" id="L154">		statusBean.setDG(LMSFilterDispatcher.getIsDraw()</span>
+				.equalsIgnoreCase(&quot;YES&quot;));
+<span class="nc" id="L156">		statusBean.setSE(LMSFilterDispatcher.getIsScratch().equalsIgnoreCase(</span>
+				&quot;YES&quot;));
+<span class="nc" id="L158">		statusBean.setOLA(LMSFilterDispatcher.getIsOLA()</span>
+				.equalsIgnoreCase(&quot;YES&quot;));
+<span class="nc" id="L160">		statusBean.setCS(LMSFilterDispatcher.getIsCS().equalsIgnoreCase(&quot;YES&quot;));</span>
+		
+<span class="nc" id="L162">		statusBean.setSLE(LMSFilterDispatcher.getIsSLE().equalsIgnoreCase(&quot;YES&quot;));</span>
+<span class="nc" id="L163">		statusBean.setIW(LMSFilterDispatcher.getIsIW().equalsIgnoreCase(&quot;YES&quot;));</span>
+<span class="nc" id="L164">		statusBean.setVS(LMSFilterDispatcher.getIsVS().equalsIgnoreCase(&quot;YES&quot;));</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">		if (actType.equalsIgnoreCase(&quot;SALE&quot;))</span>
+<span class="nc" id="L166">			statusBean.setSale(true);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">		if (actType.equalsIgnoreCase(&quot;PWT&quot;))</span>
+<span class="nc" id="L168">			statusBean.setPwt(true);</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">		if (actType.equalsIgnoreCase(&quot;LOGIN&quot;))</span>
+<span class="nc" id="L170">			statusBean.setLogin(true);</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">		if (selectMode.equalsIgnoreCase(&quot;HEARTBEAT&quot;))</span>
+<span class="nc" id="L172">			statusBean.setHeartBeat(true);</span>
+
+<span class="nc" id="L174">		return statusBean;</span>
+	}
+
+	public String getOrgNameQuery(int agentOrgId, String selectMode) {
+<span class="nc" id="L178">		String orgNameQry = null;</span>
+		
+		
+<span class="nc" id="L181">		String appendOrder =QueryManager.getAppendOrgOrder();</span>
+<span class="nc" id="L182">		String orgCodeQry = &quot; om.name orgCode,parent.name parentorgCode &quot;;</span>
+		//String parentorgCodeQry = &quot; name parentorgCode &quot;;
+		
+<span class="nc bnc" id="L185" title="All 2 branches missed.">		if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L186">			orgCodeQry = &quot; om.org_code orgCode,parent.org_code parentorgCode &quot;;</span>
+			//parentorgCodeQry=&quot;org_code parentorgCode &quot;;
+
+<span class="nc bnc" id="L189" title="All 2 branches missed.">		} else if ((LMSFilterDispatcher.orgFieldType)</span>
+				.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L191">			orgCodeQry = &quot; concat(om.org_code,'_',om.name)  orgCode,concat(parent.org_code,'_',parent.name)parentorgCode&quot;;</span>
+			// parentorgCodeQry = &quot; concat(org_code,'_',name) parentorgCode &quot;;
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">		} else if ((LMSFilterDispatcher.orgFieldType)</span>
+				.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L196">			orgCodeQry = &quot;concat(om.name,'_',om.org_code)  orgCode,concat(parent.name,'_',parent.org_code)parentorgCode &quot;;</span>
+			//parentorgCodeQry = &quot; concat(name,'_',org_code) parentorgCode &quot;;
+
+		}
+		/*String orgCodeQry = &quot; om.name orgCode,parent.parentorgCode &quot;;
+		String parentorgCodeQry = &quot; name parentorgCode &quot;;
+		
+		if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {
+			orgCodeQry = &quot; om.org_code orgCode,parent.parentorgCode &quot;;
+			parentorgCodeQry=&quot;org_code parentorgCode &quot;;
+
+		} else if ((LMSFilterDispatcher.orgFieldType)
+				.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+			orgCodeQry = &quot; concat(om.org_code,'_',om.name)  orgCode,parent.parentorgCode &quot;;
+			parentorgCodeQry = &quot; concat(org_code,'_',name) parentorgCode &quot;;
+
+		} else if ((LMSFilterDispatcher.orgFieldType)
+				.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+			orgCodeQry = &quot; concat(om.name,'_',om.org_code)  orgCode,parent.parentorgCode &quot;;
+			parentorgCodeQry = &quot; concat(name,'_',org_code) parentorgCode &quot;;
+
+		}*/
+		
+		
+<span class="nc bnc" id="L220" title="All 4 branches missed.">		if (selectMode.equalsIgnoreCase(&quot;ACTIVITY&quot;)</span>
+				|| selectMode.equalsIgnoreCase(&quot;HEARTBEAT&quot;)) {
+<span class="nc bnc" id="L222" title="All 2 branches missed.">			if (agentOrgId == -1) {</span>
+				 //  orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time, last_connected_through, last_login_time,city,organization_status,lat,lon from st_lms_ret_offline_master rm,(select &quot;+parentorgCodeQry+&quot;,organization_id from st_lms_organization_master where organization_type='AGENT')parent,st_lms_organization_master om where rm.organization_id=om.organization_id and parent.organization_id=om.parent_id  and organization_status!='TERMINATE' and serial_number!=-1 order by parentorgCode,lat,&quot;+appendOrder;
+<span class="nc" id="L224">				orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,iw_last_sale_time,iw_last_pwt_time,vs_last_sale_time,vs_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time,sle_last_sale_time,sle_last_pwt_time, last_connected_through, last_login_time,om.city,om.organization_status,lat,lon from st_lms_ret_offline_master rm inner join st_lms_organization_master om on rm.organization_id=om.organization_id inner join st_lms_organization_master parent on om.parent_id =parent.organization_id where om.organization_status not in ('TERMINATE', 'BLOCK') and serial_number!=-1 order by parentorgCode,lat,&quot;+appendOrder;</span>
+			
+			} else {
+				/*orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status,login_status,serial_number, current_version, device_type, profile,last_HBT_time,dg_last_sale_time,dg_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time, last_connected_through,last_login_time,addr_line1,addr_line2,city,organization_status,lat,lon from st_lms_ret_offline_master rm,(select &quot;+parentorgCodeQry+&quot;,organization_id from st_lms_organization_master where organization_id=&quot;
+						+ agentOrgId
+						+ &quot;) parent,st_lms_organization_master om where rm.organization_id=om.organization_id and parent.organization_id=om.parent_id  and organization_status!='TERMINATE' and serial_number!=-1 order by parentorgCode,&quot;+appendOrder;*/
+<span class="nc" id="L230">				orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,iw_last_sale_time,iw_last_pwt_time,vs_last_sale_time,vs_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time,sle_last_sale_time,sle_last_pwt_time, last_connected_through, last_login_time,om.city,om.organization_status,lat,lon from st_lms_ret_offline_master rm inner join st_lms_organization_master om on rm.organization_id=om.organization_id inner join st_lms_organization_master parent on om.parent_id =parent.organization_id where om.organization_status not in ('TERMINATE', 'BLOCK') and serial_number!=-1 and parent.organization_id=&quot;+agentOrgId+&quot; order by parentorgCode,lat,&quot;+appendOrder;</span>
+			
+			
+			}
+<span class="nc bnc" id="L234" title="All 2 branches missed.">		} else if (selectMode.equalsIgnoreCase(&quot;TERMINATE&quot;)) {</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">			if (agentOrgId == -1) {</span>
+				// orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time, last_connected_through, last_login_time,addr_line1,addr_line2,city,organization_status,lat,lon from st_lms_ret_offline_master rm,(select &quot;+parentorgCodeQry+&quot;,organization_id from st_lms_organization_master where organization_type='AGENT')parent,st_lms_organization_master om where rm.organization_id=om.organization_id and parent.organization_id=om.parent_id  and organization_status='TERMINATE' order by parentorgCode,&quot;+appendOrder;
+<span class="nc" id="L237">				orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,iw_last_sale_time,iw_last_pwt_time,vs_last_sale_time,vs_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time,sle_last_sale_time,sle_last_pwt_time, last_connected_through, last_login_time,om.city,om.organization_status,lat,lon from st_lms_ret_offline_master rm inner join st_lms_organization_master om on rm.organization_id=om.organization_id inner join st_lms_organization_master parent on om.parent_id =parent.organization_id where om.organization_status in ('TERMINATE', 'BLOCK') order by parentorgCode,lat,&quot;+appendOrder;</span>
+			
+			} else {
+				/*orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status,login_status,serial_number, current_version, device_type, profile,last_HBT_time,dg_last_sale_time,dg_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time, last_connected_through,last_login_time,addr_line1,addr_line2,city,organization_status,lat,lon from st_lms_ret_offline_master rm,(select &quot;+parentorgCodeQry+&quot;,organization_id from st_lms_organization_master where organization_id=&quot;
+						+ agentOrgId
+						+ &quot;) parent,st_lms_organization_master om where rm.organization_id=om.organization_id and parent.organization_id=om.parent_id  and organization_status='TERMINATE' order by parentorgCode,&quot;+appendOrder;*/
+<span class="nc" id="L243">				orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,iw_last_sale_time,iw_last_pwt_time,vs_last_sale_time,vs_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time,sle_last_sale_time,sle_last_pwt_time, last_connected_through, last_login_time,om.city,om.organization_status,lat,lon from st_lms_ret_offline_master rm inner join st_lms_organization_master om on rm.organization_id=om.organization_id inner join st_lms_organization_master parent on om.parent_id =parent.organization_id where om.organization_status in ('TERMINATE', 'BLOCK')  and parent.organization_id=&quot;+agentOrgId+&quot; order by parentorgCode,lat,&quot;+appendOrder;	</span>
+			}
+		} else {
+<span class="nc bnc" id="L246" title="All 2 branches missed.">			if (agentOrgId == -1) { // for Select Mode &quot;Not Terminal&quot;</span>
+					//orgNameQry = &quot;select 	&quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time, last_connected_through, last_login_time,addr_line1,addr_line2,city,organization_status,lat,lon from st_lms_ret_offline_master rm,(select &quot;+parentorgCodeQry+&quot;,organization_id from st_lms_organization_master where organization_type='AGENT')parent,st_lms_organization_master om where rm.organization_id=om.organization_id and parent.organization_id=om.parent_id  and serial_number=-1 order by parentorgCode,&quot;+appendOrder;
+<span class="nc" id="L248">				orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,iw_last_sale_time,iw_last_pwt_time,vs_last_sale_time,vs_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time,sle_last_sale_time,sle_last_pwt_time, last_connected_through, last_login_time,om.city,om.organization_status,lat,lon from st_lms_ret_offline_master rm inner join st_lms_organization_master om on rm.organization_id=om.organization_id inner join st_lms_organization_master parent on om.parent_id =parent.organization_id where serial_number=-1 order by parentorgCode,lat,&quot;+appendOrder;</span>
+			} else {
+				/*orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status,login_status,serial_number, current_version, device_type, profile,last_HBT_time,dg_last_sale_time,dg_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time, last_connected_through,last_login_time,addr_line1,addr_line2,city,organization_status,lat,lon from st_lms_ret_offline_master rm,(select &quot;+parentorgCodeQry+&quot;,organization_id from st_lms_organization_master where organization_id=&quot;
+						+ agentOrgId
+						+ &quot;) parent,st_lms_organization_master om where rm.organization_id=om.organization_id and parent.organization_id=om.parent_id  and serial_number=-1 order by parentorgCode,&quot;+appendOrder;*/
+				
+<span class="nc" id="L254">				orgNameQry = &quot;select &quot;+orgCodeQry+&quot;,user_id, rm.organization_id, offline_status, login_status, serial_number, current_version, device_type, profile, last_HBT_time,dg_last_sale_time,dg_last_pwt_time,iw_last_sale_time,iw_last_pwt_time,vs_last_sale_time,vs_last_pwt_time,se_last_sale_time,se_last_pwt_time,ola_last_deposit_time,ola_last_withdrawal_time,cs_last_sale_time,sle_last_sale_time,sle_last_pwt_time, last_connected_through, last_login_time,om.city,om.organization_status,lat,lon from st_lms_ret_offline_master rm inner join st_lms_organization_master om on rm.organization_id=om.organization_id inner join st_lms_organization_master parent on om.parent_id =parent.organization_id where serial_number=-1 and parent.organization_id=&quot;+agentOrgId+&quot; order by parentorgCode,lat,&quot;+appendOrder;</span>
+			}
+		}
+<span class="nc" id="L257">		return orgNameQry;</span>
+	}
+
+	public Map&lt;String, RetailerActivityHistoryBean&gt; fetchActRepHistoryForDrawGame(
+			String startDate, String endDate, ReportStatusBean reportStatusBean) throws LMSException {
+<span class="nc" id="L262">		Connection con = null;</span>
+
+<span class="nc bnc" id="L264" title="All 4 branches missed.">		if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L265">			con = DBConnect.getConnection();</span>
+		else
+<span class="nc" id="L267">			con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L269">		SimpleDateFormat df = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L270">		String query = &quot;&quot;;</span>
+<span class="nc" id="L271">		Map&lt;String, RetailerActivityHistoryBean&gt; hMap = new LinkedHashMap&lt;String, RetailerActivityHistoryBean&gt;();</span>
+<span class="nc" id="L272">		RetailerActivityHistoryBean hBean = null;</span>
+		try {
+<span class="nc" id="L274">			query = &quot;select date,ifnull(dg_RC,0) dg_RC,ifnull(dg_sale_RC,0) dg_sale_RC,ifnull(dg_pwt_RC,0) dg_pwt_RC,ifnull(sl_RC,0) sl_RC,ifnull(sl_sale_RC,0) sl_sale_RC,ifnull(sl_pwt_RC,0) sl_pwt_RC,ifnull(iw_RC,0) iw_RC,ifnull(iw_sale_RC,0) iw_sale_RC,ifnull(iw_pwt_RC,0) iw_pwt_RC, ifnull(vs_RC,0) vs_RC,ifnull(vs_sale_RC,0) vs_sale_RC,ifnull(vs_pwt_RC,0) vs_pwt_RC,ifnull(se_RC,0) se_RC,ifnull(se_sale_RC,0) se_sale_RC,ifnull(se_pwt_RC,0) se_pwt_RC,ifnull(ola_RC,0) ola_RC,ifnull(ola_deposit_RC,0) ola_deposit_RC,ifnull(ola_wd_RC,0) ola_wd_RC,ifnull(cs_RC,0) cs_RC,ifnull(cs_sale_RC,0) cs_sale_RC,ifnull(login_RC,0) login_RC,ifnull(heartBeat_RC,0) heartBeat_RC,ifnull(inactive_retailers,0) inactive_retailers,ifnull(terminated_retailers,0) terminated_retailers,ifnull(total_RC,0)  total_RC from st_lms_new_ret_activity_history where date&gt;=? and date&lt;?;&quot;;</span>
+<span class="nc" id="L275">			PreparedStatement pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L276">			pstmt.setString(1, startDate);</span>
+<span class="nc" id="L277">			pstmt.setString(2, endDate);</span>
+<span class="nc" id="L278">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L280">				hBean = new RetailerActivityHistoryBean();</span>
+<span class="nc" id="L281">				hBean.setDgCount(rs.getInt(&quot;dg_RC&quot;));</span>
+<span class="nc" id="L282">				hBean.setDgSaleCount(rs.getInt(&quot;dg_sale_RC&quot;));</span>
+<span class="nc" id="L283">				hBean.setDgPwtCount(rs.getInt(&quot;dg_pwt_RC&quot;));</span>
+<span class="nc" id="L284">				hBean.setSlCount(rs.getInt(&quot;sl_RC&quot;));</span>
+<span class="nc" id="L285">				hBean.setSlSaleCount(rs.getInt(&quot;sl_sale_RC&quot;));</span>
+<span class="nc" id="L286">				hBean.setSlPwtCount(rs.getInt(&quot;sl_pwt_RC&quot;));</span>
+<span class="nc" id="L287">				hBean.setIwCount(rs.getInt(&quot;iw_RC&quot;));</span>
+<span class="nc" id="L288">				hBean.setIwSaleCount(rs.getInt(&quot;iw_sale_RC&quot;));</span>
+<span class="nc" id="L289">				hBean.setIwPwtCount(rs.getInt(&quot;iw_pwt_RC&quot;));</span>
+<span class="nc" id="L290">				hBean.setVsCount(rs.getInt(&quot;vs_RC&quot;));</span>
+<span class="nc" id="L291">				hBean.setVsSaleCount(rs.getInt(&quot;vs_sale_RC&quot;));</span>
+<span class="nc" id="L292">				hBean.setVsPwtCount(rs.getInt(&quot;vs_pwt_RC&quot;));</span>
+<span class="nc" id="L293">				hBean.setSeCount(rs.getInt(&quot;se_RC&quot;));</span>
+<span class="nc" id="L294">				hBean.setSeSaleCount(rs.getInt(&quot;se_sale_RC&quot;));</span>
+<span class="nc" id="L295">				hBean.setSePwtCount(rs.getInt(&quot;se_pwt_RC&quot;));</span>
+<span class="nc" id="L296">				hBean.setOlaCount(rs.getInt(&quot;ola_RC&quot;));</span>
+<span class="nc" id="L297">				hBean.setOlaDepoCount(rs.getInt(&quot;ola_deposit_RC&quot;));</span>
+<span class="nc" id="L298">				hBean.setOlaWdlCount(rs.getInt(&quot;ola_wd_RC&quot;));</span>
+<span class="nc" id="L299">				hBean.setCsCount(rs.getInt(&quot;cs_RC&quot;));</span>
+<span class="nc" id="L300">				hBean.setCsSaleCount(rs.getInt(&quot;cs_sale_RC&quot;));</span>
+<span class="nc" id="L301">				hBean.setLoginCount(rs.getInt(&quot;login_RC&quot;));</span>
+<span class="nc" id="L302">				hBean.setHeartBeatCount(rs.getInt(&quot;heartBeat_RC&quot;));</span>
+<span class="nc" id="L303">				hBean.setInactiveRetCount(rs.getInt(&quot;inactive_retailers&quot;));</span>
+<span class="nc" id="L304">				hBean.setTerRetCount(rs.getInt(&quot;terminated_retailers&quot;));</span>
+<span class="nc" id="L305">				hBean.setTotalCount(rs.getInt(&quot;total_RC&quot;));</span>
+<span class="nc" id="L306">				hMap.put(df.format(rs.getDate(&quot;date&quot;)), hBean);</span>
+			}
+<span class="nc" id="L308">		} catch (SQLException e) {</span>
+<span class="nc" id="L309">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L310">			e.printStackTrace();</span>
+<span class="nc" id="L311">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L313">			try {</span>
+<span class="nc bnc" id="L314" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L315">					con.close();</span>
+				}
+<span class="nc" id="L317">			} catch (SQLException e) {</span>
+<span class="nc" id="L318">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L319">				e.printStackTrace();</span>
+<span class="nc" id="L320">				throw new LMSException(e);</span>
+<span class="nc" id="L321">			}</span>
+		}
+<span class="nc" id="L323">		return hMap;</span>
+	}
+
+	public Map&lt;String, RetailerActivityHistoryBean&gt; fetchRetTransactionVolumeHistory(
+			String startDate, String endDate, ReportStatusBean reportStatusBean) throws LMSException {
+<span class="nc" id="L328">		Connection con = null;</span>
+
+<span class="nc bnc" id="L330" title="All 4 branches missed.">		if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L331">			con = DBConnect.getConnection();</span>
+		else
+<span class="nc" id="L333">			con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L335">		SimpleDateFormat df = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L336">		String query = &quot;&quot;;</span>
+<span class="nc" id="L337">		Map&lt;String, RetailerActivityHistoryBean&gt; hMap = new LinkedHashMap&lt;String, RetailerActivityHistoryBean&gt;();</span>
+<span class="nc" id="L338">		RetailerActivityHistoryBean hBean = null;</span>
+		try {
+<span class="nc" id="L340">			query = &quot;select date,ifnull(dg_total_sales,0.0) dg_total_sales,ifnull(dg_total_pwt,0.0) dg_total_pwt,ifnull(sl_total_sales,0.0) sl_total_sales,ifnull(sl_total_pwt,0.0) sl_total_pwt,ifnull(iw_total_sales,0.0) iw_total_sales,ifnull(iw_total_pwt,0.0) iw_total_pwt,ifnull(vs_total_sales,0.0) vs_total_sales,ifnull(vs_total_pwt,0.0) vs_total_pwt,ifnull(se_total_sales,0.0) se_total_sales,ifnull(se_total_pwt,0.0) se_total_pwt,ifnull(ola_total_deposit,0.0) ola_total_deposit,ifnull(ola_total_wd,0.0) ola_total_wd,ifnull(cs_total_sale,0.0) cs_total_sale,ifnull(dg_tkt_count,0) dg_tkt_count,ifnull(dg_pwt_count,0) dg_pwt_count,ifnull(dg_avg_sale_per_ret,0.0) dg_avg_sale_per_ret,ifnull(sl_tkt_count,0) sl_tkt_count,ifnull(sl_pwt_count,0) sl_pwt_count,ifnull(sl_avg_sale_per_ret,0.0) sl_avg_sale_per_ret,ifnull(iw_tkt_count,0) iw_tkt_count,ifnull(iw_pwt_count,0) iw_pwt_count,ifnull(iw_avg_sale_per_ret,0.0) iw_avg_sale_per_ret, ifnull(vs_tkt_count,0) vs_tkt_count, ifnull(vs_pwt_count,0) vs_pwt_count, ifnull(vs_avg_sale_per_ret,0.0) vs_avg_sale_per_ret from st_lms_new_ret_activity_history where date&gt;=? and date&lt;?&quot;;</span>
+<span class="nc" id="L341">			PreparedStatement pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L342">			pstmt.setString(1, startDate);</span>
+<span class="nc" id="L343">			pstmt.setString(2, endDate);</span>
+<span class="nc" id="L344">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L346">				hBean = new RetailerActivityHistoryBean();</span>
+<span class="nc" id="L347">				hBean.setDgTotalSale(rs.getDouble(&quot;dg_total_sales&quot;));</span>
+<span class="nc" id="L348">				hBean.setDgTotalPwt(rs.getDouble(&quot;dg_total_pwt&quot;));</span>
+<span class="nc" id="L349">				hBean.setSlTotalSale(rs.getDouble(&quot;sl_total_sales&quot;));</span>
+<span class="nc" id="L350">				hBean.setSlTotalPwt(rs.getDouble(&quot;sl_total_pwt&quot;));</span>
+<span class="nc" id="L351">				hBean.setIwTotalSale(rs.getDouble(&quot;iw_total_sales&quot;));</span>
+<span class="nc" id="L352">				hBean.setIwTotalPwt(rs.getDouble(&quot;iw_total_pwt&quot;));</span>
+<span class="nc" id="L353">				hBean.setVsTotalSale(rs.getDouble(&quot;vs_total_sales&quot;));</span>
+<span class="nc" id="L354">				hBean.setVsTotalPwt(rs.getDouble(&quot;vs_total_pwt&quot;));</span>
+<span class="nc" id="L355">				hBean.setSeTotalSale(rs.getDouble(&quot;se_total_sales&quot;));</span>
+<span class="nc" id="L356">				hBean.setSeTotalPwt(rs.getDouble(&quot;se_total_pwt&quot;));</span>
+<span class="nc" id="L357">				hBean.setOlaTotalDepo(rs.getDouble(&quot;ola_total_deposit&quot;));</span>
+<span class="nc" id="L358">				hBean.setOlaTotalWdrl(rs.getDouble(&quot;ola_total_wd&quot;));</span>
+<span class="nc" id="L359">				hBean.setCsTotalSale(rs.getDouble(&quot;cs_total_sale&quot;));</span>
+<span class="nc" id="L360">				hBean.setDgTicketCount(rs.getInt(&quot;dg_tkt_count&quot;));</span>
+<span class="nc" id="L361">				hBean.setDgPwtTotalCount(rs.getInt(&quot;dg_pwt_count&quot;));</span>
+<span class="nc" id="L362">				hBean.setDgAvgSalePerRet(rs.getDouble(&quot;dg_avg_sale_per_ret&quot;));</span>
+<span class="nc" id="L363">				hBean.setSlTicketCount(rs.getInt(&quot;sl_tkt_count&quot;));</span>
+<span class="nc" id="L364">				hBean.setSlPwtTotalCount(rs.getInt(&quot;sl_pwt_count&quot;));</span>
+<span class="nc" id="L365">				hBean.setSlAvgSalePerRet(rs.getDouble(&quot;sl_avg_sale_per_ret&quot;));</span>
+<span class="nc" id="L366">				hBean.setIwTicketCount(rs.getInt(&quot;iw_tkt_count&quot;));</span>
+<span class="nc" id="L367">				hBean.setIwPwtTotalCount(rs.getInt(&quot;iw_pwt_count&quot;));</span>
+<span class="nc" id="L368">				hBean.setIwAvgSalePerRet(rs.getDouble(&quot;iw_avg_sale_per_ret&quot;));</span>
+				
+<span class="nc" id="L370">				hBean.setVsTicketCount(rs.getInt(&quot;vs_tkt_count&quot;));</span>
+<span class="nc" id="L371">				hBean.setVsPwtTotalCount(rs.getInt(&quot;vs_pwt_count&quot;));</span>
+<span class="nc" id="L372">				hBean.setVsAvgSalePerRet(rs.getDouble(&quot;vs_avg_sale_per_ret&quot;));</span>
+				
+<span class="nc" id="L374">				hMap.put(df.format(rs.getDate(&quot;date&quot;)), hBean);</span>
+			}
+<span class="nc" id="L376">		} catch (SQLException e) {</span>
+<span class="nc" id="L377">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L378">			e.printStackTrace();</span>
+<span class="nc" id="L379">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L381">			try {</span>
+<span class="nc bnc" id="L382" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L383">					con.close();</span>
+				}
+<span class="nc" id="L385">			} catch (SQLException e) {</span>
+<span class="nc" id="L386">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L387">				e.printStackTrace();</span>
+<span class="nc" id="L388">				throw new LMSException(e);</span>
+<span class="nc" id="L389">			}</span>
+		}
+<span class="nc" id="L391">		return hMap;</span>
+	}
+
+	public Map&lt;String, List&lt;Integer&gt;&gt; fetchRetVersionHistory(String startDate,
+			String selectDevice, List&lt;String&gt; list) throws LMSException {
+<span class="nc" id="L396">		Connection con = null;</span>
+<span class="nc" id="L397">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L398">		SimpleDateFormat df = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+		//StringBuilder sb = new StringBuilder();
+		//StringBuilder sb1 = new StringBuilder();
+		
+<span class="nc" id="L402">		List&lt;Integer&gt; tempList = null;</span>
+<span class="nc" id="L403">		Map&lt;String, List&lt;Integer&gt;&gt; hMap = new LinkedHashMap&lt;String, List&lt;Integer&gt;&gt;();</span>
+		try {
+			//if (list.size() &gt; 0) {
+				/*sb.append(&quot;select date,&quot;);
+				for (int j = 1; j &lt;= list.size(); j++) {
+					sb.append(
+							&quot;sum(version_&quot; + j + &quot;_count) version_&quot; + j
+									+ &quot;_count&quot;).append(&quot;,&quot;);
+					sb1.append(
+							&quot;if(version='&quot; + list.get(j - 1)
+									+ &quot;',ret_count,0) version_&quot; + j + &quot;_count&quot;)
+							.append(&quot;,&quot;);
+				}
+				sb.deleteCharAt(sb.length() - 1);
+				sb1.deleteCharAt(sb1.length() - 1);
+				sb.append(&quot; from (select date,&quot;);
+				sb.append(sb1);
+				sb
+						.append(&quot; from (select device_type,current_version version,date,sum(ret_count) ret_count from st_lms_pos_version_history ch where date=? and ch.device_type = ? and date is not null group by date,current_version) mm group by date,version) gg group by date&quot;);
+				//PreparedStatement pstmt = con.prepareStatement(sb.toString());
+<span class="nc" id="L423">*/				PreparedStatement pstmt = con.prepareStatement(&quot;select device_type,current_version version,date,sum(ret_count) ret_count from st_lms_pos_version_history ch where date=? and ch.device_type =? and date is not null group by date,current_version&quot;);</span>
+<span class="nc" id="L424">				pstmt.setString(1, startDate);</span>
+<span class="nc" id="L425">				pstmt.setString(2, selectDevice);</span>
+<span class="nc" id="L426">				logger.info(&quot;version list query&quot;+pstmt);</span>
+<span class="nc" id="L427">				ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L428">				tempList = new LinkedList&lt;Integer&gt;();</span>
+<span class="nc bnc" id="L429" title="All 2 branches missed.">				while (rs.next()) {</span>
+				
+				//	for (int i = 1; i &lt;= list.size(); i++) {
+					
+<span class="nc" id="L433">							tempList.add(rs.getInt(&quot;ret_count&quot;));</span>
+<span class="nc" id="L434">							list.add(rs.getString(&quot;version&quot;));</span>
+						
+						
+				//	}
+				
+				}
+<span class="nc" id="L440">				hMap.put(startDate, tempList);</span>
+			//}
+<span class="nc" id="L442">		} catch (SQLException e) {</span>
+<span class="nc" id="L443">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L444">			e.printStackTrace();</span>
+<span class="nc" id="L445">			throw new LMSException(e);</span>
+<span class="nc" id="L446">		} catch(Exception e){</span>
+<span class="nc" id="L447">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L448">			e.printStackTrace();</span>
+			
+		}finally {
+<span class="nc" id="L451">			try {</span>
+<span class="nc bnc" id="L452" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L453">					con.close();</span>
+				}
+<span class="nc" id="L455">			} catch (SQLException e) {</span>
+<span class="nc" id="L456">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L457">				e.printStackTrace();</span>
+<span class="nc" id="L458">				throw new LMSException(e);</span>
+<span class="nc" id="L459">			}</span>
+		}
+<span class="nc" id="L461">		return hMap;</span>
+	}
+
+	public Map&lt;String, List&lt;String&gt;&gt; fetchRetDeviceHistory(String startDate,
+			String endDate, List&lt;String&gt; list, ReportStatusBean reportStatusBean) throws LMSException {
+<span class="nc" id="L466">		Connection con = null;</span>
+
+<span class="nc bnc" id="L468" title="All 4 branches missed.">		if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L469">			con = DBConnect.getConnection();</span>
+		else
+<span class="nc" id="L471">			con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L473">		SimpleDateFormat df = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L474">		StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L475">		StringBuilder sb1 = new StringBuilder();</span>
+<span class="nc" id="L476">		List&lt;String&gt; tempList = null;</span>
+<span class="nc" id="L477">		Map&lt;String, List&lt;String&gt;&gt; hMap = new LinkedHashMap&lt;String, List&lt;String&gt;&gt;();</span>
+		try {
+<span class="nc bnc" id="L479" title="All 2 branches missed.">			if (list.size() &gt; 0) {</span>
+<span class="nc" id="L480">				sb.append(&quot;select date,&quot;);</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">				for (int j = 1; j &lt;= list.size(); j++) {</span>
+<span class="nc" id="L482">					sb.append(</span>
+							&quot;sum(device_&quot; + j + &quot;_count) device_&quot; + j
+									+ &quot;_count&quot;).append(&quot;,&quot;);
+<span class="nc" id="L485">					sb1.append(</span>
+							&quot;if(device_type='&quot; + list.get(j - 1)
+									+ &quot;',ret_count,0) device_&quot; + j + &quot;_count&quot;)
+							.append(&quot;,&quot;);
+				}
+<span class="nc" id="L490">				sb.deleteCharAt(sb.length() - 1);</span>
+<span class="nc" id="L491">				sb1.deleteCharAt(sb1.length() - 1);</span>
+<span class="nc" id="L492">				sb.append(&quot; from (select date,&quot;);</span>
+<span class="nc" id="L493">				sb.append(sb1);</span>
+<span class="nc" id="L494">				sb</span>
+						.append(&quot; from (select cm.device_type,date,sum(ret_count) ret_count from st_lms_htpos_device_master cm left join st_lms_pos_version_history ch on cm.device_type = ch.device_type where date&gt;=? and date&lt;? and date is not null group by date,cm.device_type) mm group by date,device_type) gg group by date&quot;);
+<span class="nc" id="L496">				PreparedStatement pstmt = con.prepareStatement(sb.toString());</span>
+<span class="nc" id="L497">				pstmt.setString(1, startDate);</span>
+<span class="nc" id="L498">				pstmt.setString(2, endDate);</span>
+<span class="nc" id="L499">				ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L500" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L501">					tempList = new LinkedList&lt;String&gt;();</span>
+<span class="nc bnc" id="L502" title="All 2 branches missed.">					for (int i = 1; i &lt;= list.size(); i++) {</span>
+<span class="nc" id="L503">						StringBuilder sb2 = new StringBuilder();</span>
+<span class="nc" id="L504">						sb2.append(rs.getInt(&quot;device_&quot; + i + &quot;_count&quot;)).append(</span>
+								&quot;Nxt&quot;).append(list.get(i - 1));
+<span class="nc" id="L506">						tempList.add(sb2.toString());</span>
+					}
+<span class="nc" id="L508">					hMap.put(df.format(rs.getDate(&quot;date&quot;)), tempList);</span>
+				}
+			}
+<span class="nc" id="L511">		} catch (SQLException e) {</span>
+<span class="nc" id="L512">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L513">			e.printStackTrace();</span>
+<span class="nc" id="L514">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L516">			try {</span>
+<span class="nc bnc" id="L517" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L518">					con.close();</span>
+				}
+<span class="nc" id="L520">			} catch (SQLException e) {</span>
+<span class="nc" id="L521">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L522">				e.printStackTrace();</span>
+<span class="nc" id="L523">				throw new LMSException(e);</span>
+<span class="nc" id="L524">			}</span>
+		}
+<span class="nc" id="L526">		return hMap;</span>
+	}
+	
+
+	public Map&lt;String, List&lt;Integer&gt;&gt; fetchRetConnModeHistory(String startDate,
+			String endDate, List&lt;String&gt; list, ReportStatusBean reportStatusBean) throws LMSException {
+<span class="nc" id="L532">		Connection con = null;</span>
+
+<span class="nc bnc" id="L534" title="All 4 branches missed.">		if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L535">			con = DBConnect.getConnection();</span>
+		else
+<span class="nc" id="L537">			con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L539">		SimpleDateFormat df = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L540">		StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L541">		StringBuilder sb1 = new StringBuilder();</span>
+<span class="nc" id="L542">		List&lt;Integer&gt; tempList = null;</span>
+<span class="nc" id="L543">		Map&lt;String, List&lt;Integer&gt;&gt; hMap = new LinkedHashMap&lt;String, List&lt;Integer&gt;&gt;();</span>
+		try {
+<span class="nc bnc" id="L545" title="All 2 branches missed.">			if (list.size() &gt; 0) {</span>
+<span class="nc" id="L546">				sb.append(&quot;select date,&quot;);</span>
+<span class="nc bnc" id="L547" title="All 2 branches missed.">				for (int j = 1; j &lt;= list.size(); j++) {</span>
+<span class="nc" id="L548">					sb.append(&quot;sum(sim_&quot; + j + &quot;_count) sim_&quot; + j + &quot;_count&quot;)</span>
+							.append(&quot;,&quot;);
+<span class="nc" id="L550">					sb1.append(</span>
+							&quot;if(id=&quot; + j + &quot;,ret_count,0) sim_&quot; + j + &quot;_count&quot;)
+							.append(&quot;,&quot;);
+				}
+<span class="nc" id="L554">				sb.deleteCharAt(sb.length() - 1);</span>
+<span class="nc" id="L555">				sb1.deleteCharAt(sb1.length() - 1);</span>
+<span class="nc" id="L556">				sb.append(&quot; from (select date,&quot;);</span>
+<span class="nc" id="L557">				sb.append(sb1);</span>
+<span class="nc" id="L558">				sb</span>
+						.append(&quot; from (select cm.id,date,sim_name,sum(ret_count) ret_count from st_lms_con_device_master cm left join st_lms_daily_connectivity_history ch on cm.id = ch.sim_id  where date&gt;=? and date&lt;? and date is not null group by date,id) mm group by date,id) gg group by date&quot;);
+<span class="nc" id="L560">				PreparedStatement pstmt = con.prepareStatement(sb.toString());</span>
+<span class="nc" id="L561">				pstmt.setString(1, startDate);</span>
+<span class="nc" id="L562">				pstmt.setString(2, endDate);</span>
+<span class="nc" id="L563">				ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L564" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L565">					tempList = new LinkedList&lt;Integer&gt;();</span>
+<span class="nc bnc" id="L566" title="All 2 branches missed.">					for (int i = 1; i &lt;= list.size(); i++) {</span>
+<span class="nc" id="L567">						tempList.add(rs.getInt(&quot;sim_&quot; + i + &quot;_count&quot;));</span>
+					}
+<span class="nc" id="L569">					hMap.put(df.format(rs.getDate(&quot;date&quot;)), tempList);</span>
+				}
+			}
+<span class="nc" id="L572">		} catch (SQLException e) {</span>
+<span class="nc" id="L573">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L574">			e.printStackTrace();</span>
+<span class="nc" id="L575">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L577">			try {</span>
+<span class="nc bnc" id="L578" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L579">					con.close();</span>
+				}
+<span class="nc" id="L581">			} catch (SQLException e) {</span>
+<span class="nc" id="L582">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L583">				e.printStackTrace();</span>
+<span class="nc" id="L584">				throw new LMSException(e);</span>
+<span class="nc" id="L585">			}</span>
+		}
+<span class="nc" id="L587">		return hMap;</span>
+	}
+
+	public Map&lt;String, List&lt;Integer&gt;&gt; fetchRetLocationHistory(String startDate,	String endDate,
+			List&lt;String&gt; list, String selectService, ReportStatusBean reportStatusBean)
+			throws LMSException {
+<span class="nc" id="L593">		Connection con = null;</span>
+
+<span class="nc bnc" id="L595" title="All 4 branches missed.">		if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L596">			con = DBConnect.getConnection();</span>
+		else
+<span class="nc" id="L598">			con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L600">		SimpleDateFormat df = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L601">		StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L602">		StringBuilder sb1 = new StringBuilder();</span>
+<span class="nc" id="L603">		List&lt;Integer&gt; tempList = null;</span>
+<span class="nc" id="L604">		Map&lt;String, List&lt;Integer&gt;&gt; hMap = new LinkedHashMap&lt;String, List&lt;Integer&gt;&gt;();</span>
+		try {
+<span class="nc bnc" id="L606" title="All 4 branches missed.">			if (list!=null &amp;&amp; list.size() &gt; 0) {</span>
+<span class="nc" id="L607">				sb.append(&quot;select date,&quot;);</span>
+<span class="nc bnc" id="L608" title="All 2 branches missed.">				for (int j = 1; j &lt;= list.size(); j++) {</span>
+<span class="nc" id="L609">					sb.append(&quot;sum(city_&quot; + j + &quot;_count) city_&quot; + j + &quot;_count&quot;)</span>
+							.append(&quot;,&quot;);
+<span class="nc" id="L611">					sb1.append(</span>
+							&quot;if(city_name='&quot; + list.get(j-1).split(&quot;\\(&quot;)[0] + &quot;',ret_count,0) city_&quot; + j + &quot;_count&quot;)
+							.append(&quot;,&quot;);
+				}
+<span class="nc" id="L615">				sb.deleteCharAt(sb.length() - 1);</span>
+<span class="nc" id="L616">				sb1.deleteCharAt(sb1.length() - 1);</span>
+<span class="nc" id="L617">				sb.append(&quot; from (select date,&quot;);</span>
+<span class="nc" id="L618">				sb.append(sb1);</span>
+<span class="nc" id="L619">				sb</span>
+						.append(&quot; from (select cm.city_code,date,city_name,&quot;);
+<span class="nc bnc" id="L621" title="All 2 branches missed.">				if (selectService.equals(&quot;Draw Game&quot;)) {</span>
+<span class="nc" id="L622">					sb.append(&quot;sum(dg_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L624" title="All 2 branches missed.">				if (selectService.equals(&quot;Draw Game Sale&quot;)) {</span>
+<span class="nc" id="L625">						sb.append(&quot;sum(dg_sale_RC)&quot;);</span>
+					} 
+<span class="nc bnc" id="L627" title="All 2 branches missed.">				if (selectService.equals(&quot;Draw Game Pwt&quot;)) {</span>
+<span class="nc" id="L628">						sb.append(&quot;sum(dg_pwt_RC)&quot;);</span>
+					}
+<span class="nc bnc" id="L630" title="All 2 branches missed.">				if (selectService.equals(&quot;Sports Lottery&quot;)) {</span>
+<span class="nc" id="L631">					sb.append(&quot;sum(sl_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L633" title="All 2 branches missed.">				if (selectService.equals(&quot;Sports Lottery Sale&quot;)) {</span>
+<span class="nc" id="L634">						sb.append(&quot;sum(sl_sale_RC)&quot;);</span>
+					} 
+<span class="nc bnc" id="L636" title="All 2 branches missed.">				if (selectService.equals(&quot;Sports Lottery Pwt&quot;)) {</span>
+<span class="nc" id="L637">						sb.append(&quot;sum(sl_pwt_RC)&quot;);</span>
+					}
+<span class="nc bnc" id="L639" title="All 2 branches missed.">				if (selectService.equals(&quot;Instant Win&quot;)) {</span>
+<span class="nc" id="L640">					sb.append(&quot;sum(iw_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L642" title="All 2 branches missed.">				if (selectService.equals(&quot;Instant Win Sale&quot;)) {</span>
+<span class="nc" id="L643">						sb.append(&quot;sum(iw_sale_RC)&quot;);</span>
+					} 
+<span class="nc bnc" id="L645" title="All 2 branches missed.">				if (selectService.equals(&quot;Instant Win Pwt&quot;)) {</span>
+<span class="nc" id="L646">						sb.append(&quot;sum(iw_pwt_RC)&quot;);</span>
+					}
+				
+<span class="nc bnc" id="L649" title="All 2 branches missed.">				if (selectService.equals(&quot;Virtual Sports&quot;)) {</span>
+<span class="nc" id="L650">					sb.append(&quot;sum(vs_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L652" title="All 2 branches missed.">				if (selectService.equals(&quot;Virtual Sports Sale&quot;)) {</span>
+<span class="nc" id="L653">					sb.append(&quot;sum(vs_sale_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L655" title="All 2 branches missed.">				if (selectService.equals(&quot;Virtual Sports Pwt&quot;)) {</span>
+<span class="nc" id="L656">					sb.append(&quot;sum(vs_pwt_RC)&quot;);</span>
+				}
+				
+<span class="nc bnc" id="L659" title="All 2 branches missed.">				if (selectService.equals(&quot;Scratch Game&quot;)) {</span>
+<span class="nc" id="L660">					sb.append(&quot;sum(se_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L662" title="All 2 branches missed.">				if (selectService.equals(&quot;Scratch Game Sale&quot;)) {</span>
+<span class="nc" id="L663">						sb.append(&quot;sum(se_sale_RC)&quot;);</span>
+					} 
+<span class="nc bnc" id="L665" title="All 2 branches missed.">				if (selectService.equals(&quot;Scratch Game Pwt&quot;)) {</span>
+<span class="nc" id="L666">						sb.append(&quot;sum(se_pwt_RC)&quot;);</span>
+					} 
+<span class="nc bnc" id="L668" title="All 2 branches missed.">				if (selectService.equals(&quot;Offline Affiliates&quot;)) {</span>
+<span class="nc" id="L669">					sb.append(&quot;sum(ola_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L671" title="All 2 branches missed.">				if (selectService.equals(&quot;Offline Affiliates Deposit&quot;)) {</span>
+<span class="nc" id="L672">						sb.append(&quot;sum(ola_deposit_RC)&quot;);</span>
+					} 
+<span class="nc bnc" id="L674" title="All 2 branches missed.">				if (selectService.equals(&quot;Offline Affiliates Withdrawal&quot;)) {</span>
+<span class="nc" id="L675">						sb.append(&quot;sum(ola_wd_RC)&quot;);</span>
+					}
+<span class="nc bnc" id="L677" title="All 2 branches missed.">				if (selectService.equals(&quot;Commercial Service&quot;)) {</span>
+<span class="nc" id="L678">					sb.append(&quot;sum(cs_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L680" title="All 2 branches missed.">				if (selectService.equals(&quot;Commercial Service Sale&quot;)) {</span>
+<span class="nc" id="L681">						sb.append(&quot;sum(cs_sale_RC)&quot;);</span>
+					}
+<span class="nc bnc" id="L683" title="All 2 branches missed.">				if (selectService.equals(&quot;Login&quot;)) {</span>
+<span class="nc" id="L684">					sb.append(&quot;sum(login_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L686" title="All 2 branches missed.">				if (selectService.equals(&quot;HeartBeat&quot;)) {</span>
+<span class="nc" id="L687">					sb.append(&quot;sum(heartbeat_RC)&quot;);</span>
+				}
+<span class="nc bnc" id="L689" title="All 2 branches missed.">				if (selectService.equals(&quot;Total&quot;)) {</span>
+<span class="nc" id="L690">					sb.append(&quot;sum(total_RC)&quot;);</span>
+				}
+<span class="nc" id="L692">				sb.append(&quot; ret_count from st_lms_city_master cm left join st_lms_location_wise_history ch on cm.city_code = ch.city_code  where date&gt;=? and date&lt;? and date is not null group by date,cm.city_code) mm group by date,city_code) gg group by date&quot;);</span>
+<span class="nc" id="L693">				PreparedStatement pstmt = con.prepareStatement(sb.toString());</span>
+<span class="nc" id="L694">				pstmt.setString(1, startDate);</span>
+<span class="nc" id="L695">				pstmt.setString(2, endDate);</span>
+<span class="nc" id="L696">				ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L697" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L698">					tempList = new LinkedList&lt;Integer&gt;();</span>
+<span class="nc bnc" id="L699" title="All 2 branches missed.">					for (int i = 1; i &lt;= list.size(); i++) {</span>
+<span class="nc" id="L700">						tempList.add(rs.getInt(&quot;city_&quot; + i + &quot;_count&quot;));</span>
+					}
+<span class="nc" id="L702">					hMap.put(df.format(rs.getDate(&quot;date&quot;)), tempList);</span>
+				}
+			}
+<span class="nc" id="L705">		} catch (SQLException e) {</span>
+<span class="nc" id="L706">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L707">			e.printStackTrace();</span>
+<span class="nc" id="L708">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L710">			try {</span>
+<span class="nc bnc" id="L711" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L712">					con.close();</span>
+				}
+<span class="nc" id="L714">			} catch (SQLException e) {</span>
+<span class="nc" id="L715">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L716">				e.printStackTrace();</span>
+<span class="nc" id="L717">				throw new LMSException(e);</span>
+<span class="nc" id="L718">			}</span>
+		}
+<span class="nc" id="L720">		return hMap;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

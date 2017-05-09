@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ActInactInvStatusReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.reportsMgmt.common</a> &gt; <span class="el_source">ActInactInvStatusReportHelper.java</span></div><h1>ActInactInvStatusReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import com.skilrock.lms.beans.ActiveInactiveTerminalReportBean; 
+import com.skilrock.lms.beans.ServicesBean;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.drawGames.reportsMgmt.common.reportsMgmtUtility;
+
+<span class="nc" id="L25">public class ActInactInvStatusReportHelper {</span>
+
+<span class="nc" id="L27">	Log logger = LogFactory.getLog(ActInactInvStatusReportHelper.class);</span>
+
+	public List&lt;ActiveInactiveTerminalReportBean&gt; getActInactInvStatus(Timestamp startDate, Timestamp endDate ,int reportType, int agentOrgId,String[] cityNamesArray, String creteria, double amount) {
+		
+<span class="nc" id="L31">		String mainQuery = null;</span>
+<span class="nc" id="L32">		String cityAppender = null;</span>
+<span class="nc" id="L33">		String queryAppender = null;</span>
+<span class="nc" id="L34">		String orgCodeQuery=null;</span>
+<span class="nc" id="L35">		String queryOrderAppender=null;</span>
+<span class="nc" id="L36">		Map&lt;String,Double&gt; map=null;</span>
+<span class="nc" id="L37">		ResultSet rs= null;</span>
+<span class="nc" id="L38">		Connection con= null;</span>
+<span class="nc" id="L39">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L40">		Timestamp currentDate = null;</span>
+<span class="nc" id="L41">		List&lt;ActiveInactiveTerminalReportBean&gt; actInactTerminalBeanList = null;</span>
+<span class="nc" id="L42">		ActiveInactiveTerminalReportBean bean = null;</span>
+		try {
+<span class="nc" id="L44">			orgCodeQuery=QueryManager.getOrgCodeQuery().replace(&quot;orgCode&quot;, &quot;&quot;);</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">			if(reportType==1){ // ALL </span>
+<span class="nc" id="L46">				cityAppender = &quot; '' name ,dt.city ,&quot;;</span>
+<span class="nc" id="L47">				queryAppender=&quot;&quot;;</span>
+<span class="nc" id="L48">				queryOrderAppender=QueryManager.getAppendOrgOrder();</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">			}else if(reportType==2){ // AGENT WISE</span>
+<span class="nc" id="L50">				queryAppender = &quot; and parent_id=&quot;+agentOrgId;</span>
+<span class="nc" id="L51">				cityAppender = &quot; upper( &quot;+orgCodeQuery+&quot;  ) , name ,dt.city , &quot;;</span>
+<span class="nc" id="L52">				queryOrderAppender=&quot; retOrgCode &quot;;</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">			}else if(reportType==3){  // REGION WISE</span>
+<span class="nc bnc" id="L54" title="All 4 branches missed.">				if(cityNamesArray==null || &quot;&quot;.equals(cityNamesArray))</span>
+<span class="nc" id="L55">					throw new LMSException();</span>
+<span class="nc" id="L56">				queryAppender = &quot; and city in (&quot;+getCityArray(cityNamesArray)+&quot;) &quot;;</span>
+<span class="nc" id="L57">				cityAppender = &quot; '' name , dt.city , &quot;;</span>
+<span class="nc" id="L58">				queryOrderAppender=QueryManager.getAppendOrgOrder();</span>
+			}
+
+<span class="nc" id="L61">			con =  DBConnect.getConnection();</span>
+
+<span class="nc" id="L63">			String gameQuery = &quot;SELECT game_id FROM st_dg_game_master WHERE game_status='OPEN';&quot;;</span>
+<span class="nc" id="L64">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L65">			rs = stmt.executeQuery(gameQuery);</span>
+<span class="nc" id="L66">			StringBuilder dgSaleBuilder = new StringBuilder(&quot;SELECT organization_id, IFNULL(SUM(mrp_amt),0.0) mrp_amt, IFNULL(SUM(net_amt),0.0) net_amt, transaction_date FROM (&quot;);</span>
+<span class="nc" id="L67">			int gameId = 0;</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L69">				gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L70">				dgSaleBuilder.append(&quot;SELECT rs.retailer_org_id, mrp_amt mrp_amt, net_amt net_amt, transaction_date FROM st_dg_ret_sale_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' &quot;)</span>
+						.append(&quot;UNION ALL &quot;)
+						.append(&quot;SELECT rs.retailer_org_id, -mrp_amt mrp_amt, -net_amt net_amt, transaction_date FROM st_dg_ret_sale_refund_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' &quot;)
+						.append(&quot;UNION ALL &quot;)
+						.append(&quot;SELECT rs.retailer_org_id, -pwt_amt mrp_amt, -pwt_amt net_amt, transaction_date FROM st_dg_ret_pwt_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND transaction_date&lt;='&quot;).append(endDate).append(&quot;' &quot;)
+						.append(&quot;UNION ALL &quot;);
+			}
+<span class="nc" id="L77">			dgSaleBuilder.delete(dgSaleBuilder.lastIndexOf(&quot; UNION ALL &quot;), dgSaleBuilder.length()-1);</span>
+			
+<span class="nc" id="L79">			StringBuilder sleSaleBuilder = new StringBuilder();</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">			if(ServicesBean.isSLE()){				</span>
+<span class="nc" id="L81">				sleSaleBuilder.append(&quot; UNION ALL &quot;)</span>
+							  .append(&quot;SELECT rs.retailer_org_id, mrp_amt mrp_amt, retailer_net_amt net_amt, rs.transaction_date FROM st_sle_ret_sale  rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND rs.transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND rs.transaction_date&lt;='&quot;).append(endDate).append(&quot;' &quot;)
+							  .append(&quot;UNION ALL &quot;)
+							  .append(&quot;SELECT rs.retailer_org_id, -mrp_amt mrp_amt, -retailer_net_amt net_amt, rs.transaction_date FROM st_sle_ret_sale_refund  rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND rs.transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND rs.transaction_date&lt;='&quot;).append(endDate).append(&quot;' &quot;)
+							  .append(&quot;UNION ALL &quot;)
+							  .append(&quot;SELECT rs.retailer_org_id, -pwt_amt mrp_amt, -pwt_amt net_amt, rs.transaction_date FROM st_sle_ret_pwt  rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND rs.transaction_date&gt;='&quot;).append(startDate).append(&quot;' AND rs.transaction_date&lt;='&quot;).append(endDate).append(&quot;' &quot;);
+			}else{
+<span class="nc" id="L88">				sleSaleBuilder.append(&quot;&quot;);</span>
+			}
+<span class="nc" id="L90">			dgSaleBuilder.append(sleSaleBuilder);</span>
+<span class="nc" id="L91">			String limitAppender = null;</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">			if(&quot;GT&quot;.equals(creteria)) {</span>
+<span class="nc" id="L93">				limitAppender = &quot;&gt;=&quot;;</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">			} else if(&quot;EQ&quot;.equals(creteria)) {</span>
+<span class="nc" id="L95">				limitAppender = &quot;=&quot;;</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">			} else if(&quot;LT&quot;.equals(creteria)) {</span>
+<span class="nc" id="L97">				limitAppender = &quot;&lt;=&quot;;</span>
+			}
+
+<span class="nc bnc" id="L100" title="All 2 branches missed.">			if(reportType == 1) {</span>
+<span class="nc" id="L101">				dgSaleBuilder.append(&quot;)main RIGHT JOIN st_lms_organization_master slom ON main.retailer_org_id=slom.organization_id WHERE slom.organization_status&lt;&gt;'TERMINATE' AND organization_type='RETAILER' GROUP BY slom.organization_id HAVING mrp_amt&quot;).append(limitAppender).append(amount).append(&quot;;&quot;);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">			} else if (reportType == 2) {</span>
+<span class="nc" id="L103">				dgSaleBuilder.append(&quot;)main RIGHT JOIN st_lms_organization_master slom ON slom.organization_id=main.retailer_org_id WHERE parent_id=&quot;).append(agentOrgId).append(&quot; AND slom.organization_status&lt;&gt;'TERMINATE' AND organization_type='RETAILER' GROUP BY retailer_org_id HAVING mrp_amt&quot;).append(limitAppender).append(amount).append(&quot;;&quot;);</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">			} else if (reportType == 3) {</span>
+<span class="nc" id="L105">				dgSaleBuilder.append(&quot;)main RIGHT JOIN st_lms_organization_master slom ON slom.organization_id=main.retailer_org_id WHERE city IN (&quot;).append(getCityArray(cityNamesArray)).append(&quot;) AND slom.organization_status&lt;&gt;'TERMINATE' AND organization_type='RETAILER' GROUP BY retailer_org_id HAVING mrp_amt&quot;).append(limitAppender).append(amount).append(&quot;;&quot;);</span>
+			}
+			
+		
+<span class="nc" id="L109">			rs = stmt.executeQuery(dgSaleBuilder.toString());</span>
+<span class="nc" id="L110">			map=new HashMap&lt;String,Double&gt;();</span>
+			
+<span class="nc bnc" id="L112" title="All 2 branches missed.">			while(rs.next()) {</span>
+			
+<span class="nc" id="L114">				map.put(rs.getString(&quot;organization_id&quot;),rs.getDouble(&quot;mrp_amt&quot;));</span>
+				
+			}
+             
+            
+            
+             /*
+
+             select  '' name ,dt.city , dt.area_code,dt.area_name,if(dg_last_sale_time is null ,registration_date,dg_last_sale_time)  dg_last_sale_time,upper( concat(org_code,'_',name)    ) orgCode  , orgCode retOrgCode, dt.organization_id from (select  city ,am.area_code,area_name,upper( concat(org_code,'_',name)    ) orgCode , parent_id,dg_last_sale_time,registration_date, om.organization_id from st_lms_organization_master om inner join  st_lms_ret_offline_master rom inner join st_lms_user_master um inner join st_lms_area_master am on om.organization_id=rom.organization_id and rom.organization_id =um.organization_id and am.area_code=om.area_code where  organization_status != 'TERMINATE'  and registration_date&lt;='2014-11-14 23:59:59.0' and om.organization_type='RETAILER' ) dt , st_lms_organization_master om where dt.parent_id=om.organization_id order by orgCode ASC 
+
+
+              */
+<span class="nc" id="L126">			mainQuery = &quot;select &quot;+cityAppender+&quot; dt.area_code,dt.area_name,if(dg_last_sale_time is null ,registration_date,dg_last_sale_time)  dg_last_sale_time,upper(&quot;+orgCodeQuery+&quot;) orgCode  , orgCode retOrgCode, dt.organization_id from (select  city ,am.area_code,area_name,upper(&quot;+orgCodeQuery+&quot;) orgCode , parent_id,dg_last_sale_time,registration_date, om.organization_id from st_lms_organization_master om inner join  st_lms_ret_offline_master rom inner join st_lms_user_master um inner join st_lms_area_master am on om.organization_id=rom.organization_id and rom.organization_id =um.organization_id and am.area_code=om.area_code where  organization_status != 'TERMINATE'  and registration_date&lt;=? and om.organization_type='RETAILER' &quot;+queryAppender+&quot;) dt , st_lms_organization_master om where dt.parent_id=om.organization_id order by &quot;+queryOrderAppender;</span>
+<span class="nc" id="L127">			pstmt =  con.prepareStatement(mainQuery);</span>
+<span class="nc" id="L128">			pstmt.setTimestamp(1, endDate);</span>
+<span class="nc" id="L129">			rs =  pstmt.executeQuery();</span>
+
+<span class="nc" id="L131">			currentDate = new Timestamp(System.currentTimeMillis());</span>
+<span class="nc" id="L132">			actInactTerminalBeanList = new ArrayList&lt;ActiveInactiveTerminalReportBean&gt;();</span>
+			
+<span class="nc bnc" id="L134" title="All 2 branches missed.">			while(rs.next()){</span>
+			
+<span class="nc" id="L136">				bean = new ActiveInactiveTerminalReportBean();</span>
+<span class="nc" id="L137">				bean.setAgentId(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L138">				bean.setRetId(rs.getString(&quot;retOrgCode&quot;));</span>
+<span class="nc" id="L139">				bean.setIdleTime(calculateTimeDiff(rs.getTimestamp(&quot;dg_last_sale_time&quot;) ,currentDate));</span>
+<span class="nc" id="L140">				bean.setRegion(rs.getString(&quot;city&quot;));</span>
+<span class="nc" id="L141">				bean.setAgentName(rs.getString(&quot;name&quot;));</span>
+<span class="nc" id="L142">				bean.setZone(rs.getString(&quot;area_name&quot;));</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">				if(map.containsKey(rs.getString(&quot;organization_id&quot;))) {</span>
+<span class="nc" id="L144">					bean.setSaleAmount(map.get(rs.getString(&quot;organization_id&quot;)));	</span>
+<span class="nc" id="L145">					actInactTerminalBeanList.add(bean);</span>
+				}
+			}
+<span class="nc" id="L148">		}catch (LMSException e) {</span>
+<span class="nc" id="L149">			logger.error(&quot;City came Blank&quot;);</span>
+		} 
+<span class="nc" id="L151">		catch (Exception e) {</span>
+<span class="nc" id="L152">			logger.error(&quot;ERROR&quot;);</span>
+<span class="nc" id="L153">			e.printStackTrace();</span>
+		}finally{
+<span class="nc" id="L155">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L156">		}</span>
+<span class="nc" id="L157">		return actInactTerminalBeanList;</span>
+	}
+
+	
+	public List&lt;ActiveInactiveTerminalReportBean&gt; getActInactInvStatus(Timestamp startDate,String[] cityNamesArray, String creteria, double amount) {
+		
+<span class="nc" id="L163">		String mainQuery = null;</span>
+<span class="nc" id="L164">		String orgCodeQuery=null;</span>
+<span class="nc" id="L165">		String queryOrderAppender=null;</span>
+		
+<span class="nc" id="L167">		ResultSet rs= null;</span>
+<span class="nc" id="L168">		Connection con= null;</span>
+<span class="nc" id="L169">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L170">		List&lt;ActiveInactiveTerminalReportBean&gt; actInactTerminalBeanList = null;</span>
+<span class="nc" id="L171">		Map&lt;String,Double&gt; map=null;</span>
+		try {
+<span class="nc" id="L173">			con =  DBConnect.getConnection();</span>
+<span class="nc" id="L174">			String limitAppender = null;</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">			if(&quot;GT&quot;.equals(creteria)) {</span>
+<span class="nc" id="L176">				limitAppender = &quot;&gt;=&quot;;</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			} else if(&quot;EQ&quot;.equals(creteria)) {</span>
+<span class="nc" id="L178">				limitAppender = &quot;=&quot;;</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">			} else if(&quot;LT&quot;.equals(creteria)) {</span>
+<span class="nc" id="L180">				limitAppender = &quot;&lt;=&quot;;</span>
+			}
+<span class="nc" id="L182">			String gameQuery = &quot;SELECT game_id FROM st_dg_game_master WHERE game_status='OPEN';&quot;;</span>
+<span class="nc" id="L183">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L184">			rs = stmt.executeQuery(gameQuery);</span>
+<span class="nc" id="L185">			StringBuilder dgSaleBuilder = new StringBuilder(&quot;SELECT organization_id, parent_id, IFNULL(SUM(mrp_amt),0.0) mrp_amt, IFNULL(SUM(net_amt),0.0) net_amt, transaction_date FROM (&quot;);</span>
+<span class="nc" id="L186">			int gameId = 0;</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L188">				gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L189">				dgSaleBuilder.append(&quot;SELECT rs.retailer_org_id, mrp_amt mrp_amt, net_amt net_amt, transaction_date FROM st_dg_ret_sale_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND DATE(transaction_date)=DATE('&quot;).append(startDate).append(&quot;') &quot;)</span>
+						.append(&quot;UNION ALL &quot;)
+						.append(&quot;SELECT rs.retailer_org_id, -mrp_amt mrp_amt, -net_amt net_amt, transaction_date FROM st_dg_ret_sale_refund_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND DATE(transaction_date)=DATE('&quot;).append(startDate).append(&quot;') &quot;)
+						.append(&quot;UNION ALL &quot;)
+						.append(&quot;SELECT rs.retailer_org_id, -pwt_amt mrp_amt, -pwt_amt net_amt, transaction_date FROM st_dg_ret_pwt_&quot;).append(gameId).append(&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND DATE(transaction_date)=DATE('&quot;).append(startDate).append(&quot;') &quot;)
+						.append(&quot;UNION ALL &quot;);
+			}
+<span class="nc" id="L196">			dgSaleBuilder.delete(dgSaleBuilder.lastIndexOf(&quot; UNION ALL &quot;), dgSaleBuilder.length()-1);</span>
+<span class="nc" id="L197">			StringBuilder sleSaleBuilder = new StringBuilder();</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">			if(ServicesBean.isSLE()){				</span>
+<span class="nc" id="L199">				sleSaleBuilder.append(&quot; UNION ALL &quot;)</span>
+							  .append(&quot;SELECT rs.retailer_org_id, mrp_amt mrp_amt, retailer_net_amt net_amt, rs.transaction_date FROM st_sle_ret_sale  rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND DATE(rs.transaction_date)=DATE('&quot;).append(startDate).append(&quot;') &quot;)
+							  .append(&quot;UNION ALL &quot;)
+							  .append(&quot;SELECT rs.retailer_org_id, -mrp_amt mrp_amt, -rtailer_net_amt net_amt, rs.transaction_date FROM st_sle_ret_sale_refund  rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND DATE(rs.transaction_date)=DATE('&quot;).append(startDate).append(&quot;') &quot;)
+							  .append(&quot;UNION ALL &quot;)
+							  .append(&quot;SELECT rs.retailer_org_id, -pwt_amt mrp_amt, -pwt_amt net_amt, rs.transaction_date FROM st_sle_ret_pwt  rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id AND DATE(rs.transaction_date)=DATE('&quot;).append(startDate).append(&quot;') &quot;);
+			}else{
+<span class="nc" id="L206">				sleSaleBuilder.append(&quot;&quot;);</span>
+			}
+			
+<span class="nc" id="L209">			dgSaleBuilder.append(sleSaleBuilder)</span>
+						 .append(&quot;)main RIGHT JOIN st_lms_organization_master slom ON slom.organization_id=retailer_org_id WHERE organization_status&lt;&gt;'TERMINATE' AND organization_type='RETAILER' GROUP BY parent_id HAVING mrp_amt&quot;).append(limitAppender).append(amount).append(&quot;;&quot;);
+<span class="nc" id="L211">			List&lt;String&gt; list = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L212">			rs = stmt.executeQuery(dgSaleBuilder.toString());</span>
+<span class="nc" id="L213">			map=new HashMap&lt;String,Double&gt;();</span>
+	
+<span class="nc bnc" id="L215" title="All 2 branches missed.">			while(rs.next()) {</span>
+		
+<span class="nc" id="L217">				map.put(rs.getString(&quot;organization_id&quot;),rs.getDouble(&quot;mrp_amt&quot;));</span>
+<span class="nc" id="L218">				list.add(rs.getString(&quot;parent_id&quot;));</span>
+			}
+			
+             
+            
+<span class="nc" id="L223">			orgCodeQuery=QueryManager.getOrgCodeQuery().replace(&quot;orgCode&quot;, &quot;&quot;);</span>
+<span class="nc" id="L224">			queryOrderAppender=QueryManager.getAppendOrgOrder();</span>
+
+<span class="nc bnc" id="L226" title="All 2 branches missed.">			mainQuery = &quot;select organization_id, city,am.area_code,am.area_name, upper(&quot;+orgCodeQuery+&quot;) orgCode ,(assigned_total+notAssigned_total ) totalPos , active_Ret activePos,  ((assigned_total+notAssigned_total )-active_Ret) inActivePos from st_lms_ret_activityHistory_agentwise aht inner join  st_lms_organization_master om inner join st_lms_area_master am on organization_id = agent_id and om.area_code=am.area_code where date =date(?) and city in (&quot;+(cityNamesArray!=null?getCityArray(cityNamesArray):&quot;select city_name from st_lms_city_master&quot;)+&quot;)  order by &quot; + queryOrderAppender;</span>
+<span class="nc" id="L227">			pstmt =  con.prepareStatement(mainQuery);</span>
+<span class="nc" id="L228">			pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L229">			rs =  pstmt.executeQuery();</span>
+			
+<span class="nc" id="L231">			actInactTerminalBeanList = new ArrayList&lt;ActiveInactiveTerminalReportBean&gt;();</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L233">				ActiveInactiveTerminalReportBean bean = new ActiveInactiveTerminalReportBean();</span>
+<span class="nc" id="L234">				bean.setAgentId(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L235">				bean.setActivePos(rs.getInt(&quot;activePos&quot;));</span>
+<span class="nc" id="L236">				bean.setTotalPos(rs.getInt(&quot;totalPos&quot;));</span>
+<span class="nc" id="L237">				bean.setInActivePos(rs.getInt(&quot;inActivePos&quot;));</span>
+<span class="nc" id="L238">				bean.setRegion(rs.getString(&quot;city&quot;));</span>
+<span class="nc" id="L239">				bean.setZone(rs.getString(&quot;area_name&quot;));</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">				if(list.contains(rs.getString(&quot;organization_id&quot;))) {</span>
+<span class="nc" id="L241">					bean.setSaleAmount(map.get(rs.getString(&quot;oganization_id&quot;)));</span>
+<span class="nc" id="L242">					actInactTerminalBeanList.add(bean);</span>
+				}
+<span class="nc" id="L244">			}</span>
+<span class="nc" id="L245">		} catch (Exception e) {</span>
+<span class="nc" id="L246">			logger.error(e);</span>
+		}finally{
+<span class="nc" id="L248">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L249">		}</span>
+<span class="nc" id="L250">		return actInactTerminalBeanList;</span>
+	}
+	
+	private String calculateTimeDiff(Timestamp lastActiveDate , Timestamp currentDate){
+<span class="nc" id="L254">		long diff = currentDate.getTime() - lastActiveDate.getTime();</span>
+<span class="nc" id="L255">	    long diffSeconds = diff / 1000 % 60;</span>
+<span class="nc" id="L256">	    long diffMinutes = diff / (60 * 1000) % 60;</span>
+<span class="nc" id="L257">	    long diffHours = diff / (60 * 60 * 1000);</span>
+	    //logger.info(diffHours+&quot;:&quot;+diffMinutes+&quot;:&quot;+diffSeconds);
+<span class="nc" id="L259">		return diffHours+&quot;:&quot;+makeMinAndSecFormat(diffMinutes)+&quot;:&quot;+makeMinAndSecFormat(diffSeconds);</span>
+	}
+	
+	private String makeMinAndSecFormat(long value){
+<span class="nc bnc" id="L263" title="All 2 branches missed.">		return (value/10&gt;0?value+&quot;&quot;:&quot;0&quot;+value);</span>
+	}
+	
+	public String cityAndStateBuilder(){
+
+<span class="nc" id="L268">		ResultSet rs= null;</span>
+<span class="nc" id="L269"> 		Connection con= null;</span>
+<span class="nc" id="L270">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L271">		TreeMap&lt;String, String&gt; map = null;</span>
+		try {
+<span class="nc" id="L273">			con =  DBConnect.getConnection();</span>
+<span class="nc" id="L274">			pstmt =  con.prepareStatement(&quot;select sm.state_code ,city_code, name state_name, city_name from st_lms_state_master sm inner join st_lms_city_master cm on sm.state_code=cm.state_code order by state_code&quot;);</span>
+<span class="nc" id="L275">			rs =  pstmt.executeQuery();</span>
+<span class="nc" id="L276">			map = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">			while(rs.next())</span>
+			{
+<span class="nc" id="L279">				String cityBuilder = &quot;&quot;;</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">					if(map.containsKey(rs.getString(&quot;state_name&quot;))){</span>
+<span class="nc" id="L281">						cityBuilder += map.get(rs.getString(&quot;state_name&quot;))+rs.getString(&quot;city_name&quot;)+&quot;,&quot; ;</span>
+<span class="nc" id="L282">						map.put(rs.getString(&quot;state_name&quot;), cityBuilder);</span>
+					}else{
+<span class="nc" id="L284">						map.put(rs.getString(&quot;state_name&quot;), rs.getString(&quot;city_name&quot;)+&quot;,&quot;);</span>
+					}
+<span class="nc" id="L286">			}</span>
+<span class="nc" id="L287">		} catch (Exception e) {</span>
+<span class="nc" id="L288">			logger.error(e);</span>
+		}finally{
+<span class="nc" id="L290">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L291">		}</span>
+<span class="nc" id="L292">		return map.toString().replace(&quot;,,&quot;, &quot;|&quot;).replace(&quot;{&quot;,&quot;&quot;).replace(&quot;}&quot;, &quot;&quot;);</span>
+	}
+	
+	public String getAgentList(Timestamp endDate) throws LMSException{
+		
+<span class="nc" id="L297">		StringBuilder orgList = null;</span>
+<span class="nc" id="L298">		String orgCodeAppender = null;</span>
+		
+<span class="nc" id="L300">		ResultSet rs = null;</span>
+<span class="nc" id="L301">		Connection con = null;</span>
+<span class="nc" id="L302">		PreparedStatement pstmt =null;</span>
+		try {
+<span class="nc" id="L304">			orgCodeAppender = QueryManager.getOrgCodeQuery().replace(&quot;orgCode&quot;, &quot;&quot;);</span>
+<span class="nc" id="L305">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L306">			pstmt = con.prepareStatement(&quot;select om.organization_id, upper(&quot;+orgCodeAppender+&quot;) orgCode  from st_lms_organization_master om inner join st_lms_user_master um  on om.organization_id = um.organization_id where om.organization_type= 'AGENT'  and organization_status &lt;&gt; 'TERMINATE' and registration_date&lt;=? order by &quot;+QueryManager.getAppendOrgOrder());</span>
+<span class="nc" id="L307">			pstmt.setTimestamp(1,endDate);</span>
+<span class="nc" id="L308">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L309">			orgList = new StringBuilder();</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">			while (rs.next()) </span>
+<span class="nc" id="L311">				orgList.append(rs.getString(&quot;organization_id&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;orgCode&quot;)).append(&quot;:&quot;); </span>
+			
+<span class="nc" id="L313">			logger.info(&quot;orgList-------&quot; + orgList.toString());</span>
+<span class="nc" id="L314">		} catch (Exception e) {</span>
+<span class="nc" id="L315">			e.printStackTrace();</span>
+<span class="nc" id="L316">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L318">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L319">		}</span>
+<span class="nc" id="L320">		return orgList.toString();</span>
+	}
+	
+	private String getCityArray(String [] cityNamesArray){
+<span class="nc" id="L324">		StringBuilder drawIds=new StringBuilder();</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">		for(int i=0; i&lt;cityNamesArray.length ;i++){</span>
+<span class="nc" id="L326">			drawIds.append(&quot;'&quot;).append(cityNamesArray[i]).append(&quot;',&quot;);	</span>
+		}
+<span class="nc" id="L328">		return drawIds.replace(drawIds.lastIndexOf(&quot;,&quot;), drawIds.length(), &quot;&quot;).toString();</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

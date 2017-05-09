@@ -1,0 +1,405 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CollectionReportAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.reportsMgmt.common</a> &gt; <span class="el_source">CollectionReportAction.java</span></div><h1>CollectionReportAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.reportsMgmt.common;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import jxl.Workbook;
+import jxl.write.WritableWorkbook;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.beans.CollectionReportBean;
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.GetUserOrganziationDetails;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.CollectionReportAgentHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.CollectionReportHelper;
+
+<span class="nc" id="L35">public class CollectionReportAction extends ActionSupport implements</span>
+		ServletRequestAware, ServletResponseAware {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
+<span class="nc" id="L42">	private static String[] Type = { &quot;Current Day&quot;, &quot;Current Week&quot;,</span>
+			&quot;Current Month&quot; };
+
+	private String end_Date;
+<span class="nc" id="L46">	Log logger = LogFactory.getLog(CollectionReportAction.class);</span>
+
+	private String orgType;
+	private HttpServletRequest request;
+
+	private HttpServletResponse response;
+	private String start_date;
+	// private HttpServletResponse response;
+	private String totaltime;
+
+<span class="nc" id="L56">	String[] type = { &quot;Daily&quot;, &quot;Weekly&quot;, &quot;Monthly&quot; };</span>
+
+	public String agentCollectionDetails() throws ParseException {
+<span class="nc" id="L59">		logger.debug(&quot;collection report for AGENT result is executed. &quot;);</span>
+		// System.out.println(&quot;collection report for AGENT result is executed.
+		// &quot;);
+<span class="nc" id="L62">		executeHelper(&quot;AGENT&quot;);</span>
+<span class="nc" id="L63">		return SUCCESS;</span>
+	}
+
+	public String boCollectionDetails() throws ParseException {
+<span class="nc" id="L67">		logger.debug(&quot;collection Report for Bo result is executed. &quot;);</span>
+		// System.out.println(&quot;collection Report for Bo result is executed. &quot;);
+<span class="nc" id="L69">		executeHelper(&quot;BO&quot;);</span>
+<span class="nc" id="L70">		return SUCCESS;</span>
+	}
+
+	@Override
+	public String execute() {
+<span class="nc" id="L75">		request.getSession().setAttribute(&quot;stDate&quot;,</span>
+				new java.sql.Date(new java.util.Date().getTime()));
+<span class="nc" id="L77">		return SUCCESS;</span>
+	}
+
+	public void executeHelper(String owner) throws ParseException {
+<span class="nc" id="L81">		List&lt;CollectionReportBean&gt; list = null;</span>
+<span class="nc" id="L82">		DateBeans dateBeans = getDateDetails();</span>
+<span class="nc" id="L83">		Map&lt;String, String&gt; lastRowMap = null;</span>
+<span class="nc" id="L84">		Map&lt;Integer, Double&gt; mapForOpenBal = null;</span>
+<span class="nc" id="L85">		Timestamp deplDate = null;</span>
+<span class="nc" id="L86">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L87">		ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L88">		String deployDateString = (String) sc.getAttribute(&quot;DEPLOYMENT_DATE&quot;);</span>
+<span class="nc" id="L89">		String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+		try {
+<span class="nc" id="L91">			deplDate = new Timestamp((new SimpleDateFormat(dateFormat)).parse(</span>
+					deployDateString).getTime());
+<span class="nc" id="L93">		} catch (Exception e) {</span>
+<span class="nc" id="L94">			e.printStackTrace();</span>
+<span class="nc" id="L95">		}</span>
+<span class="nc" id="L96">		boolean isDraw = false;</span>
+<span class="nc" id="L97">		boolean isScratch = false;</span>
+<span class="nc" id="L98">		boolean isCS = false;</span>
+<span class="nc" id="L99">		boolean isOla = false;</span>
+<span class="nc" id="L100">		String draw = &quot;&quot;;</span>
+<span class="nc" id="L101">		String scratch = &quot;&quot;;</span>
+<span class="nc" id="L102">		String ola = &quot;&quot;;</span>
+<span class="nc" id="L103">		draw = (String) session.getServletContext().getAttribute(&quot;IS_DRAW&quot;);</span>
+<span class="nc" id="L104">		scratch = (String) session.getServletContext().getAttribute(</span>
+				&quot;IS_SCRATCH&quot;);
+<span class="nc" id="L106">		ola = (String) session.getServletContext().getAttribute(&quot;IS_OLA&quot;);</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">		if (draw.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L109">			isDraw = true;</span>
+
+		}
+<span class="nc bnc" id="L112" title="All 2 branches missed.">		if (scratch.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L113">			isScratch = true;</span>
+
+		}
+<span class="nc bnc" id="L116" title="All 2 branches missed.">		if (ola.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L117">			isOla = true;</span>
+
+		}
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">		if (&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsCS())) {</span>
+<span class="nc" id="L122">			isCS = true;</span>
+		}
+<span class="nc" id="L124">		UserInfoBean infoBean = (UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+
+		// get the list of BO details from database using helper
+<span class="nc bnc" id="L128" title="All 2 branches missed.">		if (&quot;BO&quot;.equalsIgnoreCase(owner)) {</span>
+<span class="nc" id="L129">			logger.debug(&quot;start date is this:&quot; + dateBeans.getFirstdate()</span>
+					+ &quot;end date is this:&quot; + dateBeans.getLastdate());
+<span class="nc" id="L131">			CollectionReportHelper boHelper = new CollectionReportHelper(</span>
+					dateBeans);
+<span class="nc" id="L133">			mapForOpenBal = boHelper.getAgentOpeningBalance(boHelper</span>
+					.getAgentOrgId(), isDraw, isScratch, isCS, deplDate);
+<span class="nc" id="L135">			list = boHelper.getBOCollectionDetail(boHelper.getAgentOrgId(),</span>
+					isDraw, isScratch, isCS, false);
+<span class="nc" id="L137">			list = boHelper.MergeOpenBal(list, mapForOpenBal);</span>
+<span class="nc" id="L138">			lastRowMap = boHelper.lastRowMap;</span>
+			// logger.debug(mapForOpenBal);
+<span class="nc" id="L140">		}</span>
+		// get the list of AGENT details from database using helper
+		else {
+<span class="nc" id="L143">			CollectionReportAgentHelper boHelper = new CollectionReportAgentHelper(</span>
+					infoBean, dateBeans);
+<span class="nc" id="L145">			mapForOpenBal = boHelper.getRetailerOpeningBalance(boHelper</span>
+					.getRetailerOrgId(), isDraw, isScratch, isOla,isCS, deplDate);
+<span class="nc" id="L147">			list = boHelper.getAgentCollectionDetail(boHelper</span>
+					.getRetailerOrgId(), isDraw, isScratch, isOla,isCS, false);
+<span class="nc" id="L149">			list = boHelper.MergeOpenBal(list, mapForOpenBal);</span>
+<span class="nc" id="L150">			lastRowMap = boHelper.lastRowMap;</span>
+
+		}
+
+		// System.out.println(&quot;callled 2222222222222&quot;);
+
+		// create the message to be display on jsp
+<span class="nc" id="L157">		String collectionMsg = null;</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">		if (&quot;&quot;.equals(dateBeans.getReportType().trim())) {</span>
+<span class="nc" id="L159">			collectionMsg = &quot;Collection Summary report From Date &quot;</span>
+					+ CollectionReportHelper.formatDate(dateBeans
+							.getStartDate()) + &quot; To &quot;
+					+ CollectionReportHelper.formatDate(dateBeans.getEndDate());
+		} else {
+<span class="nc" id="L164">			collectionMsg = &quot;Collection Summary report of &quot;</span>
+					+ &quot;Last&quot;
+					+ dateBeans.getReportType().substring(7,
+							dateBeans.getReportType().length());
+		}
+
+		// System.out.println(&quot;called 333333333333333333&quot;);
+		// retrieve the details about the current user
+
+<span class="nc" id="L173">		int userId = infoBean.getUserOrgId();</span>
+<span class="nc" id="L174">		String orgAdd = GetUserOrganziationDetails.getAddress(userId);</span>
+<span class="nc" id="L175">		String orgName = infoBean.getOrgCode();</span>
+<span class="nc" id="L176">		lastRowMap.put(&quot;orgName&quot;, orgName);</span>
+<span class="nc" id="L177">		lastRowMap.put(&quot;orgAdd&quot;, orgAdd);</span>
+<span class="nc" id="L178">		lastRowMap.put(&quot;collectionMsg&quot;, collectionMsg);</span>
+
+		// set the attributes in session
+<span class="nc" id="L181">		session.setAttribute(&quot;datebean&quot;, dateBeans);</span>
+<span class="nc" id="L182">		session.setAttribute(&quot;collectionReport&quot;, list);</span>
+<span class="nc" id="L183">		session.setAttribute(&quot;lastRowMap&quot;, lastRowMap);</span>
+
+<span class="nc" id="L185">	}</span>
+
+	public String exportExcel() {
+
+<span class="nc" id="L189">		ArrayList&lt;CollectionReportBean&gt; data = new ArrayList&lt;CollectionReportBean&gt;();</span>
+<span class="nc" id="L190">		data = (ArrayList&lt;CollectionReportBean&gt;) request.getSession()</span>
+				.getAttribute(&quot;collectionReport&quot;);
+		try {
+<span class="nc" id="L193">			response.setContentType(&quot;application/vnd.ms-excel&quot;);</span>
+<span class="nc" id="L194">			response.setHeader(&quot;Content-disposition&quot;,</span>
+					&quot;attachment;filename=Collection_Report.xls&quot;);
+<span class="nc" id="L196">			WritableWorkbook w = Workbook.createWorkbook(response</span>
+					.getOutputStream());
+<span class="nc" id="L198">			WriteExcelForCollectionReport excel = new WriteExcelForCollectionReport(</span>
+					(DateBeans) request.getSession().getAttribute(&quot;datebean&quot;));
+
+<span class="nc" id="L201">			Map&lt;String, String&gt; lastrowMap = (Map&lt;String, String&gt;) request</span>
+					.getSession().getAttribute(&quot;lastRowMap&quot;);
+
+<span class="nc" id="L204">			UserInfoBean userBean = new UserInfoBean();</span>
+<span class="nc" id="L205">			userBean = (UserInfoBean) request.getSession().getAttribute(</span>
+					&quot;USER_INFO&quot;);
+<span class="nc" id="L207">			excel.write(data, w, lastrowMap.get(&quot;orgName&quot;), lastrowMap</span>
+					.get(&quot;orgAdd&quot;), orgType, (String) request.getSession()
+					.getServletContext().getAttribute(&quot;CURRENCY_SYMBOL&quot;));
+
+<span class="nc" id="L211">		} catch (FileNotFoundException e) {</span>
+<span class="nc" id="L212">			e.printStackTrace();</span>
+<span class="nc" id="L213">		} catch (IOException e) {</span>
+<span class="nc" id="L214">			e.printStackTrace();</span>
+<span class="nc" id="L215">		} catch (Exception e) {</span>
+<span class="nc" id="L216">			e.printStackTrace();</span>
+<span class="nc" id="L217">		}</span>
+
+<span class="nc" id="L219">		return null;</span>
+
+	}
+
+	private DateBeans getDateDetails() {
+<span class="nc" id="L224">		DateBeans dateBeans = getDateForSchedular(totaltime, Calendar</span>
+				.getInstance());
+<span class="nc bnc" id="L226" title="All 2 branches missed.">		if (&quot;Date Wise&quot;.equalsIgnoreCase(totaltime)) {</span>
+<span class="nc" id="L227">			HttpSession session = request.getSession();</span>
+<span class="nc" id="L228">			SimpleDateFormat utilDateFormat = new SimpleDateFormat(</span>
+					(String) session.getAttribute(&quot;date_format&quot;));
+
+			try {
+<span class="nc" id="L232">				dateBeans.setStartDate(utilDateFormat.parse(start_date));</span>
+<span class="nc" id="L233">				dateBeans.setFirstdate(new java.sql.Date(utilDateFormat.parse(</span>
+						start_date).getTime()));
+<span class="nc" id="L235">				dateBeans.setEndDate(new java.util.Date(utilDateFormat.parse(</span>
+						end_Date).getTime()));
+<span class="nc" id="L237">				dateBeans.setLastdate(new java.sql.Date(utilDateFormat.parse(</span>
+						end_Date).getTime()
+						+ 24 * 60 * 60 * 1000));
+<span class="nc" id="L240">				dateBeans.setReportType(&quot;&quot;);</span>
+<span class="nc" id="L241">			} catch (ParseException e) {</span>
+<span class="nc" id="L242">				e.printStackTrace();</span>
+<span class="nc" id="L243">			}</span>
+		}
+<span class="nc" id="L245">		return dateBeans;</span>
+	}
+
+	private DateBeans getDateForSchedular(String type, Calendar calendar) {
+<span class="nc" id="L249">		int index = -1;</span>
+<span class="nc" id="L250">		DateBeans dateBean = new DateBeans();</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">		for (int i = 0; i &lt; Type.length; i++) {</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">			if (Type[i].equalsIgnoreCase(type)) {</span>
+<span class="nc" id="L253">				index = i;</span>
+<span class="nc" id="L254">				dateBean.setReportType(Type[i]);</span>
+<span class="nc" id="L255">				break;</span>
+			}
+		}
+
+<span class="nc bnc" id="L259" title="All 4 branches missed.">		switch (index) {</span>
+		case 0: {
+<span class="nc" id="L261">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L262">			cal.setTime(calendar.getTime());</span>
+<span class="nc" id="L263">			cal.add(Calendar.DATE, -1);</span>
+<span class="nc" id="L264">			dateBean.setFirstdate(new java.sql.Date(cal.getTime().getTime()));</span>
+<span class="nc" id="L265">			dateBean.setReportday(cal.getTime());</span>
+
+<span class="nc" id="L267">			cal.setTime(calendar.getTime());</span>
+<span class="nc" id="L268">			dateBean.setLastdate(new java.sql.Date(cal.getTime().getTime()));</span>
+
+<span class="nc" id="L270">			System.out.println(&quot;Query dates ===== First Date = &quot;</span>
+					+ dateBean.getFirstdate() + &quot;\t Last Date = &quot;
+					+ dateBean.getLastdate());
+<span class="nc" id="L273">			System.out.println(&quot;Show in mail dates ====== start Date = &quot;</span>
+					+ dateBean.getStartDate() + &quot;\t End Date = &quot;
+					+ dateBean.getEndDate());
+
+<span class="nc" id="L277">			return dateBean;</span>
+
+		}
+		case 1: { // weekly reports
+
+<span class="nc" id="L282">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L283">			cal.setTime(calendar.getTime());</span>
+
+			// called when DAY_OF_WEAK is SUNDAY
+<span class="nc bnc" id="L286" title="All 2 branches missed.">			if (cal.get(Calendar.DAY_OF_WEEK) == 1) {</span>
+<span class="nc" id="L287">				cal.add(Calendar.DATE, -1);</span>
+			}
+
+			// set the Last Date from DAY_OF_WEAK as MONDAY of current weak
+<span class="nc" id="L291">			cal.set(Calendar.DAY_OF_WEEK, 2);</span>
+<span class="nc" id="L292">			dateBean.setLastdate(new java.sql.Date(cal.getTime().getTime()));</span>
+			// set the actual end date of reports
+<span class="nc" id="L294">			cal.add(Calendar.DATE, -1);</span>
+			// dateBean.setEndDate(cal.getTime());
+
+			// undo the changes done in calculated Calendar date instance
+<span class="nc" id="L298">			cal.add(Calendar.DATE, 1);</span>
+
+			// set the First Day of 'DAY_OF_WEAK' as MONDAY of previous week
+<span class="nc" id="L301">			cal.add(Calendar.WEEK_OF_MONTH, -1);</span>
+<span class="nc" id="L302">			dateBean.setFirstdate(new java.sql.Date(cal.getTimeInMillis()));</span>
+<span class="nc" id="L303">			dateBean.setStartDate(cal.getTime());</span>
+
+<span class="nc" id="L305">			System.out.println(&quot;Query dates ===== First Date = &quot;</span>
+					+ dateBean.getFirstdate() + &quot;\t Last Date = &quot;
+					+ dateBean.getLastdate());
+<span class="nc" id="L308">			System.out.println(&quot;Show in mail dates ====== start Date = &quot;</span>
+					+ dateBean.getStartDate() + &quot;\t End Date = &quot;
+					+ dateBean.getEndDate());
+
+<span class="nc" id="L312">			return dateBean;</span>
+
+		}
+		case 2: {
+
+<span class="nc" id="L317">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L318">			cal.setTime(calendar.getTime());</span>
+<span class="nc" id="L319">			cal.set(Calendar.DATE, 1);</span>
+<span class="nc" id="L320">			dateBean.setLastdate(new java.sql.Date(cal.getTime().getTime()));</span>
+
+<span class="nc" id="L322">			cal.setTime(calendar.getTime());</span>
+<span class="nc" id="L323">			cal.set(Calendar.DATE, 1);</span>
+<span class="nc" id="L324">			cal.add(Calendar.MONTH, -1);</span>
+<span class="nc" id="L325">			dateBean.setFirstdate(new java.sql.Date(cal.getTime().getTime()));</span>
+<span class="nc" id="L326">			dateBean.setStartDate(cal.getTime());</span>
+
+<span class="nc" id="L328">			System.out.println(&quot;Query dates ===== First Date = &quot;</span>
+					+ dateBean.getFirstdate() + &quot;\t Last Date = &quot;
+					+ dateBean.getLastdate());
+<span class="nc" id="L331">			System.out.println(&quot;Show in mail dates ====== start Date = &quot;</span>
+					+ dateBean.getStartDate() + &quot;\t End Date = &quot;
+					+ dateBean.getEndDate());
+
+<span class="nc" id="L335">			return dateBean;</span>
+
+		}
+		}
+<span class="nc" id="L339">		return dateBean;</span>
+	}
+
+	public String getEnd_Date() {
+<span class="nc" id="L343">		return end_Date;</span>
+	}
+
+	public String getOrgType() {
+<span class="nc" id="L347">		return orgType;</span>
+	}
+
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L351">		return response;</span>
+	}
+
+	public String getStart_date() {
+<span class="nc" id="L355">		return start_date;</span>
+	}
+
+	public String getTotaltime() {
+<span class="nc" id="L359">		return totaltime;</span>
+	}
+
+	public void setEnd_Date(String end_Date) {
+<span class="nc" id="L363">		logger.debug(&quot;end date called&quot; + end_Date);</span>
+		// System.out.println(&quot;end date called&quot;+end_Date);
+<span class="nc bnc" id="L365" title="All 2 branches missed.">		if (end_Date != null) {</span>
+			// this.end_Date = GetDate.getSqlToUtilFormatStr(end_Date);
+<span class="nc" id="L367">			this.end_Date = end_Date;</span>
+		} else {
+<span class="nc" id="L369">			this.end_Date = new java.sql.Date(new java.util.Date().getTime())</span>
+					.toString();
+		}
+<span class="nc" id="L372">	}</span>
+
+	public void setOrgType(String orgType) {
+<span class="nc" id="L375">		this.orgType = orgType;</span>
+<span class="nc" id="L376">	}</span>
+
+	public void setServletRequest(HttpServletRequest req) {
+<span class="nc" id="L379">		this.request = req;</span>
+
+<span class="nc" id="L381">	}</span>
+
+	public void setServletResponse(HttpServletResponse res) {
+<span class="nc" id="L384">		response = res;</span>
+
+<span class="nc" id="L386">	}</span>
+
+	public void setStart_date(String start_date) {
+<span class="nc" id="L389">		logger.debug(&quot;first date called&quot; + start_date);</span>
+		// System.out.println(&quot;first date called&quot;+start_date);
+<span class="nc bnc" id="L391" title="All 2 branches missed.">		if (start_date != null) {</span>
+			// this.start_date = GetDate.getSqlToUtilFormatStr(start_date);
+<span class="nc" id="L393">			this.start_date = start_date;</span>
+		} else {
+<span class="nc" id="L395">			this.start_date = new java.sql.Date(new java.util.Date().getTime())</span>
+					.toString();
+		}
+<span class="nc" id="L398">	}</span>
+
+	public void setTotaltime(String totaltime) {
+<span class="nc" id="L401">		this.totaltime = totaltime;</span>
+<span class="nc" id="L402">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

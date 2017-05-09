@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportDataUtility.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.reportsMgmt.common</a> &gt; <span class="el_source">ReportDataUtility.java</span></div><h1>ReportDataUtility.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.PaymentReportBean;
+import com.skilrock.lms.beans.PaymentRequestBean;
+import com.skilrock.lms.common.exception.LMSException;
+
+<span class="nc" id="L18">public class ReportDataUtility {</span>
+<span class="nc" id="L19">	static Log logger = LogFactory.getLog(ReportDataUtility.class);</span>
+
+	public static void getDGTransaction(PaymentRequestBean requestBean, Map&lt;Integer, PaymentReportBean&gt; paymentReportMap, Connection con) {
+<span class="nc" id="L22">		Statement stmt = null;</span>
+<span class="nc" id="L23">		ResultSet rs = null;</span>
+<span class="nc" id="L24">		String query = null;</span>
+<span class="nc" id="L25">		String saleQuery = null;</span>
+<span class="nc" id="L26">		String cancelQuery = null;</span>
+<span class="nc" id="L27">		String pwtQuery = null;</span>
+		try {
+<span class="nc" id="L29">			stmt = con.createStatement();</span>
+<span class="nc" id="L30">			rs = stmt.executeQuery(&quot;SELECT game_id FROM st_dg_game_master;&quot;);</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L32">				int gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L33">				saleQuery += &quot;(SELECT drs.retailer_org_id, SUM(net_amt) AS sale FROM st_dg_ret_sale_&quot;+gameId+&quot; drs INNER JOIN st_lms_retailer_transaction_master rtm ON drs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_SALE','DG_SALE_OFFLINE') AND transaction_date&gt;=&quot;+requestBean.getStartDate()+&quot; AND transaction_date&lt;=&quot;+requestBean.getEndDate()+&quot; AND rtm.retailer_org_id=&quot;+requestBean.getRetailerOrgId()+&quot; GROUP BY rtm.retailer_org_id) UNION ALL &quot;;</span>
+<span class="nc" id="L34">				cancelQuery += &quot;(SELECT drs.retailer_org_id, SUM(net_amt) AS cancel FROM st_dg_ret_sale_refund_&quot;+gameId+&quot; drs INNER JOIN st_lms_retailer_transaction_master rtm ON drs.transaction_id=rtm.transaction_id WHERE transaction_type IN ('DG_REFUND_CANCEL','DG_REFUND_FAILED') AND transaction_date&gt;=&quot;+requestBean.getStartDate()+&quot; AND transaction_date&lt;=&quot;+requestBean.getEndDate()+&quot; AND rtm.retailer_org_id=&quot;+requestBean.getRetailerOrgId()+&quot; GROUP BY rtm.retailer_org_id) UNION ALL &quot;;</span>
+<span class="nc" id="L35">				pwtQuery += &quot;(SELECT drs.retailer_org_id, SUM(pwt_amt+retailer_claim_comm) AS pwt FROM st_dg_ret_pwt_&quot;+gameId+&quot; drs INNER JOIN st_lms_retailer_transaction_master rtm ON drs.transaction_id=rtm.transaction_id WHERE transaction_type IN('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') AND transaction_date&gt;=&quot;+requestBean.getStartDate()+&quot; AND transaction_date&lt;=&quot;+requestBean.getEndDate()+&quot; AND rtm.retailer_org_id=&quot;+requestBean.getRetailerOrgId()+&quot; GROUP BY rtm.retailer_org_id) UNION ALL &quot;;</span>
+<span class="nc" id="L36">			}</span>
+<span class="nc" id="L37">		} catch (Exception e) {</span>
+<span class="nc" id="L38">			e.printStackTrace();</span>
+<span class="nc" id="L39">		}</span>
+<span class="nc" id="L40">	}</span>
+
+	public static void getNetPaymentTransactionAgent(PaymentRequestBean requestBean, Map&lt;Integer, PaymentReportBean&gt; paymentReportMap, Connection con) {
+
+<span class="nc" id="L44">		Statement stmt = null;</span>
+<span class="nc" id="L45">		ResultSet rs = null;</span>
+<span class="nc" id="L46">		String query = null;</span>
+<span class="nc" id="L47">		String cashQuery = &quot;&quot;;</span>
+<span class="nc" id="L48">		String chequeQuery = &quot;&quot;;</span>
+<span class="nc" id="L49">		String chequeBounceQuery = &quot;&quot;;</span>
+<span class="nc" id="L50">		String debitQuery = &quot;&quot;;</span>
+<span class="nc" id="L51">		String creditQuery = &quot;&quot;;</span>
+<span class="nc" id="L52">		String bankDepositQuery = &quot;&quot;;</span>
+<span class="nc" id="L53">		String appender = null;</span>
+<span class="nc" id="L54">		String footer = null;</span>
+<span class="nc" id="L55">		PaymentReportBean paymentBean = null;</span>
+		try {
+<span class="nc bnc" id="L57" title="All 12 branches missed.">			if(!(requestBean.isCashReq() || requestBean.isChequeReq() || requestBean.isChequeBounceReq() || requestBean.isDebitReq() || requestBean.isCreditReq() || requestBean.isBankDepositReq()))</span>
+<span class="nc" id="L58">				throw new LMSException(&quot;Please Select Atleast one Transaction Type.&quot;);</span>
+
+<span class="nc" id="L60">			query = &quot;SELECT organization_id agentOrgId, NAME agentName, IFNULL(SUM(cash),0.0) 'cash', IFNULL(SUM(cheque),0.0) 'cheque', IFNULL(SUM(cheque_bounce),0.0) 'cheque_bounce', IFNULL(SUM(debit),0.0) 'debit', IFNULL(SUM(credit),0.0) 'credit', IFNULL(SUM(bank_deposit),0.0) 'bank_deposit', (cash+cheque-cheque_bounce-debit+credit+bank_deposit) AS net_payment FROM ( SELECT agent_org_id, SUM(cash) 'cash', SUM(cheque) 'cheque', SUM(cheque_bounce) 'cheque_bounce', SUM(debit) 'debit', SUM(credit) 'credit', SUM(bank_deposit) 'bank_deposit' FROM (&quot;;</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">			if(requestBean.getAgentOrgId() == 0) {</span>
+<span class="nc" id="L62">				String joinType = null;</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">				if(requestBean.isAllDataReq()) {</span>
+<span class="nc" id="L64">					joinType = &quot;RIGHT&quot;;</span>
+				} else {
+<span class="nc" id="L66">					joinType = &quot;INNER&quot;;</span>
+				}
+
+<span class="nc" id="L69">				appender = &quot;AND transaction_date&gt;='&quot;+requestBean.getStartDate()+&quot;' AND transaction_date&lt;='&quot;+requestBean.getEndDate()+&quot;' GROUP BY agent_org_id&quot;;</span>
+<span class="nc" id="L70">				footer = &quot;)aa GROUP BY agent_org_id)bb &quot;+joinType+&quot; JOIN (SELECT organization_id, NAME FROM st_lms_organization_master slom WHERE organization_type='AGENT')slom ON bb.agent_org_id=slom.organization_id GROUP BY slom.organization_id;&quot;;</span>
+<span class="nc" id="L71">			} else {</span>
+<span class="nc" id="L72">				appender = &quot;AND transaction_date&gt;='&quot;+requestBean.getStartDate()+&quot;' AND transaction_date&lt;='&quot;+requestBean.getEndDate()+&quot;' AND agent_org_id=&quot;+requestBean.getAgentOrgId();</span>
+<span class="nc" id="L73">				footer = &quot;)aa)bb INNER JOIN st_lms_organization_master ON agent_org_id=organization_id;&quot;;</span>
+			}
+
+<span class="nc bnc" id="L76" title="All 2 branches missed.">			if(requestBean.isCashReq()) {</span>
+<span class="nc" id="L77">				cashQuery = &quot;SELECT agent_org_id, IFNULL(SUM(amount),0) 'cash', 0.0 'cheque', 0.0 'cheque_bounce', 0.0 'debit', 0.0 'credit', 0.0 'bank_deposit' FROM st_lms_bo_cash_transaction cash INNER JOIN st_lms_bo_transaction_master btm ON cash.transaction_id=btm.transaction_id &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L79" title="All 2 branches missed.">			if(requestBean.isChequeReq()) {</span>
+<span class="nc" id="L80">				chequeQuery = &quot;SELECT agent_org_id, 0.0 'cash', IFNULL(SUM(cheque_amt),0.0) 'cheque', 0.0 'cheque_bounce', 0.0 'debit', 0.0 'credit', 0.0 'bank_deposit' FROM st_lms_bo_sale_chq chq INNER JOIN st_lms_bo_transaction_master btm ON chq.transaction_id=btm.transaction_id AND chq.transaction_type IN ('CHEQUE','CLOSED') &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L82" title="All 2 branches missed.">			if(requestBean.isChequeBounceReq()) {</span>
+<span class="nc" id="L83">				chequeBounceQuery = &quot;SELECT agent_org_id, 0.0 'cash', 0.0 'cheque', IFNULL(SUM(cheque_amt),0.0) 'cheque_bounce', 0.0 'debit', 0.0 'credit', 0.0 'bank_deposit' FROM st_lms_bo_sale_chq chq INNER JOIN st_lms_bo_transaction_master btm ON chq.transaction_id=btm.transaction_id AND chq.transaction_type IN ('CHQ_BOUNCE') &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L85" title="All 2 branches missed.">			if(requestBean.isDebitReq()) {</span>
+<span class="nc" id="L86">				debitQuery = &quot;SELECT agent_org_id, 0.0 'cash', 0.0 'cheque', 0.0 'cheque_bounce', IFNULL(SUM(amount),0.0) 'debit', 0.0 'credit', 0.0 'bank_deposit' FROM st_lms_bo_debit_note debit INNER JOIN st_lms_bo_transaction_master btm ON debit.transaction_id=btm.transaction_id AND debit.transaction_type IN ('DR_NOTE_CASH','DR_NOTE') &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L88" title="All 2 branches missed.">			if(requestBean.isCreditReq()) {</span>
+<span class="nc" id="L89">				creditQuery = &quot;SELECT agent_org_id, 0.0 'cash', 0.0 'cheque', 0.0 'cheque_bounce', 0.0 'debit', IFNULL(SUM(amount),0.0) 'credit', 0.0 'bank_deposit' FROM st_lms_bo_credit_note credit INNER JOIN st_lms_bo_transaction_master btm ON credit.transaction_id=btm.transaction_id AND credit.transaction_type IN ('CR_NOTE_CASH','CR_NOTE') &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			if(requestBean.isBankDepositReq()) {</span>
+<span class="nc" id="L92">				bankDepositQuery = &quot;SELECT agent_org_id, 0.0 'cash', 0.0 'cheque', 0.0 'cheque_bounce', 0.0 'debit', 0.0 'credit', IFNULL(SUM(amount),0.0) 'bank_deposit' FROM st_lms_bo_bank_deposit_transaction bank INNER JOIN st_lms_bo_transaction_master btm ON bank.transaction_id=btm.transaction_id &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+
+<span class="nc" id="L95">			query = query.concat(cashQuery).concat(chequeQuery).concat(chequeBounceQuery).concat(debitQuery).concat(creditQuery).concat(bankDepositQuery);</span>
+<span class="nc" id="L96">			query = query.substring(0, query.lastIndexOf(&quot; UNION ALL &quot;));</span>
+<span class="nc" id="L97">			query = query.concat(footer);</span>
+
+<span class="nc" id="L99">			System.out.println(query);</span>
+
+<span class="nc" id="L101">			stmt = con.createStatement();</span>
+<span class="nc" id="L102">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L104">				int agentOrgId = rs.getInt(&quot;agentOrgId&quot;);</span>
+
+<span class="nc" id="L106">				paymentBean = paymentReportMap.get(agentOrgId);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">				if(paymentBean == null) {</span>
+<span class="nc" id="L108">					paymentBean = new PaymentReportBean();</span>
+<span class="nc" id="L109">					paymentReportMap.put(agentOrgId, paymentBean);</span>
+<span class="nc" id="L110">					paymentBean.setAgentOrgId(agentOrgId);</span>
+				}
+<span class="nc" id="L112">				paymentBean.setName(rs.getString(&quot;agentName&quot;));</span>
+<span class="nc" id="L113">				paymentBean.setCashAmt(rs.getDouble(&quot;cash&quot;));</span>
+<span class="nc" id="L114">				paymentBean.setChequeAmt(rs.getDouble(&quot;cheque&quot;));</span>
+<span class="nc" id="L115">				paymentBean.setChequeBounceAmt(rs.getDouble(&quot;cheque_bounce&quot;));</span>
+<span class="nc" id="L116">				paymentBean.setDebitAmt(rs.getDouble(&quot;debit&quot;));</span>
+<span class="nc" id="L117">				paymentBean.setCreditAmt(rs.getDouble(&quot;credit&quot;));</span>
+<span class="nc" id="L118">				paymentBean.setBankDepositAmt(rs.getDouble(&quot;bank_deposit&quot;));</span>
+<span class="nc" id="L119">				paymentBean.setNetPayment(rs.getDouble(&quot;net_payment&quot;));</span>
+<span class="nc" id="L120">			}</span>
+<span class="nc" id="L121">		} catch (Exception e) {</span>
+<span class="nc" id="L122">			e.printStackTrace();</span>
+<span class="nc" id="L123">		}</span>
+<span class="nc" id="L124">	}</span>
+
+	public static void getNetPaymentTransactionRetailer(PaymentRequestBean requestBean, Map&lt;Integer, PaymentReportBean&gt; paymentReportMap, Connection con) {
+
+<span class="nc" id="L128">		Statement stmt = null;</span>
+<span class="nc" id="L129">		ResultSet rs = null;</span>
+<span class="nc" id="L130">		String query = null;</span>
+<span class="nc" id="L131">		String cashQuery = &quot;&quot;;</span>
+<span class="nc" id="L132">		String chequeQuery = &quot;&quot;;</span>
+<span class="nc" id="L133">		String chequeBounceQuery = &quot;&quot;;</span>
+<span class="nc" id="L134">		String debitQuery = &quot;&quot;;</span>
+<span class="nc" id="L135">		String creditQuery = &quot;&quot;;</span>
+<span class="nc" id="L136">		String appender = null;</span>
+<span class="nc" id="L137">		String footer = null;</span>
+<span class="nc" id="L138">		PaymentReportBean paymentBean = null;</span>
+		try {
+<span class="nc bnc" id="L140" title="All 10 branches missed.">			if(!(requestBean.isCashReq() || requestBean.isChequeReq() || requestBean.isChequeBounceReq() || requestBean.isDebitReq() || requestBean.isCreditReq()))</span>
+<span class="nc" id="L141">				throw new LMSException(&quot;Please Select Atleast one Transaction Type.&quot;);</span>
+
+<span class="nc" id="L143">			query = &quot;SELECT organization_id retailerOrgId, NAME retName, IFNULL(cash, 0.0) cash, IFNULL(cheque, 0.0) cheque, IFNULL(cheque_bounce, 0.0) cheque_bounce, IFNULL(debit, 0.0) debit, IFNULL(credit, 0.0) credit, 0.0 'bank_deposit', (cash+cheque-cheque_bounce-debit+credit) AS net_payment FROM ( SELECT retailer_org_id, SUM(cash) cash, SUM(cheque) cheque, SUM(cheque_bounce) cheque_bounce, SUM(debit) debit, SUM(credit) credit FROM ( &quot;;</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">			if(requestBean.getRetailerOrgId() == 0) {</span>
+<span class="nc" id="L145">				String joinType = null;</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				if(requestBean.isAllDataReq()) {</span>
+<span class="nc" id="L147">					joinType = &quot;RIGHT&quot;;</span>
+				} else {
+<span class="nc" id="L149">					joinType = &quot;INNER&quot;;</span>
+				}
+<span class="nc" id="L151">				appender = &quot;AND btm.transaction_date&gt;='&quot;+requestBean.getStartDate()+&quot;' AND btm.transaction_date&lt;='&quot;+requestBean.getEndDate()+&quot;' GROUP BY retailer_org_id&quot;;</span>
+<span class="nc" id="L152">				footer = &quot;)aa GROUP BY retailer_org_id)bb &quot;+joinType+&quot; JOIN (SELECT organization_id, NAME FROM st_lms_organization_master slom WHERE organization_type='RETAILER')slom ON bb.retailer_org_id=slom.organization_id GROUP BY slom.organization_id;&quot;;</span>
+<span class="nc" id="L153">			} else {</span>
+<span class="nc" id="L154">				appender = &quot;AND btm.transaction_date&gt;='&quot;+requestBean.getStartDate()+&quot;' AND btm.transaction_date&lt;='&quot;+requestBean.getEndDate()+&quot;' AND agent_org_id=&quot;+requestBean.getAgentOrgId()+&quot; AND retailer_org_id=&quot;+requestBean.getRetailerOrgId();</span>
+<span class="nc" id="L155">				footer = &quot;)aa )bb INNER JOIN st_lms_organization_master ON retailer_org_id=organization_id;&quot;;</span>
+			}
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">			if(requestBean.isCashReq()) {</span>
+<span class="nc" id="L159">				cashQuery = &quot;SELECT retailer_org_id, IFNULL(SUM(cash.amount),0) 'cash', 0.0 'cheque', 0.0 'cheque_bounce', 0.0 'debit', 0.0 'credit' FROM st_lms_agent_cash_transaction cash INNER JOIN st_lms_agent_transaction_master btm ON cash.transaction_id=btm.transaction_id &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L161" title="All 2 branches missed.">			if(requestBean.isChequeReq()) {</span>
+<span class="nc" id="L162">				chequeQuery = &quot;SELECT retailer_org_id, 0.0 'cash', IFNULL(SUM(chq.cheque_amt),0) 'cheque', 0.0 'cheque_bounce', 0.0 'debit', 0.0 'credit' FROM st_lms_agent_sale_chq chq INNER JOIN st_lms_agent_transaction_master btm ON chq.transaction_id=btm.transaction_id AND chq.transaction_type IN ('CHEQUE', 'CLOSED') &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L164" title="All 2 branches missed.">			if(requestBean.isChequeBounceReq()) {</span>
+<span class="nc" id="L165">				chequeBounceQuery = &quot;SELECT retailer_org_id, 0.0 'cash', 0.0 'cheque', IFNULL(SUM(chq.cheque_amt),0) 'cheque_bounce', 0.0 'debit', 0.0 'credit' FROM st_lms_agent_sale_chq chq INNER JOIN st_lms_agent_transaction_master btm ON chq.transaction_id=btm.transaction_id AND chq.transaction_type='CHQ_BOUNCE' &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L167" title="All 2 branches missed.">			if(requestBean.isDebitReq()) {</span>
+<span class="nc" id="L168">				debitQuery = &quot;SELECT retailer_org_id, 0.0 'cash', 0.0 'cheque', 0.0 'cheque_bounce', IFNULL(SUM(bo.amount),0) 'debit', 0.0 'credit' FROM st_lms_agent_debit_note bo INNER JOIN st_lms_agent_transaction_master btm ON btm.transaction_id=bo.transaction_id AND bo.transaction_type IN('DR_NOTE_CASH', 'DR_NOTE') &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+<span class="nc bnc" id="L170" title="All 2 branches missed.">			if(requestBean.isCreditReq()) {</span>
+<span class="nc" id="L171">				creditQuery = &quot;SELECT retailer_org_id, 0.0 'cash', 0.0 'cheque', 0.0 'cheque_bounce', 0.0 'debit', IFNULL(SUM(bo.amount),0) 'credit' FROM st_lms_agent_credit_note bo INNER JOIN st_lms_agent_transaction_master btm ON btm.transaction_id=bo.transaction_id AND bo.transaction_type IN('CR_NOTE_CASH', 'CR_NOTE') &quot;+appender+&quot; UNION ALL &quot;;</span>
+			}
+
+<span class="nc" id="L174">			query = query.concat(cashQuery).concat(chequeQuery).concat(chequeBounceQuery).concat(debitQuery).concat(creditQuery);</span>
+<span class="nc" id="L175">			query = query.substring(0, query.lastIndexOf(&quot; UNION ALL &quot;));</span>
+<span class="nc" id="L176">			query = query.concat(footer);</span>
+
+<span class="nc" id="L178">			System.out.println(query);</span>
+
+<span class="nc" id="L180">			stmt = con.createStatement();</span>
+<span class="nc" id="L181">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L183">				int retailerOrgId = rs.getInt(&quot;retailerOrgId&quot;);</span>
+
+<span class="nc" id="L185">				paymentBean = paymentReportMap.get(retailerOrgId);</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">				if(paymentBean == null) {</span>
+<span class="nc" id="L187">					paymentBean = new PaymentReportBean();</span>
+<span class="nc" id="L188">					paymentReportMap.put(retailerOrgId, paymentBean);</span>
+<span class="nc" id="L189">					paymentBean.setRetailerOrgId(retailerOrgId);</span>
+				}
+<span class="nc" id="L191">				paymentBean.setName(rs.getString(&quot;retName&quot;));</span>
+<span class="nc" id="L192">				paymentBean.setCashAmt(rs.getDouble(&quot;cash&quot;));</span>
+<span class="nc" id="L193">				paymentBean.setChequeAmt(rs.getDouble(&quot;cheque&quot;));</span>
+<span class="nc" id="L194">				paymentBean.setChequeBounceAmt(rs.getDouble(&quot;cheque_bounce&quot;));</span>
+<span class="nc" id="L195">				paymentBean.setDebitAmt(rs.getDouble(&quot;debit&quot;));</span>
+<span class="nc" id="L196">				paymentBean.setCreditAmt(rs.getDouble(&quot;credit&quot;));</span>
+<span class="nc" id="L197">				paymentBean.setBankDepositAmt(rs.getDouble(&quot;bank_deposit&quot;));</span>
+<span class="nc" id="L198">				paymentBean.setNetPayment(rs.getDouble(&quot;net_payment&quot;));</span>
+<span class="nc" id="L199">			}</span>
+<span class="nc" id="L200">		} catch (Exception e) {</span>
+<span class="nc" id="L201">			e.printStackTrace();</span>
+<span class="nc" id="L202">		}</span>
+<span class="nc" id="L203">	}</span>
+
+	public static void main(String[] args) throws Exception {
+<span class="nc" id="L206">		Class.forName(&quot;com.mysql.jdbc.Driver&quot;);</span>
+<span class="nc" id="L207">		Connection con = DriverManager.getConnection(&quot;jdbc:mysql://localhost/lms_zim&quot;, &quot;root&quot;, &quot;root&quot;);</span>
+
+<span class="nc" id="L209">		PaymentRequestBean requestBean = new PaymentRequestBean();</span>
+
+<span class="nc" id="L211">		requestBean.setAgentOrgId(0);</span>
+<span class="nc" id="L212">		requestBean.setRetailerOrgId(0);</span>
+<span class="nc" id="L213">		requestBean.setStartDate(&quot;2011-05-01 00:00:00&quot;);</span>
+<span class="nc" id="L214">		requestBean.setEndDate(&quot;2013-12-12 23:59:59&quot;);</span>
+<span class="nc" id="L215">		requestBean.setCashReq(true);</span>
+<span class="nc" id="L216">		requestBean.setChequeReq(true);</span>
+<span class="nc" id="L217">		requestBean.setChequeBounceReq(true);</span>
+<span class="nc" id="L218">		requestBean.setDebitReq(true);</span>
+<span class="nc" id="L219">		requestBean.setCreditReq(true);</span>
+<span class="nc" id="L220">		requestBean.setBankDepositReq(true);</span>
+<span class="nc" id="L221">		requestBean.setAllDataReq(true);</span>
+
+<span class="nc" id="L223">		Map&lt;Integer, PaymentReportBean&gt; paymentReportMap = new HashMap&lt;Integer, PaymentReportBean&gt;();</span>
+<span class="nc" id="L224">		ReportDataUtility.getNetPaymentTransactionAgent(requestBean, paymentReportMap, con);</span>
+		//ReportDataUtility.getNetPaymentTransactionRetailer(requestBean, paymentReportMap, con);
+<span class="nc" id="L226">		Set&lt;Integer&gt; set = paymentReportMap.keySet();</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">		for(Integer i : set) {</span>
+<span class="nc" id="L228">			System.out.println(paymentReportMap.get(i));</span>
+<span class="nc" id="L229">		}</span>
+<span class="nc" id="L230">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

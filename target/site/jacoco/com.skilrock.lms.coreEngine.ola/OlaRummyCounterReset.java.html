@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaRummyCounterReset.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.ola</a> &gt; <span class="el_source">OlaRummyCounterReset.java</span></div><h1>OlaRummyCounterReset.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.ola;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Calendar;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+
+
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+/**
+ * This Class performs job of Serial Number Counter Reset
+ * @author Neeraj Jain
+ *
+ */
+
+<span class="nc" id="L24">public class OlaRummyCounterReset {</span>
+<span class="nc" id="L25">private static Log logger =LogFactory.getLog(OlaRummyCounterReset.class);</span>
+
+public static void resetCounter() throws LMSException{
+
+<span class="nc" id="L29">	Connection con = DBConnect.getConnection();	</span>
+<span class="nc" id="L30">	PreparedStatement ps = null;</span>
+<span class="nc" id="L31">	PreparedStatement ps1 = null;</span>
+<span class="nc" id="L32">	PreparedStatement ps2 = null;</span>
+<span class="nc" id="L33">	ResultSet rs =null;</span>
+<span class="nc" id="L34">	String query =null;</span>
+	try {
+<span class="nc" id="L36">		con.setAutoCommit(false);</span>
+<span class="nc" id="L37">		System.out.println(&quot;Counter Reset In Process&quot;);</span>
+<span class="nc" id="L38">		query =&quot;SELECT  opg.wallet_id,last_generated_serial_nbr,pin_type,last_day_serial_nbr FROM st_ola_pin_generation opg INNER JOIN st_ola_wallet_master om  on opg.wallet_id=om.wallet_id and wallet_status='ACTIVE'&quot;;</span>
+<span class="nc" id="L39">		ps1=con.prepareStatement(query);</span>
+<span class="nc" id="L40">		rs=ps1.executeQuery();</span>
+<span class="nc" id="L41">		int n=0;// n number of records will be inserted in pin generation history</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">		while(rs.next()){</span>
+<span class="nc" id="L43">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L44">			query=&quot;insert into st_ola_pin_generation_history values(?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L45">			ps2 =con.prepareStatement(query);</span>
+<span class="nc" id="L46">			ps2.setInt(1,rs.getInt(&quot;wallet_id&quot;));</span>
+<span class="nc" id="L47">			ps2.setString(2,rs.getString(&quot;last_generated_serial_nbr&quot;));</span>
+<span class="nc" id="L48">			ps2.setString(3,rs.getString(&quot;pin_type&quot;));</span>
+<span class="nc" id="L49">			ps2.setTimestamp(4,new Timestamp(cal.getTime().getTime()));</span>
+<span class="nc" id="L50">			ps2.setString(5,rs.getString(&quot;last_day_serial_nbr&quot;));</span>
+<span class="nc" id="L51">			n=n+ps2.executeUpdate();</span>
+			
+<span class="nc" id="L53">		}</span>
+<span class="nc" id="L54">		System.out.println(n+&quot;Record Inserted in st_ola_pin_generation_history&quot;);</span>
+<span class="nc" id="L55">		String dayCount=setDayCount(con);</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">		if(dayCount!=null &amp;&amp; !dayCount.equalsIgnoreCase(&quot;&quot;)){</span>
+<span class="nc" id="L57">			query =&quot;update st_ola_pin_generation set last_generated_serial_nbr=?, last_day_serial_nbr=?&quot;;</span>
+<span class="nc" id="L58">			System.out.println(&quot;Query:&quot;+query);</span>
+<span class="nc" id="L59">			ps = con.prepareStatement(query);</span>
+<span class="nc" id="L60">			ps.setString(1,&quot;00000&quot;);</span>
+<span class="nc" id="L61">			ps.setString(2,dayCount);</span>
+<span class="nc" id="L62">			System.out.println(&quot;Update pin generation Query &quot;+ps);</span>
+<span class="nc" id="L63">			ps.executeUpdate();</span>
+<span class="nc" id="L64">			con.commit();</span>
+		}
+		
+<span class="nc" id="L67">	}catch (SQLException e) {</span>
+<span class="nc" id="L68">		logger.info(&quot;SQL Exception &quot;,e);</span>
+<span class="nc" id="L69">		throw new LMSException(&quot;SQL Exception &quot;+e.getMessage());</span>
+<span class="nc" id="L70">	}catch (Exception e) {</span>
+<span class="nc" id="L71">		logger.info(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L72">		throw new LMSException(&quot;Exception&quot;+e.getMessage());</span>
+	}finally{
+<span class="nc" id="L74">		DBConnect.closeResource(ps,ps1,ps2,rs,con);</span>
+<span class="nc" id="L75">	}</span>
+	
+<span class="nc" id="L77">}</span>
+private static String setDayCount(Connection con){
+<span class="nc" id="L79">	String query=&quot;select last_day_serial_nbr from st_ola_pin_generation&quot;;</span>
+	try{
+<span class="nc" id="L81">		PreparedStatement ps =con.prepareStatement(query);</span>
+<span class="nc" id="L82">		ResultSet rs=ps.executeQuery();</span>
+<span class="nc" id="L83">		String dayCount =null;</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">		if(rs.next()){</span>
+<span class="nc" id="L85">			dayCount=rs.getString(&quot;last_day_serial_nbr&quot;);</span>
+		}
+<span class="nc bnc" id="L87" title="All 2 branches missed.">		if(dayCount!=null){</span>
+<span class="nc" id="L88">			int dCount =Integer.parseInt(dayCount);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">			if(dCount==999){</span>
+<span class="nc" id="L90">				dayCount=&quot;000&quot;;</span>
+			}
+			else{
+<span class="nc" id="L93">				dCount++;</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">			if (dCount / 100 == 0) {</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">					if (dCount / 10 == 0) {</span>
+<span class="nc" id="L96">						dayCount = &quot;00&quot; + dCount;</span>
+					} else {
+<span class="nc" id="L98">						dayCount = &quot;0&quot; + dCount;</span>
+					}
+				}
+
+			else {
+<span class="nc" id="L103">					dayCount = dCount+ &quot;&quot;;</span>
+				}
+			}
+			
+<span class="nc" id="L107">		return dayCount;	</span>
+		}
+		else{
+<span class="nc" id="L110">			System.out.println(&quot;Problem in getting Day Count&quot;);</span>
+		}
+<span class="nc" id="L112">	}catch(Exception e){</span>
+<span class="nc" id="L113">		e.printStackTrace();</span>
+<span class="nc" id="L114">	}</span>
+	
+<span class="nc" id="L116">	return &quot;&quot;;</span>
+}
+public static void main(String[] args) {
+	try {
+<span class="nc" id="L120">		resetCounter();</span>
+<span class="nc" id="L121">	} catch (LMSException e) {</span>
+		// TODO Auto-generated catch block
+<span class="nc" id="L123">		e.printStackTrace();</span>
+<span class="nc" id="L124">	}</span>
+<span class="nc" id="L125">}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

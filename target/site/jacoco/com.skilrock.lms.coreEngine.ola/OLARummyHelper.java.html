@@ -1,0 +1,578 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OLARummyHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.ola</a> &gt; <span class="el_source">OLARummyHelper.java</span></div><h1>OLARummyHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.ola;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.StringWriter;
+import java.net.URL;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import net.sf.json.JSONObject;
+
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
+
+import com.skilrock.lms.beans.FlexiCardPurchaseBean;
+import com.skilrock.lms.beans.OrgPwtLimitBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.coreEngine.ola.common.CommonFunctionsHelper;
+import com.skilrock.lms.coreEngine.ola.common.OLAUtility;
+import com.skilrock.lms.web.ola.CashCardPinGeneratorHelper;
+import com.skilrock.lms.web.ola.OlaRummyRefundPinHelper;
+
+<span class="nc" id="L61">public class OLARummyHelper{</span>
+	private static final long serialVersionUID = 1L;
+<span class="nc" id="L63">	HashSet&lt;Long&gt; hPin = new HashSet&lt;Long&gt;();</span>
+<span class="nc" id="L64">	List&lt;Long&gt; listSerial = new ArrayList&lt;Long&gt;();</span>
+<span class="nc" id="L65">	PreparedStatement pstmt1 = null;</span>
+<span class="nc" id="L66">	PreparedStatement pstmt2 = null;</span>
+<span class="nc" id="L67">	static Log  logger = LogFactory.getLog(OLARummyHelper.class);</span>
+	
+	public FlexiCardPurchaseBean initRummyDeposit(double amount,UserInfoBean userBean, int walletId, String depositAnyWhere,
+			FlexiCardPurchaseBean flexiCardPurchaseBean, Date expiryDate, String userPhone, String desKey,
+			String propKey) {
+	
+<span class="nc bnc" id="L73" title="All 2 branches missed.">			if(amount&gt;0){</span>
+<span class="nc" id="L74">				Connection con = DBConnect.getConnection();</span>
+					try {
+<span class="nc" id="L76">							con.setAutoCommit(false);</span>
+<span class="nc" id="L77">							flexiCardPurchaseBean = rummyDeposit(con, amount, userBean, walletId,</span>
+									depositAnyWhere, flexiCardPurchaseBean,expiryDate, userPhone, desKey, propKey);
+<span class="nc bnc" id="L79" title="All 2 branches missed.">					if(flexiCardPurchaseBean.isSuccess()){</span>
+<span class="nc" id="L80">								con.commit();</span>
+<span class="nc" id="L81">								String depositInfoStatus=sendDepositInfoToRummy(flexiCardPurchaseBean.getPlayerName(),flexiCardPurchaseBean.getSerialNumber(),flexiCardPurchaseBean.getPinNbr(),amount,userPhone);</span>
+									
+<span class="nc bnc" id="L83" title="All 2 branches missed.">								if(!depositInfoStatus.equalsIgnoreCase(&quot;success&quot;)){</span>
+<span class="nc" id="L84">									OlaRummyRefundPinHelper helper = new OlaRummyRefundPinHelper();</span>
+<span class="nc" id="L85">									String cancelReason=&quot;CANCEL_SERVER&quot;;</span>
+<span class="nc" id="L86">									String returnType =helper.refundPin(walletId,flexiCardPurchaseBean.getPinNbr(),flexiCardPurchaseBean.getSerialNumber(),flexiCardPurchaseBean.getPlayerName(),amount,desKey,propKey,con,cancelReason);</span>
+<span class="nc" id="L87">									flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">									if(returnType.equalsIgnoreCase(&quot;success&quot;)){</span>
+<span class="nc" id="L89">										flexiCardPurchaseBean.setReturnType(&quot;Error In Deposit at KhelPlay Rummy : Amount Refunded Successfully&quot;);</span>
+									}
+									else{
+<span class="nc" id="L92">										flexiCardPurchaseBean.setReturnType(returnType);</span>
+									}
+<span class="nc" id="L94">								}else{</span>
+									
+<span class="nc" id="L96">									StringBuilder sb = new StringBuilder(flexiCardPurchaseBean.getSerialNumber().toString());</span>
+<span class="nc" id="L97">									String srNbr =sb.substring(0,4)+&quot; &quot;+sb.substring(4,8)+&quot; &quot;+sb.substring(8,12);// 12digit serial number</span>
+<span class="nc" id="L98">									String msg =&quot;Dear Customer, Your Deposit Request of Amt:&quot;+amount+&quot; has been initiated with PlrName:&quot;+flexiCardPurchaseBean.getPlayerName()+&quot; and RefCode:&quot;+srNbr+&quot;,please visit the cashier page at khelplayrummy.com to confirm deposit&quot;;</span>
+<span class="nc" id="L99">									SendSMS smsSend = new SendSMS(msg,userPhone);</span>
+<span class="nc" id="L100">									smsSend.setDaemon(true);</span>
+<span class="nc" id="L101">									smsSend.start();</span>
+<span class="nc" id="L102">									System.out.println(&quot; SMS Sent&quot;);</span>
+								}
+															
+							
+							}
+						}
+<span class="nc" id="L108">				catch(Exception e){</span>
+<span class="nc" id="L109">					e.printStackTrace();</span>
+				}
+				finally {
+<span class="nc" id="L112">					try {</span>
+<span class="nc" id="L113">						con.close();</span>
+<span class="nc" id="L114">					} catch (SQLException e) {</span>
+<span class="nc" id="L115">						e.printStackTrace();</span>
+
+<span class="nc" id="L117">					}</span>
+<span class="nc" id="L118">				}</span>
+
+<span class="nc" id="L120">			}</span>
+			else {
+<span class="nc" id="L122">				flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L123">				flexiCardPurchaseBean.setReturnType(&quot;Amount Should Be greater than zero&quot;);</span>
+			}
+
+<span class="nc" id="L126">		return flexiCardPurchaseBean;</span>
+
+	}
+	
+	
+
+	public synchronized FlexiCardPurchaseBean rummyDeposit(Connection con,double amount,
+			 UserInfoBean userBean, int walletId,
+			String depositAnyWhere,
+			FlexiCardPurchaseBean flexiCardPurchaseBean,
+			 Date expiryDate, String plrPhoneNumber,String desKey,String propKey) {
+		try {
+<span class="nc" id="L138">			String isBinding = OLAUtility.affiliatePlrBinding(depositAnyWhere,</span>
+			 flexiCardPurchaseBean.getPlayerName(), userBean,walletId, con); 
+<span class="nc" id="L140">			logger.info(&quot;isBinding :&quot;+isBinding);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">			if (isBinding.equalsIgnoreCase(&quot;OK&quot;)) {</span>
+			
+				
+				
+<span class="nc" id="L145">			flexiCardPurchaseBean = depositMoneyinLMSForRummy(flexiCardPurchaseBean.getPlayerName(), amount, userBean,</span>
+													walletId, flexiCardPurchaseBean,con);
+<span class="nc" id="L147">			logger.info(&quot;Deposit In LMS For Rummy :&quot;+flexiCardPurchaseBean.getReturnType());</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">			if (!flexiCardPurchaseBean.getReturnType().equalsIgnoreCase(&quot;true&quot;)) {</span>
+<span class="nc" id="L149">				System.out.println(flexiCardPurchaseBean.getReturnType());</span>
+<span class="nc" id="L150">				return flexiCardPurchaseBean;</span>
+			} else {
+<span class="nc" id="L152">				flexiCardPurchaseBean = generateFlexiPinAndSerialNbr(flexiCardPurchaseBean, con, walletId);// Method to generate Pin and Serial													// number</span>
+				// update st_ola_pin_record
+<span class="nc" id="L154">				pstmt2 = con.prepareStatement(&quot;update st_ola_pin_generation  set last_generated_serial_nbr=? where wallet_id  =? and pin_type=? &quot;);</span>
+<span class="nc" id="L155">				pstmt2.setString(1,flexiCardPurchaseBean.getSerialNumber().toString().substring(7));// Serial of Last generated Serial Number</span>
+<span class="nc" id="L156">				pstmt2.setInt(2,walletId);</span>
+<span class="nc" id="L157"> 				pstmt2.setString(3,&quot;FLEXI&quot;);</span>
+<span class="nc" id="L158">				pstmt2.executeUpdate();</span>
+<span class="nc" id="L159">				int isUpdate = cashCardDeposit(flexiCardPurchaseBean,expiryDate, plrPhoneNumber, con,flexiCardPurchaseBean.getPlayerName(),</span>
+     										flexiCardPurchaseBean.getTransactionId(), walletId,desKey,propKey);
+<span class="nc bnc" id="L161" title="All 2 branches missed.">				if (isUpdate != 1) {</span>
+<span class="nc" id="L162">					flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L163">					flexiCardPurchaseBean</span>
+							.setReturnType(&quot;Some Error During Pin Purchase&quot;);
+<span class="nc" id="L165">					logger.info(&quot;Some Error During Cash Card Purchase&quot;);</span>
+<span class="nc" id="L166">					return flexiCardPurchaseBean;</span>
+				}
+			}
+<span class="nc" id="L169">		flexiCardPurchaseBean.setSuccess(true);	</span>
+<span class="nc" id="L170">		return flexiCardPurchaseBean;</span>
+			
+		}
+			else {
+<span class="nc" id="L174">				flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L175">				flexiCardPurchaseBean.setReturnType(isBinding);</span>
+<span class="nc" id="L176">				return flexiCardPurchaseBean;</span>
+						
+			}
+									
+<span class="nc" id="L180">		} catch (Exception e) {</span>
+<span class="nc" id="L181">			flexiCardPurchaseBean.setReturnType(&quot;Some Error&quot;);</span>
+<span class="nc" id="L182">			e.printStackTrace();</span>
+
+		} 
+<span class="nc" id="L185">		return flexiCardPurchaseBean;</span>
+	}
+	
+	
+	public int cashCardDeposit(FlexiCardPurchaseBean flexiCardPurchaseBean,Date expiryDate,
+					String plrPhoneNumber,Connection con,String partyId,Long transactionId,int walletId,String desKey,String propKey) throws Exception {
+<span class="nc" id="L191">		CashCardPinGeneratorHelper helper = new CashCardPinGeneratorHelper();</span>
+<span class="nc" id="L192">		String query = &quot;insert into st_ola_pin_rep_rm_&quot;+walletId+&quot;(serial_number,pin_number,amount,expiry_date,player_id,player_phone_nbr,lms_transaction_id,verification_status) values(?,?,?,?,?,?,?,?) &quot;;</span>
+		
+<span class="nc" id="L194">		String   pin_nbr=helper.encryptPin(((Long) flexiCardPurchaseBean.getPinNbr()).toString(),desKey,propKey);</span>
+<span class="nc" id="L195">		logger.info(&quot;Cash Card Deposit:: Number:&quot;+pin_nbr+&quot;Amount:&quot;+flexiCardPurchaseBean.getAmount()+&quot;expiryDate&quot;+expiryDate+&quot;Party Id:&quot;+partyId);</span>
+		try {			
+<span class="nc" id="L197">			PreparedStatement pstmtUpdate1 = con.prepareStatement(query);</span>
+<span class="nc" id="L198">			pstmtUpdate1.setLong(1, flexiCardPurchaseBean.getSerialNumber());</span>
+<span class="nc" id="L199">			pstmtUpdate1.setString(2,pin_nbr);</span>
+<span class="nc" id="L200">			pstmtUpdate1.setDouble(3,flexiCardPurchaseBean.getAmount());</span>
+<span class="nc" id="L201">			pstmtUpdate1.setDate(4,expiryDate);</span>
+<span class="nc" id="L202">			pstmtUpdate1.setString(5,partyId);</span>
+<span class="nc" id="L203">			pstmtUpdate1.setString(6,plrPhoneNumber);</span>
+<span class="nc" id="L204">			pstmtUpdate1.setLong(7,transactionId);</span>
+<span class="nc" id="L205">			pstmtUpdate1.setString(8,&quot;PENDING&quot;);// default verificarion_status PENDING</span>
+<span class="nc" id="L206">			int isUpdate = pstmtUpdate1.executeUpdate();			</span>
+<span class="nc" id="L207">			System.out.println(isUpdate+&quot; :Data Inserted Into st_ola_rummy_deposit&quot;);</span>
+<span class="nc" id="L208">			return isUpdate;</span>
+<span class="nc" id="L209">		} catch (Exception e) {</span>
+<span class="nc" id="L210">			e.printStackTrace();</span>
+<span class="nc" id="L211">			throw new LMSException(&quot;Error during deposit&quot;);</span>
+		} 
+	}
+
+	
+	
+	private FlexiCardPurchaseBean generateFlexiPinAndSerialNbr(
+			FlexiCardPurchaseBean flexiCardPurchaseBean,Connection con,int walletId) {
+		
+		try {
+<span class="nc" id="L221">				CashCardPinGeneratorHelper helper = new CashCardPinGeneratorHelper();</span>
+				//Get the lastGeneratedSerial count and Day Count
+<span class="nc" id="L223">				String lastGeneratedSerialDayCount[] = helper.getLastGeneratedPin(walletId,con,&quot;FLEXI&quot;);</span>
+<span class="nc" id="L224">				logger.info(&quot;Last Generated Number :&quot;+lastGeneratedSerialDayCount[0]+&quot;Last Day Count :&quot;+lastGeneratedSerialDayCount[1]);</span>
+<span class="nc bnc" id="L225" title="All 4 branches missed.">			if (lastGeneratedSerialDayCount[0] == null</span>
+					|| lastGeneratedSerialDayCount == null) {
+<span class="nc" id="L227">				flexiCardPurchaseBean.setReturnType(&quot;Wallet Does Not exist&quot;);</span>
+<span class="nc" id="L228">				return flexiCardPurchaseBean;</span>
+			}
+<span class="nc" id="L230">		String lastGeneratedSerial=lastGeneratedSerialDayCount[0];</span>
+<span class="nc" id="L231">		String lastGeneratedDayCount=lastGeneratedSerialDayCount[1];</span>
+<span class="nc" id="L232">		listSerial = helper.randomSerial(&quot;FLEXI&quot;, listSerial, 1,walletId,lastGeneratedSerial,lastGeneratedDayCount);</span>
+<span class="nc" id="L233">		hPin = helper.randomPin(hPin, 1);// generate 1  pin </span>
+<span class="nc" id="L234">		List&lt;Long&gt; listPin = new ArrayList&lt;Long&gt;(hPin);</span>
+<span class="nc" id="L235">		flexiCardPurchaseBean.setPinNbr(listPin.get(0));</span>
+<span class="nc" id="L236">		flexiCardPurchaseBean.setSerialNumber(listSerial.get(0));</span>
+<span class="nc" id="L237">		logger.info(&quot;New Generated Serial :&quot;+listSerial.get(0));</span>
+		
+<span class="nc" id="L239">		return flexiCardPurchaseBean;	</span>
+		
+		}
+<span class="nc" id="L242">		catch(Exception e){</span>
+			
+<span class="nc" id="L244">			e.printStackTrace();</span>
+		}
+<span class="nc" id="L246">		return flexiCardPurchaseBean;		</span>
+		
+		
+	}
+
+	public Map&lt;String, String&gt; verifyOrgName(String userName) throws LMSException {
+<span class="nc" id="L252">		Map&lt;String, String&gt; errorMap = new TreeMap&lt;String, String&gt;();</span>
+		try {
+			//here call the API for check User Name Availability
+<span class="nc" id="L255">			  InputStream iStream = OLAUtility.checkUserNameAvailabilityAtKhelPlayApi(userName);</span>
+<span class="nc" id="L256">			  BufferedReader reader = new BufferedReader(new InputStreamReader(iStream ));</span>
+<span class="nc" id="L257">			  StringBuilder sb =new StringBuilder();</span>
+<span class="nc" id="L258">			  String line =null;</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">			while ((line = reader.readLine()) != null) {</span>
+<span class="nc" id="L260">			      sb.append(line);</span>
+			    }
+			
+<span class="nc" id="L263">			String msg = sb.toString();</span>
+<span class="nc" id="L264">			System.out.println(&quot;Verification Message&quot;+msg);</span>
+<span class="nc" id="L265">			String success_flag = msg.split(&quot;,&quot;)[0].split(&quot;:&quot;)[1];</span>
+			// String success_msg = msg.split(&quot;,&quot;)[1].split(&quot;:&quot;)[1].split(&quot;}&quot;)[0];
+			
+<span class="nc bnc" id="L268" title="All 2 branches missed.">			if(success_flag.equalsIgnoreCase(&quot;false&quot;)){</span>
+<span class="nc" id="L269">				System.out.println(&quot;User Name Not Exists !!&quot;);</span>
+<span class="nc" id="L270">				errorMap.put(&quot;userError&quot;, &quot;User Name Not Exists !!&quot;);</span>
+				
+			}
+<span class="nc bnc" id="L273" title="All 2 branches missed.">			else if(success_flag.equalsIgnoreCase(&quot;true&quot;)){</span>
+<span class="nc" id="L274">				System.out.println(&quot;User Name Availiable !!&quot;);</span>
+<span class="nc" id="L275">					errorMap.put(&quot;userError&quot;,&quot;Avail&quot;);</span>
+				}
+			else {
+<span class="nc" id="L278">				System.out.println(&quot;Error!!&quot;);</span>
+<span class="nc" id="L279">				errorMap.put(&quot;userError&quot;, &quot;Some Error&quot;);</span>
+				
+			}
+<span class="nc" id="L282">			return errorMap;</span>
+<span class="nc" id="L283">		} catch (Exception se) {</span>
+<span class="nc" id="L284">			se.printStackTrace();</span>
+<span class="nc" id="L285">			throw new LMSException(se);</span>
+		}
+	}	
+	
+	// Added By Neeraj
+	public 	FlexiCardPurchaseBean  depositMoneyinLMSForRummy(
+			String userName, double depositAmt,
+			UserInfoBean userBean, int walletId,FlexiCardPurchaseBean flexiCardPurchaseBean,Connection con) throws LMSException {
+		
+		
+		//Connection con = DBConnect.getConnection();
+
+<span class="nc" id="L297">		double retailerComm = 0.0;</span>
+<span class="nc" id="L298">		double agentComm = 0.0;</span>
+<span class="nc" id="L299">		double retNetAmt = 0.0;</span>
+<span class="nc" id="L300">		double agentNetAmt = 0.0;</span>
+<span class="nc" id="L301">		long imsTransactionId = 0;</span>
+<span class="nc" id="L302">		long agentRefTransactionId = 0;</span>
+		int isUpdate;
+		
+		try {
+			
+<span class="nc" id="L307">			int agentOrgId = userBean.getParentOrgId();</span>
+<span class="nc" id="L308">			int retOrgId = userBean.getUserOrgId();</span>
+
+<span class="nc" id="L310">			retailerComm = CommonFunctionsHelper.fetchOLACommOfOrganization(</span>
+					walletId, retOrgId, &quot;DEPOSIT&quot;, &quot;RETAILER&quot;, con);
+<span class="nc" id="L312">			agentComm = CommonFunctionsHelper.fetchOLACommOfOrganization(</span>
+					walletId, agentOrgId, &quot;DEPOSIT&quot;, &quot;AGENT&quot;, con);
+
+			// check with organizations limit
+<span class="nc" id="L316">			CommonFunctionsHelper commonFunction = new CommonFunctionsHelper();</span>
+<span class="nc" id="L317">			OrgPwtLimitBean orgPwtLimit = commonFunction</span>
+					.fetchPwtLimitsOfOrgnization(retOrgId, con);
+<span class="nc bnc" id="L319" title="All 2 branches missed.">			if (orgPwtLimit == null) { // send mail to back office</span>
+<span class="nc" id="L320">				System.out.println(&quot;OLA Limits Are Not defined Properly!!&quot;);</span>
+<span class="nc" id="L321">				throw new LMSException(&quot;OLA Limits Are Not defined Properly!!&quot;);</span>
+			}
+<span class="nc" id="L323">			double olaDepositLimit = orgPwtLimit.getOlaDepositLimit();</span>
+<span class="nc" id="L324">			System.out.println(&quot;olaDepositLimit&quot; + olaDepositLimit);</span>
+<span class="nc" id="L325">			System.out.println(&quot;ola deposite money&quot; + depositAmt);</span>
+
+<span class="nc bnc" id="L327" title="All 2 branches missed.">			if (depositAmt &gt; olaDepositLimit) {</span>
+<span class="nc" id="L328">				System.out</span>
+						.println(&quot;Deposit amount is greater then deposit limit&quot;);
+<span class="nc" id="L330">				flexiCardPurchaseBean</span>
+						.setReturnType(&quot;Deposit amount is greater then deposit limit&quot;);
+<span class="nc" id="L332">				return 	flexiCardPurchaseBean ;</span>
+				// return &quot;Deposit amount is greater then deposit limit&quot;;
+			}
+			// check with retailer and agent balance to deposit
+<span class="nc" id="L336">			OlaHelper olahelper = new OlaHelper();</span>
+<span class="nc" id="L337">			int isCheck = olahelper.checkOrgBalance(depositAmt, retOrgId, agentOrgId,</span>
+					con, retailerComm, agentComm);
+<span class="nc" id="L339">			System.out.println(&quot;ischeck&quot; + isCheck);</span>
+
+<span class="nc bnc" id="L341" title="All 2 branches missed.">			if (isCheck == -1) {</span>
+				// Agent has insufficient
+<span class="nc" id="L343">				flexiCardPurchaseBean.setReturnType(&quot;Agent has insufficient&quot;);</span>
+<span class="nc" id="L344">				return 	flexiCardPurchaseBean ;</span>
+				// return &quot;Agent has insufficient&quot;;
+
+<span class="nc bnc" id="L347" title="All 2 branches missed.">			} else if (isCheck == -2) {</span>
+				// Error LMS
+<span class="nc" id="L349">				flexiCardPurchaseBean .setReturnType(&quot;Error LMS&quot;);</span>
+<span class="nc" id="L350">				return 		flexiCardPurchaseBean ;</span>
+				// return &quot;Error LMS&quot;;
+<span class="nc bnc" id="L352" title="All 2 branches missed.">			} else if (isCheck == 0) {</span>
+				// Retailer has insufficient
+<span class="nc" id="L354">				flexiCardPurchaseBean </span>
+						.setReturnType(&quot;Retailer has insufficient Balance &quot;);
+<span class="nc" id="L356">				return 		flexiCardPurchaseBean;</span>
+				// return &quot;Retailer has insufficient&quot;;
+			}
+			// insert in LMS transaction master
+<span class="nc bnc" id="L360" title="All 2 branches missed.">			if (isCheck == 2) {</span>
+
+				//String insertInLMS = &quot;insert into st_lms_transaction_master(user_type,service_code,interface) values('RETAILER','OLA','WEB')&quot;;
+				//PreparedStatement pstmt = con				.prepareStatement(transMasQuery);
+<span class="nc" id="L364">				String insertInLMS = QueryManager.insertInLMSTransactionMaster();</span>
+<span class="nc" id="L365">				PreparedStatement pstmt1 = con.prepareStatement(insertInLMS);</span>
+<span class="nc" id="L366">				pstmt1.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L367">				long transactionId = 0;</span>
+<span class="nc" id="L368">				pstmt1.executeUpdate();</span>
+<span class="nc" id="L369">				ResultSet rs1 = pstmt1.getGeneratedKeys();</span>
+<span class="nc bnc" id="L370" title="All 2 branches missed.">				if (rs1.next()) {</span>
+<span class="nc" id="L371">					transactionId = rs1.getLong(1);					</span>
+					// insert into retailer transaction master
+<span class="nc" id="L373">					pstmt1 = con</span>
+							.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L375">					pstmt1.setLong(1, transactionId);</span>
+<span class="nc" id="L376">					pstmt1.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L377">					pstmt1.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L378">					pstmt1.setInt(4, walletId);</span>
+<span class="nc" id="L379">					java.util.Date date = new java.util.Date();</span>
+<span class="nc" id="L380">					pstmt1.setTimestamp(5, new java.sql.Timestamp(date.getTime()));</span>
+<span class="nc" id="L381">					pstmt1.setString(6, &quot;OLA_DEPOSIT&quot;);</span>
+<span class="nc" id="L382">					isUpdate = pstmt1.executeUpdate();</span>
+
+					// insert in deposit master
+<span class="nc" id="L385">					retNetAmt = (depositAmt - ((depositAmt * retailerComm) / 100));</span>
+<span class="nc" id="L386">					agentNetAmt = (depositAmt - ((depositAmt * agentComm) / 100));					</span>
+<span class="nc" id="L387">					String insertQry = &quot;insert into st_ola_ret_deposit(transaction_id, wallet_id, party_id, retailer_org_id, deposit_amt, retailer_comm, net_amt, agent_comm, agent_net_amt, agent_ref_transaction_id, claim_status, deposit_channel, ims_ref_transaction_id) values(?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L388">					PreparedStatement pstmtUpdate = con</span>
+							.prepareStatement(insertQry);
+<span class="nc" id="L390">					pstmtUpdate.setLong(1, transactionId);</span>
+<span class="nc" id="L391">					pstmtUpdate.setInt(2, walletId);</span>
+<span class="nc" id="L392">					pstmtUpdate.setString(3, userName);</span>
+<span class="nc" id="L393">					pstmtUpdate.setInt(4, userBean.getUserOrgId());</span>
+<span class="nc" id="L394">					pstmtUpdate.setDouble(5, depositAmt);</span>
+<span class="nc" id="L395">					pstmtUpdate.setDouble(6, retailerComm);</span>
+<span class="nc" id="L396">					pstmtUpdate.setDouble(7, retNetAmt);</span>
+<span class="nc" id="L397">					pstmtUpdate.setDouble(8, agentComm);</span>
+<span class="nc" id="L398">					pstmtUpdate.setDouble(9, agentNetAmt);</span>
+<span class="nc" id="L399">					pstmtUpdate.setLong(10, agentRefTransactionId);</span>
+<span class="nc" id="L400">					pstmtUpdate.setString(11, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L401">					pstmtUpdate.setString(12, &quot;WEB&quot;);</span>
+<span class="nc" id="L402">					pstmtUpdate.setLong(13, imsTransactionId);</span>
+<span class="nc" id="L403">					pstmtUpdate.executeUpdate();</span>
+
+					// update st_lms_organization_master for claimable balance
+					// for
+					// retailer
+<span class="nc" id="L408">					CommonFunctionsHelper commHelper = new CommonFunctionsHelper();</span>
+<span class="nc" id="L409">					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, retNetAmt,</span>
+							userBean.getUserOrgId(), &quot;CREDIT&quot;, con);
+
+					// update st_lms_organization_master for claimable balance
+					// for
+					// agent
+<span class="nc" id="L415">					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, agentNetAmt,</span>
+							userBean.getParentOrgId(), &quot;CREDIT&quot;, con);					
+					//con.commit();
+<span class="nc" id="L418">					flexiCardPurchaseBean.setTransactionId(transactionId);	// transactionId</span>
+<span class="nc" id="L419">				}</span>
+
+				else {
+<span class="nc" id="L422">					System.out</span>
+							.println(&quot;Trabsaction Id is not Generated in LMS transaction master&quot;);
+<span class="nc" id="L424">					flexiCardPurchaseBean</span>
+							.setReturnType(&quot;error in Deposit the money&quot;);
+<span class="nc" id="L426">					return 	flexiCardPurchaseBean;</span>
+					// return &quot;error in Deposit the money&quot;;
+				}
+<span class="nc" id="L429">			} else {</span>
+<span class="nc" id="L430">				System.out.println(&quot;Error During balance verification&quot;);</span>
+<span class="nc" id="L431">				flexiCardPurchaseBean </span>
+						.setReturnType(&quot;Error During balance verification&quot;);
+<span class="nc" id="L433">				return 		flexiCardPurchaseBean;</span>
+				// return &quot;Error During balance verification&quot;;
+			}
+
+			// con.commit();
+		}
+
+<span class="nc" id="L440">		catch (Exception e) {</span>
+<span class="nc" id="L441">			e.printStackTrace();</span>
+<span class="nc" id="L442">			throw new LMSException(&quot;Error during deposit&quot;);</span>
+<span class="nc" id="L443">		}</span>
+		
+<span class="nc" id="L445">		flexiCardPurchaseBean .setReturnType(&quot;true&quot;);</span>
+<span class="nc" id="L446">		return 		flexiCardPurchaseBean;</span>
+		// return &quot;true&quot;;
+	}
+
+public Map&lt;String, String&gt; verifyPlrName(String userName) throws LMSException {
+<span class="nc" id="L451">		Map&lt;String, String&gt; errorMap = new TreeMap&lt;String, String&gt;();</span>
+		try {
+		
+			// Call Player Mgmt Api  
+<span class="nc" id="L455">			String method = &quot;playerVerificationAction&quot;;</span>
+<span class="nc" id="L456">			JSONObject params = new JSONObject();</span>
+<span class="nc" id="L457">	        params.put(&quot;userName&quot;,userName);</span>
+<span class="nc" id="L458">	        JSONObject responseObj =Utility.sendCallApi(method, params, &quot;5&quot;);</span>
+<span class="nc bnc" id="L459" title="All 2 branches missed.">			if(responseObj==null){</span>
+<span class="nc" id="L460">				errorMap.put(&quot;inValid&quot;,&quot;Error In Connection With Player Lottery&quot;);</span>
+			}
+			else{
+<span class="nc" id="L463">				boolean isSuccess = responseObj.getBoolean(&quot;isSuccess&quot;);</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">				if(isSuccess){</span>
+					//Player Not Exist at Player Lottery
+<span class="nc" id="L466">					errorMap.put(&quot;inValid&quot;,&quot;User Name is Invalid !!&quot;);</span>
+				}else{
+					//Player Exist at Player Lottery
+<span class="nc" id="L469">					errorMap.put(&quot;valid&quot;,&quot;User Name is Valid !! &quot;);</span>
+					
+				}
+			}
+			 
+<span class="nc" id="L474">			return errorMap;</span>
+<span class="nc" id="L475">		} catch (Exception se) {</span>
+<span class="nc" id="L476">			se.printStackTrace();</span>
+<span class="nc" id="L477">			throw new LMSException(se);</span>
+		}
+	}		
+
+public String sendDepositInfoToRummy(String playerName, long srNbr,
+		long pinNbr, double amount, String userPhone) {
+	
+<span class="nc" id="L484">	DocumentBuilderFactory  docFactory = DocumentBuilderFactory.newInstance();</span>
+	try {
+<span class="nc" id="L486">		DocumentBuilder docBuilder = docFactory.newDocumentBuilder();</span>
+<span class="nc" id="L487">		Document doc = docBuilder.newDocument();</span>
+		// Create Root Element 
+<span class="nc" id="L489">		Element root = doc.createElement(&quot;olaPlayerDepositRequest&quot;);</span>
+<span class="nc" id="L490">		doc.appendChild(root);</span>
+		// add child nodes 
+<span class="nc" id="L492">		Element plrUserName =doc.createElement(&quot;plrUserName&quot;);</span>
+<span class="nc" id="L493">		plrUserName.appendChild(doc.createTextNode(playerName));</span>
+<span class="nc" id="L494">		root.appendChild(plrUserName);</span>
+<span class="nc" id="L495">		Element serialNo =doc.createElement(&quot;serialNo&quot;);</span>
+<span class="nc" id="L496">		serialNo.appendChild(doc.createTextNode(srNbr+&quot;&quot;));</span>
+<span class="nc" id="L497">		root.appendChild(serialNo);</span>
+<span class="nc" id="L498">		Element pinNo =doc.createElement(&quot;pinNo&quot;);</span>
+<span class="nc" id="L499">		pinNo.appendChild(doc.createTextNode(pinNbr+&quot;&quot;));</span>
+<span class="nc" id="L500">		root.appendChild(pinNo);</span>
+<span class="nc" id="L501">		Element amt =doc.createElement(&quot;amount&quot;);</span>
+<span class="nc" id="L502">		amt.appendChild(doc.createTextNode(amount+&quot;&quot;));</span>
+<span class="nc" id="L503">		root.appendChild(amt);</span>
+<span class="nc" id="L504">		Element mobileNo =doc.createElement(&quot;mobileNo&quot;);</span>
+<span class="nc" id="L505">		mobileNo.appendChild(doc.createTextNode(userPhone));</span>
+<span class="nc" id="L506">		root.appendChild(mobileNo);</span>
+<span class="nc" id="L507">		TransformerFactory transFact = TransformerFactory.newInstance();</span>
+<span class="nc" id="L508">		Transformer transformer=transFact.newTransformer();</span>
+<span class="nc" id="L509">		DOMSource source = new DOMSource(doc);</span>
+<span class="nc" id="L510">		StringWriter stringWriter = new StringWriter();</span>
+<span class="nc" id="L511">		transformer.transform(source,new StreamResult(stringWriter));</span>
+		// Uncomment the below code to bypass SSL
+		/*SSLContext ssl_ctx = SSLContext.getInstance(&quot;TLS&quot;);
+         TrustManager[ ] trust_mgr = get_trust_mgr();
+         ssl_ctx.init(null,                // key manager
+                      trust_mgr,           // trust manager
+                      new SecureRandom()); // random number generator
+         HttpsURLConnection.setDefaultSSLSocketFactory(ssl_ctx.getSocketFactory());
+         HostnameVerifier allHostsValid = new HostnameVerifier() {   
+             public boolean verify(String hostname, SSLSession session) {   
+                 return true;   
+             }   
+         };
+        HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);    */
+<span class="nc" id="L525">        URL url = new URL(LMSFilterDispatcher.rummyCashierWebLink);  </span>
+<span class="nc" id="L526">	    HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();  </span>
+<span class="nc" id="L527">        conn.setDoInput(true);  </span>
+<span class="nc" id="L528">        conn.setDoOutput(true);  </span>
+<span class="nc" id="L529">        conn.setRequestMethod(&quot;POST&quot;);  </span>
+<span class="nc" id="L530">        OutputStreamWriter wr = new OutputStreamWriter(conn</span>
+				.getOutputStream());
+<span class="nc" id="L532">        String param1 = &quot;olaData=&quot;+stringWriter.toString()+&quot;&quot;;</span>
+<span class="nc" id="L533">        wr.write(param1);</span>
+<span class="nc" id="L534">        wr.flush();</span>
+<span class="nc" id="L535">        wr.close();</span>
+      
+<span class="nc" id="L537">    	InputStream iStream =conn.getInputStream();</span>
+<span class="nc" id="L538">		BufferedReader reader = new BufferedReader(new InputStreamReader(iStream ));</span>
+<span class="nc" id="L539">		StringBuilder sb =new StringBuilder();</span>
+<span class="nc" id="L540">		String line =null;</span>
+<span class="nc bnc" id="L541" title="All 2 branches missed.">				while ((line = reader.readLine()) != null) {</span>
+<span class="nc" id="L542">						sb.append(line);</span>
+						}
+				
+<span class="nc" id="L545">		  String msg = sb.toString();</span>
+<span class="nc" id="L546">		  System.out.println(msg);</span>
+<span class="nc" id="L547">		  stringWriter.close();</span>
+<span class="nc" id="L548">		  return msg;</span>
+		
+<span class="nc" id="L550">	} catch (Exception e) {</span>
+<span class="nc" id="L551">			e.printStackTrace();</span>
+	}
+<span class="nc" id="L553">	return &quot;ERROR&quot;;</span>
+}
+private TrustManager[ ] get_trust_mgr() {
+<span class="nc" id="L556">    TrustManager[ ] certs = new TrustManager[ ] {</span>
+<span class="nc" id="L557">       new X509TrustManager() {</span>
+<span class="nc" id="L558">          public X509Certificate[ ] getAcceptedIssuers() { return null; }</span>
+     
+		@Override
+		public void checkClientTrusted(X509Certificate[] arg0, String arg1)
+				throws CertificateException {
+			// TODO Auto-generated method stub
+			
+<span class="nc" id="L565">		}</span>
+		@Override
+		public void checkServerTrusted(X509Certificate[] arg0, String arg1)
+				throws CertificateException {
+			// TODO Auto-generated method stub
+			
+<span class="nc" id="L571">		}</span>
+        }
+     };
+<span class="nc" id="L574">     return certs;</span>
+ }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

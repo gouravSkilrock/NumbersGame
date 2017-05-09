@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaBoDepositControllerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.ola.accMgmt.controllerImpl</a> &gt; <span class="el_source">OlaBoDepositControllerImpl.java</span></div><h1>OlaBoDepositControllerImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.ola.accMgmt.controllerImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.GenericException;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.ola.OlaHelper;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.ola.accMgmt.daoImpl.OlaBoDepositDaoImpl;
+import com.skilrock.ola.accMgmt.javaBeans.OLADepositRequestBean;
+import com.skilrock.ola.accMgmt.javaBeans.OLADepositResponseBean;
+import com.skilrock.ola.api.PlayerLotteryIntegration;
+import com.skilrock.ola.common.OLAUtility;
+import com.skilrock.ola.commonMethods.controllerImpl.OlaCommonMethodControllerImpl;
+
+<span class="nc" id="L28">public class OlaBoDepositControllerImpl  {</span>
+	
+<span class="nc" id="L30">	static Log logger = LogFactory.getLog(OlaBoDepositControllerImpl.class);</span>
+	
+	public 	OLADepositResponseBean  olaBoPlrDeposit(OLADepositRequestBean reqBean, UserInfoBean userBean) throws LMSException, GenericException {		
+	
+<span class="nc" id="L34">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L35">		long imsTransactionId = 0;</span>
+		int isUpdate;
+<span class="nc" id="L37">		OLADepositResponseBean resBean = null;</span>
+<span class="nc" id="L38">		StringBuilder userName=new StringBuilder();</span>
+		try {
+<span class="nc" id="L40">				int playerId=OlaCommonMethodControllerImpl.fetchPlayerIdFromRefCode(reqBean.getRefCode(), reqBean.getWalletId(), con,userName);</span>
+<span class="nc" id="L41">				reqBean.setPlrId(playerId);</span>
+			
+				// insert in LMS transaction master
+				
+<span class="nc" id="L45">						con.setAutoCommit(false);</span>
+<span class="nc" id="L46">						boolean isPlayerBind = OlaCommonMethodControllerImpl.affiliatePlrBinding(userName.toString(),&quot;DEPOSIT&quot;,reqBean.getDepositAnyWhere(),reqBean.getPlrId(), userBean,reqBean.getWalletId(),con); </span>
+<span class="nc" id="L47">						logger.info(&quot;isBinding :&quot;+isPlayerBind);</span>
+							
+<span class="nc bnc" id="L49" title="All 2 branches missed.">						if (isPlayerBind) {</span>
+							//String insertInLMS = &quot;insert into st_lms_transaction_master(user_type,service_code,interface) values('RETAILER','OLA','WEB')&quot;;
+<span class="nc" id="L51">							String insertInLMS = QueryManager.insertInLMSTransactionMaster();</span>
+<span class="nc" id="L52">							PreparedStatement pstmt1 = con.prepareStatement(insertInLMS);</span>
+<span class="nc" id="L53">								pstmt1.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L54">								long transactionId = 0;</span>
+<span class="nc" id="L55">								pstmt1.executeUpdate();</span>
+<span class="nc" id="L56">								ResultSet rs1 = pstmt1.getGeneratedKeys();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">								if (rs1.next()) {</span>
+<span class="nc" id="L58">									transactionId = rs1.getLong(1);					</span>
+									// insert into retailer transaction master
+<span class="nc" id="L60">									pstmt1 = con.prepareStatement(&quot;INSERT INTO st_lms_bo_transaction_master (transaction_id,user_id,user_org_id,party_type,party_id,transaction_type,transaction_date) VALUES (?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L61">									pstmt1.setLong(1, transactionId);</span>
+<span class="nc" id="L62">									pstmt1.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L63">									pstmt1.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L64">									pstmt1.setString(4, &quot;PLAYER&quot;);</span>
+<span class="nc" id="L65">									pstmt1.setInt(5, playerId);</span>
+<span class="nc" id="L66">									pstmt1.setString(6, &quot;OLA_DEPOSIT_PLR&quot;);</span>
+<span class="nc" id="L67">									Timestamp txnTime = Util.getCurrentTimeStamp();</span>
+<span class="nc" id="L68">									pstmt1.setTimestamp(7, txnTime);</span>
+<span class="nc" id="L69">									isUpdate = pstmt1.executeUpdate();</span>
+									
+<span class="nc" id="L71">									logger.info(&quot;insert into bo transaction master&quot;+isUpdate);	</span>
+									
+									
+<span class="nc" id="L74">									String insertQry = &quot;insert into st_ola_bo_direct_plr_deposit(transaction_id,bo_user_id,bo_org_id,wallet_id,plr_id, deposit_amt,ims_ref_transaction_id,status) values(?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L75">									PreparedStatement pstmtUpdate = con.prepareStatement(insertQry);</span>
+<span class="nc" id="L76">									pstmtUpdate.setLong(1, transactionId);</span>
+<span class="nc" id="L77">									pstmtUpdate.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L78">									pstmtUpdate.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L79">									pstmtUpdate.setInt(4, reqBean.getWalletId());</span>
+<span class="nc" id="L80">									pstmtUpdate.setInt(5, playerId);</span>
+<span class="nc" id="L81">									pstmtUpdate.setDouble(6,reqBean.getDepositAmt() );</span>
+<span class="nc" id="L82">									pstmtUpdate.setInt(7, 0);</span>
+<span class="nc" id="L83">									pstmtUpdate.setString(8, &quot;PENDING&quot;);</span>
+<span class="nc" id="L84">									pstmtUpdate.executeUpdate();</span>
+<span class="nc" id="L85">									con.commit();</span>
+<span class="nc" id="L86">									logger.info(&quot;in ola helper amount is deposit Successfully&quot;);</span>
+
+<span class="nc" id="L88">									reqBean.setTransactionId(transactionId);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">										if(&quot;PLAYER_LOTTERY&quot;.equals(reqBean.getWalletDevName())){</span>
+<span class="nc" id="L90">											resBean = PlayerLotteryIntegration.playerDeposit(reqBean);</span>
+<span class="nc bnc" id="L91" title="All 6 branches missed.">										}else if(&quot;TabletGaming&quot;.equals(reqBean.getWalletDevName()) || &quot;KhelPlayRummy&quot;.equals(reqBean.getWalletDevName()) || &quot;GroupRummy&quot;.equals(reqBean.getWalletDevName())){</span>
+<span class="nc" id="L92">											Map&lt;String, String&gt; depositRespMap = null;</span>
+<span class="nc" id="L93">											depositRespMap =OlaHelper.sendDepositInfoToKpRummy(reqBean.getWalletId(), userName.toString(), reqBean.getDepositAmt(), transactionId);</span>
+<span class="nc" id="L94">											logger.info(&quot;Khelplay deposit response&quot;+depositRespMap.toString());</span>
+<span class="nc" id="L95">											resBean=new OLADepositResponseBean();</span>
+<span class="nc bnc" id="L96" title="All 6 branches missed.">											if(depositRespMap != null &amp;&amp; depositRespMap.get(&quot;respMsg&quot;) != null &amp;&amp; depositRespMap.get(&quot;requestId&quot;)!=null){</span>
+<span class="nc" id="L97">												resBean.setSuccess(true);</span>
+<span class="nc" id="L98">												resBean.setRefTxnId(depositRespMap.get(&quot;requestId&quot;));</span>
+											}else{
+<span class="nc" id="L100">												resBean.setSuccess(false);</span>
+											}
+										}
+<span class="nc" id="L103">										  boolean isSuccess=resBean.isSuccess();</span>
+									
+<span class="nc bnc" id="L105" title="All 2 branches missed.">										  if(isSuccess){														    	   // save refTransId </span>
+<span class="nc" id="L106">											imsTransactionId= Long.parseLong(resBean.getRefTxnId());</span>
+<span class="nc" id="L107">											pstmt1 = con.prepareStatement(&quot;update st_ola_bo_direct_plr_deposit set ims_ref_transaction_id=? , status = ? where transaction_id=?&quot;);</span>
+<span class="nc" id="L108">											pstmt1.setLong(1,imsTransactionId);</span>
+<span class="nc" id="L109">											pstmt1.setString(2,&quot;DONE&quot;);</span>
+<span class="nc" id="L110">											pstmt1.setLong(3, transactionId);</span>
+<span class="nc" id="L111">											pstmt1.executeUpdate();															    	   </span>
+											// Updating st_lms_ret_offline_master After Getting Success...
+											
+<span class="nc" id="L114">											con.commit();										</span>
+<span class="nc" id="L115">											resBean.setTxnId(transactionId);</span>
+<span class="nc" id="L116">											resBean.setTxnDate(txnTime);</span>
+<span class="nc" id="L117">											resBean.setSuccess(true);</span>
+										 }else{
+<span class="nc" id="L119">											    boolean isRefund = doRefund(transactionId, userBean, con);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">											    if(isRefund){</span>
+<span class="nc" id="L121">												    pstmt1 = con.prepareStatement(&quot;update st_ola_bo_direct_plr_deposit set status = ? where transaction_id=?&quot;);</span>
+<span class="nc" id="L122">													pstmt1.setString(1,&quot;FAILED&quot;);</span>
+<span class="nc" id="L123">													pstmt1.setLong(2, transactionId);</span>
+<span class="nc" id="L124">													pstmt1.executeUpdate();</span>
+<span class="nc" id="L125">													con.commit();</span>
+<span class="nc bnc" id="L126" title="All 4 branches missed.">													if(resBean.getReponseCode() == 10030 || resBean.getReponseCode() == 10032){</span>
+<span class="nc" id="L127">														throw new LMSException(resBean.getReponseCode());</span>
+													}else{
+<span class="nc" id="L129">														throw new LMSException(LMSErrors.PLAYER_LOTTERY_ERROR_CODE);</span>
+													}
+											    }
+										}
+										// transactionId
+<span class="nc" id="L134">								}else {									</span>
+<span class="nc" id="L135">									throw new LMSException(LMSErrors.DEPOSIT_MONEY_ERROR_CODE);</span>
+								}
+							}		
+				
+<span class="nc" id="L139">		}catch (LMSException e) {</span>
+<span class="nc" id="L140">			throw e;</span>
+<span class="nc" id="L141">		}catch(SQLException se){</span>
+<span class="nc" id="L142">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L143">		}catch(Exception e){</span>
+<span class="nc" id="L144">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+<span class="nc" id="L145">		}</span>
+<span class="nc" id="L146">		return resBean;</span>
+	}
+	
+	
+	
+	public static boolean doRefund(long depositTransactionId, UserInfoBean userBean, Connection con) throws LMSException{
+		 boolean isRefund;
+		try {
+<span class="nc" id="L154">				isRefund = OlaBoDepositDaoImpl.depositeRefund(depositTransactionId, userBean, con);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">				if(isRefund){</span>
+<span class="nc" id="L156">					isRefund = true;</span>
+				}else{
+<span class="nc" id="L158">					throw new LMSException(LMSErrors.DEPOSIT_REFUND_ERROR_CODE);</span>
+				}
+<span class="nc" id="L160">		} catch (SQLException e) {</span>
+<span class="nc" id="L161">			 throw new LMSException(LMSErrors.DEPOSIT_REFUND_ERROR_CODE);</span>
+<span class="nc" id="L162">		}</span>
+<span class="nc" id="L163">		return isRefund;</span>
+	}
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

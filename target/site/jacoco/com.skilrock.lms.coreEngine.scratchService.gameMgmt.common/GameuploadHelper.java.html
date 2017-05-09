@@ -1,0 +1,1847 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GameuploadHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.gameMgmt.common</a> &gt; <span class="el_source">GameuploadHelper.java</span></div><h1>GameuploadHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.scratchService.gameMgmt.common;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.security.NoSuchAlgorithmException;
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.StringTokenizer;
+import java.util.TreeMap;
+
+import javax.crypto.NoSuchPaddingException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.GameBean;
+import com.skilrock.lms.beans.GameTicketFormatBean;
+import com.skilrock.lms.beans.PackNumberSeriesBean;
+import com.skilrock.lms.beans.PackSeriesFlagBean;
+import com.skilrock.lms.beans.RankDetailBean;
+import com.skilrock.lms.beans.VirnCodeBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.GameUtilityHelper;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.web.scratchService.inventoryMgmt.common.GenerateTicketsNumber;
+import com.skilrock.lms.web.scratchService.utility.VirnEncoderNDecoder;
+import com.skilrock.lms.web.scratchService.utility.VirnEncoderNDecoder.EncryptionException;
+
+/**
+ * This helper class is used to upload the game
+ * 
+ * @author ABC
+ * 
+ */
+<span class="nc" id="L56">public class GameuploadHelper {</span>
+	
+<span class="nc" id="L58">	static Log logger = LogFactory.getLog(GameuploadHelper.class);</span>
+
+	private static int findDigit(int k) {
+<span class="nc" id="L61">		int count = 0;</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">		while (k != 0) {</span>
+<span class="nc" id="L63">			k = k / 10;</span>
+<span class="nc" id="L64">			count++;</span>
+		}
+<span class="nc" id="L66">		return count;</span>
+	}
+
+	public PackSeriesFlagBean checkPackValidity(String packnbrf,
+			String packnbrt, String gameName, int gameNbr) throws LMSException {
+
+<span class="nc" id="L72">		int finalPackDigit = 0, finalBookDigit = 0, finalGameDigit = 0, totalPack = 0;</span>
+<span class="nc" id="L73">		PackSeriesFlagBean flagBean = new PackSeriesFlagBean();</span>
+<span class="nc" id="L74">		Connection conn = DBConnect.getConnection();</span>
+
+		try {
+			// Getting Game Details using game id
+<span class="nc" id="L78">			GameTicketFormatBean ticketFmtBean = getGameDetails(conn, gameNbr,</span>
+					gameName);
+<span class="nc" id="L80">			int game_id = ticketFmtBean.getGameId();</span>
+<span class="nc" id="L81">			int game_nbr = gameNbr;</span>
+<span class="nc" id="L82">			int game_nbr_digit = findDigit(game_nbr);</span>
+
+<span class="nc" id="L84">			String query2 = &quot;select * from st_se_game_ticket_nbr_format where game_id = ?&quot;; // QueryManager.getST4GameDetailsUsingGameName();</span>
+<span class="nc" id="L85">			PreparedStatement stmt2 = conn.prepareStatement(query2);</span>
+<span class="nc" id="L86">			stmt2.setInt(1, game_id);</span>
+<span class="nc" id="L87">			ResultSet resultSet2 = stmt2.executeQuery();</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">			while (resultSet2.next()) {</span>
+<span class="nc" id="L89">				finalBookDigit = resultSet2.getInt(&quot;book_nbr_digits&quot;);</span>
+<span class="nc" id="L90">				finalPackDigit = resultSet2.getInt(&quot;pack_nbr_digits&quot;);</span>
+<span class="nc" id="L91">				finalGameDigit = resultSet2.getInt(&quot;game_nbr_digits&quot;);</span>
+			}
+<span class="nc" id="L93">			System.out.println(&quot;Ticket Formate is :---&quot; + &quot;finalBookDigit  &quot;</span>
+					+ finalBookDigit + &quot;,  finalPackDigit : &quot; + finalPackDigit
+					+ &quot;,  finalGameDigit : &quot; + finalGameDigit);
+
+<span class="nc" id="L97">			String pf_ft = null, pf_st = null, pt_ft = null, pt_st = null;</span>
+<span class="nc" id="L98">			int tempgamenbrforpt = 0, tempgamenbrforpf = 0, integerpackfrom = 0, integerpackto = 0;</span>
+<span class="nc" id="L99">			StringTokenizer st1 = null, st2 = null;</span>
+
+<span class="nc bnc" id="L101" title="All 4 branches missed.">			if (packnbrt.indexOf(&quot;-&quot;) == -1</span>
+					&amp;&amp; packnbrt.length() &gt; finalGameDigit) {
+<span class="nc" id="L103">				packnbrt = packnbrt.substring(0, finalGameDigit) + &quot;-&quot;</span>
+						+ packnbrt.substring(finalGameDigit);
+			}
+<span class="nc bnc" id="L106" title="All 4 branches missed.">			if (packnbrf.indexOf(&quot;-&quot;) == -1</span>
+					&amp;&amp; packnbrf.length() &gt; finalGameDigit) {
+<span class="nc" id="L108">				packnbrf = packnbrf.substring(0, finalGameDigit) + &quot;-&quot;</span>
+						+ packnbrf.substring(finalGameDigit);
+
+			}
+
+<span class="nc" id="L113">			st1 = new StringTokenizer(packnbrt, &quot;-&quot;);</span>
+<span class="nc" id="L114">			st2 = new StringTokenizer(packnbrf, &quot;-&quot;);</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">			for (int i = 0; i &lt; 2; i++) {</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">				if (st1.hasMoreTokens()) {</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">					if (i == 1) {</span>
+<span class="nc" id="L118">						pt_st = st1.nextToken();</span>
+<span class="nc" id="L119">						pf_st = st2.nextToken();</span>
+<span class="nc" id="L120">						integerpackfrom = Integer.parseInt(pf_st);</span>
+<span class="nc" id="L121">						integerpackto = Integer.parseInt(pt_st);</span>
+<span class="nc bnc" id="L122" title="All 4 branches missed.">						if (pt_st.length() != finalPackDigit</span>
+								|| pf_st.length() != finalPackDigit) {
+<span class="nc" id="L124">							flagBean.setPackdigitformatflag(false);</span>
+						}
+					} else {
+<span class="nc" id="L127">						pt_ft = st1.nextToken();</span>
+<span class="nc" id="L128">						pf_ft = st2.nextToken();</span>
+<span class="nc" id="L129">						tempgamenbrforpf = Integer.parseInt(pf_ft);</span>
+<span class="nc" id="L130">						tempgamenbrforpt = Integer.parseInt(pt_ft);</span>
+<span class="nc bnc" id="L131" title="All 4 branches missed.">						if (pt_ft.length() != game_nbr_digit</span>
+								|| pf_ft.length() != game_nbr_digit) {
+<span class="nc" id="L133">							flagBean.setGamenbrformatflag(false);</span>
+						}
+<span class="nc bnc" id="L135" title="All 4 branches missed.">						if (tempgamenbrforpt != game_nbr</span>
+								|| tempgamenbrforpf != game_nbr) {
+<span class="nc" id="L137">							flagBean.setGamenbrflag(false);</span>
+						}
+					}
+				}
+			}
+<span class="nc" id="L142">			totalPack = integerpackto - integerpackfrom + 1;</span>
+<span class="nc" id="L143">			System.out.println(&quot;totalpack in this series &quot; + totalPack);</span>
+<span class="nc" id="L144">			GenerateTicketsNumber ticketsNumber = new GenerateTicketsNumber(</span>
+					totalPack, game_nbr, finalPackDigit, finalBookDigit,
+					integerpackfrom, integerpackto);
+<span class="nc" id="L147">			System.out.println(&quot;ticket list = &quot;</span>
+					+ ticketsNumber.getPackNbrList());
+<span class="nc" id="L149">			List&lt;String&gt; packlist = ticketsNumber.getPackNbrList();</span>
+<span class="nc" id="L150">			Iterator&lt;String&gt; itr = packlist.iterator();</span>
+<span class="nc" id="L151">			String query = &quot;&quot;;</span>
+
+<span class="nc bnc" id="L153" title="All 2 branches missed.">			while (itr.hasNext()) {</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">				if (query == &quot;&quot;) {</span>
+<span class="nc" id="L155">					query = query + &quot;'&quot; + itr.next() + &quot;'&quot;;</span>
+				} else {
+<span class="nc" id="L157">					query = query + &quot;,&quot; + &quot;'&quot; + itr.next() + &quot;'&quot;;</span>
+				}
+			}
+<span class="nc" id="L160">			String validateQuery = &quot;select * from st_se_game_inv_status where pack_nbr in(&quot;</span>
+					+ query + &quot;)&quot;;
+<span class="nc" id="L162">			System.out.println(&quot;validateQuery -&gt;  &quot; + validateQuery);</span>
+<span class="nc" id="L163">			PreparedStatement stmt3 = conn.prepareStatement(validateQuery);</span>
+<span class="nc" id="L164">			ResultSet resultSet3 = null;</span>
+<span class="nc" id="L165">			resultSet3 = stmt3.executeQuery();</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">			while (resultSet3.next()) {</span>
+<span class="nc" id="L167">				flagBean.setPackseriespresenceflag(false);</span>
+			}
+<span class="nc" id="L169">			return flagBean;</span>
+<span class="nc" id="L170">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L172">			e.printStackTrace();</span>
+<span class="nc" id="L173">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L175">			try {</span>
+<span class="nc bnc" id="L176" title="All 4 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L177">					conn.close();</span>
+				}
+<span class="nc" id="L179">			} catch (SQLException e1) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L181">				e1.printStackTrace();</span>
+<span class="nc" id="L182">			}</span>
+		}
+	}
+
+	/**
+	 * This method is used when we using the '1W Encryption' to create the virn
+	 * list to insert into database.
+	 * 
+	 * @param br
+	 *            BufferReader
+	 * @param encVirnStrBuilder
+	 * @param gameNbrDigits
+	 * @param maxRankDigits
+	 * @param game_id
+	 * @param rankDetailMap
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 */
+	private ArrayList&lt;VirnCodeBean&gt; create1WEncVirnBeanListWithFixedCode(
+			BufferedReader br, StringBuilder encVirnStrBuilder,
+			int gameNbrDigits, int maxRankDigits, int game_id,
+			Map&lt;Integer, RankDetailBean&gt; rankDetailMap)
+			throws NumberFormatException, IOException {
+
+<span class="nc" id="L207">		VirnCodeBean virnBean = null;</span>
+<span class="nc" id="L208">		String strLine = null;</span>
+<span class="nc" id="L209">		int rank_id = 0;</span>
+<span class="nc" id="L210">		String virn_code = null;</span>
+<span class="nc" id="L211">		String encoded_virn_code = null;</span>
+<span class="nc" id="L212">		RankDetailBean rankDetailBean = null;</span>
+<span class="nc" id="L213">		ArrayList&lt;VirnCodeBean&gt; virnBeanList = new ArrayList&lt;VirnCodeBean&gt;(</span>
+				50000);
+<span class="nc" id="L215">		encVirnStrBuilder.ensureCapacity(50000 * 15);</span>
+<span class="nc" id="L216">		final String DEFAULT_KEY = &quot;1234&quot;;</span>
+<span class="nc" id="L217">		String enckey = null, encTicket = null;</span>
+		String virnDetArr[];
+<span class="nc bnc" id="L219" title="All 2 branches missed.">		while ((strLine = br.readLine()) != null) {</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">			if (&quot;&quot;.equals(strLine.trim())) {</span>
+<span class="nc" id="L221">				continue;</span>
+			}
+
+<span class="nc" id="L224">			virnDetArr = strLine.split(&quot;\t&quot;);</span>
+
+<span class="nc" id="L226">			virnDetArr[0] = virnDetArr[0].trim(); // virn_code</span>
+<span class="nc" id="L227">			virnDetArr[1] = virnDetArr[1].trim(); // ticket_nbr</span>
+			// DEFAULT_KEY //verification_code
+
+			// get the rank id and virn_code
+<span class="nc" id="L231">			rank_id = Integer.parseInt(virnDetArr[0].substring(gameNbrDigits,</span>
+					gameNbrDigits + maxRankDigits));
+<span class="nc" id="L233">			virn_code = strLine.substring(gameNbrDigits + maxRankDigits,</span>
+					virnDetArr[0].length());
+
+			// 1W encryption of virn , ticket and key is done
+<span class="nc" id="L237">			encoded_virn_code = MD5Encoder.encode(virn_code);</span>
+<span class="nc" id="L238">			enckey = MD5Encoder.encode(DEFAULT_KEY);</span>
+<span class="nc" id="L239">			encTicket = MD5Encoder.encode(virnDetArr[1]);</span>
+
+<span class="nc" id="L241">			encVirnStrBuilder.append(&quot;'&quot;).append(encoded_virn_code)</span>
+					.append(&quot;',&quot;);
+
+			// get the prize amount and status detail of game
+<span class="nc" id="L245">			rankDetailBean = rankDetailMap.get(rank_id);</span>
+
+			// virn bean is created
+<span class="nc" id="L248">			virnBean = new VirnCodeBean();</span>
+<span class="nc" id="L249">			virnBean.setGame_id(game_id);</span>
+<span class="nc" id="L250">			virnBean.setPwt_amt(rankDetailBean.getPrize_amount());</span>
+<span class="nc" id="L251">			virnBean.setPrize_level(rankDetailBean.getStatus());</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">			if (rankDetailBean.getPrize_amount() &gt; 0) {</span>
+<span class="nc" id="L253">				virnBean.setStatus(&quot;UNCLM_PWT&quot;);</span>
+			} else {
+<span class="nc" id="L255">				virnBean.setStatus(&quot;NO_PRIZE_PWT&quot;);</span>
+			}
+<span class="nc" id="L257">			virnBean.setVirn_code(encoded_virn_code);</span>
+<span class="nc" id="L258">			virnBean.setId1(encTicket);</span>
+<span class="nc" id="L259">			virnBean.setId2(enckey);</span>
+<span class="nc" id="L260">			virnBeanList.add(virnBean);</span>
+		}
+
+<span class="nc" id="L263">		virnBeanList.trimToSize();</span>
+<span class="nc" id="L264">		encVirnStrBuilder.trimToSize();</span>
+
+<span class="nc" id="L266">		return virnBeanList;</span>
+	}
+
+	/**
+	 * This method is used when we using the '2W Encryption of virn(1W Encoded) &amp;
+	 * ticket(1W Encoded) with variable code(1W)' to create the virn list to
+	 * insert into database.
+	 * 
+	 * @param br
+	 *            BufferReader
+	 * @param encVirnStrBuilder
+	 * @param gameNbrDigits
+	 * @param maxRankDigits
+	 * @param game_id
+	 * @param rankDetailMap
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 * @throws EncryptionException
+	 * @throws NoSuchPaddingException
+	 * @throws NoSuchAlgorithmException
+	 */
+	private ArrayList&lt;VirnCodeBean&gt; create2WEncVirnBeanList(BufferedReader br,
+			StringBuilder encVirnStrBuilder, int gameNbrDigits,
+			int maxRankDigits, int game_id,
+			Map&lt;Integer, RankDetailBean&gt; rankDetailMap)
+			throws NumberFormatException, IOException, EncryptionException,
+			NoSuchAlgorithmException, NoSuchPaddingException {
+
+<span class="nc" id="L295">		VirnCodeBean virnBean = null;</span>
+<span class="nc" id="L296">		String strLine = null;</span>
+<span class="nc" id="L297">		int rank_id = 0;</span>
+<span class="nc" id="L298">		String virn_code = null;</span>
+<span class="nc" id="L299">		String encoded_virn_code = null, encodedTkt = null, enckey = null;</span>
+<span class="nc" id="L300">		RankDetailBean rankDetailBean = null;</span>
+<span class="nc" id="L301">		ArrayList&lt;VirnCodeBean&gt; virnBeanList = new ArrayList&lt;VirnCodeBean&gt;(</span>
+				50000);
+<span class="nc" id="L303">		encVirnStrBuilder.ensureCapacity(50000 * 15);</span>
+		String virnDetArr[];
+<span class="nc" id="L305">		VirnEncoderNDecoder encoder = new VirnEncoderNDecoder();</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">		while ((strLine = br.readLine()) != null) {</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">			if (&quot;&quot;.equals(strLine.trim())) {</span>
+<span class="nc" id="L308">				continue;</span>
+			}
+
+<span class="nc" id="L311">			virnDetArr = strLine.split(&quot;\t&quot;);</span>
+
+<span class="nc" id="L313">			virnDetArr[0] = virnDetArr[0].trim(); // virn_code</span>
+<span class="nc" id="L314">			virnDetArr[1] = virnDetArr[1].trim(); // ticket_nbr</span>
+<span class="nc" id="L315">			virnDetArr[2] = virnDetArr[2].trim(); // verification_code</span>
+
+			// get the rank id and virn_code
+<span class="nc" id="L318">			rank_id = Integer.parseInt(virnDetArr[0].substring(gameNbrDigits,</span>
+					gameNbrDigits + maxRankDigits));
+<span class="nc" id="L320">			virn_code = strLine.substring(gameNbrDigits + maxRankDigits,</span>
+					virnDetArr[0].length());
+
+			// encrypt the virn, ticket and code using 1W encryption
+<span class="nc" id="L324">			encoded_virn_code = MD5Encoder.encode(virn_code);</span>
+<span class="nc" id="L325">			encodedTkt = MD5Encoder.encode(virnDetArr[1]);</span>
+			// enckey = MD5Encoder.encode(virnDetArr[2]);
+
+			// 2W encryption of ticket using (virn(1W)+code(1W))
+<span class="nc" id="L329">			encoded_virn_code = encoder.encrypt(encoded_virn_code,</span>
+					virnDetArr[2]);
+<span class="nc" id="L331">			encodedTkt = encoder.encrypt(encodedTkt, virnDetArr[2]);</span>
+
+			// get the prize amount and status detail of game
+<span class="nc" id="L334">			rankDetailBean = rankDetailMap.get(rank_id);</span>
+
+			// virn bean is created
+<span class="nc" id="L337">			virnBean = new VirnCodeBean();</span>
+<span class="nc" id="L338">			virnBean.setVirn_code(encoded_virn_code);</span>
+<span class="nc" id="L339">			virnBean.setGame_id(game_id);</span>
+<span class="nc" id="L340">			virnBean.setPwt_amt(rankDetailBean.getPrize_amount());</span>
+<span class="nc" id="L341">			virnBean.setPrize_level(rankDetailBean.getStatus());</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">			if (rankDetailBean.getPrize_amount() &gt; 0) {</span>
+<span class="nc" id="L343">				virnBean.setStatus(&quot;UNCLM_PWT&quot;);</span>
+			} else {
+<span class="nc" id="L345">				virnBean.setStatus(&quot;NO_PRIZE_PWT&quot;);</span>
+			}
+<span class="nc" id="L347">			virnBean.setId1(encodedTkt);</span>
+<span class="nc" id="L348">			virnBean.setId2(&quot;&quot;);</span>
+			// virnBean.setId2(enckey);
+<span class="nc" id="L350">			virnBeanList.add(virnBean);</span>
+
+<span class="nc" id="L352">			encVirnStrBuilder.append(&quot;'&quot;).append(encoded_virn_code)</span>
+					.append(&quot;',&quot;);
+		}
+
+<span class="nc" id="L356">		virnBeanList.trimToSize();</span>
+<span class="nc" id="L357">		encVirnStrBuilder.trimToSize();</span>
+
+<span class="nc" id="L359">		return virnBeanList;</span>
+	}
+
+	/**
+	 * This method is used when we using the '2W Encryption for ticket with
+	 * fixed code' to create the virn list to insert into database.
+	 * 
+	 * @param br
+	 *            BufferReader
+	 * @param encVirnStrBuilder
+	 * @param gameNbrDigits
+	 * @param maxRankDigits
+	 * @param game_id
+	 * @param rankDetailMap
+	 * @return
+	 * @throws NumberFormatException
+	 * @throws IOException
+	 * @throws EncryptionException
+	 * @throws NoSuchPaddingException
+	 * @throws NoSuchAlgorithmException
+	 */
+	private ArrayList&lt;VirnCodeBean&gt; create2WEncVirnBeanListWithFixedCode(
+			BufferedReader br, StringBuilder encVirnStrBuilder,
+			int gameNbrDigits, int maxRankDigits, int game_id,
+			Map&lt;Integer, RankDetailBean&gt; rankDetailMap)
+			throws NumberFormatException, IOException, EncryptionException,
+			NoSuchAlgorithmException, NoSuchPaddingException {
+
+<span class="nc" id="L387">		VirnCodeBean virnBean = null;</span>
+<span class="nc" id="L388">		String strLine = null;</span>
+<span class="nc" id="L389">		int rank_id = 0;</span>
+<span class="nc" id="L390">		String virn_code = null;</span>
+<span class="nc" id="L391">		String encoded_virn_code = null, encodedTkt = null, encKey = null;</span>
+<span class="nc" id="L392">		RankDetailBean rankDetailBean = null;</span>
+<span class="nc" id="L393">		ArrayList&lt;VirnCodeBean&gt; virnBeanList = new ArrayList&lt;VirnCodeBean&gt;(</span>
+				50000);
+<span class="nc" id="L395">		encVirnStrBuilder.ensureCapacity(50000 * 15);</span>
+		String virnDetArr[];
+<span class="nc" id="L397">		VirnEncoderNDecoder encoder = new VirnEncoderNDecoder();</span>
+<span class="nc" id="L398">		final String DEFAULT_KEY = &quot;1234&quot;;</span>
+		// final String DEFAULT_ENCRYPTION_KEY = MD5Encoder.encode(DEFAULT_KEY);
+		// //1234
+<span class="nc bnc" id="L401" title="All 2 branches missed.">		while ((strLine = br.readLine()) != null) {</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">			if (&quot;&quot;.equals(strLine.trim())) {</span>
+<span class="nc" id="L403">				continue;</span>
+			}
+
+<span class="nc" id="L406">			virnDetArr = strLine.split(&quot;\t&quot;);</span>
+
+<span class="nc" id="L408">			virnDetArr[0] = virnDetArr[0].trim(); // virn_code</span>
+<span class="nc" id="L409">			virnDetArr[1] = virnDetArr[1].trim(); // ticket_nbr</span>
+			// DEFAULT_KEY; //verification_code
+
+			// get the rank id and virn_code
+<span class="nc" id="L413">			rank_id = Integer.parseInt(virnDetArr[0].substring(gameNbrDigits,</span>
+					gameNbrDigits + maxRankDigits));
+<span class="nc" id="L415">			virn_code = strLine.substring(gameNbrDigits + maxRankDigits,</span>
+					virnDetArr[0].length());
+
+			// 2W encryption of ticket using (virn+code)
+<span class="nc" id="L419">			encodedTkt = encoder.encrypt(virnDetArr[1],</span>
+					(virn_code + DEFAULT_KEY));
+<span class="nc" id="L421">			encoded_virn_code = MD5Encoder.encode(virn_code);</span>
+<span class="nc" id="L422">			encKey = MD5Encoder.encode(DEFAULT_KEY);</span>
+
+<span class="nc" id="L424">			encVirnStrBuilder.append(&quot;'&quot;).append(encoded_virn_code)</span>
+					.append(&quot;',&quot;);
+
+			// get the prize amount and status detail of game
+<span class="nc" id="L428">			rankDetailBean = rankDetailMap.get(rank_id);</span>
+
+			// virn bean is created
+<span class="nc" id="L431">			virnBean = new VirnCodeBean();</span>
+<span class="nc" id="L432">			virnBean.setVirn_code(encoded_virn_code);</span>
+<span class="nc" id="L433">			virnBean.setGame_id(game_id);</span>
+<span class="nc" id="L434">			virnBean.setPwt_amt(rankDetailBean.getPrize_amount());</span>
+<span class="nc" id="L435">			virnBean.setPrize_level(rankDetailBean.getStatus());</span>
+<span class="nc bnc" id="L436" title="All 2 branches missed.">			if (rankDetailBean.getPrize_amount() &gt; 0) {</span>
+<span class="nc" id="L437">				virnBean.setStatus(&quot;UNCLM_PWT&quot;);</span>
+			} else {
+<span class="nc" id="L439">				virnBean.setStatus(&quot;NO_PRIZE_PWT&quot;);</span>
+			}
+<span class="nc" id="L441">			virnBean.setId1(encodedTkt);</span>
+<span class="nc" id="L442">			virnBean.setId2(encKey);</span>
+<span class="nc" id="L443">			virnBeanList.add(virnBean);</span>
+		}
+
+<span class="nc" id="L446">		virnBeanList.trimToSize();</span>
+<span class="nc" id="L447">		encVirnStrBuilder.trimToSize();</span>
+
+<span class="nc" id="L449">		return virnBeanList;</span>
+	}
+
+	/**
+	 * This method is used to fetch the game listfrom the data base according to
+	 * game type
+	 * 
+	 * @param game_type
+	 * @return ArrayList of GameBean type
+	 */
+
+	public ArrayList&lt;GameBean&gt; fatchGameList(String gameType) {
+		 
+<span class="nc" id="L462">		ArrayList&lt;GameBean&gt; list = new ArrayList&lt;GameBean&gt;();</span>
+<span class="nc" id="L463">		GameBean gameBean = null;</span>
+<span class="nc" id="L464">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L465">		Statement stmt2 = null;</span>
+<span class="nc" id="L466">		ResultSet rs2 = null;</span>
+		try {
+<span class="nc" id="L468">			stmt2 = con.createStatement();</span>
+<span class="nc" id="L469">			String gmdetail = QueryManager.getGameDetails() + &quot;'&quot; + gameType</span>
+					+ &quot;' and add_inv_status='F'&quot;;
+			// String gmdetail = &quot;select game_id, game_status, game_nbr,
+			// game_name, sale_end_date from st_se_game_master where game_status
+			// IN &quot;;
+			// if(&quot;ALL&quot;.equalsIgnoreCase(gameType.trim()))
+			// gmdetail = gmdetail +&quot;('NEW', 'OPEN') and add_inv_status='F'&quot;;
+			// else gmdetail = gmdetail +&quot;('&quot;+gameType+&quot;') and
+			// add_inv_status='F'&quot;;
+<span class="nc" id="L478">			System.out.println(&quot;fetch &quot; + gameType + &quot; game list Query Is:&quot;</span>
+					+ gmdetail);
+<span class="nc" id="L480">			rs2 = stmt2.executeQuery(gmdetail);</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">			while (rs2.next()) {</span>
+<span class="nc" id="L482">				gameBean = new GameBean();</span>
+<span class="nc" id="L483">				gameBean.setGameId(rs2.getInt(TableConstants.GAME_ID));</span>
+<span class="nc" id="L484">				gameBean.setGameName(rs2.getInt(&quot;game_nbr&quot;) + &quot;-&quot;</span>
+						+ rs2.getString(TableConstants.GAME_NAME));
+<span class="nc" id="L486">				gameBean.setSaleEndDate(rs2</span>
+						.getDate(TableConstants.SALE_END_DATE));
+				// gameBean.setGameStatus(rs2.getString(&quot;game_status&quot;));
+<span class="nc" id="L489">				list.add(gameBean);</span>
+			}
+<span class="nc" id="L491">			return list;</span>
+<span class="nc" id="L492">		} catch (SQLException e) {</span>
+<span class="nc" id="L493">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L495">			try {</span>
+<span class="nc bnc" id="L496" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L497">					con.close();</span>
+				}
+<span class="nc" id="L499">			} catch (SQLException se) {</span>
+<span class="nc" id="L500">				se.printStackTrace();</span>
+<span class="nc" id="L501">			}</span>
+<span class="nc" id="L502">		}</span>
+<span class="nc" id="L503">		return null;</span>
+	}
+
+	/**
+	 * This method is used to fetch the supplier list from the database
+	 * 
+	 * @return ArrayList of SupplierBean type
+	 * @author Skilrock Technologies
+	 * @throws SQLException
+	 */
+
+	public Map&lt;Integer, String&gt; fatchSupplierList() throws SQLException {
+<span class="nc" id="L515">		Map&lt;Integer, String&gt; supplierMap = new TreeMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L516">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L518">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L519">			ResultSet rs = stmt</span>
+					.executeQuery(&quot;select *  from st_se_supplier_master&quot;);
+<span class="nc bnc" id="L521" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L522">				int supplierid = rs.getInt(TableConstants.SUPPLIER_ID);</span>
+<span class="nc" id="L523">				String supplierName = rs</span>
+						.getString(TableConstants.SUPPLIER_NAME);
+<span class="nc" id="L525">				supplierMap.put(supplierid, supplierName);</span>
+<span class="nc" id="L526">			}</span>
+<span class="nc" id="L527">			System.out.println(&quot;supplier list == &quot; + supplierMap);</span>
+<span class="nc" id="L528">			return supplierMap;</span>
+		} finally {
+<span class="nc bnc" id="L530" title="All 4 branches missed.">			if (con != null) {</span>
+<span class="nc" id="L531">				con.close();</span>
+			}
+		}
+
+	}
+
+	/**
+	 * This method is used to fetch game list to upload VIRN code
+	 * 
+	 * @param game_type
+	 * @return ArrayList of GameBean type
+	 */
+	public ArrayList&lt;GameBean&gt; fatchVirnGameList(String game_type) {
+		 
+<span class="nc" id="L545">		ArrayList&lt;GameBean&gt; list = new ArrayList&lt;GameBean&gt;();</span>
+<span class="nc" id="L546">		GameBean gameBean = null;</span>
+<span class="nc" id="L547">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L548">		Statement stmt2 = null;</span>
+<span class="nc" id="L549">		ResultSet rs2 = null;</span>
+		try {
+<span class="nc" id="L551">			stmt2 = con.createStatement();</span>
+<span class="nc" id="L552">			String gmdetail = null;</span>
+<span class="nc" id="L553">			System.out.println(&quot;game type is &quot; + game_type);</span>
+
+<span class="nc" id="L555">			gmdetail = QueryManager.getGameDetails() + &quot;'&quot; + game_type</span>
+					+ &quot;'and add_inv_status='T'&quot;;
+<span class="nc" id="L557">			System.out.println(&quot;Query _-------&quot; + gmdetail);</span>
+<span class="nc" id="L558">			rs2 = stmt2.executeQuery(gmdetail);</span>
+<span class="nc bnc" id="L559" title="All 2 branches missed.">			while (rs2.next()) {</span>
+<span class="nc" id="L560">				gameBean = new GameBean();</span>
+<span class="nc" id="L561">				gameBean.setGameNbr(rs2.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L562">				gameBean.setGameId(rs2.getInt(TableConstants.GAME_ID));</span>
+<span class="nc" id="L563">				gameBean.setGameName(rs2.getInt(&quot;game_nbr&quot;) + &quot;-&quot;</span>
+						+ rs2.getString(TableConstants.GAME_NAME));
+<span class="nc" id="L565">				gameBean.setSaleEndDate(rs2</span>
+						.getDate(TableConstants.SALE_END_DATE));
+<span class="nc" id="L567">				list.add(gameBean);</span>
+			}
+<span class="nc" id="L569">			return list;</span>
+<span class="nc" id="L570">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L572">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L574">			try {</span>
+<span class="nc bnc" id="L575" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L576">					con.close();</span>
+				}
+<span class="nc" id="L578">			} catch (SQLException se) {</span>
+<span class="nc" id="L579">				se.printStackTrace();</span>
+<span class="nc" id="L580">			}</span>
+<span class="nc" id="L581">		}</span>
+<span class="nc" id="L582">		return null;</span>
+	}
+
+	/**
+	 * This method inside helper class is used to check validity for VIRN file
+	 * 
+	 * @param vcList
+	 * @param gameId
+	 * @return boolean
+	 * @throws LMSException
+	 */
+	public boolean fileStatusCheck(String vcList, int gameId, String gameNbr)
+			throws LMSException {
+<span class="nc" id="L595">		boolean virnFlag = true;</span>
+		 
+		Connection connection;
+<span class="nc" id="L598">		connection = DBConnect.getConnection();</span>
+<span class="nc" id="L599">		ResultSet resultSet = null;</span>
+<span class="nc" id="L600">		PreparedStatement stmt = null;</span>
+<span class="nc" id="L601">		String query = &quot;select * from st_se_pwt_inv_&quot; + gameNbr</span>
+				+ &quot; where game_id=&quot; + gameId + &quot; and virn_code in(&quot; + vcList
+				+ &quot;)&quot;;
+
+		// System.out.println(&quot;Query ----&quot; +query );
+		try {
+<span class="nc" id="L607">			stmt = connection.prepareStatement(query);</span>
+<span class="nc" id="L608">			resultSet = stmt.executeQuery();</span>
+<span class="nc bnc" id="L609" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+				// System.out.println(&quot;virn duplicate is&quot; +
+				// resultSet.getString(&quot;virn_code&quot;)) ;
+<span class="nc" id="L612">				virnFlag = false;</span>
+<span class="nc" id="L613">				return virnFlag;</span>
+			}
+<span class="nc" id="L615">			query = null;</span>
+<span class="nc" id="L616">			return virnFlag;</span>
+<span class="nc" id="L617">		} catch (Exception e) {</span>
+<span class="nc" id="L618">			throw new LMSException(&quot;Please Upload Correct File&quot;);</span>
+		} finally {
+<span class="nc" id="L620">			try {</span>
+<span class="nc bnc" id="L621" title="All 6 branches missed.">				if (stmt != null) {</span>
+<span class="nc" id="L622">					stmt.close();</span>
+				}
+<span class="nc bnc" id="L624" title="All 6 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L625">					connection.close();</span>
+				}
+<span class="nc" id="L627">			} catch (SQLException e2) {</span>
+<span class="nc" id="L628">				e2.printStackTrace();</span>
+<span class="nc" id="L629">				throw new LMSException(&quot;Exception During Close Statement&quot;, e2);</span>
+<span class="nc" id="L630">			}</span>
+		}
+	}
+
+	private GameTicketFormatBean getGameDetails(Connection con, int gameNbr,
+			String gameName) {
+<span class="nc" id="L636">		GameTicketFormatBean gameTicketFmtBean = new GameTicketFormatBean();</span>
+<span class="nc" id="L637">		Connection conn = con;</span>
+		try {
+<span class="nc" id="L639">			Statement stmt = conn.createStatement();</span>
+<span class="nc" id="L640">			ResultSet rs = stmt</span>
+					.executeQuery(&quot;select game_id, game_nbr_digits, game_rank_digits from st_se_game_ticket_nbr_format where game_id =(select game_id from st_se_game_master where game_name='&quot;
+							+ gameName + &quot;' and game_nbr = &quot; + gameNbr + &quot;)&quot;);
+<span class="nc bnc" id="L643" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L644">				gameTicketFmtBean.setGameId(rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L645">				gameTicketFmtBean</span>
+						.setGameNbrDigits(rs.getInt(&quot;game_nbr_digits&quot;));
+<span class="nc" id="L647">				gameTicketFmtBean.setMaxRankDigits(rs</span>
+						.getInt(&quot;game_rank_digits&quot;));
+			}
+<span class="nc" id="L650">			rs.close();</span>
+<span class="nc" id="L651">			stmt.close();</span>
+<span class="nc" id="L652">		} catch (SQLException e) {</span>
+<span class="nc" id="L653">			e.printStackTrace();</span>
+<span class="nc" id="L654">		}</span>
+<span class="nc" id="L655">		return gameTicketFmtBean;</span>
+
+	}
+
+	/**
+	 * This method is used to get the game Id for given game Name
+	 * 
+	 * @param gameName
+	 * @return int
+	 */
+
+	public int getGameId(String gameNbr, String gameName) {
+
+<span class="nc" id="L668">		int gameId = 0;</span>
+
+<span class="nc" id="L670">		Connection connection = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L672">			Statement stmt = connection.createStatement();</span>
+<span class="nc" id="L673">			ResultSet gameDetails = stmt</span>
+					.executeQuery(&quot;select game_id from st_se_game_master where game_name='&quot;
+							+ gameName + &quot;' and game_nbr = &quot; + gameNbr);
+<span class="nc bnc" id="L676" title="All 2 branches missed.">			while (gameDetails.next()) {</span>
+<span class="nc" id="L677">				gameId = gameDetails.getInt(&quot;game_id&quot;);</span>
+			}
+<span class="nc" id="L679">			System.out.println(&quot;game id is &quot; + gameId);</span>
+<span class="nc" id="L680">		} catch (SQLException e) {</span>
+<span class="nc" id="L681">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L683">			try {</span>
+<span class="nc bnc" id="L684" title="All 6 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L685">					connection.close();</span>
+				}
+<span class="nc" id="L687">			} catch (SQLException se) {</span>
+<span class="nc" id="L688">				se.printStackTrace();</span>
+<span class="nc" id="L689">			}</span>
+<span class="nc" id="L690">		}</span>
+<span class="nc" id="L691">		return gameId;</span>
+	}
+
+	public GameTicketFormatBean getGameNbrDigitsByGameId(int game_id)
+			throws LMSException {
+
+		 
+<span class="nc" id="L698">		Connection conn = DBConnect.getConnection();</span>
+<span class="nc" id="L699">		GameTicketFormatBean gameTicketFmtBean = new GameTicketFormatBean();</span>
+		try {
+<span class="nc" id="L701">			Statement stmt = conn.createStatement();</span>
+<span class="nc" id="L702">			ResultSet rs = stmt</span>
+					.executeQuery(&quot;select game_nbr_digits,game_rank_digits from st_se_game_ticket_nbr_format where game_id=&quot;
+							+ game_id + &quot;&quot;);
+<span class="nc bnc" id="L705" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L706">				gameTicketFmtBean</span>
+						.setGameNbrDigits(rs.getInt(&quot;game_nbr_digits&quot;));
+<span class="nc" id="L708">				gameTicketFmtBean.setMaxRankDigits(rs</span>
+						.getInt(&quot;game_rank_digits&quot;));
+
+			}
+<span class="nc" id="L712">		} catch (SQLException e) {</span>
+<span class="nc" id="L713">			e.printStackTrace();</span>
+
+		} finally {
+<span class="nc" id="L716">			try {</span>
+<span class="nc bnc" id="L717" title="All 6 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L718">					conn.close();</span>
+				}
+<span class="nc" id="L720">			} catch (SQLException se) {</span>
+<span class="nc" id="L721">				se.printStackTrace();</span>
+<span class="nc" id="L722">			}</span>
+<span class="nc" id="L723">		}</span>
+<span class="nc" id="L724">		return gameTicketFmtBean;</span>
+
+	}
+
+	/**
+	 * This method is used to get start date,sale end date,pwt end date for a
+	 * game
+	 * 
+	 * @param gameName
+	 *            is name of the game
+	 * @param GameType
+	 *            is type of game
+	 * @return String
+	 * @throws LMSException
+	 */
+	public String getInitialDates(String gameName, String GameType)
+			throws LMSException {
+
+<span class="nc" id="L742">		Connection connection = DBConnect.getConnection();</span>
+		try {
+
+<span class="nc" id="L745">			String gameNameArr[] = gameName.split(&quot;-&quot;);</span>
+			Date startDate;
+			Date saleEndDate;
+			Date pwtEndDate;
+<span class="nc" id="L749">			String allDatesString = &quot;&quot;;</span>
+<span class="nc" id="L750">			Statement stmt = connection.createStatement();</span>
+			// write this query into helper class
+<span class="nc" id="L752">			String getGameDatesQuery = QueryManager.getGameDates() + &quot;'&quot;</span>
+					+ gameNameArr[1] + &quot;' and game_nbr =&quot; + gameNameArr[0];
+<span class="nc" id="L754">			System.out.println(&quot;game dates query == &quot; + getGameDatesQuery);</span>
+<span class="nc" id="L755">			ResultSet gameDetails = stmt.executeQuery(getGameDatesQuery);</span>
+<span class="nc bnc" id="L756" title="All 2 branches missed.">			while (gameDetails.next()) {</span>
+<span class="nc" id="L757">				int gameId = gameDetails.getInt(TableConstants.GAME_ID);</span>
+<span class="nc" id="L758">				startDate = gameDetails.getDate(TableConstants.START_DATE);</span>
+<span class="nc" id="L759">				saleEndDate = gameDetails.getDate(TableConstants.SALE_END_DATE);</span>
+<span class="nc" id="L760">				pwtEndDate = gameDetails.getDate(TableConstants.PWT_END_DATE);</span>
+<span class="nc" id="L761">				allDatesString = &quot;&quot; + startDate + &quot;*&quot; + saleEndDate + &quot;*&quot;</span>
+						+ pwtEndDate;
+<span class="nc" id="L763">				System.out.println(&quot;game id ==&quot; + gameId</span>
+						+ &quot;  ,alldatestring is &quot; + allDatesString);
+
+<span class="nc" id="L766">			}</span>
+<span class="nc" id="L767">			return allDatesString;</span>
+
+<span class="nc" id="L769">		} catch (SQLException e) {</span>
+<span class="nc" id="L770">			e.printStackTrace();</span>
+<span class="nc" id="L771">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L773">			try {</span>
+<span class="nc bnc" id="L774" title="All 4 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L775">					connection.close();</span>
+				}
+<span class="nc" id="L777">			} catch (SQLException e) {</span>
+<span class="nc" id="L778">				e.printStackTrace();</span>
+<span class="nc" id="L779">			}</span>
+		}
+
+	}
+
+	/**
+	 * this method inside helper class is used to get the NEW games
+	 * 
+	 * @return
+	 */
+	public List&lt;GameBean&gt; getNewGames() {
+
+		 
+		Connection connection;
+<span class="nc" id="L793">		connection = DBConnect.getConnection();</span>
+<span class="nc" id="L794">		GameBean gameBean = null;</span>
+<span class="nc" id="L795">		List&lt;GameBean&gt; list = new ArrayList&lt;GameBean&gt;();</span>
+		try {
+<span class="nc" id="L797">			Statement stmt = connection.createStatement();</span>
+<span class="nc" id="L798">			ResultSet gameDetails = stmt</span>
+					.executeQuery(&quot;select * from st_se_game_master where game_status='NEW'and start_date &lt;= 'CURRENT_DATE'&quot;);
+<span class="nc bnc" id="L800" title="All 2 branches missed.">			while (gameDetails.next()) {</span>
+<span class="nc" id="L801">				gameBean = new GameBean();</span>
+<span class="nc" id="L802">				gameBean.setGameId(gameDetails.getInt(TableConstants.GAME_ID));</span>
+<span class="nc" id="L803">				gameBean.setGameName(gameDetails</span>
+						.getString(TableConstants.GAME_NAME));
+<span class="nc" id="L805">				gameBean</span>
+						.setGameNbr(gameDetails.getInt(TableConstants.GAME_NBR));
+<span class="nc" id="L807">				gameBean.setStartDate(gameDetails</span>
+						.getDate(TableConstants.SGM_START_DATE));
+<span class="nc" id="L809">				list.add(gameBean);</span>
+			}
+
+<span class="nc" id="L812">		} catch (SQLException e) {</span>
+<span class="nc" id="L813">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L815">			try {</span>
+<span class="nc bnc" id="L816" title="All 6 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L817">					connection.close();</span>
+				}
+<span class="nc" id="L819">			} catch (SQLException se) {</span>
+<span class="nc" id="L820">				se.printStackTrace();</span>
+<span class="nc" id="L821">			}</span>
+<span class="nc" id="L822">		}</span>
+<span class="nc" id="L823">		return list;</span>
+	}
+
+	/**
+	 * This method is used to insert game dates and VIRN file into database
+	 * 
+	 * @param vcbeanList
+	 * @param d1
+	 *            is the game start date
+	 * @param d2
+	 *            is Sale End Date
+	 * @param d3
+	 *            is PWT End Date
+	 * @param gameId
+	 *            is The GAme ID
+	 * @throws LMSException
+	 */
+	public void insertTicketDetailsIntoDataBase(List&lt;VirnCodeBean&gt;
+
+	vcbeanList, java.sql.Date d1, java.sql.Date d2, java.sql.Date d3, int gameId)
+			throws
+
+			LMSException {
+
+		 
+		Connection connection;
+<span class="nc" id="L849">		connection = DBConnect.getConnection();</span>
+<span class="nc" id="L850">		Statement stmt1 = null;</span>
+<span class="nc" id="L851">		PreparedStatement stmt = null;</span>
+<span class="nc" id="L852">		System.out.println(&quot;d3 is &quot; + d3);</span>
+<span class="nc" id="L853">		String query = QueryManager.updatePwtInvTable();</span>
+		// write this query into helper class
+<span class="nc" id="L855">		String querytoInsertDate = QueryManager.insertGameDates() + &quot;'&quot; + d1</span>
+				+ &quot;',sale_end_date='&quot; + d2 + &quot;',pwt_end_date='&quot; + d3
+				+ &quot;',add_inv_status='F'  where game_id=&quot; + gameId + &quot;&quot;;
+		// String querytoInsertDate=&quot;update st_se_game_master set
+		// start_date='&quot;+d1+&quot;',sale_end_date='&quot;+d2+&quot;',pwt_end_date='&quot;+d3+&quot;',add_inv_status='F'
+		// where game_id=&quot;+gameId+&quot;&quot;;
+		// System.out.println(&quot;Query ----&quot; +querytoInsertDate );
+		//  
+		// connection = DBConnect.getConnection();
+		// System.out.println(&quot;virn bean list is &quot;+ vcbeanList);
+<span class="nc" id="L865">		VirnCodeBean vcBean = null;</span>
+<span class="nc" id="L866">		Iterator&lt;VirnCodeBean&gt; iterator = vcbeanList.iterator();</span>
+		try {
+<span class="nc" id="L868">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L870">			stmt = connection.prepareStatement(query);</span>
+<span class="nc" id="L871">			stmt1 = connection.createStatement();</span>
+<span class="nc bnc" id="L872" title="All 2 branches missed.">			while (iterator.hasNext()) {</span>
+<span class="nc" id="L873">				vcBean = iterator.next();</span>
+				// System.out.println(&quot;Vc Bean is :&quot;+vcBean);
+				// System.out.println(&quot;vitn is &quot; + vcBean.getVirn_code());
+				// System.out.println(&quot;prize level is &quot;+vcBean.getPrize_level()
+				// );
+<span class="nc" id="L878">				stmt.setString(1, MD5Encoder.encode(vcBean.getVirn_code()));</span>
+				// System.out.println(&quot;to insert ************&quot; +
+				// MD5Encoder.encode(vcBean.getVirn_code()));
+<span class="nc" id="L881">				stmt.setInt(2, vcBean.getGame_id());</span>
+<span class="nc" id="L882">				stmt.setDouble(3, vcBean.getPwt_amt());</span>
+<span class="nc" id="L883">				stmt.setString(4, vcBean.getPrize_level());</span>
+<span class="nc" id="L884">				stmt.setString(5, vcBean.getStatus());</span>
+<span class="nc" id="L885">				stmt.executeUpdate();</span>
+				// System.out.println(&quot;55555555555555555555555&quot;);
+			}
+
+<span class="nc" id="L889">			stmt1.executeUpdate(querytoInsertDate); // by yogesh</span>
+
+<span class="nc" id="L891">			System.out.println(&quot;arun time &quot; + Calendar.getInstance().getTime());</span>
+			// by arun &amp; yogesh to run code temporary
+			// String noOfPrizeRemain=&quot;update st_se_rank_master b, (select
+			// aa.game_id, aa.pwt_amt, count(aa.pwt_amt) 'total_no_of_prize',
+			// count(aa.pwt_amt) 'no_of_prize_rem' from st_se_pwt_inv aa where
+			// (aa.status='UNCLM_PWT' or aa.status ='UNCLM_CANCELLED') and
+			// aa.game_id=&quot;+gameId+&quot; group by aa.game_id, aa.pwt_amt)a set
+			// b.no_of_prize_rem = a.no_of_prize_rem where a.game_id = b.game_id
+			// and a.pwt_amt = b.prize_amt and a.game_id=&quot;+gameId;
+<span class="nc" id="L900">			String totalPrize = &quot;update st_se_rank_master b,(select aa.game_id, aa.pwt_amt, count(aa.pwt_amt) 'total_no_of_prize' from st_se_pwt_inv aa  where aa.game_id=&quot;</span>
+					+ gameId
+					+ &quot; group by aa.game_id, aa.pwt_amt)a set b.total_no_of_prize = a.total_no_of_prize where a.game_id = b.game_id and a.pwt_amt = b.prize_amt and  a.game_id=&quot;
+					+ gameId;
+
+<span class="nc" id="L905">			Statement updaterankMaster = connection.createStatement();</span>
+			// updaterankMaster.executeUpdate(noOfPrizeRemain);
+<span class="nc" id="L907">			updaterankMaster.executeUpdate(totalPrize);</span>
+<span class="nc" id="L908">			System.out.println(&quot;arun time after &quot;</span>
+					+ Calendar.getInstance().getTime());
+
+<span class="nc" id="L911">			connection.commit();</span>
+<span class="nc" id="L912">			System.out.println(&quot;heeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee&quot;);</span>
+<span class="nc" id="L913">		} catch (SQLException e) {</span>
+			try {
+<span class="nc" id="L915">				connection.rollback();</span>
+<span class="nc" id="L916">			} catch (SQLException e1) {</span>
+
+<span class="nc" id="L918">				e1.printStackTrace();</span>
+<span class="nc" id="L919">				throw new LMSException(&quot;Exception During Rollback&quot;, e1);</span>
+<span class="nc" id="L920">			}</span>
+<span class="nc" id="L921">			e.printStackTrace();</span>
+<span class="nc" id="L922">			throw new LMSException(e);</span>
+
+<span class="nc" id="L924">		} catch (Exception e) {</span>
+<span class="nc" id="L925">			throw new LMSException(&quot;Please Upload Correct File&quot;);</span>
+
+		} finally {
+<span class="nc" id="L928">			try {</span>
+<span class="nc bnc" id="L929" title="All 4 branches missed.">				if (stmt != null) {</span>
+<span class="nc" id="L930">					stmt.close();</span>
+				}
+<span class="nc bnc" id="L932" title="All 4 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L933">					connection.close();</span>
+				}
+<span class="nc" id="L935">			} catch (SQLException e2) {</span>
+<span class="nc" id="L936">				e2.printStackTrace();</span>
+<span class="nc" id="L937">				throw new LMSException(&quot;Exception During Close Statement&quot;, e2);</span>
+<span class="nc" id="L938">			}</span>
+		}
+<span class="nc" id="L940">	}</span>
+
+	/**
+	 * This method in helper class is used to insert packs and books for a game
+	 * into database
+	 * 
+	 * @param seriesList
+	 * @param gameName
+	 * @param supplierName
+	 * @throws LMSException
+	 */
+	public void insertTicketsInDB(List&lt;PackNumberSeriesBean&gt; seriesList,
+			String gameName, int gameNbr, int supplierId, int userOrgId,
+			int userId, int warehouseId) throws LMSException {
+<span class="nc" id="L954">		System.out</span>
+				.println(&quot;Entered In to Helper class for ticket generate and save to db&quot;);
+<span class="nc" id="L956">		Connection conn = DBConnect.getConnection();</span>
+
+		try {
+<span class="nc" id="L959">			conn.setAutoCommit(false);</span>
+			// Getting Game Details and game ticket format
+			// st_se_game_ticket_nbr_format using game name and game nbr
+<span class="nc" id="L962">			String getGameDetailQuery = &quot;select * from st_se_game_master aa, st_se_game_ticket_nbr_format bb &quot;</span>
+					+ &quot; where bb.game_id = aa.game_id and aa.game_name = ? and aa.game_nbr = ?&quot;;
+<span class="nc" id="L964">			PreparedStatement pstmt = conn.prepareStatement(getGameDetailQuery);</span>
+<span class="nc" id="L965">			pstmt.setString(1, gameName);</span>
+<span class="nc" id="L966">			pstmt.setInt(2, gameNbr);</span>
+<span class="nc" id="L967">			ResultSet resultSet = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L969" title="All 2 branches missed.">			if (resultSet.next()) {</span>
+<span class="nc" id="L970">				int game_id = resultSet.getInt(TableConstants.GAME_ID);</span>
+<span class="nc" id="L971">				int game_nbr = resultSet.getInt(TableConstants.GAME_NBR);</span>
+<span class="nc" id="L972">				int BookPerPack = resultSet</span>
+						.getInt(TableConstants.BOOKS_PER_PACK);
+<span class="nc" id="L974">				int ticketsPerBook = resultSet</span>
+						.getInt(TableConstants.TICKETS_PER_BOOK);
+<span class="nc" id="L976">				double ticketPrice = resultSet</span>
+						.getDouble(TableConstants.TICKET_PRICE);
+<span class="nc" id="L978">				int finalBookDigit = resultSet</span>
+						.getInt(TableConstants.BOOK_NBR_DIGITS);
+<span class="nc" id="L980">				int finalPackDigit = resultSet</span>
+						.getInt(TableConstants.PACK_NBR_DIGITS);
+
+				// System.out.println(&quot;game_id &quot; + game_id +&quot; &quot;+&quot;game_nbr :&quot; +
+				// game_nbr);
+				// System.out.println(&quot;nbr_of_books_per_pack :&quot; + BookPerPack+&quot;
+				// , nbr_of_tickets_per_book &quot; + ticketsPerBook+&quot; , &quot;+&quot;
+				// ticket_price: &quot;+ ticketPrice);
+				// System.out.println(&quot;finalBookDigit &quot; + finalBookDigit +&quot; ,
+				// finalPackDigit &quot; + finalPackDigit);
+
+				// insert into LMS transaction master
+<span class="nc" id="L992">				String insertLMSTransMas = QueryManager</span>
+						.insertInLMSTransactionMaster();
+<span class="nc" id="L994">				PreparedStatement LMStmstmt = conn</span>
+						.prepareStatement(insertLMSTransMas);
+<span class="nc" id="L996">				LMStmstmt.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L997">				LMStmstmt.executeUpdate();</span>
+<span class="nc" id="L998">				ResultSet tmKeys = LMStmstmt.getGeneratedKeys();</span>
+
+				// get the auto generated key from transaction_master of last
+				// entry
+<span class="nc bnc" id="L1002" title="All 2 branches missed.">				if (tmKeys.next()) {</span>
+<span class="nc" id="L1003">					int transactionId = tmKeys.getInt(1);</span>
+
+					// insert details into transaction_master table
+<span class="nc" id="L1006">					String insertIntoTransactionMaster = QueryManager</span>
+							.insertInBOTransactionMaster();
+<span class="nc" id="L1008">					PreparedStatement tmstmt = conn</span>
+							.prepareStatement(insertIntoTransactionMaster);
+
+<span class="nc" id="L1011">					tmstmt.setInt(1, transactionId);</span>
+<span class="nc" id="L1012">					tmstmt.setInt(2, userId);</span>
+<span class="nc" id="L1013">					tmstmt.setInt(3, userOrgId);</span>
+<span class="nc" id="L1014">					tmstmt.setString(4, &quot;SUPPLIER&quot;);</span>
+<span class="nc" id="L1015">					tmstmt.setInt(5, supplierId);</span>
+<span class="nc" id="L1016">					tmstmt.setTimestamp(6, new java.sql.Timestamp(</span>
+							new java.util.Date().getTime()));
+<span class="nc" id="L1018">					tmstmt.setString(7, &quot;PURCHASE&quot;);</span>
+
+					/*
+					 * tmstmt.setString(1, &quot;SUPPLIER&quot;); tmstmt.setInt(2,
+					 * supplierId); tmstmt.setTimestamp(3, new
+					 * java.sql.Timestamp(new java.util.Date().getTime()));
+					 * tmstmt.setString(4, &quot;PURCHASE&quot;);
+					 */
+<span class="nc" id="L1026">					tmstmt.executeUpdate();</span>
+<span class="nc" id="L1027">					System.out</span>
+							.println(&quot;insertion into st_lms_bo_transaction_master query is == &quot;
+									+ tmstmt);
+
+<span class="nc" id="L1031">					System.out.println(&quot;Serieslist is : &quot; + seriesList);</span>
+
+<span class="nc" id="L1033">					int totalPack = 0, totalBooksInAllSeries = 0, totalPackInAllseries = 0;</span>
+					// iterate the pack series bean from list
+<span class="nc bnc" id="L1035" title="All 2 branches missed.">					for (PackNumberSeriesBean seriesBean : seriesList) {</span>
+<span class="nc" id="L1036">						String[] packTo = seriesBean.getPackNumberTo().split(</span>
+								&quot;-&quot;);
+<span class="nc" id="L1038">						String[] packFrom = seriesBean.getPackNumberFrom()</span>
+								.split(&quot;-&quot;);
+<span class="nc" id="L1040">						totalPack = Integer.parseInt(packTo[1])</span>
+								- Integer.parseInt(packFrom[1]) + 1;
+<span class="nc" id="L1042">						totalPackInAllseries = totalPackInAllseries + totalPack;</span>
+						// System.out.println(&quot;packNbrFrom :
+						// &quot;+Integer.parseInt(packFrom[1]) +&quot; , packnbrTo :
+						// &quot;+Integer.parseInt(packTo[1])
+						// +&quot; total pack = &quot;+totalPack + &quot; totalPackInAllseries
+						// = &quot;+totalPackInAllseries);
+						// generate tickets number from uploaded packs
+<span class="nc" id="L1049">						GenerateTicketsNumber ticketsNumber = new GenerateTicketsNumber(</span>
+								totalPack, BookPerPack, game_nbr,
+								finalPackDigit, finalBookDigit, Integer
+										.parseInt(packFrom[1]), Integer
+										.parseInt(packTo[1]));
+						// update game inventory status table
+<span class="nc" id="L1055">						ticketsNumber.updateGameInvStatusTable(game_id, conn,</span>
+								userOrgId, warehouseId);
+						// update game inventory details table
+<span class="nc" id="L1058">						ticketsNumber.updateGameInvDetailTable(game_id,</span>
+								transactionId, conn, userOrgId, userId, warehouseId);
+<span class="nc" id="L1060">					}</span>
+
+<span class="nc" id="L1062">					totalBooksInAllSeries = totalPackInAllseries * BookPerPack;</span>
+<span class="nc" id="L1063">					int totalTickets = totalBooksInAllSeries * ticketsPerBook;</span>
+<span class="nc" id="L1064">					double amount = ticketPrice * totalTickets;</span>
+<span class="nc" id="L1065">					System.out.println(&quot;total pack in series &quot;</span>
+							+ totalPackInAllseries + &quot; , total books : &quot;
+							+ totalBooksInAllSeries + &quot; \n Total Tickets : &quot;
+							+ totalTickets + &quot; ,  Total Amount : &quot; + amount);
+
+					// insert uploaded ticket inventory details into
+					// st_se_supplier_bo_transaction table
+<span class="nc" id="L1072">					String insertIntoSupplierBOTrans = QueryManager</span>
+							.getST5SupplierTransQuery();
+<span class="nc" id="L1074">					PreparedStatement supplierBOTransStmt = conn</span>
+							.prepareStatement(insertIntoSupplierBOTrans);
+<span class="nc" id="L1076">					supplierBOTransStmt.setInt(1, transactionId);</span>
+<span class="nc" id="L1077">					supplierBOTransStmt.setInt(2, game_id);</span>
+<span class="nc" id="L1078">					supplierBOTransStmt.setInt(3, supplierId);</span>
+<span class="nc" id="L1079">					supplierBOTransStmt.setInt(4, totalBooksInAllSeries);</span>
+<span class="nc" id="L1080">					supplierBOTransStmt.setDouble(5, amount);</span>
+<span class="nc" id="L1081">					int SBTRowsUpdate = supplierBOTransStmt.executeUpdate();</span>
+<span class="nc" id="L1082">					System.out</span>
+							.println(&quot;rows updates : &quot;
+									+ SBTRowsUpdate
+									+ &quot;  , insert into st_se_supplier_bo_transaction : &quot;
+									+ supplierBOTransStmt);
+
+<span class="nc" id="L1088">					String updateGameMaster = &quot;update st_se_game_master set nbr_of_tickets=ifnull(nbr_of_tickets,0)+? ,nbr_of_books=ifnull(nbr_of_books,0)+? ,add_inv_status = 'T' where game_id = ?&quot;;</span>
+<span class="nc" id="L1089">					PreparedStatement updateGameMasterPstmt = conn</span>
+							.prepareStatement(updateGameMaster);
+<span class="nc" id="L1091">					updateGameMasterPstmt.setInt(1, totalTickets);</span>
+<span class="nc" id="L1092">					updateGameMasterPstmt.setInt(2, totalBooksInAllSeries);</span>
+<span class="nc" id="L1093">					updateGameMasterPstmt.setInt(3, game_id);</span>
+<span class="nc" id="L1094">					updateGameMasterPstmt.executeUpdate();</span>
+
+<span class="nc" id="L1096">					conn.commit();</span>
+
+<span class="nc" id="L1098">				} else {</span>
+<span class="nc" id="L1099">					System.out</span>
+							.println(&quot;auto generated transaction_id of st_lms_transaction_master table is not generated.&quot;);
+<span class="nc" id="L1101">					throw new LMSException(&quot;Problem in Ticket Inventory upload&quot;);</span>
+				}
+<span class="nc" id="L1103">			} else {</span>
+<span class="nc" id="L1104">				System.out.println(&quot;There is no game details found.&quot;);</span>
+<span class="nc" id="L1105">				throw new LMSException(&quot;Problem in Ticket Inventory upload&quot;);</span>
+			}
+<span class="nc" id="L1107">		} catch (SQLException e) {</span>
+<span class="nc" id="L1108">			e.printStackTrace();</span>
+<span class="nc" id="L1109">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1111">			try {</span>
+<span class="nc bnc" id="L1112" title="All 4 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L1113">					conn.close();</span>
+				}
+<span class="nc" id="L1115">			} catch (SQLException e1) {</span>
+<span class="nc" id="L1116">				e1.printStackTrace();</span>
+<span class="nc" id="L1117">			}</span>
+<span class="nc" id="L1118">		}</span>
+<span class="nc" id="L1119">	}</span>
+
+	private void insertVirnPWTTicketInvDetailsIntoDataBase(Connection con,
+			ArrayList&lt;VirnCodeBean&gt; virnBeanList, Date stDate,
+			Date saleEndDate, Date pwtEndDate, int gameId, int gameNbr)
+			throws LMSException, SQLException {
+<span class="nc" id="L1125">		Connection connection = con;</span>
+<span class="nc" id="L1126">		String query = &quot;insert into st_se_pwt_inv_&quot;</span>
+				+ gameNbr
+				+ &quot; (virn_code, game_id, pwt_amt, prize_level, id1, id2, status) values &quot;;
+<span class="nc" id="L1129">		StringBuilder appendQuery = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L1130">		VirnCodeBean virnBean = null;</span>
+
+<span class="nc" id="L1132">		connection.setAutoCommit(false);</span>
+<span class="nc" id="L1133">		Statement stmt2 = connection.createStatement();</span>
+
+		// insert ticket details into database
+<span class="nc" id="L1136">		int fstLength = virnBeanList.size();</span>
+<span class="nc bnc" id="L1137" title="All 2 branches missed.">		for (int i = 0; i &lt; fstLength; i += 30000) {</span>
+<span class="nc" id="L1138">			virnBean = virnBeanList.get(i);</span>
+<span class="nc" id="L1139">			appendQuery.ensureCapacity(fstLength);</span>
+<span class="nc" id="L1140">			appendQuery.append(query).append(&quot;('&quot;).append(</span>
+					virnBean.getVirn_code());
+<span class="nc" id="L1142">			appendQuery.append(&quot;', &quot;).append(gameId).append(&quot;, &quot;);</span>
+<span class="nc" id="L1143">			appendQuery.append(virnBean.getPwt_amt()).append(&quot;, '&quot;);</span>
+<span class="nc" id="L1144">			appendQuery.append(virnBean.getPrize_level()).append(&quot;', '&quot;);</span>
+<span class="nc" id="L1145">			appendQuery.append(virnBean.getId1()).append(&quot;', '&quot;);</span>
+<span class="nc" id="L1146">			appendQuery.append(virnBean.getId2()).append(</span>
+					&quot;', '&quot; + virnBean.getStatus() + &quot;')&quot;);
+<span class="nc" id="L1148">			int secLength = i + 1 + 30000;</span>
+<span class="nc bnc" id="L1149" title="All 4 branches missed.">			for (int k = i + 1; k &lt; fstLength &amp;&amp; k &lt; secLength; k++) {</span>
+<span class="nc" id="L1150">				virnBean = virnBeanList.get(k);</span>
+<span class="nc" id="L1151">				appendQuery.append(&quot;,('&quot;).append(virnBean.getVirn_code());</span>
+<span class="nc" id="L1152">				appendQuery.append(&quot;', &quot;).append(gameId).append(&quot;, &quot;);</span>
+<span class="nc" id="L1153">				appendQuery.append(virnBean.getPwt_amt()).append(&quot;, '&quot;);</span>
+<span class="nc" id="L1154">				appendQuery.append(virnBean.getPrize_level()).append(&quot;', '&quot;);</span>
+<span class="nc" id="L1155">				appendQuery.append(virnBean.getId1()).append(&quot;', '&quot;);</span>
+<span class="nc" id="L1156">				appendQuery.append(virnBean.getId2()).append(</span>
+						&quot;', '&quot; + virnBean.getStatus() + &quot;')&quot;);
+			}
+<span class="nc" id="L1159">			i = i + 1;</span>
+<span class="nc" id="L1160">			stmt2.execute(appendQuery.toString());</span>
+<span class="nc" id="L1161">			appendQuery = new StringBuilder(&quot;&quot;);</span>
+		}
+
+		// update the game details
+<span class="nc" id="L1165">		Statement stmt1 = connection.createStatement();</span>
+<span class="nc" id="L1166">		String querytoInsertDate = QueryManager.insertGameDates() + &quot;'&quot;</span>
+				+ stDate + &quot;',sale_end_date='&quot; + saleEndDate
+				+ &quot;',pwt_end_date='&quot; + pwtEndDate
+				+ &quot;',add_inv_status='F'  where game_id=&quot; + gameId + &quot;&quot;;
+<span class="nc" id="L1170">		stmt1.executeUpdate(querytoInsertDate);</span>
+
+		// update the rank master table for 'noOfPrizeRemain and totalPrize'
+
+		// String noOfPrizeRemain = &quot;update st_se_rank_master b, (select
+		// aa.game_id, aa.pwt_amt, count(aa.pwt_amt) &quot; +
+		// &quot; 'total_no_of_prize', count(aa.pwt_amt) 'no_of_prize_rem' from
+		// st_se_pwt_inv_&quot;+gameNbr
+		// +&quot; aa where (aa.status='UNCLM_PWT' or aa.status ='UNCLM_CANCELLED')
+		// and aa.game_id=&quot;
+		// + gameId + &quot; group by aa.game_id, aa.pwt_amt)a set b.no_of_prize_rem
+		// = a.no_of_prize_rem where a.game_id = b.game_id and a.pwt_amt =
+		// b.prize_amt and a.game_id=&quot;+ gameId;
+		// updaterankMaster.executeUpdate(noOfPrizeRemain);
+<span class="nc" id="L1184">		Statement updateRankMaster = connection.createStatement();</span>
+<span class="nc" id="L1185">		String totalPrize = &quot;update st_se_rank_master b,(select aa.game_id, aa.pwt_amt, count(aa.pwt_amt) 'total_no_of_prize' from st_se_pwt_inv_&quot;</span>
+				+ gameNbr
+				+ &quot; aa  where aa.game_id=&quot;
+				+ gameId
+				+ &quot; group by aa.game_id, aa.pwt_amt)a set b.total_no_of_prize = a.total_no_of_prize where a.game_id = b.game_id and a.pwt_amt = b.prize_amt and  a.game_id=&quot;
+				+ gameId;
+<span class="nc" id="L1191">		updateRankMaster.executeUpdate(totalPrize);</span>
+
+<span class="nc" id="L1193">		connection.commit();</span>
+
+<span class="nc" id="L1195">	}</span>
+
+	/**
+	 * This method inside helper class is used to read the rank file
+	 * 
+	 * @param gameId
+	 * @param Rankupload
+	 * @return List of RankDetailBean type
+	 * @throws Exception
+	 */
+
+	public List&lt;RankDetailBean&gt; readRank(int gameId, String Rankupload)
+			throws Exception {
+<span class="nc" id="L1208">		List&lt;RankDetailBean&gt; list = new ArrayList&lt;RankDetailBean&gt;();</span>
+<span class="nc" id="L1209">		File file = new File(Rankupload);</span>
+<span class="nc" id="L1210">		FileReader fstream = new FileReader(file);</span>
+<span class="nc" id="L1211">		BufferedReader br = new BufferedReader(fstream);</span>
+		String strLine;
+<span class="nc" id="L1213">		RankDetailBean rank = null;</span>
+
+<span class="nc" id="L1215">		System.out.println(&quot;game id is &quot; + gameId);</span>
+
+<span class="nc" id="L1217">		String a = &quot;&quot;; // Rank1=Rank</span>
+<span class="nc" id="L1218">		String b = &quot;&quot;; // 1|30|0|H|N</span>
+<span class="nc" id="L1219">		String c = &quot;&quot;; // 30</span>
+<span class="nc" id="L1220">		String d = &quot;&quot;; // H</span>
+<span class="nc" id="L1221">		String e = &quot;&quot;; // 10N</span>
+<span class="nc" id="L1222">		String f = &quot;&quot;; // 1</span>
+<span class="nc" id="L1223">		String noOfPrize = &quot;&quot;;</span>
+<span class="nc" id="L1224">		String status = null;</span>
+<span class="nc" id="L1225">		StringTokenizer st = null;</span>
+<span class="nc" id="L1226">		StringTokenizer st1 = null;</span>
+<span class="nc" id="L1227">		int rank_id = 0;</span>
+<span class="nc" id="L1228">		double prize_amount = 0;</span>
+<span class="nc bnc" id="L1229" title="All 2 branches missed.">		while ((strLine = br.readLine()) != null) {</span>
+<span class="nc" id="L1230">			System.out.println(&quot;vvv----- &quot; + strLine);</span>
+<span class="nc" id="L1231">			rank = new RankDetailBean();</span>
+<span class="nc" id="L1232">			rank.setGameId(gameId);</span>
+<span class="nc" id="L1233">			a = &quot;&quot;; // Rank1=Rank</span>
+<span class="nc" id="L1234">			b = &quot;&quot;; // 1|30|0|H|N</span>
+<span class="nc" id="L1235">			c = &quot;&quot;; // 30</span>
+<span class="nc" id="L1236">			d = &quot;&quot;; // H</span>
+<span class="nc" id="L1237">			e = &quot;&quot;; // 10N</span>
+<span class="nc" id="L1238">			f = &quot;&quot;; // 1</span>
+<span class="nc" id="L1239">			noOfPrize = &quot;&quot;;</span>
+<span class="nc" id="L1240">			rank_id = 0;</span>
+<span class="nc" id="L1241">			prize_amount = 0;</span>
+<span class="nc" id="L1242">			status = null;</span>
+<span class="nc" id="L1243">			st = new StringTokenizer(strLine);</span>
+<span class="nc bnc" id="L1244" title="All 2 branches missed.">			for (int i = 0; i &lt; 3; i++) {</span>
+<span class="nc bnc" id="L1245" title="All 2 branches missed.">				if (st.hasMoreTokens()) {</span>
+<span class="nc bnc" id="L1246" title="All 2 branches missed.">					if (i &lt; 2) {</span>
+<span class="nc" id="L1247">						a = a + st.nextToken();</span>
+					} else {
+<span class="nc" id="L1249">						b = b + st.nextToken();</span>
+					}
+
+				}
+<span class="nc" id="L1253">				System.out.println(&quot;first token  &quot; + a);</span>
+<span class="nc" id="L1254">				System.out.println(&quot;second token &quot; + b);</span>
+			}
+<span class="nc" id="L1256">			st1 = new StringTokenizer(b, &quot;|&quot;);</span>
+<span class="nc bnc" id="L1257" title="All 2 branches missed.">			for (int i = 0; i &lt; 5; i++) {</span>
+<span class="nc bnc" id="L1258" title="All 2 branches missed.">				if (st1.hasMoreTokens()) {</span>
+<span class="nc bnc" id="L1259" title="All 2 branches missed.">					if (i == 0) {</span>
+<span class="nc" id="L1260">						f = f + st1.nextToken();</span>
+<span class="nc" id="L1261">						rank_id = Integer.parseInt(f);</span>
+<span class="nc" id="L1262">						rank.setRank(rank_id);</span>
+<span class="nc bnc" id="L1263" title="All 2 branches missed.">					} else if (i == 1) {</span>
+<span class="nc" id="L1264">						c = c + st1.nextToken();</span>
+<span class="nc" id="L1265">						prize_amount = Double.parseDouble(c);</span>
+<span class="nc" id="L1266">						rank.setPrize_amount(prize_amount);</span>
+<span class="nc bnc" id="L1267" title="All 2 branches missed.">					} else if (i == 3) {</span>
+<span class="nc" id="L1268">						d = d + st1.nextToken();</span>
+<span class="nc bnc" id="L1269" title="All 2 branches missed.">						if (d.equals(&quot;H&quot;)) {</span>
+<span class="nc" id="L1270">							status = &quot;HIGH&quot;;</span>
+<span class="nc bnc" id="L1271" title="All 2 branches missed.">						} else if (d.equals(&quot;L&quot;)) {</span>
+<span class="nc" id="L1272">							status = &quot;LOW&quot;;</span>
+						} else {
+<span class="nc" id="L1274">							status = &quot;&quot;;</span>
+						}
+<span class="nc" id="L1276">						rank.setStatus(status);</span>
+					}
+					// here done the code to fetch the no_of_prize_list from
+					// rank file
+					// if 'get_no_of_prize_from=RANK' in property file
+<span class="nc bnc" id="L1281" title="All 4 branches missed.">					else if (&quot;RANK&quot;.equalsIgnoreCase(GameUtilityHelper</span>
+							.getNoOfPrizeFromValue())
+							&amp;&amp; i == 4) {
+<span class="nc" id="L1284">						noOfPrize = noOfPrize + st1.nextToken();</span>
+<span class="nc" id="L1285">						long noOfPrizeLong = Long.parseLong(noOfPrize);</span>
+<span class="nc" id="L1286">						System.out.println(&quot;no of prize === &quot; + noOfPrizeLong);</span>
+<span class="nc" id="L1287">						rank.setNoOfPrize(noOfPrizeLong);</span>
+<span class="nc" id="L1288">					} else {</span>
+<span class="nc" id="L1289">						e = e + st1.nextToken();</span>
+					}
+				}
+			}
+<span class="nc" id="L1293">			list.add(rank);</span>
+		}
+		// Close the input stream
+<span class="nc" id="L1296">		br.close();</span>
+<span class="nc" id="L1297">		return list;</span>
+
+	}
+
+	/**
+	 * This method is used to read rank details from database for a game
+	 * 
+	 * @param gameName
+	 *            is game name
+	 * @return List of RankDetailBean type
+	 * @throws LMSException
+	 */
+	public List&lt;RankDetailBean&gt; readRank(String gameName) throws LMSException {
+
+		 
+		Connection connection;
+<span class="nc" id="L1313">		connection = DBConnect.getConnection();</span>
+		try {
+
+<span class="nc" id="L1316">			List&lt;RankDetailBean&gt; list = new ArrayList&lt;RankDetailBean&gt;();</span>
+			;
+
+<span class="nc" id="L1319">			Statement stmt1 = connection.createStatement();</span>
+<span class="nc" id="L1320">			Statement stmt2 = connection.createStatement();</span>
+<span class="nc" id="L1321">			int gameId = 0;</span>
+<span class="nc" id="L1322">			System.out.println(&quot;name is &quot; + gameName);</span>
+			// write this query in helper class
+<span class="nc" id="L1324">			ResultSet gameDetails = stmt2.executeQuery(QueryManager.getGameId()</span>
+					+ &quot;'&quot; + gameName + &quot;'&quot;);
+
+			// ResultSet gameDetails=stmt2.executeQuery(&quot;select game_id from
+			// st_se_game_master where game_name='&quot;+gameName+&quot;'&quot;);
+<span class="nc bnc" id="L1329" title="All 2 branches missed.">			while (gameDetails.next()) {</span>
+<span class="nc" id="L1330">				gameId = gameDetails.getInt(&quot;game_id&quot;);</span>
+			}
+			// write this query into helper class
+<span class="nc" id="L1333">			ResultSet rs = stmt1.executeQuery(QueryManager</span>
+					.getDetailsfromGameMaster()
+					+ gameId + &quot;&quot;);
+			// ResultSet rs=stmt1.executeQuery(&quot;select * from st_se_rank_master
+			// where game_id=&quot;+gameId+&quot;&quot;);
+			// System.out.println(&quot;rs is &quot;+ rs);
+<span class="nc" id="L1339">			RankDetailBean rank = null;</span>
+<span class="nc bnc" id="L1340" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1341">				rank = new RankDetailBean();</span>
+<span class="nc" id="L1342">				rank.setGameId(gameId);</span>
+<span class="nc" id="L1343">				rank.setPrize_amount(rs.getDouble(TableConstants.PRIZE_AMT));</span>
+				// System.out.println(rs.getDouble(TableConstants.PRIZE_AMT));
+<span class="nc" id="L1345">				rank.setRank(rs.getInt(TableConstants.RANK_NBR));</span>
+				// System.out.println(rs.getInt(TableConstants.RANK_NBR));
+<span class="nc" id="L1347">				rank.setStatus(rs.getString(TableConstants.PRIZE_LEVEL));</span>
+				// System.out.println(rs.getString(TableConstants.PRIZE_LEVEL));
+<span class="nc" id="L1349">				list.add(rank);</span>
+			}
+<span class="nc" id="L1351">			return list;</span>
+<span class="nc" id="L1352">		} catch (SQLException e) {</span>
+<span class="nc" id="L1353">			e.printStackTrace();</span>
+<span class="nc" id="L1354">			throw new LMSException(e);</span>
+
+		} finally {
+<span class="nc" id="L1357">			try {</span>
+<span class="nc bnc" id="L1358" title="All 4 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L1359">					connection.close();</span>
+				}
+<span class="nc" id="L1361">			} catch (SQLException se) {</span>
+<span class="nc" id="L1362">				se.printStackTrace();</span>
+<span class="nc" id="L1363">			}</span>
+		}
+
+	}
+
+	private Map&lt;Integer, RankDetailBean&gt; readRankForUploadedVirn(
+			Connection con, int gameNbr, String gameName) throws LMSException {
+<span class="nc" id="L1370">		System.out.println(&quot;name is &quot; + gameNbr + &quot;-&quot; + gameName);</span>
+<span class="nc" id="L1371">		RankDetailBean rank = null;</span>
+<span class="nc" id="L1372">		Map&lt;Integer, RankDetailBean&gt; rankMapBean = new TreeMap&lt;Integer, RankDetailBean&gt;();</span>
+<span class="nc" id="L1373">		Connection connection = con;</span>
+		try {
+<span class="nc" id="L1375">			PreparedStatement pstmt = connection</span>
+					.prepareStatement(&quot;select game_id, rank_nbr, prize_amt, prize_amt, prize_level, total_no_of_prize, no_of_prize_claim, no_of_prize_cancel from st_se_rank_master where game_id = (select game_id from st_se_game_master where game_name=? and game_nbr = ?)&quot;);
+<span class="nc" id="L1377">			pstmt.setString(1, gameName);</span>
+<span class="nc" id="L1378">			pstmt.setInt(2, gameNbr);</span>
+<span class="nc" id="L1379">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L1380">			System.out.println(pstmt);</span>
+<span class="nc bnc" id="L1381" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1382">				rank = new RankDetailBean();</span>
+<span class="nc" id="L1383">				rank.setGameId(rs.getInt(TableConstants.GAME_ID));</span>
+<span class="nc" id="L1384">				rank.setPrize_amount(rs.getDouble(TableConstants.PRIZE_AMT));</span>
+<span class="nc" id="L1385">				rank.setRank(rs.getInt(TableConstants.RANK_NBR));</span>
+<span class="nc" id="L1386">				rank.setStatus(rs.getString(TableConstants.PRIZE_LEVEL));</span>
+<span class="nc" id="L1387">				rankMapBean.put(rank.getRank(), rank);</span>
+			}
+<span class="nc" id="L1389">			return rankMapBean;</span>
+<span class="nc" id="L1390">		} catch (SQLException e) {</span>
+<span class="nc" id="L1391">			e.printStackTrace();</span>
+<span class="nc" id="L1392">			throw new LMSException(e);</span>
+
+		}
+
+	}
+
+	/**
+	 * This method is used to start new games
+	 * 
+	 * @param gameId
+	 * @return void
+	 */
+
+	public void startGame(int gameId) {
+
+		 
+		Connection connection;
+<span class="nc" id="L1409">		connection = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L1411">			Statement stmt = connection.createStatement();</span>
+<span class="nc" id="L1412">			stmt</span>
+					.executeUpdate(&quot;update st_se_game_master set game_status='OPEN' where game_id=&quot;
+							+ gameId + &quot;&quot;);
+<span class="nc" id="L1415">		} catch (SQLException e) {</span>
+<span class="nc" id="L1416">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1418">			try {</span>
+<span class="nc bnc" id="L1419" title="All 6 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L1420">					connection.close();</span>
+				}
+
+<span class="nc" id="L1423">			} catch (SQLException se) {</span>
+<span class="nc" id="L1424">				se.printStackTrace();</span>
+<span class="nc" id="L1425">			}</span>
+<span class="nc" id="L1426">		}</span>
+
+<span class="nc" id="L1428">	}</span>
+
+	/*
+	 * public static void main(String[] args) { //new
+	 * GameuploadHelper().uploadVirnFile(gameName, details, startDate,
+	 * saleendDate, pwtendDate); try { new
+	 * GameuploadHelper().uploadVirnFile(103, &quot;abcdef&quot;,
+	 * &quot;D:\\desktop\\VirnFiles\\PartyTime\\VirnFiles\\VIRN_PartyTime4.txt&quot;,
+	 * &quot;2009-03-26&quot;, &quot;2009-03-27&quot;, &quot;2009-03-28&quot;); } catch (Exception e) {
+	 * 
+	 * e.printStackTrace(); } }
+	 */
+
+	/**
+	 * This method inside helper class is used to insert game basic details into
+	 * database
+	 * 
+	 * @param govt_comm_type
+	 * @param priceperTicket
+	 * @param gameNumber
+	 * @param gameName
+	 * @param ticketpetBook
+	 * @param booksperPack
+	 * @param agentSaleCommRate
+	 * @param agentPWTCommRate
+	 * @param retailerSaleCommRate
+	 * @param retailerPWTCommRate
+	 * @param govtCommRate
+	 * @param minAssProfit
+	 * @param digitsofPack
+	 * @param digitsofBook
+	 * @param digitsofTicket
+	 * @param Rankupload
+	 * @return String
+	 * @throws LMSException
+	 */
+	public String uploadBasicDetails(String govt_comm_type,
+			double priceperTicket, int gameNumber, String gameName,
+			int ticketpetBook, int booksperPack, double agentSaleCommRate,
+			double agentPWTCommRate, double retailerSaleCommRate,
+			double retailerPWTCommRate, double govtCommRate,
+			double minAssProfit, int digitsofPack, int digitsofBook,
+			int digitsofTicket, String Rankupload, double prizePayOutRatio,
+			double vatPercentage, long ticketsInScheme, int gameVirnDigits, String defaultInvoiceMethod)
+			throws LMSException {
+
+<span class="nc" id="L1474">		Connection conn = DBConnect.getConnection();</span>
+
+		try {
+<span class="nc" id="L1477">			conn.setAutoCommit(false);</span>
+<span class="nc" id="L1478">			PreparedStatement pstmt = null;</span>
+
+			// check that game already
+<span class="nc" id="L1481">			String query = QueryManager.getST3GamesDetails();</span>
+<span class="nc" id="L1482">			Statement st = conn.createStatement();</span>
+<span class="nc" id="L1483">			System.out.println(query + &quot; where game_nbr=&quot; + gameNumber</span>
+					+ &quot; or game_name='&quot; + gameName + &quot;'&quot;);
+<span class="nc" id="L1485">			ResultSet rsGame = st.executeQuery(query + &quot; where game_nbr=&quot;</span>
+					+ gameNumber + &quot; or game_name='&quot; + gameName + &quot;'&quot;);
+<span class="nc bnc" id="L1487" title="All 2 branches missed.">			if (rsGame.next()) {</span>
+				// This Game has been already loaded
+<span class="nc" id="L1489">				return &quot;ERROR&quot;;</span>
+			}
+
+<span class="nc" id="L1492">			int defaultSchemaId = getSchemeId(conn, defaultInvoiceMethod);</span>
+			// insert game details into st_se_game_master table
+<span class="nc" id="L1494">			String insertIntoGameMaster = QueryManager.getST5GameMasterQuery();</span>
+<span class="nc" id="L1495">			PreparedStatement preState = conn</span>
+					.prepareStatement(insertIntoGameMaster);
+<span class="nc" id="L1497">			preState.setInt(1, gameNumber);</span>
+<span class="nc" id="L1498">			preState.setString(2, gameName);</span>
+<span class="nc" id="L1499">			preState.setDouble(3, priceperTicket);</span>
+<span class="nc" id="L1500">			preState.setInt(4, ticketpetBook);</span>
+<span class="nc" id="L1501">			preState.setInt(5, booksperPack);</span>
+<span class="nc" id="L1502">			preState.setDouble(6, agentSaleCommRate);</span>
+<span class="nc" id="L1503">			preState.setDouble(7, agentPWTCommRate);</span>
+<span class="nc" id="L1504">			preState.setDouble(8, retailerSaleCommRate);</span>
+<span class="nc" id="L1505">			preState.setDouble(9, retailerPWTCommRate);</span>
+<span class="nc" id="L1506">			preState.setDouble(10, govtCommRate);</span>
+<span class="nc" id="L1507">			preState.setString(11, &quot;NEW&quot;);</span>
+<span class="nc" id="L1508">			preState.setString(12, govt_comm_type);</span>
+<span class="nc" id="L1509">			preState.setDouble(13, minAssProfit);</span>
+<span class="nc" id="L1510">			preState.setString(14, &quot;F&quot;);</span>
+<span class="nc" id="L1511">			preState.setDouble(15, prizePayOutRatio);</span>
+<span class="nc" id="L1512">			preState.setDouble(16, vatPercentage);</span>
+<span class="nc" id="L1513">			preState.setLong(17, ticketsInScheme);</span>
+<span class="nc" id="L1514">			preState.setInt(18, defaultSchemaId);</span>
+<span class="nc" id="L1515">			preState.executeUpdate();</span>
+<span class="nc" id="L1516">			System.out</span>
+					.println(&quot;insert into st_se_game_master query : &quot; + pstmt);
+<span class="nc" id="L1518">			ResultSet rs = preState.getGeneratedKeys();</span>
+<span class="nc" id="L1519">			System.out.println(&quot;Resulset from st_se_game_master&quot; + rs);</span>
+<span class="nc" id="L1520">			int gameId = -1;</span>
+
+<span class="nc bnc" id="L1522" title="All 2 branches missed.">			if (rs.next()) {</span>
+
+<span class="nc" id="L1524">				gameId = rs.getInt(1);</span>
+<span class="nc" id="L1525">				System.out.println(&quot;generated game id is &quot; + gameId);</span>
+
+				// read rank file
+<span class="nc" id="L1528">				List&lt;RankDetailBean&gt; list = readRank(gameId, Rankupload);</span>
+<span class="nc" id="L1529">				System.out.println(&quot;rank file list =  &quot; + list);</span>
+
+<span class="nc" id="L1531">				Iterator&lt;RankDetailBean&gt; iterator = list.iterator();</span>
+				int rankNo;
+<span class="nc" id="L1533">				int maxRank = 0;</span>
+				String prizeLevel;
+				double prizeAmount;
+
+				// added by arun
+<span class="nc" id="L1538">				long totalNoOfPrize = 0, noOfPrizeClaimed = 0, noOfPrizeCancel = 0;</span>
+
+<span class="nc bnc" id="L1540" title="All 2 branches missed.">				while (iterator.hasNext()) {</span>
+<span class="nc" id="L1541">					RankDetailBean rankBean = iterator.next();</span>
+<span class="nc" id="L1542">					gameId = rankBean.getGameId();</span>
+<span class="nc" id="L1543">					System.out.println(&quot;game id now &quot; + gameId);</span>
+
+<span class="nc" id="L1545">					rankNo = rankBean.getRank();</span>
+<span class="nc bnc" id="L1546" title="All 2 branches missed.">					if (rankNo &gt; maxRank) {</span>
+<span class="nc" id="L1547">						maxRank = rankNo;</span>
+					}
+
+<span class="nc" id="L1550">					prizeAmount = rankBean.getPrize_amount();</span>
+<span class="nc" id="L1551">					prizeLevel = rankBean.getStatus();</span>
+
+					// updated by arun when winning prize remaining process
+<span class="nc bnc" id="L1554" title="All 2 branches missed.">					if (&quot;RANK&quot;.equalsIgnoreCase(GameUtilityHelper</span>
+							.getNoOfPrizeFromValue())) {
+<span class="nc" id="L1556">						totalNoOfPrize = rankBean.getNoOfPrize();</span>
+					} else {
+<span class="nc" id="L1558">						totalNoOfPrize = 0;</span>
+					}
+
+					// insert game rank details into st_se_rank_master
+<span class="nc" id="L1562">					pstmt = conn.prepareStatement(QueryManager</span>
+							.insertintoRankMaster());
+<span class="nc" id="L1564">					pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L1565">					pstmt.setInt(2, rankNo);</span>
+<span class="nc" id="L1566">					pstmt.setDouble(3, prizeAmount);</span>
+<span class="nc" id="L1567">					pstmt.setString(4, prizeLevel);</span>
+<span class="nc" id="L1568">					pstmt.setLong(5, totalNoOfPrize);</span>
+<span class="nc" id="L1569">					pstmt.setLong(6, noOfPrizeClaimed);</span>
+<span class="nc" id="L1570">					pstmt.setLong(7, noOfPrizeCancel);</span>
+<span class="nc" id="L1571">					pstmt.executeUpdate();</span>
+<span class="nc" id="L1572">					System.out.println(&quot;insertIntoRankMaster table qury &quot;</span>
+							+ pstmt);
+<span class="nc" id="L1574">				}</span>
+
+				// insert game ticket details into st_se_game_ticket_nbr_format
+				// table
+<span class="nc" id="L1578">				String insertTicketFormat = QueryManager.insertTicketFormat()</span>
+						+ &quot;(&quot; + gameId + &quot;,&quot; + digitsofPack + &quot;,&quot;
+						+ digitsofBook + &quot;,&quot; + digitsofTicket + &quot;,&quot;
+						+ String.valueOf(gameNumber).length() + &quot;,&quot;
+						+ String.valueOf(maxRank).length() + &quot;,&quot;
+						+ gameVirnDigits + &quot;)&quot;;
+
+<span class="nc" id="L1585">				Statement stmt = conn.createStatement();</span>
+<span class="nc" id="L1586">				stmt.executeUpdate(insertTicketFormat);</span>
+<span class="nc" id="L1587">				System.out.println(&quot;Query to insert for ticket number format &quot;</span>
+						+ stmt);
+
+				// putting the entry into gov_comm_rate_history table
+<span class="nc" id="L1591">				PreparedStatement preStatement = conn</span>
+						.prepareStatement(&quot;insert into st_se_game_govt_comm_history values (?, ?, ?)&quot;);
+<span class="nc" id="L1593">				preStatement.setInt(1, gameId);</span>
+<span class="nc" id="L1594">				preStatement.setDouble(2, govtCommRate);</span>
+<span class="nc" id="L1595">				preStatement.setTimestamp(3, new Timestamp(new java.util.Date()</span>
+						.getTime()));
+<span class="nc" id="L1597">				int i = preStatement.executeUpdate();</span>
+<span class="nc" id="L1598">				System.out.println(preStatement + &quot;\ntotal rows updates == &quot;</span>
+						+ i);
+
+				// create st_pwt_table_? for game wise
+				/*String createPwtInvTable = &quot;CREATE TABLE  st_se_pwt_inv_&quot;
+						+ gameNumber
+						+ &quot;  (&quot;
+						+ &quot; virn_code  varchar(24) unique NOT NULL,&quot;
+						+ &quot; id1 varchar(24) NOT NULL default '',&quot;
+						+ &quot; id2 varchar(24) default '', &quot;
+						+ &quot; game_id  int(10) unsigned NOT NULL,&quot;
+						+ &quot; pwt_amt  decimal(20,2) NOT NULL,&quot;
+						+ &quot; prize_level  varchar(10) NOT NULL default '',&quot;
+						+ &quot; status  varchar(25) NOT NULL default '',&quot;
+						+ &quot; PRIMARY KEY  ( virn_code , game_id )&quot;
+						+ &quot; ) ENGINE=InnoDB DEFAULT CHARSET=utf8 CHECKSUM=1 DELAY_KEY_WRITE=1 ROW_FORMAT=DYNAMIC&quot;;*/
+				
+<span class="nc" id="L1615">				String createPwtInvTable = &quot;CREATE TABLE `st_se_pwt_inv_&quot;</span>
+						+ gameNumber
+						+ &quot;` (`virn_code` varchar(24) NOT NULL,`id1` varchar(24) NOT NULL default '',`id2` varchar(24) default '',`game_id` int(10) unsigned NOT NULL,`pwt_amt` decimal(20,2) NOT NULL,`prize_level` varchar(10) NOT NULL default '',`status` varchar(25) NOT NULL default '', ticket_status enum('ACTIVE','MISSING','INACTIVE','SOLD') DEFAULT 'INACTIVE', PRIMARY KEY  (`virn_code`,`id1`,`game_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8 CHECKSUM=1 DELAY_KEY_WRITE=1 ROW_FORMAT=DYNAMIC&quot;;
+				
+<span class="nc" id="L1619">				Statement pwtStmt = conn.createStatement();</span>
+<span class="nc" id="L1620">				pwtStmt.executeUpdate(createPwtInvTable);</span>
+<span class="nc" id="L1621">				System.out.println(&quot;Query to createPwtInvTable &quot; + pwtStmt);</span>
+
+<span class="nc" id="L1623">				Statement tickStmt = conn.createStatement();</span>
+<span class="nc" id="L1624">				String ticketPwtInvTable = &quot;CREATE TABLE  st_se_pwt_tickets_inv_&quot;</span>
+						+ gameNumber
+						+ &quot;  ( &quot;
+						+ &quot; ticket_nbr  varchar(20) unique NOT NULL, &quot;
+						+ &quot; game_id  int(10) unsigned NOT NULL, &quot;
+						+ &quot; book_nbr  varchar(15) NOT NULL, &quot;
+						+ &quot; status  varchar(25) NOT NULL default '', &quot;
+						+ &quot; verify_by_user  int(10) unsigned NOT NULL, &quot;
+						+ &quot; verify_by_org  int(10) unsigned NOT NULL, &quot;
+						+ &quot; channel  varchar(30) default NULL, &quot;
+						+ &quot; interface  varchar(30) default NULL, &quot;
+						+ &quot; party_org_id int(10) default NULL,   &quot;
+						+ &quot; date datetime NOT NULL, &quot;
+						+ &quot; PRIMARY KEY  ( ticket_nbr , game_id ) &quot;
+						+ &quot; ) ENGINE=InnoDB DEFAULT CHARSET=utf8&quot;;
+<span class="nc" id="L1639">				tickStmt.executeUpdate(ticketPwtInvTable);</span>
+<span class="nc" id="L1640">				System.out.println(&quot;Query to createPwtInvTable &quot; + tickStmt);</span>
+
+<span class="nc" id="L1642">				stmt = conn.createStatement();</span>
+<span class="nc" id="L1643">				query = &quot;INSERT INTO st_se_org_game_invoice_methods (organization_id, game_id, invoice_method_id, invoice_method_value) SELECT organization_id, '&quot;+gameId+&quot;', &quot;+defaultSchemaId+&quot;, (SELECT scheme_value FROM st_se_invoicing_methods WHERE invoice_method_id=&quot;+defaultSchemaId+&quot;) FROM st_lms_organization_master WHERE organization_type IN ('AGENT', 'RETAILER');&quot;;</span>
+<span class="nc" id="L1644">				logger.info(&quot;Insert In st_se_org_game_invoice_methods - &quot;+query);</span>
+<span class="nc" id="L1645">				stmt.executeUpdate(query);</span>
+
+<span class="nc" id="L1647">				conn.commit();</span>
+<span class="nc" id="L1648">				return &quot;success&quot;;</span>
+			} else {
+<span class="nc" id="L1650">				return &quot;ERROR&quot;;</span>
+			}
+<span class="nc" id="L1652">		} catch (Exception e) {</span>
+			try {
+<span class="nc" id="L1654">				conn.rollback();</span>
+<span class="nc" id="L1655">			} catch (SQLException e1) {</span>
+<span class="nc" id="L1656">				System.out.println(&quot;Error In rollback&quot;);</span>
+<span class="nc" id="L1657">				e1.printStackTrace();</span>
+<span class="nc" id="L1658">			}</span>
+<span class="nc" id="L1659">			System.out.println(&quot;error&quot; + e.toString());</span>
+<span class="nc" id="L1660">			e.printStackTrace();</span>
+<span class="nc" id="L1661">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1663">			DBConnect.closeCon(conn);</span>
+			
+			//	Licensing Server Validation
+			//	LSControllerImpl.getInstance().clientValidation();
+		}
+
+	}
+
+	private int getSchemeId(Connection conn, String defaultInvoiceMethod) {
+		
+<span class="nc" id="L1673">		Statement stmt =  null ;</span>
+<span class="nc" id="L1674">		ResultSet rs = null ;</span>
+<span class="nc" id="L1675">		int invoicingId = 0 ;</span>
+		try{
+<span class="nc" id="L1677">			stmt = conn.createStatement() ;</span>
+			
+<span class="nc" id="L1679">			String query = &quot;select invoice_method_id from st_se_invoicing_methods where scheme_type = '&quot; + defaultInvoiceMethod + &quot;' limit 1;&quot; ;</span>
+			
+<span class="nc" id="L1681">			rs = stmt.executeQuery(query) ;</span>
+			
+<span class="nc" id="L1683">			logger.info(&quot;Query Statement : &quot; + stmt) ;</span>
+			
+<span class="nc bnc" id="L1685" title="All 2 branches missed.">			if(rs.next())</span>
+<span class="nc" id="L1686">				invoicingId = rs.getInt(&quot;invoice_method_id&quot;) ;</span>
+			
+<span class="nc" id="L1688">		}catch(Exception e){</span>
+<span class="nc" id="L1689">			e.printStackTrace() ;</span>
+		}finally{
+<span class="nc" id="L1691">			DBConnect.closeResource(rs, stmt) ;</span>
+<span class="nc" id="L1692">		}</span>
+		
+<span class="nc" id="L1694">		return invoicingId ;</span>
+	}
+
+	public String uploadVirnFile(int gameNbr, String gameName, String details,
+			String startDate, String saleendDate, String pwtendDate,
+			String encSchemeType) throws LMSException {
+<span class="nc" id="L1700">		Connection con = DBConnect.getConnection();</span>
+		try {
+
+			// get the game details from database
+<span class="nc" id="L1704">			GameTicketFormatBean ticketFmtBean = getGameDetails(con, gameNbr,</span>
+					gameName);
+<span class="nc" id="L1706">			int gameNbrDigits = ticketFmtBean.getGameNbrDigits();</span>
+<span class="nc" id="L1707">			int maxRankDigits = ticketFmtBean.getMaxRankDigits();</span>
+<span class="nc" id="L1708">			int game_id = ticketFmtBean.getGameId();</span>
+<span class="nc bnc" id="L1709" title="All 6 branches missed.">			if (gameNbrDigits == 0 || game_id == 0 || maxRankDigits == 0) {</span>
+<span class="nc" id="L1710">				return &quot;error&quot;;</span>
+			}
+
+			// get rank file details from database
+<span class="nc" id="L1714">			Map&lt;Integer, RankDetailBean&gt; rankDetailMap = readRankForUploadedVirn(</span>
+					con, gameNbr, gameName);
+
+			// VIRN file read from stream
+<span class="nc" id="L1718">			InputStreamReader fileStreamReader = new InputStreamReader(</span>
+					new FileInputStream(details));
+<span class="nc" id="L1720">			BufferedReader br = new BufferedReader(fileStreamReader);</span>
+
+<span class="nc" id="L1722">			StringBuilder encVirnStrBuilder = new StringBuilder(&quot;&quot;);</span>
+
+<span class="nc" id="L1724">			ArrayList&lt;VirnCodeBean&gt; virnBeanList = null;</span>
+<span class="nc bnc" id="L1725" title="All 2 branches missed.">			if (&quot;1W_ENC_OF_ALL&quot;.equalsIgnoreCase(encSchemeType.trim())) {// 1W</span>
+				// Encryption
+				// of
+				// virn,
+				// ticket
+				// and
+				// code
+<span class="nc" id="L1732">				virnBeanList = create1WEncVirnBeanListWithFixedCode(br,</span>
+						encVirnStrBuilder, gameNbrDigits, maxRankDigits,
+						game_id, rankDetailMap);
+<span class="nc bnc" id="L1735" title="All 2 branches missed.">			} else if (&quot;2W_ENC_OF_TKT&quot;.equalsIgnoreCase(encSchemeType.trim())) { // 2W</span>
+				// Encryption
+				// of
+				// ticket(key
+				// is
+				// virn+code)
+				// and
+				// 1W
+				// encryption
+				// of
+				// virn
+				// &amp;
+				// code
+<span class="nc" id="L1748">				virnBeanList = create2WEncVirnBeanListWithFixedCode(br,</span>
+						encVirnStrBuilder, gameNbrDigits, maxRankDigits,
+						game_id, rankDetailMap);
+<span class="nc bnc" id="L1751" title="All 2 branches missed.">			} else if (&quot;2W_ENC_OF_TKT_VIRN&quot;.equalsIgnoreCase(encSchemeType</span>
+					.trim())) { // 2W Encryption of virn &amp; ticket(that are
+				// already 1W Encrypted ) using code(1W)
+<span class="nc" id="L1754">				virnBeanList = create2WEncVirnBeanList(br, encVirnStrBuilder,</span>
+						gameNbrDigits, maxRankDigits, game_id, rankDetailMap);
+			}
+
+			// check virn_code list for duplicate into database
+<span class="nc" id="L1759">			String encVirnListString = encVirnStrBuilder.deleteCharAt(</span>
+					encVirnStrBuilder.length() - 1).toString();
+<span class="nc" id="L1761">			boolean virnFileStatusCheckFlag = fileStatusCheck(</span>
+					encVirnListString, game_id, gameNbr + &quot;&quot;);
+<span class="nc bnc" id="L1763" title="All 2 branches missed.">			if (!virnFileStatusCheckFlag) {</span>
+<span class="nc" id="L1764">				return &quot;error&quot;;</span>
+			}
+
+			// date formatted in the MySQL form
+<span class="nc" id="L1768">			DateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L1769">			dateFormat.setCalendar(Calendar.getInstance());</span>
+<span class="nc" id="L1770">			java.sql.Date stDate = new java.sql.Date(dateFormat</span>
+					.parse(startDate).getTime());
+<span class="nc" id="L1772">			java.sql.Date saleEndDate = new java.sql.Date(dateFormat.parse(</span>
+					saleendDate).getTime());
+<span class="nc" id="L1774">			java.sql.Date pwtEndDate = new java.sql.Date(dateFormat.parse(</span>
+					pwtendDate).getTime());
+
+			// insert data into st_se_pwt_inv table database
+<span class="nc" id="L1778">			insertVirnPWTTicketInvDetailsIntoDataBase(con, virnBeanList,</span>
+					stDate, saleEndDate, pwtEndDate, game_id, gameNbr);
+<span class="nc" id="L1780">			return &quot;success&quot;;</span>
+
+<span class="nc" id="L1782">		} catch (NumberFormatException e) {</span>
+<span class="nc" id="L1783">			e.printStackTrace();</span>
+<span class="nc" id="L1784">			throw new LMSException();</span>
+<span class="nc" id="L1785">		} catch (IOException e) {</span>
+<span class="nc" id="L1786">			e.printStackTrace();</span>
+<span class="nc" id="L1787">			throw new LMSException();</span>
+<span class="nc" id="L1788">		} catch (LMSException e) {</span>
+<span class="nc" id="L1789">			e.printStackTrace();</span>
+<span class="nc" id="L1790">			throw new LMSException();</span>
+<span class="nc" id="L1791">		} catch (ParseException e) {</span>
+<span class="nc" id="L1792">			e.printStackTrace();</span>
+<span class="nc" id="L1793">			throw new LMSException();</span>
+<span class="nc" id="L1794">		} catch (SQLException e) {</span>
+<span class="nc" id="L1795">			e.printStackTrace();</span>
+<span class="nc" id="L1796">			throw new LMSException();</span>
+<span class="nc" id="L1797">		} catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L1798">			e.printStackTrace();</span>
+<span class="nc" id="L1799">			throw new LMSException();</span>
+<span class="nc" id="L1800">		} catch (NoSuchPaddingException e) {</span>
+<span class="nc" id="L1801">			e.printStackTrace();</span>
+<span class="nc" id="L1802">			throw new LMSException();</span>
+<span class="nc" id="L1803">		} catch (EncryptionException e) {</span>
+<span class="nc" id="L1804">			e.printStackTrace();</span>
+<span class="nc" id="L1805">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L1807">			try {</span>
+<span class="nc bnc" id="L1808" title="All 8 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L1809">					con.close();</span>
+				}
+<span class="nc" id="L1811">			} catch (SQLException e2) {</span>
+<span class="nc" id="L1812">				e2.printStackTrace();</span>
+<span class="nc" id="L1813">				throw new LMSException(&quot;Exception During Close Statement&quot;, e2);</span>
+<span class="nc" id="L1814">			}</span>
+		}
+	}
+
+	
+	
+	
+	public static Map&lt;Integer, String&gt; getAllWarehouses(int orgId, String action)
+	{
+<span class="nc" id="L1823">		Map&lt;Integer, String&gt; warehouseNames = new HashMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L1824">		Statement st = null ;</span>
+<span class="nc" id="L1825">		ResultSet rs = null ;</span>
+<span class="nc" id="L1826">		Connection conn = null ;</span>
+		try{
+<span class="nc" id="L1828">			conn = DBConnect.getConnection() ;</span>
+<span class="nc" id="L1829">			st = conn.createStatement() ;</span>
+<span class="nc bnc" id="L1830" title="All 2 branches missed.">			String getWarehouse = &quot;select warehouse_id, warehouse_name from st_se_warehouse_master &quot;+ (&quot;FROM&quot;.equalsIgnoreCase(action) ? (&quot; where warehouse_owner_id = &quot; + orgId) : (&quot; where warehouse_owner_id != &quot; + orgId)) ;</span>
+			
+<span class="nc" id="L1832">			rs = st.executeQuery(getWarehouse) ;</span>
+			
+<span class="nc bnc" id="L1834" title="All 2 branches missed.">			while(rs.next())</span>
+<span class="nc" id="L1835">				warehouseNames.put(rs.getInt(&quot;warehouse_id&quot;), rs.getString(&quot;warehouse_name&quot;)) ;</span>
+			
+			
+<span class="nc" id="L1838">		}catch(Exception e){</span>
+<span class="nc" id="L1839">			e.printStackTrace() ;</span>
+<span class="nc" id="L1840">		}</span>
+		
+		
+<span class="nc" id="L1843">		return warehouseNames ;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

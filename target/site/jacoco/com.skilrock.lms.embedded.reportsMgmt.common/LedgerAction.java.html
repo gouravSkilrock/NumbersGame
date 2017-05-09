@@ -1,0 +1,1081 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LedgerAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.embedded.reportsMgmt.common</a> &gt; <span class="el_source">LedgerAction.java</span></div><h1>LedgerAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.embedded.reportsMgmt.common;
+
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.sql.Timestamp;
+import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.CollectionReportBean;
+import com.skilrock.lms.beans.DailyLedgerBean;
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.ReportStatusBean;
+import com.skilrock.lms.beans.ServicesBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.common.utility.GetDate;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.RetDailyLedgerHelper;
+import com.skilrock.lms.coreEngine.userMgmt.common.CommonFunctionsHelper;
+import com.skilrock.lms.embedded.drawGames.common.EmbeddedErrors;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+
+/**
+ * This class is for generation of Agent and Back Office ledger.
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L54">public class LedgerAction extends ActionSupport implements ServletRequestAware,</span>
+		ServletResponseAware {
+<span class="nc" id="L56">	private static Log logger = LogFactory.getLog(LedgerAction.class);</span>
+	private static final long serialVersionUID = 1L;
+
+<span class="nc" id="L59">	SimpleDateFormat dateformat = null;</span>
+	private Date frDate;
+	private String fromDate;
+	private String OrgName;
+<span class="nc" id="L63">	String query = null;</span>
+	/*
+	 * These were the duplicate variable which have been moved to global
+	 * variables 07-03-
+	 */
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+
+<span class="nc" id="L71">	HttpSession session = null;</span>
+
+	// LedgerHelper ledgerHelper=new LedgerHelper();
+
+	private Date tDate;
+	private String toDate;
+
+	private String type;
+<span class="nc" id="L79">	UserInfoBean userBean = null;</span>
+
+	private String userName;
+	private long LSTktNo;
+	private String isLiveBal;
+
+	public String getIsLiveBal() {
+<span class="nc" id="L86">		return isLiveBal;</span>
+	}
+
+	public void setIsLiveBal(String isLiveBal) {
+<span class="nc" id="L90">		this.isLiveBal = isLiveBal;</span>
+<span class="nc" id="L91">	}</span>
+
+	private void generateReport(DailyLedgerBean CRB, boolean isClXcl)
+			throws LMSException {
+
+<span class="nc" id="L96">		Calendar cd = Calendar.getInstance();</span>
+<span class="nc" id="L97">		cd.setTime(new java.util.Date());</span>
+<span class="nc" id="L98">		String hour = cd.get(Calendar.HOUR_OF_DAY) + &quot;&quot;;</span>
+<span class="nc" id="L99">		String min = cd.get(Calendar.MINUTE) + &quot;&quot;;</span>
+<span class="nc" id="L100">		String sec = cd.get(Calendar.SECOND) + &quot;&quot;;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">		if (hour.length() &lt;= 1) {</span>
+<span class="nc" id="L102">			hour = &quot;0&quot; + hour;</span>
+		}
+<span class="nc bnc" id="L104" title="All 2 branches missed.">		if (min.length() &lt;= 1) {</span>
+<span class="nc" id="L105">			min = &quot;0&quot; + min;</span>
+		}
+<span class="nc bnc" id="L107" title="All 2 branches missed.">		if (sec.length() &lt;= 1) {</span>
+<span class="nc" id="L108">			sec = &quot;0&quot; + sec;</span>
+		}
+
+<span class="nc" id="L111">		String finalData = &quot;Date:&quot;</span>
+				+ new java.sql.Date((new java.util.Date()).getTime())
+						.toString() + &quot;|Time:&quot; + hour + &quot;:&quot; + min + &quot;:&quot; + sec;
+		// String finalData = &quot;Date:&quot; +
+		// EmbeddedUtils.getDisplayDateInFormat(&quot;ret_rep_ledger_Generate&quot;) +
+		// &quot;|Time:&quot; +
+		// EmbeddedUtils.getDisplayTimeInFormat(&quot;ret_rep_ledger_Generate&quot;);
+<span class="nc" id="L118">		NumberFormat nFormat = NumberFormat.getInstance();</span>
+<span class="nc" id="L119">		nFormat.setMinimumFractionDigits(2);</span>
+<span class="nc" id="L120">		String balance = nFormat.format(Double.parseDouble(CRB.getOpenBal()))</span>
+				.replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L122">		String NSales = nFormat.format(</span>
+				Double.parseDouble(CRB.getNetsale())
+						+ Double.parseDouble(CRB.getSleSale())+ Double.parseDouble(CRB.getIwSale())+ Double.parseDouble(CRB.getVsSale()))
+				.replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L126">		String NPWT = nFormat.format(</span>
+				Double.parseDouble(CRB.getNetPwt())
+						+ Double.parseDouble(CRB.getSlePwt())+Double.parseDouble(CRB.getIwPwt())+Double.parseDouble(CRB.getVsPwt())).replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L129">		String NPurchase = nFormat</span>
+				.format(Double.parseDouble(CRB.getPurchase())).replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L131">		String NPayment = nFormat.format(</span>
+				Double.parseDouble(CRB.getNetPayment())).replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L133">		String ClosingBal = nFormat.format(Double.parseDouble(CRB.getClrBal()))</span>
+				.replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L135">		String CashColl = nFormat.format(Double.parseDouble(CRB.getCashCol()))</span>
+				.replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L137">		String Profit = nFormat.format(Double.parseDouble(CRB.getProfit()))</span>
+				.replace(&quot;,&quot;, &quot;&quot;);
+<span class="nc" id="L139">		String Balance = CRB.getBalance();</span>
+<span class="nc" id="L140">		String clXclAmount = &quot;&quot;;</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">		if (isClXcl) {</span>
+<span class="nc" id="L143">			clXclAmount = &quot;|TransferCredit:&quot;</span>
+					+ nFormat.format(Double.parseDouble(CRB.getClXclAmount()))
+							.replace(&quot;,&quot;, &quot;&quot;);
+		}
+
+<span class="nc bnc" id="L148" title="All 4 branches missed.">		if (ServicesBean.isSE() &amp;&amp; &quot;NO&quot;.equals(Utility.getPropertyValue(&quot;SE_LAST_SOLD_TKT_ENTRY&quot;))) {</span>
+<span class="nc" id="L149">			finalData += &quot;|OB:&quot; + balance + clXclAmount + &quot;|NSales:&quot; + NSales</span>
+					+ &quot;,NPWT:&quot; + NPWT + &quot;,NPurchase:&quot; + NPurchase
+					+ &quot;,NPayment:&quot; + NPayment + &quot;,ClosingBal:&quot; + ClosingBal;
+		} else {
+<span class="nc" id="L153">			finalData += &quot;|OB:&quot; + balance + clXclAmount + &quot;|NSales:&quot; + NSales</span>
+					+ &quot;,NPWT:&quot; + NPWT + &quot;,NPayment:&quot; + NPayment
+					+ &quot;,ClosingBal:&quot; + ClosingBal;
+		}
+
+<span class="nc" id="L158">		finalData += &quot;|CashColl:&quot; + CashColl + &quot;|Profit:&quot; + Profit</span>
+				+ &quot;|Balance:&quot; + Balance + &quot;|retOrg:&quot; + OrgName + &quot;|&quot;;
+<span class="nc" id="L160">		logger.debug(&quot;Opening Balance:-&quot; + CRB.getOpenBal() + &quot; ClXclAmount:-&quot;</span>
+				+ clXclAmount + &quot; NetSale:-&quot; + CRB.getNetsale() + &quot; NetPwt:-&quot;
+				+ CRB.getNetPwt() + &quot; Payment:-&quot; + CRB.getNetPayment()
+				+ &quot; CashCol:-&quot; + CRB.getCashCol() + &quot; profit:-&quot;
+				+ CRB.getProfit() + &quot;|Balance:&quot; + CRB.getBalance());
+		try {
+<span class="nc" id="L166">			response.getOutputStream().write(finalData.getBytes());</span>
+<span class="nc" id="L167">		} catch (Exception e) {</span>
+<span class="nc" id="L168">			e.printStackTrace();</span>
+<span class="nc" id="L169">		}</span>
+<span class="nc" id="L170">	}</span>
+
+	private void generateReportGameWise(
+			Map&lt;String, List&lt;Map&lt;String, Double&gt;&gt;&gt; dataMap, String date,
+			UserInfoBean userBean) throws LMSException {
+<span class="nc" id="L175">		Calendar cd = Calendar.getInstance();</span>
+<span class="nc" id="L176">		cd.setTime(new java.util.Date());</span>
+<span class="nc" id="L177">		String hour = cd.get(Calendar.HOUR_OF_DAY) + &quot;&quot;;</span>
+<span class="nc" id="L178">		String min = cd.get(Calendar.MINUTE) + &quot;&quot;;</span>
+<span class="nc" id="L179">		String sec = cd.get(Calendar.SECOND) + &quot;&quot;;</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">		if (hour.length() &lt;= 1) {</span>
+<span class="nc" id="L181">			hour = &quot;0&quot; + hour;</span>
+		}
+<span class="nc bnc" id="L183" title="All 2 branches missed.">		if (min.length() &lt;= 1) {</span>
+<span class="nc" id="L184">			min = &quot;0&quot; + min;</span>
+		}
+<span class="nc bnc" id="L186" title="All 2 branches missed.">		if (sec.length() &lt;= 1) {</span>
+<span class="nc" id="L187">			sec = &quot;0&quot; + sec;</span>
+		}
+
+<span class="nc" id="L190">		String finalData = &quot;Date:&quot;</span>
+				+ new java.sql.Date((new java.util.Date()).getTime())
+						.toString() + &quot;|Time:&quot; + hour + &quot;:&quot; + min + &quot;:&quot; + sec;
+		// String finalData = &quot;Date:&quot; +
+		// EmbeddedUtils.getDisplayDateInFormat(&quot;gameWiseReport&quot;) + &quot;|Time:&quot; +
+		// EmbeddedUtils.getDisplayTimeInFormat(&quot;gameWiseReport&quot;);
+
+<span class="nc" id="L197">		finalData += &quot;|ReportDate:&quot; + date;</span>
+<span class="nc" id="L198">		int i = 0;</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">		if (dataMap.size() != 0) {</span>
+<span class="nc" id="L200">			Double totalMrpSale = 0.0;</span>
+<span class="nc" id="L201">			Double totalMrpPwt = 0.0;</span>
+<span class="nc" id="L202">			Double totalNetSale = 0.0;</span>
+<span class="nc" id="L203">			Double totalNetPwt = 0.0;</span>
+
+<span class="nc bnc" id="L205" title="All 2 branches missed.">			if (ServicesBean.isDG()) {</span>
+<span class="nc" id="L206">				List&lt;Map&lt;String, Double&gt;&gt; dgList = dataMap.get(&quot;DG&quot;);</span>
+<span class="nc" id="L207">				int dgLen = dgList.size();</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">				while (i &lt; dgLen) {</span>
+
+<span class="nc" id="L210">					Set&lt;String&gt; keySet = dgList.get(i).keySet();</span>
+<span class="nc" id="L211">					Iterator&lt;String&gt; itr = keySet.iterator();</span>
+<span class="nc" id="L212">					finalData += &quot;|Game Type:&quot;;</span>
+<span class="nc" id="L213">					String gameName = null;</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">					while (itr.hasNext()) {</span>
+<span class="nc" id="L215">						String gName = itr.next();</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">						if (gName.indexOf(&quot;name&quot;) != -1) {</span>
+<span class="nc" id="L217">							gameName = gName.substring(4, gName.length());</span>
+<span class="nc" id="L218">							finalData += &quot;GameN:&quot; + gameName + &quot;,&quot;;</span>
+
+						}
+<span class="nc" id="L221">					}</span>
+
+<span class="nc" id="L223">					Double mrpSaleSlot = dgList.get(i).get(&quot;mrpSaleSlot&quot;);</span>
+<span class="nc" id="L224">					Double netSaleSlot = dgList.get(i).get(&quot;netSaleSlot&quot;);</span>
+<span class="nc bnc" id="L225" title="All 4 branches missed.">					if (mrpSaleSlot != null &amp;&amp; netSaleSlot != null) {</span>
+<span class="nc" id="L226">						finalData += &quot;GameS:&quot;</span>
+								+ FormatNumber.formatNumber(dgList.get(i).get(
+										&quot;mrpSale&quot;)
+										- mrpSaleSlot) + &quot;,&quot;;
+<span class="nc" id="L230">						finalData += &quot;GameSS:&quot; + gameName + &quot;(Slot Sales)~&quot;</span>
+								+ FormatNumber.formatNumber(mrpSaleSlot) + &quot;,&quot;;
+					} else {
+<span class="nc" id="L233">						finalData += &quot;GameS:&quot;</span>
+								+ FormatNumber.formatNumber(dgList.get(i).get(
+										&quot;mrpSale&quot;)) + &quot;,&quot;;
+					}
+
+<span class="nc" id="L238">					finalData += &quot;GamePWT:&quot;</span>
+							+ FormatNumber.formatNumber(dgList.get(i).get(
+									&quot;mrpPwt&quot;));
+<span class="nc" id="L241">					totalMrpSale += dgList.get(i).get(&quot;mrpSale&quot;);</span>
+<span class="nc" id="L242">					totalNetSale += dgList.get(i).get(&quot;netSale&quot;);</span>
+<span class="nc" id="L243">					totalMrpPwt += dgList.get(i).get(&quot;mrpPwt&quot;);</span>
+<span class="nc" id="L244">					totalNetPwt += dgList.get(i).get(&quot;netPwt&quot;);</span>
+
+<span class="nc" id="L246">					i++;</span>
+<span class="nc" id="L247">				}</span>
+			}
+<span class="nc" id="L249">			int iSle = 0;</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">			if (ServicesBean.isSLE()) {</span>
+<span class="nc" id="L251">				List&lt;Map&lt;String, Double&gt;&gt; sleList = dataMap.get(&quot;SLE&quot;);</span>
+<span class="nc" id="L252">				int sleLen = sleList.size();</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">				while (iSle &lt; sleLen) {</span>
+
+<span class="nc" id="L255">					Set&lt;String&gt; keySet = sleList.get(iSle).keySet();</span>
+<span class="nc" id="L256">					Iterator&lt;String&gt; itr = keySet.iterator();</span>
+<span class="nc" id="L257">					finalData += &quot;|Game Type:&quot;;</span>
+<span class="nc" id="L258">					String gameName = null;</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">					while (itr.hasNext()) {</span>
+<span class="nc" id="L260">						String gName = itr.next();</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">						if (gName.indexOf(&quot;name&quot;) != -1) {</span>
+<span class="nc" id="L262">							gameName = gName.substring(4, gName.length());</span>
+<span class="nc" id="L263">							finalData += &quot;GameN:&quot; + gameName + &quot;,&quot;;</span>
+
+						}
+<span class="nc" id="L266">					}</span>
+
+<span class="nc" id="L268">					finalData += &quot;GameS:&quot;</span>
+							+ FormatNumber.formatNumber(sleList.get(iSle).get(
+									&quot;mrpSale&quot;)) + &quot;,&quot;;
+
+<span class="nc" id="L272">					finalData += &quot;GamePWT:&quot;</span>
+							+ FormatNumber.formatNumber(sleList.get(iSle).get(
+									&quot;mrpPwt&quot;));
+<span class="nc" id="L275">					totalMrpSale += sleList.get(iSle).get(&quot;mrpSale&quot;);</span>
+<span class="nc" id="L276">					totalNetSale += sleList.get(iSle).get(&quot;netSale&quot;);</span>
+<span class="nc" id="L277">					totalMrpPwt += sleList.get(iSle).get(&quot;mrpPwt&quot;);</span>
+<span class="nc" id="L278">					totalNetPwt += sleList.get(iSle).get(&quot;netPwt&quot;);</span>
+
+<span class="nc" id="L280">					iSle++;</span>
+<span class="nc" id="L281">				}</span>
+			}
+			
+<span class="nc" id="L284">			int iIw = 0;</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">			if (ServicesBean.isIW()) {</span>
+<span class="nc" id="L286">				List&lt;Map&lt;String, Double&gt;&gt; iwList = dataMap.get(&quot;IW&quot;);</span>
+<span class="nc" id="L287">				int iwLen = iwList.size();</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">				while (iIw &lt; iwLen) {</span>
+
+<span class="nc" id="L290">					Set&lt;String&gt; keySet = iwList.get(iIw).keySet();</span>
+<span class="nc" id="L291">					Iterator&lt;String&gt; itr = keySet.iterator();</span>
+<span class="nc" id="L292">					finalData += &quot;|Game Type:&quot;;</span>
+<span class="nc" id="L293">					String gameName = null;</span>
+<span class="nc bnc" id="L294" title="All 2 branches missed.">					while (itr.hasNext()) {</span>
+<span class="nc" id="L295">						String gName = itr.next();</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">						if (gName.indexOf(&quot;name&quot;) != -1) {</span>
+<span class="nc" id="L297">							gameName = gName.substring(4, gName.length());</span>
+<span class="nc" id="L298">							finalData += &quot;GameN:&quot; + gameName + &quot;,&quot;;</span>
+
+						}
+<span class="nc" id="L301">					}</span>
+
+<span class="nc" id="L303">					finalData += &quot;GameS:&quot;</span>
+							+ FormatNumber.formatNumber(iwList.get(iIw).get(
+									&quot;mrpSale&quot;)) + &quot;,&quot;;
+
+<span class="nc" id="L307">					finalData += &quot;GamePWT:&quot;</span>
+							+ FormatNumber.formatNumber(iwList.get(iIw).get(
+									&quot;mrpPwt&quot;));
+<span class="nc" id="L310">					totalMrpSale += iwList.get(iIw).get(&quot;mrpSale&quot;);</span>
+<span class="nc" id="L311">					totalNetSale += iwList.get(iIw).get(&quot;netSale&quot;);</span>
+<span class="nc" id="L312">					totalMrpPwt += iwList.get(iIw).get(&quot;mrpPwt&quot;);</span>
+<span class="nc" id="L313">					totalNetPwt += iwList.get(iIw).get(&quot;netPwt&quot;);</span>
+
+<span class="nc" id="L315">					iIw++;</span>
+<span class="nc" id="L316">				}</span>
+			}
+
+<span class="nc" id="L319">			int iVs = 0;</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">			if (ServicesBean.isVS()) {</span>
+<span class="nc" id="L321">				List&lt;Map&lt;String, Double&gt;&gt; vsList = dataMap.get(&quot;VS&quot;);</span>
+<span class="nc" id="L322">				int iwLen = vsList.size();</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">				while (iVs &lt; iwLen) {</span>
+<span class="nc" id="L324">					Set&lt;String&gt; keySet = vsList.get(iVs).keySet();</span>
+<span class="nc" id="L325">					Iterator&lt;String&gt; itr = keySet.iterator();</span>
+<span class="nc" id="L326">					finalData += &quot;|Game Type:&quot;;</span>
+<span class="nc" id="L327">					String gameName = null;</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">					while (itr.hasNext()) {</span>
+<span class="nc" id="L329">						String gName = itr.next();</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">						if (gName.indexOf(&quot;name&quot;) != -1) {</span>
+<span class="nc" id="L331">							gameName = gName.substring(4, gName.length());</span>
+<span class="nc" id="L332">							finalData += &quot;GameN:&quot; + gameName + &quot;,&quot;;</span>
+						}
+<span class="nc" id="L334">					}</span>
+
+<span class="nc" id="L336">					finalData += &quot;GameS:&quot; + FormatNumber.formatNumber(vsList.get(iVs).get(&quot;mrpSale&quot;)) + &quot;,&quot;;</span>
+
+<span class="nc" id="L338">					finalData += &quot;GamePWT:&quot; + FormatNumber.formatNumber(vsList.get(iIw).get(&quot;mrpPwt&quot;));</span>
+<span class="nc" id="L339">					totalMrpSale += vsList.get(iIw).get(&quot;mrpSale&quot;);</span>
+<span class="nc" id="L340">					totalNetSale += vsList.get(iIw).get(&quot;netSale&quot;);</span>
+<span class="nc" id="L341">					totalMrpPwt += vsList.get(iIw).get(&quot;mrpPwt&quot;);</span>
+<span class="nc" id="L342">					totalNetPwt += vsList.get(iIw).get(&quot;netPwt&quot;);</span>
+<span class="nc" id="L343">					iVs++;</span>
+<span class="nc" id="L344">				}</span>
+			}
+
+			// Added code for adding Scratch winning data in transaction report
+			// in terminal...
+<span class="nc bnc" id="L349" title="All 2 branches missed.">			if (ServicesBean.isSE()) {</span>
+<span class="nc" id="L350">				List&lt;Map&lt;String, Double&gt;&gt; seList = dataMap.get(&quot;SE&quot;);</span>
+<span class="nc" id="L351">				int seLen = seList.size();</span>
+<span class="nc" id="L352">				finalData += &quot;|ScratchPWT:&quot;</span>
+						+ FormatNumber.formatNumber(seList.get(seLen - 1).get(
+								&quot;scratchMrpPwt&quot;));
+
+<span class="nc" id="L356">				totalMrpPwt += seList.get(seLen - 1).get(&quot;scratchMrpPwt&quot;);</span>
+<span class="nc" id="L357">				totalNetPwt += seList.get(seLen - 1).get(&quot;scratchNetPwt&quot;);</span>
+			}
+			// Added code for adding Scratch data ends here...
+
+<span class="nc" id="L361">			AjaxRequestHelper ajxHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L362">			ajxHelper.getAvlblCreditAmt(userBean);</span>
+<span class="nc" id="L363">			double bal = userBean.getAvailableCreditLimit()</span>
+					- userBean.getClaimableBal();
+<span class="nc" id="L365">			String balance = bal + &quot;00&quot;;</span>
+<span class="nc" id="L366">			balance = balance.substring(0, balance.indexOf(&quot;.&quot;) + 3);</span>
+<span class="nc" id="L367">			finalData += &quot;|TotalSale:&quot;</span>
+					+ FormatNumber.formatNumber(totalMrpSale);
+<span class="nc" id="L369">			finalData += &quot;|TotalPWT:&quot; + FormatNumber.formatNumber(totalMrpPwt);</span>
+<span class="nc" id="L370">			finalData += &quot;|CashInHand:&quot;</span>
+					+ FormatNumber.formatNumber(totalMrpSale - totalMrpPwt);
+<span class="nc" id="L372">			finalData += &quot;|PTPA:&quot;</span>
+					+ FormatNumber.formatNumber(totalNetSale - totalNetPwt);
+<span class="nc" id="L374">			finalData += &quot;|Profit:&quot;</span>
+					+ FormatNumber.formatNumber(totalMrpSale - totalMrpPwt
+							- (totalNetSale - totalNetPwt));
+<span class="nc" id="L377">			finalData += &quot;|Balance:&quot; + Util.getBalInString(bal);</span>
+<span class="nc" id="L378">			finalData += &quot;|RetOrg:&quot; + userBean.getOrgName() + &quot;|&quot;;</span>
+<span class="nc" id="L379">			System.out.println(&quot;FINAL GAME WISE REPORT DATA: &quot; + finalData);</span>
+		}
+		try {
+<span class="nc" id="L382">			response.getOutputStream().write(finalData.getBytes());</span>
+<span class="nc" id="L383">		} catch (Exception e) {</span>
+<span class="nc" id="L384">			e.printStackTrace();</span>
+<span class="nc" id="L385">		}</span>
+<span class="nc" id="L386">	}</span>
+
+	public void summaryTransactionReport() throws Exception {
+<span class="nc" id="L389">		ServletContext sc = ServletActionContext.getServletContext();</span>
+
+<span class="nc" id="L391">		SimpleDateFormat sDF = new SimpleDateFormat(</span>
+				(String) sc.getAttribute(&quot;date_format&quot;));
+<span class="nc" id="L393">		Date deplDate = sDF.parse((String) sc.getAttribute(&quot;DEPLOYMENT_DATE&quot;));</span>
+
+<span class="nc" id="L395">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc bnc" id="L396" title="All 2 branches missed.">		if (currentUserSessionMap == null) {</span>
+<span class="nc" id="L397">			response.getOutputStream()</span>
+					.write((&quot;ErrorMsg:&quot; + EmbeddedErrors.SESSION_EXPIRED + &quot;ErrorCode:01|&quot;)
+							.getBytes());
+<span class="nc" id="L400">			return;</span>
+		}
+		// System.out.println(&quot; LOGGED_IN_USERS maps is &quot; +
+		// currentUserSessionMap);
+
+<span class="nc" id="L405">		System.out.println(&quot; user name is &quot; + userName);</span>
+<span class="nc" id="L406">		session = (HttpSession) currentUserSessionMap.get(userName);</span>
+<span class="nc bnc" id="L407" title="All 2 branches missed.">		if (!CommonFunctionsHelper.isSessionValid(session)) {</span>
+<span class="nc" id="L408">			response.getOutputStream()</span>
+					.write((&quot;ErrorMsg:&quot; + EmbeddedErrors.SESSION_EXPIRED + &quot;ErrorCode:01|&quot;)
+							.getBytes());
+<span class="nc" id="L411">			return;</span>
+		}
+
+		// to cancel last sold ticket if unprinted at terminal end
+<span class="nc" id="L415">		userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L416">		Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap = (Map&lt;Integer, Map&lt;Integer, String&gt;&gt;) sc</span>
+				.getAttribute(&quot;drawIdTableMap&quot;);
+<span class="nc" id="L418">		String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L419">		int autoCancelHoldDays = Integer.parseInt((String) sc</span>
+				.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));
+<span class="nc" id="L421">		long lastPrintedTicket = 0;</span>
+<span class="nc" id="L422">		int gameId = 0;</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">		if (LSTktNo != 0) {</span>
+<span class="nc" id="L424">			lastPrintedTicket = LSTktNo</span>
+					/ Util.getDivValueForLastSoldTkt(String.valueOf(LSTktNo)
+							.length());
+<span class="nc" id="L427">			gameId = Util.getGameIdFromGameNumber(Util</span>
+					.getGamenoFromTktnumber(String.valueOf(LSTktNo)));
+		}
+
+<span class="nc" id="L431">		String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L432">		DrawGameRPOSHelper drawGameRPOSHelper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L433">		drawGameRPOSHelper.checkLastPrintedTicketStatusAndUpdate(userBean,</span>
+				lastPrintedTicket, &quot;TERMINAL&quot;, refMerchantId,
+				autoCancelHoldDays, actionName, gameId);
+
+		// continue for report generation
+<span class="nc" id="L438">		DateBeans dateBeans = null;</span>
+
+<span class="nc bnc" id="L440" title="All 2 branches missed.">		if (&quot;Current Day&quot;.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {</span>
+<span class="nc" id="L441">			dateBeans = GetDate.getDate(URLDecoder.decode(type, &quot;UTF-8&quot;));</span>
+<span class="nc bnc" id="L442" title="All 2 branches missed.">		} else if (&quot;Last Day&quot;</span>
+				.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L444">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L445">			dateBeans.setFirstdate(new java.sql.Date(new Date().getTime() - 24</span>
+					* 60 * 60 * 1000));
+<span class="nc" id="L447">			dateBeans.setLastdate(new java.sql.Date(new Date().getTime()));</span>
+<span class="nc bnc" id="L448" title="All 2 branches missed.">		} else if (&quot;Day Before Yesterday&quot;.equalsIgnoreCase(URLDecoder.decode(</span>
+				type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L450">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L451">			dateBeans.setFirstdate(new java.sql.Date(new Date().getTime() - 2</span>
+					* 24 * 60 * 60 * 1000));
+<span class="nc" id="L453">			dateBeans.setLastdate(new java.sql.Date(new Date().getTime() - 24</span>
+					* 60 * 60 * 1000));
+<span class="nc bnc" id="L455" title="All 2 branches missed.">		} else if (&quot;Date Wise&quot;.equalsIgnoreCase(URLDecoder</span>
+				.decode(type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L457">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L458">			dateBeans.setFirstdate(new java.sql.Date(sDF.parse(fromDate)</span>
+					.getTime()));
+<span class="nc" id="L460">			dateBeans.setLastdate(new java.sql.Date(sDF.parse(toDate).getTime()</span>
+					+ 24 * 60 * 60 * 1000));
+		}
+<span class="nc" id="L463">		userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L464">		frDate = dateBeans.getFirstdate();</span>
+<span class="nc" id="L465">		tDate = dateBeans.getLastdate();</span>
+<span class="nc" id="L466">		int orgId = userBean.getUserOrgId();</span>
+<span class="nc" id="L467">		String retOrgName = userBean.getOrgName();</span>
+<span class="nc" id="L468">		RetDailyLedgerHelper helper = new RetDailyLedgerHelper();</span>
+<span class="nc" id="L469">		CollectionReportBean bean = helper</span>
+				.getSummaryTxnReport(dateBeans, orgId);
+<span class="nc bnc" id="L471" title="All 2 branches missed.">		if (&quot;Date Wise&quot;.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {</span>
+<span class="nc" id="L472">			dateBeans</span>
+					.setLastdate(new java.sql.Date(sDF.parse(toDate).getTime()));
+		}
+<span class="nc" id="L475">		generateSummerizedTxnReport(bean, dateBeans.getFirstdate().toString()</span>
+				.split(&quot; &quot;)[0],
+				dateBeans.getLastdate().toString().split(&quot; &quot;)[0], retOrgName);
+
+		// for sports lottery data needs to change later
+
+		/*
+		 * GameDataReportControllerImpl controllerImpl = new
+		 * GameDataReportControllerImpl(); Map&lt;String,
+		 * List&lt;RetGameDataReportBean&gt;&gt; gameDataReportMap = null;
+		 * SimpleDateFormat simpleDateFormat = null; Date date = null; try {
+		 * simpleDateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;); if
+		 * (&quot;Current Day&quot;.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {
+		 * date = new Date(); } else if
+		 * (&quot;Last Day&quot;.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {
+		 * date = new Date(new Date().getTime() - 24*60*60*1000); } else
+		 * if(&quot;Day Before Yesterday&quot;.equalsIgnoreCase(URLDecoder.decode(type,
+		 * &quot;UTF-8&quot;))) { date = new Date(new Date().getTime() - 48*60*60*1000);
+		 * //date = simpleDateFormat.parse(type); }
+		 * 
+		 * gameDataReportMap =
+		 * controllerImpl.gameDataReportRetailerWise(userBean.getUserOrgId(),
+		 * date, date); NumberFormat numberFormat = NumberFormat.getInstance();
+		 * numberFormat.setMinimumFractionDigits(2);
+		 * 
+		 * double totalSaleAmt = 0; double totalPwtAmt = 0; for(String gameName
+		 * : gameDataReportMap.keySet()) { List&lt;RetGameDataReportBean&gt;
+		 * gameDataReportList = gameDataReportMap.get(gameName);
+		 * for(RetGameDataReportBean gameDataReportBean : gameDataReportList) {
+		 * double saleAmt = gameDataReportBean.getSaleAmount(); double pwtAmt =
+		 * gameDataReportBean.getPwtAmount(); totalSaleAmt += saleAmt;
+		 * totalPwtAmt += pwtAmt;
+		 * 
+		 * } } StringBuilder slData=new StringBuilder();
+		 * slData.append(&quot;SLSale:&quot;);
+		 * slData.append(numberFormat.format(totalSaleAmt).replaceAll(&quot;,&quot;, &quot;&quot;));
+		 * slData.append(&quot;|SLPayout:&quot;);
+		 * slData.append(numberFormat.format(totalPwtAmt).replaceAll(&quot;,&quot;, &quot;&quot;));
+		 * slData.append(&quot;|SLCol:&quot;);
+		 * slData.append(numberFormat.format(Double.valueOf
+		 * (bean.getGrandTotal())+totalSaleAmt-totalPwtAmt).replaceAll(&quot;,&quot;,
+		 * &quot;&quot;)); response.getOutputStream().write(slData.toString().getBytes());
+		 * 
+		 * 
+		 * 
+		 * 
+		 * } catch (SLEException e) { try {
+		 * response.getOutputStream().write((&quot;ErrorMsg:&quot;
+		 * +e.getErrorMessage()).getBytes()); } catch (IOException e1) {
+		 * e1.printStackTrace(); } return; }
+		 */
+<span class="nc" id="L526">	}</span>
+
+	private void generateSummerizedTxnReport(CollectionReportBean bean,
+			String fdate, String tdate, String retName) {
+<span class="nc" id="L530">		Calendar cd = Calendar.getInstance();</span>
+<span class="nc" id="L531">		cd.setTime(new java.util.Date());</span>
+<span class="nc" id="L532">		String hour = cd.get(Calendar.HOUR_OF_DAY) + &quot;&quot;;</span>
+<span class="nc" id="L533">		String min = cd.get(Calendar.MINUTE) + &quot;&quot;;</span>
+<span class="nc" id="L534">		String sec = cd.get(Calendar.SECOND) + &quot;&quot;;</span>
+<span class="nc bnc" id="L535" title="All 2 branches missed.">		if (hour.length() &lt;= 1) {</span>
+<span class="nc" id="L536">			hour = &quot;0&quot; + hour;</span>
+		}
+<span class="nc bnc" id="L538" title="All 2 branches missed.">		if (min.length() &lt;= 1) {</span>
+<span class="nc" id="L539">			min = &quot;0&quot; + min;</span>
+		}
+<span class="nc bnc" id="L541" title="All 2 branches missed.">		if (sec.length() &lt;= 1) {</span>
+<span class="nc" id="L542">			sec = &quot;0&quot; + sec;</span>
+		}
+
+<span class="nc" id="L545">		String finalData = &quot;Date:&quot;</span>
+				+ new java.sql.Date((new java.util.Date()).getTime())
+						.toString() + &quot;|Time:&quot; + hour + &quot;:&quot; + min + &quot;:&quot; + sec;
+<span class="nc" id="L548">		finalData += &quot;|RDate:&quot; + fdate + &quot;|FDate:&quot; + fdate + &quot;|TDate:&quot; + tdate;</span>
+<span class="nc bnc" id="L549" title="All 2 branches missed.">		if (ReportUtility.isDG) {</span>
+<span class="nc" id="L550">			finalData += &quot;|DSale:&quot; + FormatNumber.formatToTwoDecimal(Double.parseDouble(bean.getDrawSale())) + &quot;|DNPayout:&quot;</span>
+					+ bean.getDrawPwt();
+		}
+<span class="nc bnc" id="L553" title="All 2 branches missed.">		if (ReportUtility.isSE) {</span>
+<span class="nc" id="L554">			finalData += &quot;|SSale:&quot; + bean.getScratchSale() + &quot;|SNPayout:&quot;</span>
+					+ bean.getScratchPwt();
+		}
+<span class="nc bnc" id="L557" title="All 2 branches missed.">		if (ReportUtility.isCS) {</span>
+<span class="nc" id="L558">			finalData += &quot;|CSSale:&quot; + bean.getCSSale();</span>
+		}
+<span class="nc bnc" id="L560" title="All 2 branches missed.">		if (ReportUtility.isOLA) {</span>
+<span class="nc" id="L561">			finalData += &quot;|OLADeposit:&quot; + bean.getOlaDeposit()</span>
+					+ &quot;|OLAWithdrawal:&quot; + bean.getOlaWithdraw();
+		}
+<span class="nc bnc" id="L564" title="All 2 branches missed.">		if (ReportUtility.isSLE) {</span>
+<span class="nc" id="L565">			finalData += &quot;|SLSale:&quot; + bean.getSleSale() + &quot;|SLNPayout:&quot;</span>
+					+ bean.getSlePwt();
+		}
+<span class="nc bnc" id="L568" title="All 2 branches missed.">		if (ReportUtility.isIW) {</span>
+<span class="nc" id="L569">			finalData += &quot;|IWSale:&quot; + bean.getIwSale() + &quot;|IWNPayout:&quot;</span>
+					+ bean.getIwPwt();
+		}
+<span class="nc" id="L572">		double pft = Double.parseDouble(bean.getGrandTotal())</span>
+				- Double.parseDouble(bean.getOpenBal());
+<span class="nc" id="L574">		finalData += &quot;|CCol:&quot; + bean.getGrandTotal() + &quot;|Pft:&quot;</span>
+				+ FormatNumber.formatNumber(pft) + &quot;|PTPA:&quot; + bean.getOpenBal()
+				+ &quot;|ROrg:&quot; + retName + &quot;|&quot;;
+
+		try {
+<span class="nc" id="L579">			System.out.println(&quot;FINAL SUMMARY TXN REPORT DATA:&quot; + finalData);</span>
+<span class="nc" id="L580">			response.getOutputStream().write(finalData.getBytes());</span>
+<span class="nc" id="L581">		} catch (Exception e) {</span>
+<span class="nc" id="L582">			e.printStackTrace();</span>
+<span class="nc" id="L583">		}</span>
+
+<span class="nc" id="L585">	}</span>
+
+	public void detailTransactionReport() throws UnsupportedEncodingException,
+			LMSException {
+<span class="nc" id="L589">		ServletContext sc = ServletActionContext.getServletContext();</span>
+
+<span class="nc" id="L591">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc bnc" id="L592" title="All 2 branches missed.">		if (currentUserSessionMap == null) {</span>
+			try {
+<span class="nc" id="L594">				response.getOutputStream()</span>
+						.write((&quot;ErrorMsg:&quot; + EmbeddedErrors.SESSION_EXPIRED + &quot;ErrorCode:01|&quot;)
+								.getBytes());
+<span class="nc" id="L597">			} catch (IOException e) {</span>
+<span class="nc" id="L598">				e.printStackTrace();</span>
+<span class="nc" id="L599">			}</span>
+<span class="nc" id="L600">			return;</span>
+		}
+		// System.out.println(&quot; LOGGED_IN_USERS maps is &quot; +
+		// currentUserSessionMap);
+
+<span class="nc" id="L605">		System.out.println(&quot; user name is &quot; + userName);</span>
+<span class="nc" id="L606">		session = (HttpSession) currentUserSessionMap.get(userName);</span>
+<span class="nc bnc" id="L607" title="All 2 branches missed.">		if (!CommonFunctionsHelper.isSessionValid(session)) {</span>
+			try {
+<span class="nc" id="L609">				response.getOutputStream()</span>
+						.write((&quot;ErrorMsg:&quot; + EmbeddedErrors.SESSION_EXPIRED + &quot;ErrorCode:01|&quot;)
+								.getBytes());
+<span class="nc" id="L612">			} catch (IOException e) {</span>
+<span class="nc" id="L613">				e.printStackTrace();</span>
+<span class="nc" id="L614">			}</span>
+<span class="nc" id="L615">			return;</span>
+		}
+<span class="nc" id="L617">		DateBeans dateBeans = null;</span>
+
+<span class="nc bnc" id="L619" title="All 2 branches missed.">		if (&quot;Current Day&quot;.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {</span>
+<span class="nc" id="L620">			dateBeans = GetDate.getDate(URLDecoder.decode(type, &quot;UTF-8&quot;));</span>
+<span class="nc bnc" id="L621" title="All 2 branches missed.">		} else if (&quot;Last Day&quot;</span>
+				.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L623">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L624">			dateBeans.setFirstdate(new java.sql.Date(new Date().getTime() - 24</span>
+					* 60 * 60 * 1000));
+<span class="nc" id="L626">			dateBeans.setLastdate(new java.sql.Date(new Date().getTime()));</span>
+<span class="nc bnc" id="L627" title="All 2 branches missed.">		} else if (&quot;Day Before Yesterday&quot;.equalsIgnoreCase(URLDecoder.decode(</span>
+				type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L629">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L630">			dateBeans.setFirstdate(new java.sql.Date(new Date().getTime() - 2</span>
+					* 24 * 60 * 60 * 1000));
+<span class="nc" id="L632">			dateBeans.setLastdate(new java.sql.Date(new Date().getTime() - 24</span>
+					* 60 * 60 * 1000));
+		}
+<span class="nc" id="L635">		userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L636">		frDate = dateBeans.getFirstdate();</span>
+<span class="nc" id="L637">		tDate = dateBeans.getLastdate();</span>
+<span class="nc" id="L638">		String retOrgName = userBean.getOrgName();</span>
+<span class="nc" id="L639">		OrgName = retOrgName;</span>
+<span class="nc" id="L640">		int retOrgId = userBean.getUserOrgId();</span>
+
+<span class="nc" id="L642">		RetDailyLedgerHelper helper2 = new RetDailyLedgerHelper();</span>
+<span class="nc" id="L643">		Map&lt;String, List&lt;String&gt;&gt; dgMap = null;</span>
+<span class="nc" id="L644">		Map&lt;String, List&lt;String&gt;&gt; seMap = null;</span>
+<span class="nc bnc" id="L645" title="All 2 branches missed.">		if (ReportUtility.isDG) {</span>
+<span class="nc" id="L646">			dgMap = helper2.getDGDetailReport(dateBeans, retOrgId);</span>
+		}
+<span class="nc bnc" id="L648" title="All 2 branches missed.">		if (ReportUtility.isSE) {</span>
+<span class="nc" id="L649">			seMap = helper2.getSEDetailReport(dateBeans, retOrgId);</span>
+		}
+<span class="nc" id="L651">		generateDetailedTransactionReport(seMap, dgMap, dateBeans</span>
+				.getFirstdate().toString().split(&quot; &quot;)[0], retOrgName);
+
+<span class="nc" id="L654">	}</span>
+
+	private void generateDetailedTransactionReport(
+			Map&lt;String, List&lt;String&gt;&gt; seList, Map&lt;String, List&lt;String&gt;&gt; dgList,
+			String date, String retOrgName) throws LMSException {
+<span class="nc" id="L659">		Calendar cd = Calendar.getInstance();</span>
+<span class="nc" id="L660">		cd.setTime(new java.util.Date());</span>
+<span class="nc" id="L661">		String hour = cd.get(Calendar.HOUR_OF_DAY) + &quot;&quot;;</span>
+<span class="nc" id="L662">		String min = cd.get(Calendar.MINUTE) + &quot;&quot;;</span>
+<span class="nc" id="L663">		String sec = cd.get(Calendar.SECOND) + &quot;&quot;;</span>
+<span class="nc bnc" id="L664" title="All 2 branches missed.">		if (hour.length() &lt;= 1) {</span>
+<span class="nc" id="L665">			hour = &quot;0&quot; + hour;</span>
+		}
+<span class="nc bnc" id="L667" title="All 2 branches missed.">		if (min.length() &lt;= 1) {</span>
+<span class="nc" id="L668">			min = &quot;0&quot; + min;</span>
+		}
+<span class="nc bnc" id="L670" title="All 2 branches missed.">		if (sec.length() &lt;= 1) {</span>
+<span class="nc" id="L671">			sec = &quot;0&quot; + sec;</span>
+		}
+<span class="nc" id="L673">		String finalData = &quot;Date:&quot;</span>
+				+ new java.sql.Date((new java.util.Date()).getTime())
+						.toString() + &quot;|Time:&quot; + hour + &quot;:&quot; + min + &quot;:&quot; + sec;
+<span class="nc" id="L676">		finalData += &quot;|ReportDate:&quot; + date;</span>
+		/*
+		 * int i=0,len = dataList.size(); if(len!=0){ Double totalMrpSale = 0.0;
+		 * Double totalMrpPwt = 0.0; Double totalNetSale = 0.0; Double
+		 * totalNetPwt = 0.0; while(i&lt;len){
+		 * 
+		 * Set&lt;String&gt; keySet = dataList.get(i).keySet(); Iterator&lt;String&gt; itr =
+		 * keySet.iterator(); finalData += &quot;|Game Type:&quot;; while(itr.hasNext()){
+		 * String gName = itr.next(); if(gName.indexOf(&quot;name&quot;) != -1){ finalData
+		 * += &quot;GameN:&quot;+ gName.substring(4, gName.length())+&quot;,&quot;; } } finalData +=
+		 * &quot;GameS:&quot;+
+		 * FormatNumber.formatNumber(dataList.get(i).get(&quot;mrpSale&quot;))+&quot;,&quot;;
+		 * finalData += &quot;GamePWT:&quot;+
+		 * FormatNumber.formatNumber(dataList.get(i).get(&quot;mrpPwt&quot;));
+		 * totalMrpSale += dataList.get(i).get(&quot;mrpSale&quot;); totalNetSale +=
+		 * dataList.get(i).get(&quot;netSale&quot;); totalMrpPwt +=
+		 * dataList.get(i).get(&quot;mrpPwt&quot;); totalNetPwt +=
+		 * dataList.get(i).get(&quot;netPwt&quot;); i++; }
+		 * 
+		 * finalData += &quot;|TotalSale:&quot;+ FormatNumber.formatNumber(totalMrpSale);
+		 * finalData += &quot;|TotalPWT:&quot; + FormatNumber.formatNumber(totalMrpPwt);
+		 * finalData += &quot;|CashInHand:&quot; + FormatNumber.formatNumber(totalMrpSale
+		 * - totalMrpPwt); finalData += &quot;|PTPA:&quot; +
+		 * FormatNumber.formatNumber(totalNetSale - totalNetPwt); finalData +=
+		 * &quot;|Profit:&quot; + FormatNumber.formatNumber((totalMrpSale - totalMrpPwt) -
+		 * (totalNetSale - totalNetPwt)); finalData += &quot;|RetOrg:&quot; + retOrgName
+		 * +&quot;|&quot;; } try { response.getOutputStream().write(finalData.getBytes());
+		 * } catch (Exception e) { e.printStackTrace(); }
+		 */
+<span class="nc" id="L705">	}</span>
+
+	public void detailTxnReport() {
+
+<span class="nc" id="L709">	}</span>
+
+	public String getFromDate() {
+<span class="nc" id="L712">		return fromDate;</span>
+	}
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L716">		return request;</span>
+	}
+
+	/*
+	 * Date:2009-12-18| Time:22:33:44| ReportDate:2010-12-12| Game:game
+	 * name,sale,PWT| Game Type:GameN:5/90,GameS:1234.00,GamePWT:567.00| Game
+	 * Type:GameN:5/90,GameS:1234.00,GamePWT:567.00| Game
+	 * Type:GameN:5/90,GameS:1234.00,GamePWT:567.00| TotalSale:234554.00|
+	 * TotalPWT:567.00| CashInHand:678.00| PTPA:678.00| Profit:678.00|
+	 * RetOrg:gjhbdjbfjhsbfjhs|
+	 */
+
+	/*
+	 * private void generateReport(String query, Timestamp fromTimeStamp,
+	 * Timestamp dt, String typeName) {
+	 * 
+	 * DBConnect dbConnect = null; Connection connection = null;
+	 * 
+	 * double balance = 0.0; double amount = 0.0;
+	 * 
+	 * System.out.println(&quot;query &quot; + query); System.out.println(&quot;fromTimeStamp &quot;
+	 * + fromTimeStamp); System.out.println(&quot;dt &quot; + dt);
+	 * System.out.println(&quot;typeName &quot; + typeName); ServletContext sc =
+	 * ServletActionContext.getServletContext(); String isDraw = (String)
+	 * sc.getAttribute(&quot;IS_SCRATCH&quot;); if (isDraw.equalsIgnoreCase(&quot;NO&quot;)) { try {
+	 * response.getOutputStream().write( &quot;Scratch Game Not
+	 * Avaialbe&quot;.getBytes()); } catch (IOException e) { System.out.println(&quot;
+	 * exception in ledger action&quot;); e.printStackTrace(); } return; } try {
+	 * 
+	 * connection = DBConnect.getConnection(); PreparedStatement statement =
+	 * connection.prepareStatement(query);
+	 * 
+	 * statement.setString(1, typeName); statement.setTimestamp(2,
+	 * fromTimeStamp); statement.setTimestamp(3, dt);
+	 * 
+	 * System.out.println(&quot; &quot; + statement); ResultSet resultSet =
+	 * statement.executeQuery();
+	 * 
+	 * String transactionType = null; // String transactionId = null; // String
+	 * accountType = null; // Timestamp trDate = null; // String transactionWith
+	 * = null;
+	 * 
+	 * StringBuilder xmlString = new StringBuilder( &quot;&lt;?xml version=\&quot;1.0\&quot;
+	 * encoding=\&quot;UTF-8\&quot;?&gt;&lt;ledger&gt;&lt;date&gt;&quot; +
+	 * fromTimeStamp.toString().substring(0, 10) + &quot;&lt;/date&gt;&quot;);
+	 * 
+	 * System.out.println(&quot; before result set&quot;); int i = 0; String amtType =
+	 * null; while (resultSet.next()) { System.out.println(&quot;
+	 * &lt;&lt;&lt;----inside----&gt;&gt;&gt; result
+	 * set&quot;); if (i == 0) { balance = resultSet.getDouble(&quot;balance&quot;); } i++;
+	 * amount = resultSet.getDouble(&quot;amount&quot;); if (amount &gt; 0) { amtType = &quot;C&quot;;
+	 * } else { amtType = &quot;D&quot;; amount = amount * (-1); } transactionType =
+	 * resultSet.getString(&quot;transaction_type&quot;); xmlString.append(&quot;&lt;details
+	 * id=\&quot;&quot; + i + &quot;\&quot;&gt;&quot; + transactionType + &quot; &quot; + amount + &quot; &quot; + amtType +
+	 * &quot;&lt;/details&gt;&quot;); // transactionId = resultSet.getString(&quot;transaction_id&quot;);
+	 * // accountType = resultSet.getString(&quot;account_type&quot;); // trDate =
+	 * resultSet.getTimestamp(&quot;transaction_date&quot;); // transactionWith =
+	 * resultSet.getString(&quot;transaction_with&quot;); // System.out.println(balance +
+	 * &quot; &quot; + amount + &quot; &quot; // + transactionType + &quot; &quot; + transactionId + &quot; &quot; // +
+	 * accountType + &quot; &quot; + trDate + &quot; &quot; + transactionWith); }
+	 * xmlString.append(&quot;&lt;balance&gt;&quot; + balance + &quot;&lt;/balance&gt;&lt;/ledger&gt;&quot;);
+	 * System.out.println(&quot;openingBalance &quot; + balance);
+	 * 
+	 * System.out.println(&quot;PPPPPPPPPP&quot; + statement.toString());
+	 * 
+	 * response.getOutputStream().write(xmlString.toString().getBytes()); }
+	 * catch (Exception e) { e.printStackTrace(); } finally { try {
+	 * 
+	 * System.out.println(&quot; closing connection &quot;); if (connection != null) {
+	 * connection.close(); } } catch (SQLException e) { // TODO Auto-generated
+	 * catch block e.printStackTrace(); } } }
+	 */
+
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L790">		return response;</span>
+	}
+
+	public String getToDate() {
+<span class="nc" id="L794">		return toDate;</span>
+	}
+
+	public String getType() {
+<span class="nc" id="L798">		return type;</span>
+	}
+
+	public String getUserName() {
+<span class="nc" id="L802">		return userName;</span>
+	}
+
+	/**
+	 * This method is for entering the data into agent ledger.
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public void retLedger() throws Exception {
+
+<span class="nc" id="L813">		String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L814">		ReportStatusBean reportStatusBean = ReportUtility</span>
+				.getReportStatus(actionName);
+
+<span class="nc bnc" id="L817" title="All 2 branches missed.">		if (&quot;FAILURE&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L818">			response.getOutputStream().write(</span>
+					(&quot;ErrorMsg:No Reporting Till &quot; + reportStatusBean
+							.getEndTime()+&quot;|ErrorCode:&quot;+EmbeddedErrors.REPORTING_TIME_ERROR_CODE).getBytes());
+<span class="nc" id="L821">			return;</span>
+		}
+
+<span class="nc" id="L824">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L825">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L826">		session = (HttpSession) currentUserSessionMap.get(userName);</span>
+
+		/*
+		 * String reportingOffStartTime = (String)
+		 * sc.getAttribute(&quot;REPORTING_OFF_START_TIME&quot;); String
+		 * reportingOffEndTime = (String)
+		 * sc.getAttribute(&quot;REPORTING_OFF_END_TIME&quot;);
+		 * logger.debug(&quot;REPORTING_OFF_START_TIME - &quot;+reportingOffStartTime);
+		 * logger.debug(&quot;REPORTING_OFF_END_TIME - &quot;+reportingOffEndTime);
+		 * 
+		 * Calendar calendar = Calendar.getInstance(); dateformat = new
+		 * SimpleDateFormat(&quot;HH:mm:ss&quot;); String time =
+		 * dateformat.format(calendar.getTime());
+		 * logger.debug(&quot;Current Time - &quot;+time);
+		 * if(time.compareTo(reportingOffStartTime)&gt;0 &amp;&amp;
+		 * time.compareTo(reportingOffEndTime)&lt;0) { try {
+		 * response.getOutputStream
+		 * ().write((&quot;ErrorMsg:No Reporting Till &quot;+reportingOffEndTime
+		 * ).getBytes()); } catch (Exception e) { e.printStackTrace(); } return;
+		 * }
+		 */
+
+<span class="nc" id="L848">		DateBeans dateBeans = null;</span>
+<span class="nc bnc" id="L849" title="All 2 branches missed.">		if (&quot;Current Day&quot;.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {</span>
+<span class="nc" id="L850">			dateBeans = GetDate.getDate(URLDecoder.decode(type, &quot;UTF-8&quot;));</span>
+<span class="nc bnc" id="L851" title="All 2 branches missed.">		} else if (&quot;Last Day&quot;</span>
+				.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L853">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L854">			dateBeans.setFirstdate(new java.sql.Date(new Date().getTime() - 24</span>
+					* 60 * 60 * 1000));
+<span class="nc" id="L856">			dateBeans.setLastdate(new java.sql.Date(new Date().getTime()));</span>
+		}
+
+<span class="nc" id="L859">		userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+
+<span class="nc bnc" id="L861" title="All 2 branches missed.">		if (ServicesBean.isDG()) {</span>
+<span class="nc" id="L862">			String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L863">			int autoCancelHoldDays = Integer.parseInt((String) sc</span>
+					.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));
+<span class="nc" id="L865">			DrawGameRPOSHelper dgHelper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L866">			long lastPrintedTicket = 0;</span>
+<span class="nc" id="L867">			int gameId = 0;</span>
+<span class="nc bnc" id="L868" title="All 2 branches missed.">			if (LSTktNo != 0) {</span>
+<span class="nc" id="L869">				lastPrintedTicket = LSTktNo</span>
+						/ Util.getDivValueForLastSoldTkt(String
+								.valueOf(LSTktNo).length());
+<span class="nc" id="L872">				gameId = Util.getGameIdFromGameNumber(Util</span>
+						.getGamenoFromTktnumber(String.valueOf(LSTktNo)));
+			}
+<span class="nc" id="L875">			dgHelper.checkLastPrintedTicketStatusAndUpdate(userBean,</span>
+					lastPrintedTicket, &quot;TERMINAL&quot;, refMerchantId,
+					autoCancelHoldDays, actionName, gameId);
+		}
+
+<span class="nc" id="L880">		dateformat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L881">		frDate = dateformat.parse(dateBeans.getFirstdate().toString());</span>
+<span class="nc" id="L882">		tDate = dateformat.parse(dateBeans.getLastdate().toString());</span>
+
+<span class="nc" id="L884">		dateBeans = new DateBeans();</span>
+<span class="nc" id="L885">		int orgId = userBean.getUserOrgId();</span>
+<span class="nc" id="L886">		RetDailyLedgerHelper helper = new RetDailyLedgerHelper();</span>
+<span class="nc" id="L887">		SimpleDateFormat sDF = new SimpleDateFormat(</span>
+				(String) sc.getAttribute(&quot;date_format&quot;));
+<span class="nc" id="L889">		Date deplDate = sDF.parse((String) sc.getAttribute(&quot;DEPLOYMENT_DATE&quot;));</span>
+<span class="nc" id="L890">		dateBeans.setStartTime(new java.sql.Timestamp(deplDate.getTime()));</span>
+<span class="nc" id="L891">		dateBeans.setEndTime(new java.sql.Timestamp(frDate.getTime()));</span>
+<span class="nc" id="L892">		DailyLedgerBean CRB = new DailyLedgerBean();</span>
+<span class="nc" id="L893">		DailyLedgerBean CRBTemp = new DailyLedgerBean();</span>
+<span class="nc bnc" id="L894" title="All 2 branches missed.">		if (&quot;Y&quot;.equals(isLiveBal)) {</span>
+<span class="nc" id="L895">			Timestamp deployDate = dateBeans.getStartTime();</span>
+<span class="nc" id="L896">			dateBeans.setStartTime(new java.sql.Timestamp(frDate.getTime()));</span>
+<span class="nc" id="L897">			dateBeans.setEndTime(new java.sql.Timestamp(tDate.getTime()));</span>
+<span class="nc" id="L898">			CRB = helper.getRetLegderDetailClXclInc(deployDate, dateBeans,</span>
+					userBean, reportStatusBean);
+
+			/*
+			 * CRBTemp = helper.getRetLegderDetailClXclInc(dateBeans, userBean,
+			 * reportStatusBean); dateBeans.setStartTime(new
+			 * java.sql.Timestamp(frDate.getTime())); dateBeans.setEndTime(new
+			 * java.sql.Timestamp(tDate.getTime())); CRB =
+			 * helper.getRetLegderDetailClXclInc(dateBeans, userBean,
+			 * reportStatusBean); CRB.setOpenBal(CRBTemp.getClrBal());
+			 * CRB.setClrBal
+			 * (FormatNumber.formatNumber(Double.parseDouble(CRB.getOpenBal()) +
+			 * Double.parseDouble(CRB.getClrBal())));
+			 * CRB.setClXclAmount(FormatNumber
+			 * .formatNumber(Double.parseDouble(CRBTemp.getClXclAmount()) +
+			 * Double.parseDouble(CRB.getClXclAmount())));
+			 */
+<span class="nc bnc" id="L915" title="All 4 branches missed.">		} else if (isLiveBal == null || &quot;N&quot;.equals(isLiveBal)) {</span>
+<span class="nc" id="L916">            Timestamp deployDate = dateBeans.getStartTime();</span>
+<span class="nc" id="L917">			dateBeans.setStartTime(new java.sql.Timestamp(frDate.getTime()));</span>
+<span class="nc" id="L918">			dateBeans.setEndTime(new java.sql.Timestamp(tDate.getTime()));</span>
+
+<span class="nc" id="L920">            CRB = helper.getRetLegderDetail(deployDate, dateBeans, userBean, reportStatusBean);</span>
+		}
+
+<span class="nc" id="L923">		OrgName = userBean.getOrgName();</span>
+<span class="nc" id="L924">		generateReport(CRB, &quot;Y&quot;.equals(isLiveBal));</span>
+<span class="nc" id="L925">	}</span>
+
+	public void retReportGameWise() throws Exception {
+<span class="nc" id="L928">		ServletContext sc = ServletActionContext.getServletContext();</span>
+
+<span class="nc" id="L930">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+		
+<span class="nc" id="L932">		ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(ActionContext.getContext().getName());</span>
+<span class="nc bnc" id="L933" title="All 2 branches missed.">		if (&quot;FAILURE&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L934">			response.getOutputStream().write((&quot;ErrorMsg:No Reporting Till &quot; + reportStatusBean.getEndTime() + &quot;|ErrorCode:&quot; + EmbeddedErrors.REPORTING_TIME_ERROR_CODE).getBytes());</span>
+<span class="nc" id="L935">			return;</span>
+		}
+		
+		/*
+		 * if (currentUserSession Map == null) { try { response
+		 * .getOutputStream() .write( (&quot;ErrorMsg:&quot; +
+		 * EmbeddedErrors.SESSION_EXPIRED + &quot;ErrorCode:01|&quot;) .getBytes()); }
+		 * catch (IOException e) { e.printStackTrace(); } return; }
+		 */
+		// System.out.println(&quot; LOGGED_IN_USERS maps is &quot; +
+		// currentUserSessionMap);
+
+		// System.out.println(&quot; user name is &quot; + userName);
+<span class="nc" id="L948">		session = (HttpSession) currentUserSessionMap.get(userName);</span>
+		/*
+		 * if (!CommonFunctionsHelper.isSessionValid(session)) { try { response
+		 * .getOutputStream() .write( (&quot;ErrorMsg:&quot; +
+		 * EmbeddedErrors.SESSION_EXPIRED + &quot;ErrorCode:01|&quot;) .getBytes()); }
+		 * catch (IOException e) { e.printStackTrace(); } return; }
+		 */
+
+		// to cancel last sold ticket if unprinted at terminal end
+<span class="nc" id="L957">		userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L958">		Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap = (Map&lt;Integer, Map&lt;Integer, String&gt;&gt;) sc</span>
+				.getAttribute(&quot;drawIdTableMap&quot;);
+<span class="nc" id="L960">		String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L961">		int autoCancelHoldDays = Integer.parseInt((String) sc</span>
+				.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));
+<span class="nc" id="L963">		long lastPrintedTicket = 0;</span>
+<span class="nc" id="L964">		int gameId = 0;</span>
+<span class="nc bnc" id="L965" title="All 2 branches missed.">		if (LSTktNo != 0) {</span>
+<span class="nc" id="L966">			lastPrintedTicket = LSTktNo</span>
+					/ Util.getDivValueForLastSoldTkt(String.valueOf(LSTktNo)
+							.length());
+<span class="nc" id="L969">			gameId = Util.getGameIdFromGameNumber(Util</span>
+					.getGamenoFromTktnumber(String.valueOf(LSTktNo)));
+		}
+		// long lastSoldTktLMS =
+		// dgHelper.getLastSoldTicketTerminal(userBean.getUserOrgId(),&quot;TERMINAL&quot;);
+<span class="nc" id="L974">		DrawGameRPOSHelper dgHelper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L975">		String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L976">		dgHelper.checkLastPrintedTicketStatusAndUpdate(userBean,</span>
+				lastPrintedTicket, &quot;TERMINAL&quot;, refMerchantId,
+				autoCancelHoldDays, actionName, gameId);
+
+//		Calendar calendar = Calendar.getInstance();
+//		String reportingOffStartTime = (String) sc
+//				.getAttribute(&quot;REPORTING_OFF_START_TIME&quot;);
+//		System.out
+//				.println(&quot;REPORTING_OFF_START_TIME::&quot; + reportingOffStartTime);
+//		String reportingOffEndTime = (String) sc
+//				.getAttribute(&quot;REPORTING_OFF_END_TIME&quot;);
+//		System.out.println(&quot;REPORTING_OFF_END_TIME::&quot; + reportingOffEndTime);
+//
+//		String time = (calendar.get(Calendar.HOUR_OF_DAY) + &quot;:&quot;
+//				+ calendar.get(Calendar.MINUTE) + &quot;:&quot; + calendar
+//				.get(Calendar.SECOND));
+//		System.out.println(&quot;current time::&quot; + time);
+//		if (time.compareTo(reportingOffStartTime) &gt; 0) {
+//			if (time.compareTo(reportingOffEndTime) &lt; 0) {
+//				try {
+//					response.getOutputStream()
+//							.write((&quot;ErrorMsg:No Reporting Till &quot; + reportingOffEndTime+&quot;|ErrorCode:&quot;+EmbeddedErrors.REPORTING_TIME_ERROR_CODE)
+//									.getBytes());
+//				} catch (Exception e) {
+//					e.printStackTrace();
+//				}
+//				return;
+//			}
+//		}
+
+		// continue for report generation
+<span class="nc" id="L1007">		DateBeans dateBeans = null;</span>
+<span class="nc" id="L1008">		Map&lt;String, List&lt;Map&lt;String, Double&gt;&gt;&gt; dataMap = new HashMap&lt;String, List&lt;Map&lt;String, Double&gt;&gt;&gt;();</span>
+
+<span class="nc bnc" id="L1010" title="All 2 branches missed.">		if (&quot;Current Day&quot;.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {</span>
+<span class="nc" id="L1011">			dateBeans = GetDate.getDate(URLDecoder.decode(type, &quot;UTF-8&quot;));</span>
+<span class="nc bnc" id="L1012" title="All 2 branches missed.">		} else if (&quot;Last Day&quot;</span>
+				.equalsIgnoreCase(URLDecoder.decode(type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L1014">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L1015">			dateBeans.setFirstdate(new java.sql.Date(new Date().getTime() - 24</span>
+					* 60 * 60 * 1000));
+<span class="nc" id="L1017">			dateBeans.setLastdate(new java.sql.Date(new Date().getTime()));</span>
+<span class="nc bnc" id="L1018" title="All 2 branches missed.">		} else if (&quot;Day Before Yesterday&quot;.equalsIgnoreCase(URLDecoder.decode(</span>
+				type, &quot;UTF-8&quot;))) {
+<span class="nc" id="L1020">			dateBeans = new DateBeans();</span>
+<span class="nc" id="L1021">			dateBeans.setFirstdate(new java.sql.Date(new Date().getTime() - 2</span>
+					* 24 * 60 * 60 * 1000));
+<span class="nc" id="L1023">			dateBeans.setLastdate(new java.sql.Date(new Date().getTime() - 24</span>
+					* 60 * 60 * 1000));
+		}
+<span class="nc" id="L1026">		String dateFormat = &quot;yyyy-MM-dd&quot;;</span>
+<span class="nc" id="L1027">		frDate = new Date((new SimpleDateFormat(dateFormat)).parse(</span>
+				dateBeans.getFirstdate().toString()).getTime());
+<span class="nc" id="L1029">		tDate = new Date((new SimpleDateFormat(dateFormat)).parse(</span>
+				dateBeans.getLastdate().toString()).getTime());
+<span class="nc" id="L1031">		dateBeans.setStartTime(new Timestamp(frDate.getTime()));</span>
+<span class="nc" id="L1032">		dateBeans.setEndTime(new Timestamp(tDate.getTime()));</span>
+<span class="nc" id="L1033">		String retOrgName = userBean.getOrgName();</span>
+<span class="nc" id="L1034">		OrgName = retOrgName;</span>
+<span class="nc" id="L1035">		int retOrgId = userBean.getUserOrgId();</span>
+		//RetDailyLedgerHelper helper = new RetDailyLedgerHelper();
+<span class="nc" id="L1037">		dataMap = RetDailyLedgerHelper.retDailyLedgerGameWiseTerminal(dateBeans, retOrgId, reportStatusBean);</span>
+<span class="nc" id="L1038">		generateReportGameWise(dataMap, dateBeans.getFirstdate().toString()</span>
+				.split(&quot; &quot;)[0], userBean);
+
+<span class="nc" id="L1041">	}</span>
+
+	public void setFromDate(String fromDate) {
+<span class="nc" id="L1044">		this.fromDate = fromDate;</span>
+<span class="nc" id="L1045">	}</span>
+
+	public void setRequest(HttpServletRequest request) {
+<span class="nc" id="L1048">		this.request = request;</span>
+<span class="nc" id="L1049">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L1052">		this.request = request;</span>
+<span class="nc" id="L1053">	}</span>
+
+	public void setServletResponse(HttpServletResponse response) {
+<span class="nc" id="L1056">		this.response = response;</span>
+
+<span class="nc" id="L1058">	}</span>
+
+	public void setToDate(String toDate) {
+<span class="nc" id="L1061">		this.toDate = toDate;</span>
+<span class="nc" id="L1062">	}</span>
+
+	public void setType(String type) {
+<span class="nc" id="L1065">		this.type = type;</span>
+<span class="nc" id="L1066">	}</span>
+
+	public void setUserName(String userName) {
+<span class="nc" id="L1069">		this.userName = userName;</span>
+<span class="nc" id="L1070">	}</span>
+
+	public long getLSTktNo() {
+<span class="nc" id="L1073">		return LSTktNo;</span>
+	}
+
+	public void setLSTktNo(long lSTktNo) {
+<span class="nc" id="L1077">		LSTktNo = lSTktNo;</span>
+<span class="nc" id="L1078">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

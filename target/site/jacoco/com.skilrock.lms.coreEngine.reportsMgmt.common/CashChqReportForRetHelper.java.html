@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CashChqReportForRetHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">CashChqReportForRetHelper.java</span></div><h1>CashChqReportForRetHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import com.skilrock.lms.beans.CashChqReportBean;
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+
+public class CashChqReportForRetHelper {
+
+<span class="nc" id="L19">	private Date endDate = null;</span>
+	private int parentOrgId;
+	private int retailerOrgId;
+<span class="nc" id="L22">	private Date startDate = null;</span>
+
+	public CashChqReportForRetHelper(UserInfoBean userInfoBean,
+<span class="nc" id="L25">			DateBeans dateBeans) {</span>
+<span class="nc" id="L26">		this.retailerOrgId = userInfoBean.getUserOrgId();</span>
+<span class="nc" id="L27">		this.startDate = dateBeans.getFirstdate();</span>
+<span class="nc" id="L28">		this.endDate = dateBeans.getLastdate();</span>
+<span class="nc" id="L29">		this.parentOrgId = userInfoBean.getParentOrgId();</span>
+<span class="nc" id="L30">	}</span>
+
+	public CashChqReportBean getCashChqDetail() throws LMSException {
+<span class="nc" id="L33">		String query = null;</span>
+<span class="nc" id="L34">		CashChqReportBean reportbean = null;</span>
+<span class="nc" id="L35">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L36">		boolean isArchData = false;</span>
+		try {
+<span class="nc" id="L38">			isArchData = ReportUtility.isArchData(startDate);</span>
+<span class="nc" id="L39">			query = &quot;SELECT IFNULL(SUM(cash_amt), 0.0) AS 'total_cash', IFNULL(SUM(chq), 0.0)AS 'chq_coll', IFNULL(SUM(debit_amt), 0.0) AS 'debit_amt', IFNULL(SUM(credit_amt), 0.0) AS 'credit_amt', IFNULL(SUM(chq_bounce), 0.0) 'chq_bounce', ((IFNULL(SUM(cash_amt), 0)+IFNULL(SUM(chq),0)+IFNULL(SUM(credit_amt), 0))-(IFNULL(SUM(chq_bounce), 0)+IFNULL(SUM(debit_amt),0))) 'net_amount' FROM (SELECT * FROM ((SELECT IFNULL(SUM(cash.amount),0) 'cash_amt' FROM st_lms_agent_cash_transaction cash, st_lms_agent_transaction_master btm WHERE btm.user_org_id=? AND (btm.transaction_date&gt;=? AND btm.transaction_date&lt; ?) AND cash.retailer_org_id=? AND btm.transaction_type='CASH' AND cash.transaction_id=btm.transaction_id ) aa, (SELECT IFNULL(SUM(chq.cheque_amt),0) 'chq' FROM  st_lms_agent_sale_chq chq, st_lms_agent_transaction_master btm WHERE chq.transaction_type IN ('CHEQUE','CLOSED') AND btm.user_org_id=? AND (btm.transaction_date&gt;=? AND btm.transaction_date &lt; ?) AND chq.retailer_org_id=?  AND chq.transaction_id=btm.transaction_id)  bb, (SELECT IFNULL(SUM(chq.cheque_amt),0) 'chq_bounce' FROM  st_lms_agent_sale_chq chq, st_lms_agent_transaction_master btm WHERE chq.transaction_type='CHQ_BOUNCE' AND btm.user_org_id=? AND (btm.transaction_date&gt;=? AND btm.transaction_date&lt; ?) AND chq.retailer_org_id=? AND chq.transaction_id=btm.transaction_id ) cc, (SELECT IFNULL(SUM(bo.amount),0) 'debit_amt'  FROM st_lms_agent_debit_note bo, st_lms_agent_transaction_master btm WHERE btm.transaction_id=bo.transaction_id AND (bo.transaction_type ='DR_NOTE_CASH' OR bo.transaction_type ='DR_NOTE' ) AND btm.user_org_id=? AND bo.retailer_org_id =? AND ( btm.transaction_date&gt;=? AND btm.transaction_date&lt;?))gg, (SELECT IFNULL(SUM(bo.amount),0) 'credit_amt'  FROM st_lms_agent_credit_note bo, st_lms_agent_transaction_master btm WHERE btm.transaction_id=bo.transaction_id AND (bo.transaction_type ='CR_NOTE_CASH' OR bo.transaction_type ='CR_NOTE' ) AND btm.user_org_id=? AND bo.retailer_org_id =? AND ( btm.transaction_date&gt;=? AND btm.transaction_date&lt;?))kk )&quot;;</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">			if (isArchData) {</span>
+<span class="nc" id="L41">				query += &quot;UNION ALL (SELECT rep.cash_amt AS 'cash_amt', rep.cheque_amt AS 'chq', rep.cheque_bounce_amt AS 'chq_bounce' , rep.debit_note AS 'debit_amt', rep.credit_note AS 'credit_amt'FROM (SELECT IFNULL(SUM(cash_amt), 0.0) cash_amt, IFNULL(SUM(credit_note), 0.0) credit_note, IFNULL(SUM(debit_note), 0.0) debit_note, IFNULL(SUM(cheque_amt),0.0) cheque_amt, IFNULL(SUM(cheque_bounce_amt), 0.0) cheque_bounce_amt FROM st_rep_agent_payments WHERE parent_id = ? AND finaldate &gt;= ? AND finaldate &lt; ? GROUP BY retailer_org_id)rep)&quot;;</span>
+			}
+<span class="nc" id="L43">			query += &quot;) final&quot;;</span>
+<span class="nc" id="L44">			PreparedStatement pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L45">			pstmt.setInt(1, parentOrgId);</span>
+<span class="nc" id="L46">			pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L47">			pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L48">			pstmt.setInt(4, retailerOrgId);</span>
+
+<span class="nc" id="L50">			pstmt.setInt(5, parentOrgId);</span>
+<span class="nc" id="L51">			pstmt.setDate(6, startDate);</span>
+<span class="nc" id="L52">			pstmt.setDate(7, endDate);</span>
+<span class="nc" id="L53">			pstmt.setInt(8, retailerOrgId);</span>
+
+<span class="nc" id="L55">			pstmt.setInt(9, parentOrgId);</span>
+<span class="nc" id="L56">			pstmt.setDate(10, startDate);</span>
+<span class="nc" id="L57">			pstmt.setDate(11, endDate);</span>
+<span class="nc" id="L58">			pstmt.setInt(12, retailerOrgId);</span>
+
+<span class="nc" id="L60">			pstmt.setInt(13, parentOrgId);</span>
+<span class="nc" id="L61">			pstmt.setInt(14, retailerOrgId);</span>
+<span class="nc" id="L62">			pstmt.setDate(15, startDate);</span>
+<span class="nc" id="L63">			pstmt.setDate(16, endDate);</span>
+
+<span class="nc" id="L65">			pstmt.setInt(17, parentOrgId);</span>
+<span class="nc" id="L66">			pstmt.setInt(18, retailerOrgId);</span>
+<span class="nc" id="L67">			pstmt.setDate(19, startDate);</span>
+<span class="nc" id="L68">			pstmt.setDate(20, endDate);</span>
+
+<span class="nc bnc" id="L70" title="All 2 branches missed.">			if (isArchData) {</span>
+<span class="nc" id="L71">				pstmt.setInt(21, parentOrgId);</span>
+<span class="nc" id="L72">				pstmt.setDate(22, startDate);</span>
+<span class="nc" id="L73">				pstmt.setDate(23, endDate);</span>
+			}
+
+<span class="nc" id="L76">			System.out.println(&quot;query--&quot; + pstmt);</span>
+<span class="nc" id="L77">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L80">				reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L81">				reportbean.setTotalCash(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;total_cash&quot;)));
+<span class="nc" id="L83">				reportbean.setTotalChq(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;chq_coll&quot;)));
+<span class="nc" id="L85">				reportbean.setCheqBounce(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;chq_bounce&quot;)));
+<span class="nc" id="L87">				reportbean.setNetAmt(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;net_amount&quot;)));
+<span class="nc" id="L89">				reportbean.setDebit(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;debit_amt&quot;)));
+<span class="nc" id="L91">				reportbean.setCredit(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;credit_amt&quot;)));
+<span class="nc" id="L93">				return reportbean;</span>
+			}
+
+<span class="nc" id="L96">		} catch (SQLException e) {</span>
+<span class="nc" id="L97">			e.printStackTrace();</span>
+<span class="nc" id="L98">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L100">			try {</span>
+<span class="nc bnc" id="L101" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L102">					con.close();</span>
+				}
+<span class="nc" id="L104">			} catch (SQLException e) {</span>
+<span class="nc" id="L105">				e.printStackTrace();</span>
+<span class="nc" id="L106">				throw new LMSException(e);</span>
+<span class="nc" id="L107">			}</span>
+		}
+<span class="nc" id="L109">		return reportbean;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthorizationRequestFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.rest.common</a> &gt; <span class="el_source">AuthorizationRequestFilter.java</span></div><h1>AuthorizationRequestFilter.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.rest.common;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response.Status;
+
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.sun.jersey.spi.container.ContainerRequest;
+import com.sun.jersey.spi.container.ContainerRequestFilter;
+import com.sun.jersey.spi.container.ContainerResponse;
+import com.sun.jersey.spi.container.ContainerResponseFilter;
+
+
+<span class="nc" id="L23">public class AuthorizationRequestFilter implements ContainerRequestFilter,ContainerResponseFilter{</span>
+	
+	
+<span class="nc" id="L26">	private static final Logger logger = LoggerFactory.getLogger(AuthorizationRequestFilter.class);</span>
+	@Override
+	public ContainerRequest filter(ContainerRequest req) {
+<span class="nc" id="L29">		int merchantId=0;</span>
+		try {
+			//System.out.println(Thread.currentThread().getId());
+			/*String method = req.getMethod();
+	        String path = req.getPath(true);
+			 */
+<span class="nc" id="L35">			String path = req.getRequestUri().getPath();</span>
+<span class="nc" id="L36">			TransactionManager.startTransaction();</span>
+			
+<span class="nc" id="L38">			logger.info(&quot;AUDIT_REQUEST_ID={}=Request Header={}&quot;,TransactionManager.getAuditId(),req.getRequestHeaders());</span>
+
+	        //Get the authentification passed in HTTP headers parameters
+			
+<span class="nc" id="L42">	        String userName = /*&quot;sleUser&quot;;*/req.getHeaderValue(&quot;userName&quot;);</span>
+<span class="nc" id="L43">	        String password = /*&quot;slePassword&quot;;*/req.getHeaderValue(&quot;password&quot;);</span>
+	        
+	        //If the user does not have the right (does not provide any HTTP Basic Auth)
+<span class="nc bnc" id="L46" title="All 4 branches missed.">	        if(!(path.contains(&quot;virtualBetting&quot;) || path.contains(&quot;tpSlMgmt&quot;))){</span>
+<span class="nc bnc" id="L47" title="All 4 branches missed.">		        if(userName == null || password == null){</span>
+<span class="nc" id="L48">		            throw new WebApplicationException(Status.UNAUTHORIZED);</span>
+		        }else{
+		        	
+		        	try {
+<span class="nc" id="L52">		        		merchantId=MerchantAuthorizationHelper.merchantAuthorization(userName, password);</span>
+<span class="nc" id="L53">		        		TransactionManager.setMerchantId(merchantId);</span>
+<span class="nc" id="L54">					} catch (LMSException e) {</span>
+<span class="nc" id="L55">						 throw new WebApplicationException(Status.UNAUTHORIZED);</span>
+<span class="nc" id="L56">					}</span>
+		        }
+	        }
+	        
+<span class="nc" id="L60">			StringWriter writer = new StringWriter();</span>
+<span class="nc" id="L61">			IOUtils.copy(req.getEntityInputStream(), writer, &quot;UTF-8&quot;);</span>
+
+			// This is your POST Body as String
+<span class="nc" id="L64">			String body = writer.toString();</span>
+<span class="nc" id="L65">			logger.info(&quot;AUDIT_REQUEST_ID={}=merchantId{}=requestTime={}=requestUri={}=requestData={}&quot;,new Object[]{TransactionManager.getAuditId(),TransactionManager.getMerchantId(),Util.getCurrentTimeStamp(),req.getRequestUri(),body});</span>
+			
+			//System.out.println(req.getRequestHeader(&quot;principal&quot;));
+<span class="nc" id="L68">			InputStream in = new ByteArrayInputStream(body.getBytes());</span>
+<span class="nc" id="L69">			req.setEntityInputStream(in);</span>
+<span class="nc" id="L70">		} catch (IOException e) {</span>
+<span class="nc" id="L71">		}</span>
+<span class="nc" id="L72">		return req;</span>
+	}
+	@Override
+	public ContainerResponse filter(ContainerRequest request,
+			ContainerResponse response) {
+		
+		//System.out.println(Thread.currentThread().getId());
+<span class="nc" id="L79">		logger.info(&quot;AUDIT_RESPONSE_ID={}=TimeTaken{}=&quot;,TransactionManager.getAuditId(),System.currentTimeMillis() - TransactionManager.getAuditTime());</span>
+<span class="nc" id="L80">		logger.info(&quot;AUDIT_RESPONSE_ID={}=responseTime={}=responseStatus={}=statusType={}=requestUri={}=responseData={}&quot;,new Object[]{TransactionManager.getAuditId(),Util.getCurrentTimeStamp(), response.getStatus(),response.getStatusType(), request.getRequestUri(),response.getEntity()});</span>
+<span class="nc" id="L81">		TransactionManager.endTransaction();</span>
+<span class="nc" id="L82">		return response;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,788 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSSaleReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.commercialService.reportMgmt</a> &gt; <span class="el_source">CSSaleReportHelper.java</span></div><h1>CSSaleReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.commercialService.reportMgmt;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.mysql.jdbc.CallableStatement;
+import com.skilrock.lms.beans.CSSaleReportBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+
+<span class="nc" id="L22">public class CSSaleReportHelper implements CSSaleReportIF{</span>
+<span class="nc" id="L23">	Log logger = LogFactory.getLog(CSSaleReportHelper.class);</span>
+
+	public List&lt;CSSaleReportBean&gt; CSSaleCategoryWise(Timestamp startDate,
+			Timestamp endDate) throws SQLException{
+<span class="nc" id="L27">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L28">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L29">		ResultSet rs = null;</span>
+<span class="nc" id="L30">		CSSaleReportBean reportsBean = null;</span>
+<span class="nc" id="L31">		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();</span>
+		try {
+<span class="nc" id="L33">			String indGameQry = &quot;select sale.product_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(buyCost,0.0)-ifnull(buyCostRet,0.0))buyCostAmt from (select product_id,sum(mrp_amt) mrpAmt,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCost from st_cs_sale_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;</span>
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by product_id) sale left outer join (select product_id,sum(mrp_amt) mrpAmtRet,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCostRet from st_cs_refund_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by product_id)saleRet on sale.product_id=saleRet.product_id union all &quot;;
+<span class="nc" id="L42">		StringBuilder saleQry = new StringBuilder(</span>
+				&quot;select pcm.category_id,pcm.category_code,sum(mrpAmt)mrp,sum(buyCostAmt)buyCost from st_cs_product_category_master pcm ,st_cs_product_master pm,(&quot;);
+<span class="nc" id="L44">		String gameQry = &quot;select category_id from st_cs_product_category_master group by category_id&quot;;</span>
+<span class="nc" id="L45">		PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L46">		ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L48" title="All 2 branches missed.">		while (rsGame.next()) {</span>
+<span class="nc" id="L49">			saleQry.append(indGameQry.replaceAll(&quot;\\#&quot;, rsGame</span>
+					.getString(&quot;category_id&quot;)));
+		}
+<span class="nc" id="L52">		saleQry.delete(saleQry.length() - 10, saleQry.length());</span>
+<span class="nc" id="L53">		saleQry.append(&quot;) saleTlb where pm.product_id=saleTlb.product_id and pcm.category_id = pm.category_id group by category_id&quot;);</span>
+
+<span class="nc" id="L55">		pstmt = con.prepareStatement(saleQry.toString());</span>
+<span class="nc" id="L56">		logger.debug(&quot;----CS Report Category Wise Qry---&quot; + pstmt);</span>
+<span class="nc" id="L57">		rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L59">			reportsBean = new CSSaleReportBean();</span>
+<span class="nc" id="L60">			reportsBean.setCategoryCode(rs.getString(&quot;category_code&quot;));</span>
+<span class="nc" id="L61">			reportsBean.setCategoryId(rs.getInt(&quot;category_id&quot;));</span>
+<span class="nc" id="L62">			reportsBean.setMrpAmt(rs.getDouble(&quot;mrp&quot;));</span>
+<span class="nc" id="L63">			reportsBean.setNetAmt(rs.getDouble(&quot;buyCost&quot;));</span>
+<span class="nc" id="L64">			beanList.add(reportsBean);</span>
+		}
+<span class="nc" id="L66">	} catch (Exception e) {</span>
+<span class="nc" id="L67">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L69">			con.close();</span>
+<span class="nc" id="L70">		}</span>
+<span class="nc" id="L71">		return beanList;</span>
+	}
+	
+	public List&lt;CSSaleReportBean&gt; CSSaleAgentWise(Timestamp startDate,
+			Timestamp endDate) throws SQLException {
+<span class="nc" id="L76">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L77">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L78">		ResultSet rs = null;</span>
+<span class="nc" id="L79">		CSSaleReportBean reportsBean = null;</span>
+<span class="nc" id="L80">		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();</span>
+		try {
+<span class="nc" id="L82">			 String orgCodeQry = &quot; agm.name orgCode &quot;;</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L84">				orgCodeQry = &quot; agm.org_code orgCode &quot;;</span>
+			
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L89">				orgCodeQry = &quot; concat(agm.org_code,'_',agm.name)  orgCode  &quot;;</span>
+			
+				
+				
+<span class="nc bnc" id="L93" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L95">				orgCodeQry = &quot; concat(agm.name,'_',agm.org_code)  orgCode  &quot;;</span>
+			
+				
+			}
+<span class="nc" id="L99">			String appendOrder =&quot;orgCode ASC &quot;;</span>
+
+<span class="nc bnc" id="L101" title="All 2 branches missed.">			if( (LMSFilterDispatcher.orgOrderBy).equalsIgnoreCase(&quot;ORG_ID&quot;)){</span>
+<span class="nc" id="L102">				appendOrder=&quot;agm.organization_id&quot;;</span>
+				
+<span class="nc bnc" id="L104" title="All 2 branches missed.">			}else if( (LMSFilterDispatcher.orgOrderBy).equalsIgnoreCase(&quot;DESC&quot;)){</span>
+				
+<span class="nc" id="L106">				appendOrder=&quot;orgCode DESC &quot;;</span>
+			}
+<span class="nc" id="L108">			String indGameQry = &quot;select sale.retailer_org_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(buyCost,0.0)-ifnull(buyCostRet,0.0))buyCostAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt from (select retailer_org_id,sum(mrp_amt) mrpAmt,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCost, sum(agent_net_amt) netAmt from st_cs_sale_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;</span>
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by retailer_org_id) sale left outer join (select retailer_org_id,sum(mrp_amt) mrpAmtRet,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCostRet, sum(agent_net_amt)netAmtRet from st_cs_refund_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by retailer_org_id)saleRet on sale.retailer_org_id=saleRet.retailer_org_id union all &quot;;
+<span class="nc" id="L117">		StringBuilder saleQry = new StringBuilder(</span>
+				&quot;select agm.organization_id,&quot;+orgCodeQry+&quot;,sum(mrpAmt)mrp,sum(buyCostAmt)buyCost,sum(netAmt)netAmt from st_lms_organization_master agm , st_lms_organization_master rtm,(&quot;);
+<span class="nc" id="L119">		String gameQry = &quot;select category_id from st_cs_product_category_master group by category_id  &quot;;</span>
+<span class="nc" id="L120">		PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L121">		ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L123" title="All 2 branches missed.">		while (rsGame.next()) {</span>
+<span class="nc" id="L124">			saleQry.append(indGameQry.replaceAll(&quot;\\#&quot;, rsGame</span>
+					.getString(&quot;category_id&quot;)));
+		}
+<span class="nc" id="L127">		saleQry.delete(saleQry.length() - 10, saleQry.length());</span>
+<span class="nc" id="L128">		saleQry.append(&quot;) saleTlb where rtm.organization_type = 'RETAILER' and rtm.organization_id=saleTlb.retailer_org_id and agm.organization_type='AGENT' and rtm.parent_id = agm.organization_id group by agm.organization_id order by &quot;+appendOrder);</span>
+
+<span class="nc" id="L130">		pstmt = con.prepareStatement(saleQry.toString());</span>
+<span class="nc" id="L131">		logger.debug(&quot;----CS Report Agent Wise Qry---&quot; + pstmt);</span>
+<span class="nc" id="L132">		rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L134">			reportsBean = new CSSaleReportBean();</span>
+<span class="nc" id="L135">			reportsBean.setPartyName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L136">			reportsBean.setCategoryId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L137">			reportsBean.setMrpAmt(rs.getDouble(&quot;mrp&quot;));</span>
+<span class="nc" id="L138">			reportsBean.setNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L139">			reportsBean.setBuyCost(rs.getDouble(&quot;buyCost&quot;));</span>
+<span class="nc" id="L140">			beanList.add(reportsBean);</span>
+		}
+<span class="nc" id="L142">	} catch (Exception e) {</span>
+<span class="nc" id="L143">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L145">			con.close();</span>
+<span class="nc" id="L146">		}</span>
+<span class="nc" id="L147">		return beanList;</span>
+	}
+	
+	public List&lt;CSSaleReportBean&gt; CSSaleRetailerWise(Timestamp startDate,
+			Timestamp endDate,int agtOrgId) throws SQLException {
+<span class="nc" id="L152">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L153">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L154">		ResultSet rs = null;</span>
+<span class="nc" id="L155">		CSSaleReportBean reportsBean = null;</span>
+<span class="nc" id="L156">		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();</span>
+<span class="nc" id="L157">		String agtCond = &quot;&quot;;</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">		if(agtOrgId != -2){</span>
+<span class="nc" id="L159">			agtCond = &quot; and rtm.parent_id =&quot;+agtOrgId;</span>
+		}
+		try {
+<span class="nc" id="L162">			String indGameQry = &quot;select sale.retailer_org_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(buyCost,0.0)-ifnull(buyCostRet,0.0))buyCost,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt  from (select retailer_org_id,sum(mrp_amt) mrpAmt,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCost, sum(net_Amt) netAmt from st_cs_sale_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;</span>
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by retailer_org_id) sale left outer join (select retailer_org_id,sum(mrp_amt) mrpAmtRet,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCostRet, sum(net_amt)netAmtRet from st_cs_refund_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by retailer_org_id)saleRet on sale.retailer_org_id=saleRet.retailer_org_id union all &quot;;
+<span class="nc" id="L171">		StringBuilder saleQry = new StringBuilder(</span>
+				&quot;select rtm.organization_id,rtm.name,ifnull(sum(mrpAmt),0)mrp,ifnull(sum(buyCost),0)buyCost,ifnull(sum(netAmt),0)net from st_lms_organization_master rtm, (&quot;);
+<span class="nc" id="L173">		String gameQry = &quot;select category_id from st_cs_product_category_master group by category_id&quot;;</span>
+<span class="nc" id="L174">		PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L175">		ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L177" title="All 2 branches missed.">		while (rsGame.next()) {</span>
+<span class="nc" id="L178">			saleQry.append(indGameQry.replaceAll(&quot;\\#&quot;, rsGame</span>
+					.getString(&quot;category_id&quot;)));
+		}
+<span class="nc" id="L181">		saleQry.delete(saleQry.length() - 10, saleQry.length());</span>
+<span class="nc" id="L182">		saleQry.append(&quot;) saleTlb where saleTlb.retailer_org_id = rtm.organization_id and rtm.organization_type='RETAILER' &quot;+ agtCond +&quot; group by rtm.organization_id order by rtm.name&quot;);</span>
+
+<span class="nc" id="L184">		pstmt = con.prepareStatement(saleQry.toString());</span>
+<span class="nc" id="L185">		logger.debug(&quot;----CS Report Retailer Wise Qry---&quot; + pstmt);</span>
+<span class="nc" id="L186">		rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L188">			reportsBean = new CSSaleReportBean();</span>
+<span class="nc" id="L189">			reportsBean.setPartyName(rs.getString(&quot;name&quot;));</span>
+<span class="nc" id="L190">			reportsBean.setCategoryId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L191">			reportsBean.setMrpAmt(rs.getDouble(&quot;mrp&quot;));</span>
+<span class="nc" id="L192">			reportsBean.setBuyCost(rs.getDouble(&quot;buyCost&quot;));</span>
+<span class="nc" id="L193">			reportsBean.setNetAmt(rs.getDouble(&quot;net&quot;));</span>
+<span class="nc" id="L194">			beanList.add(reportsBean);</span>
+		}
+<span class="nc" id="L196">	} catch (Exception e) {</span>
+<span class="nc" id="L197">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L199">			con.close();</span>
+<span class="nc" id="L200">		}</span>
+<span class="nc" id="L201">		return beanList;</span>
+	}
+
+	/*public List&lt;CSSaleReportBean&gt; drawSaleAgentWiseExpand(
+			Timestamp startDate, Timestamp endDate, int agentOrgId)
+			throws SQLException {
+		Connection con = DBConnect.getConnection();
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		CSSaleReportBean reportsBean = null;
+		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();
+		try {
+			String indGameQry = &quot;(select game_id,unitPriceAmt,noOfTkt,mrpAmt,netAmt from (select sale.game_id,unitPriceAmt,(ifnull(noOfTkt,0)-ifnull(noOfTktRet,0)) noOfTkt,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt from (select game_id,mrp_amt unitPriceAmt,count(mrp_amt) noOfTkt,sum(mrp_amt) mrpAmt,sum(agent_net_amt) netAmt from st_cs_sale_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in (select organization_id from st_lms_organization_master where parent_id =&quot;
+					+ agentOrgId
+					+ &quot; )  group by mrp_amt order by mrp_amt) sale left outer join (select game_id,mrp_amt unitPriceAmtRet,count(mrp_amt) noOfTktRet,sum(mrp_amt) mrpAmtRet,sum(agent_net_amt) netAmtRet from st_dg_ret_sale_refund_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in (select organization_id from st_lms_organization_master where parent_id =&quot;
+					+ agentOrgId
+					+ &quot; )  group by mrp_amt order by mrp_amt) saleRet on unitPriceAmt=unitPriceAmtRet) sale where noOfTkt!=0) union all &quot;;
+			StringBuilder saleQry = new StringBuilder(
+					&quot;select product_id, product_number,product_code,unit_price,noOfTkt,mrpAmt,netAmt from st_cs_product_master pm,(&quot;);
+			String gameQry = &quot;select product_num from st_cs_product_master&quot;;
+			PreparedStatement pstmtGame = con.prepareStatement(gameQry);
+			ResultSet rsGame = pstmtGame.executeQuery();
+
+			while (rsGame.next()) {
+				saleQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame
+						.getString(&quot;product_num&quot;)));
+			}
+			saleQry.delete(saleQry.length() - 10, saleQry.length());
+			saleQry.append(&quot;) saleTlb where gm.game_nbr=saleTlb.game_id&quot;);
+
+			pstmt = con.prepareStatement(saleQry.toString());
+			logger.info(&quot;----Game Expand Qry---&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				/*reportsBean = new CSSaleReportBean();
+				reportsBean.setProductCode(rs.getString(&quot;gameName&quot;));
+				reportsBean.setGameNo(rs.getInt(&quot;gameNo&quot;));
+				reportsBean.setSaleMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));
+				reportsBean.setSaleNetAmt(rs.getDouble(&quot;netAmt&quot;));
+				reportsBean.setUnitPriceAmt(rs.getDouble(&quot;unitPriceAmt&quot;));
+				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));
+				beanList.add(reportsBean);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			con.close();
+		}
+		return beanList;
+	}
+	
+	public List&lt;CSSaleReportBean&gt; drawSaleRetailerWiseExpand(
+			Timestamp startDate, Timestamp endDate, int agentOrgId)
+			throws SQLException {
+		Connection con = DBConnect.getConnection();
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		CSSaleReportBean reportsBean = null;
+		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();
+		try {
+			String indGameQry = &quot;(select game_id,unitPriceAmt,noOfTkt,mrpAmt,netAmt from (select sale.game_id,unitPriceAmt,(ifnull(noOfTkt,0)-ifnull(noOfTktRet,0)) noOfTkt,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt from (select game_id,mrp_amt unitPriceAmt,count(mrp_amt) noOfTkt,sum(mrp_amt) mrpAmt,sum(net_amt) netAmt from st_dg_ret_sale_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_SALE','DG_SALE_OFFLINE') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in (select organization_id from st_lms_organization_master where organization_id =&quot;
+					+ agentOrgId
+					+ &quot; )  group by mrp_amt order by mrp_amt) sale left outer join (select game_id,mrp_amt unitPriceAmtRet,count(mrp_amt) noOfTktRet,sum(mrp_amt) mrpAmtRet,sum(net_amt) netAmtRet from st_dg_ret_sale_refund_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_REFUND_CANCEL','DG_REFUND_FAILED') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in (select organization_id from st_lms_organization_master where organization_id =&quot;
+					+ agentOrgId
+					+ &quot; )  group by mrp_amt order by mrp_amt) saleRet on unitPriceAmt=unitPriceAmtRet) sale where noOfTkt!=0 ) union all &quot;;
+			StringBuilder saleQry = new StringBuilder(
+					&quot;select game_nbr gameNo,game_name gameName,unitPriceAmt,noOfTkt,mrpAmt,netAmt from st_dg_game_master gm,(&quot;);
+			String gameQry = &quot;select game_nbr from st_dg_game_master&quot;;
+			PreparedStatement pstmtGame = con.prepareStatement(gameQry);
+			ResultSet rsGame = pstmtGame.executeQuery();
+
+			while (rsGame.next()) {
+				saleQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame
+						.getString(&quot;game_nbr&quot;)));
+			}
+			saleQry.delete(saleQry.length() - 10, saleQry.length());
+			saleQry.append(&quot;) saleTlb where gm.game_nbr=saleTlb.game_id&quot;);
+
+			pstmt = con.prepareStatement(saleQry.toString());
+			logger.info(&quot;----Game Expand Qry---&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				/*reportsBean = new CSSaleReportBean();
+				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));
+				reportsBean.setGameNo(rs.getInt(&quot;gameNo&quot;));
+				reportsBean.setSaleMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));
+				reportsBean.setSaleNetAmt(rs.getDouble(&quot;netAmt&quot;));
+				reportsBean.setUnitPriceAmt(rs.getDouble(&quot;unitPriceAmt&quot;));
+				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));
+				beanList.add(reportsBean);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			con.close();
+		}
+		return beanList;
+	}*/
+
+	public List&lt;CSSaleReportBean&gt; CSSaleProductWise(Timestamp startDate,
+			Timestamp endDate, int catId) throws SQLException {
+<span class="nc" id="L318">		logger.debug(&quot;---CS Sale Report Product Wise Helper---&quot;);</span>
+<span class="nc" id="L319">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L320">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L321">		ResultSet rs = null;</span>
+<span class="nc" id="L322">		CSSaleReportBean reportsBean = null;</span>
+<span class="nc" id="L323">		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();</span>
+		try {
+<span class="nc" id="L325">			String indGameQry = &quot;select sale.product_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(buyCost,0.0)-ifnull(buyCostRet,0.0))buyCostAmt from (select product_id,sum(mrp_amt) mrpAmt,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCost from st_cs_sale_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;</span>
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by product_id) sale left outer join (select product_id,sum(mrp_amt) mrpAmtRet,sum(mrp_amt - (mrp_amt*jv_comm)/100) buyCostRet from st_cs_refund_# where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) group by product_id)saleRet on sale.product_id=saleRet.product_id union all &quot;;
+<span class="nc" id="L334">		StringBuilder saleQry = new StringBuilder(</span>
+				&quot;select saleTlb.product_id,pcm.category_id,product_code,pm.description,operator_name,denomination,mrpAmt,buyCostAmt from st_cs_product_category_master pcm ,st_cs_product_master pm, st_cs_operator_master com,(&quot;);
+<span class="nc" id="L336">		String gameQry = &quot;select category_id from st_cs_product_category_master group by category_id&quot;;</span>
+<span class="nc" id="L337">		PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L338">		ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L340" title="All 2 branches missed.">		while (rsGame.next()) {</span>
+<span class="nc" id="L341">			saleQry.append(indGameQry.replaceAll(&quot;\\#&quot;, rsGame</span>
+					.getString(&quot;category_id&quot;)));
+		}
+<span class="nc" id="L344">		saleQry.delete(saleQry.length() - 10, saleQry.length());</span>
+<span class="nc" id="L345">		saleQry.append(&quot;) saleTlb where pm.product_id=saleTlb.product_id and pcm.category_id = pm.category_id and pm.operator_code = com.operator_code and pcm.category_id =&quot;+catId);</span>
+
+<span class="nc" id="L347">		pstmt = con.prepareStatement(saleQry.toString());</span>
+<span class="nc" id="L348">		logger.debug(&quot;----CS Report Product Wise Qry---&quot; + pstmt);</span>
+<span class="nc" id="L349">		rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L351">			reportsBean = new CSSaleReportBean();</span>
+<span class="nc" id="L352">			reportsBean.setProductCode(rs.getString(&quot;description&quot;));</span>
+<span class="nc" id="L353">			reportsBean.setProvider(rs.getString(&quot;operator_name&quot;));</span>
+<span class="nc" id="L354">			reportsBean.setDenomination(rs.getString(&quot;denomination&quot;));</span>
+<span class="nc" id="L355">			reportsBean.setProductId(rs.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L356">			reportsBean.setMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L357">			reportsBean.setBuyCost(rs.getDouble(&quot;buyCostAmt&quot;));</span>
+<span class="nc" id="L358">			beanList.add(reportsBean);</span>
+		}
+<span class="nc" id="L360">	} catch (Exception e) {</span>
+<span class="nc" id="L361">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L363">			con.close();</span>
+<span class="nc" id="L364">		}</span>
+<span class="nc" id="L365">		return beanList;</span>
+	}
+	
+	public List&lt;CSSaleReportBean&gt; CSSaleProductWiseAgentWise(Timestamp startDate,
+			Timestamp endDate, int agtOrgId) throws SQLException {
+<span class="nc" id="L370">		logger.debug(&quot;---CS Sale Report Product Wise Agent Wise Helper---&quot;);</span>
+<span class="nc" id="L371">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L372">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L373">		ResultSet rs = null;</span>
+<span class="nc" id="L374">		CSSaleReportBean reportsBean = null;</span>
+<span class="nc" id="L375">		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();</span>
+		try {
+<span class="nc" id="L377">			String indGameQry = &quot;select sale.product_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(buyCost,0.0)-ifnull(buyCostRet,0.0))buyCostAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt from (select product_id,sum(mrp_amt) mrpAmt,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCost, sum(agent_net_amt)netAmt from st_cs_sale_# cs, st_lms_organization_master rtm where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;</span>
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) and cs.retailer_org_id = rtm.organization_id and rtm.parent_id = &quot;+ agtOrgId +&quot; and rtm.organization_type = 'RETAILER'  group by product_id) sale left outer join (select product_id,sum(mrp_amt) mrpAmtRet,sum(mrp_amt - (mrp_amt*jv_comm)/100) buyCostRet, sum(agent_net_amt)netAmtRet from st_cs_refund_# csret, st_lms_organization_master rtm where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' )and csret.retailer_org_id = rtm.organization_id and rtm.parent_id = &quot;+ agtOrgId +&quot; and rtm.organization_type = 'RETAILER' group by product_id)saleRet on sale.product_id=saleRet.product_id union all &quot;;
+<span class="nc" id="L386">		StringBuilder saleQry = new StringBuilder(</span>
+				&quot;select saleTlb.product_id,pm.product_id,product_code,pm.description,operator_name,denomination,sum(mrpAmt)mrp,sum(buyCostAmt)buyCost,sum(netAmt)net from st_cs_product_master pm, st_cs_operator_master com,(&quot;);
+<span class="nc" id="L388">		String gameQry = &quot;select category_id from st_cs_product_category_master group by category_id&quot;;</span>
+<span class="nc" id="L389">		PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L390">		ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L392" title="All 2 branches missed.">		while (rsGame.next()) {</span>
+<span class="nc" id="L393">			saleQry.append(indGameQry.replaceAll(&quot;\\#&quot;, rsGame</span>
+					.getString(&quot;category_id&quot;)));
+		}
+<span class="nc" id="L396">		saleQry.delete(saleQry.length() - 10, saleQry.length());</span>
+<span class="nc" id="L397">		saleQry.append(&quot;) saleTlb where pm.product_id=saleTlb.product_id and pm.operator_code=com.operator_code group by saleTlb.product_id&quot;);</span>
+
+<span class="nc" id="L399">		pstmt = con.prepareStatement(saleQry.toString());</span>
+<span class="nc" id="L400">		logger.debug(&quot;----CS Report Product Wise Agent Wise Qry---&quot; + pstmt);</span>
+<span class="nc" id="L401">		rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L403">			reportsBean = new CSSaleReportBean();</span>
+<span class="nc" id="L404">			reportsBean.setProductCode(rs.getString(&quot;description&quot;));</span>
+<span class="nc" id="L405">			reportsBean.setProvider(rs.getString(&quot;operator_name&quot;));</span>
+<span class="nc" id="L406">			reportsBean.setDenomination(rs.getString(&quot;denomination&quot;));</span>
+<span class="nc" id="L407">			reportsBean.setProductId(rs.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L408">			reportsBean.setMrpAmt(rs.getDouble(&quot;mrp&quot;));</span>
+<span class="nc" id="L409">			reportsBean.setBuyCost(rs.getDouble(&quot;buyCost&quot;));</span>
+<span class="nc" id="L410">			reportsBean.setNetAmt(rs.getDouble(&quot;net&quot;));</span>
+<span class="nc" id="L411">			beanList.add(reportsBean);</span>
+		}
+<span class="nc" id="L413">	} catch (Exception e) {</span>
+<span class="nc" id="L414">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L416">			con.close();</span>
+<span class="nc" id="L417">		}</span>
+<span class="nc" id="L418">		return beanList;</span>
+	}
+	
+	public List&lt;CSSaleReportBean&gt; CSSaleProductWiseRetailerWise(Timestamp startDate,
+			Timestamp endDate, int retOrgId)throws SQLException{
+<span class="nc" id="L423">		logger.debug(&quot;---CS Sale Report Product Wise Retailer Wise Helper---&quot;);</span>
+<span class="nc" id="L424">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L425">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L426">		ResultSet rs = null;</span>
+<span class="nc" id="L427">		CSSaleReportBean reportsBean = null;</span>
+<span class="nc" id="L428">		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();</span>
+		try {
+<span class="nc" id="L430">			String indGameQry = &quot;select sale.product_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(buyCost,0.0)-ifnull(buyCostRet,0.0))buyCostAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt from (select product_id,sum(mrp_amt) mrpAmt,sum(mrp_amt - (mrp_amt*jv_comm/100)) buyCost, sum(agent_net_amt)netAmt from st_cs_sale_# cs where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;</span>
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) and cs.retailer_org_id = &quot;+retOrgId +&quot;  group by product_id) sale left outer join (select product_id,sum(mrp_amt) mrpAmtRet,sum(mrp_amt - (mrp_amt*jv_comm)/100) buyCostRet, sum(agent_net_amt)netAmtRet from st_cs_refund_# csret where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' )and csret.retailer_org_id = &quot;+retOrgId +&quot; group by product_id)saleRet on sale.product_id=saleRet.product_id union all &quot;;
+<span class="nc" id="L439">		StringBuilder saleQry = new StringBuilder(</span>
+				&quot;select saleTlb.product_id,pm.product_id,product_code,operator_name,pm.description,denomination,sum(mrpAmt)mrp,sum(buyCostAmt)buyCost,sum(netAmt)net from st_cs_product_master pm,st_cs_operator_master com,(&quot;);
+<span class="nc" id="L441">		String gameQry = &quot;select category_id from st_cs_product_category_master group by category_id&quot;;</span>
+<span class="nc" id="L442">		PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L443">		ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L445" title="All 2 branches missed.">		while (rsGame.next()) {</span>
+<span class="nc" id="L446">			saleQry.append(indGameQry.replaceAll(&quot;\\#&quot;, rsGame</span>
+					.getString(&quot;category_id&quot;)));
+		}
+<span class="nc" id="L449">		saleQry.delete(saleQry.length() - 10, saleQry.length());</span>
+<span class="nc" id="L450">		saleQry.append(&quot;) saleTlb where pm.product_id=saleTlb.product_id and pm.operator_code = com.operator_code group by saleTlb.product_id&quot;);</span>
+
+<span class="nc" id="L452">		pstmt = con.prepareStatement(saleQry.toString());</span>
+<span class="nc" id="L453">		logger.debug(&quot;----CS Report Product Wise Retailer Wise Qry---&quot; + pstmt);</span>
+<span class="nc" id="L454">		rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L455" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L456">			reportsBean = new CSSaleReportBean();</span>
+<span class="nc" id="L457">			reportsBean.setProductCode(rs.getString(&quot;description&quot;));</span>
+<span class="nc" id="L458">			reportsBean.setProvider(rs.getString(&quot;operator_name&quot;));</span>
+<span class="nc" id="L459">			reportsBean.setDenomination(rs.getString(&quot;denomination&quot;));</span>
+<span class="nc" id="L460">			reportsBean.setProductId(rs.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L461">			reportsBean.setMrpAmt(rs.getDouble(&quot;mrp&quot;));</span>
+<span class="nc" id="L462">			reportsBean.setBuyCost(rs.getDouble(&quot;buyCost&quot;));</span>
+<span class="nc" id="L463">			reportsBean.setNetAmt(rs.getDouble(&quot;net&quot;));</span>
+<span class="nc" id="L464">			beanList.add(reportsBean);</span>
+		}
+<span class="nc" id="L466">	} catch (Exception e) {</span>
+<span class="nc" id="L467">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L469">			con.close();</span>
+<span class="nc" id="L470">		}</span>
+<span class="nc" id="L471">		return beanList;</span>
+	}
+	
+	public List&lt;CSSaleReportBean&gt; getCSSaleRetailerWise(Timestamp startDate,
+			Timestamp endDate, int retOrgId)throws SQLException{
+<span class="nc" id="L476">		logger.debug(&quot;---CS Sale Report Product Wise Retailer Wise Helper---&quot;);</span>
+<span class="nc" id="L477">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L478">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L479">		ResultSet rs = null;</span>
+<span class="nc" id="L480">		CSSaleReportBean reportsBean = null;</span>
+<span class="nc" id="L481">		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();</span>
+		try {
+<span class="nc" id="L483">			String indGameQry = &quot;select sale.product_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt from (select product_id,sum(mrp_amt) mrpAmt, sum(agent_net_amt)netAmt from st_cs_sale_# cs where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type ='CS_SALE' and transaction_date&gt;='&quot;</span>
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' ) and cs.retailer_org_id = &quot;+retOrgId +&quot;  group by product_id) sale left outer join (select product_id,sum(mrp_amt) mrpAmtRet,sum(agent_net_amt)netAmtRet from st_cs_refund_# csret where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+				+ startDate
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ endDate
+				+ &quot;' )and csret.retailer_org_id = &quot;+retOrgId +&quot; group by product_id)saleRet on sale.product_id=saleRet.product_id union all &quot;;
+<span class="nc" id="L492">		StringBuilder saleQry = new StringBuilder(</span>
+				&quot;select saleTlb.product_id,pm.product_id,product_code,operator_name,pm.description,denomination,sum(mrpAmt)mrp,sum(netAmt)net from st_cs_product_master pm,st_cs_operator_master com,(&quot;);
+<span class="nc" id="L494">		String gameQry = &quot;select category_id from st_cs_product_category_master group by category_id&quot;;</span>
+<span class="nc" id="L495">		PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L496">		ResultSet rsGame = pstmtGame.executeQuery();</span>
+<span class="nc bnc" id="L497" title="All 2 branches missed.">		while (rsGame.next()) {</span>
+<span class="nc" id="L498">			saleQry.append(indGameQry.replaceAll(&quot;\\#&quot;, rsGame</span>
+					.getString(&quot;category_id&quot;)));
+		}
+<span class="nc" id="L501">		saleQry.delete(saleQry.length() - 10, saleQry.length());</span>
+<span class="nc" id="L502">		saleQry.append(&quot;) saleTlb where pm.product_id=saleTlb.product_id and pm.operator_code = com.operator_code group by saleTlb.product_id&quot;);</span>
+
+<span class="nc" id="L504">		pstmt = con.prepareStatement(saleQry.toString());</span>
+<span class="nc" id="L505">		logger.debug(&quot;----CS Report Product Wise Retailer Wise Qry---&quot; + pstmt);</span>
+<span class="nc" id="L506">		rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L507" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L508">			reportsBean = new CSSaleReportBean();</span>
+<span class="nc" id="L509">			reportsBean.setProductCode(rs.getString(&quot;description&quot;));</span>
+<span class="nc" id="L510">			reportsBean.setProvider(rs.getString(&quot;operator_name&quot;));</span>
+<span class="nc" id="L511">			reportsBean.setDenomination(rs.getString(&quot;denomination&quot;));</span>
+<span class="nc" id="L512">			reportsBean.setProductId(rs.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L513">			reportsBean.setMrpAmt(rs.getDouble(&quot;mrp&quot;));</span>
+<span class="nc" id="L514">			reportsBean.setNetAmt(rs.getDouble(&quot;net&quot;));</span>
+<span class="nc" id="L515">			beanList.add(reportsBean);</span>
+		}
+<span class="nc" id="L517">	} catch (Exception e) {</span>
+<span class="nc" id="L518">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L520">			con.close();</span>
+<span class="nc" id="L521">		}</span>
+<span class="nc" id="L522">		return beanList;</span>
+	}
+	/*public List&lt;CSSaleReportBean&gt; CSSaleProductWiseForAgent(Timestamp startDate,
+			Timestamp endDate,int agtOrgId) throws SQLException {
+		logger.debug(&quot;---Draw Sale Report Game Wise Helper---&quot;);
+		Connection con = DBConnect.getConnection();
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		CSSaleReportBean reportsBean = null;
+		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();
+		try {
+			String indGameQry = &quot;select sale.product_id,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0))mrpAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0))netAmt from (select product_id,sum(mrp_amt) mrpAmt,sum(net_amt) netAmt from st_cs_sale_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type = 'CS_SALE' and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in(select organization_id from st_lms_organization_master where parent_id=&quot;+agtOrgId+&quot;) group by product_id) sale left outer join (select product_id,sum(mrp_amt) mrpAmtRet,sum(net_amt) netAmtRet from st_cs_refund_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('CS_CANCEL_SERVER','CS_CANCEL_RET') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in(select organization_id from st_lms_organization_master where parent_id=&quot;+agtOrgId+&quot;) group by game_id)saleRet on sale.product_id=saleRet.product_id union all &quot;;
+			StringBuilder saleQry = new StringBuilder(
+					&quot;select product_id, product_num, product_code,provider,mrpAmt,netAmt from st_cs_product_master pm,(&quot;);
+			String gameQry = &quot;select category_id,product_num from st_cs_product_master&quot;;
+			PreparedStatement pstmtGame = con.prepareStatement(gameQry);
+			ResultSet rsGame = pstmtGame.executeQuery();
+
+			while (rsGame.next()) {
+				saleQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame
+						.getString(&quot;category_id&quot;)));
+			}
+			saleQry.delete(saleQry.length() - 10, saleQry.length());
+			saleQry.append(&quot;) saleTlb where pm.product_num=saleTlb.product_id&quot;);
+
+			pstmt = con.prepareStatement(saleQry.toString());
+			logger.debug(&quot;----Game Qry---&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				reportsBean = new CSSaleReportBean();
+				reportsBean.setProductCode(rs.getString(&quot;product_code&quot;));
+				reportsBean.setProductNum(rs.getInt(&quot;product_num&quot;));
+				reportsBean.setProductId(rs.getInt(&quot;product_id&quot;));
+				reportsBean.setProvider(rs.getString(&quot;product_provider&quot;));
+				reportsBean.setMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));
+				reportsBean.setNetAmt(rs.getDouble(&quot;netAmt&quot;));
+				beanList.add(reportsBean);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			con.close();
+		}
+		return beanList;
+	}*/
+	
+	/*public List&lt;CSSaleReportBean&gt; CSSaleGameWiseExpand(Timestamp startDate,
+			Timestamp endDate) throws SQLException {
+		logger.info(&quot;---Draw Sale Report Game Wise Expand Helper---&quot;);
+		Connection con = DBConnect.getConnection();
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		CSSaleReportBean reportsBean = null;
+		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();
+		try {
+			String indGameQry = &quot;(select game_id,unitPriceAmt,noOfTkt,mrpAmt,netAmt from (select sale.game_id,unitPriceAmt,(ifnull(noOfTkt,0)-ifnull(noOfTktRet,0)) noOfTkt,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0)) mrpAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0)) netAmt from (select game_id,mrp_amt unitPriceAmt,count(mrp_amt) noOfTkt,sum(mrp_amt) mrpAmt,sum(agent_net_amt) netAmt from st_dg_ret_sale_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_SALE','DG_SALE_OFFLINE') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) group by mrp_amt order by mrp_amt) sale left outer join (select game_id,mrp_amt unitPriceAmtRet,count(mrp_amt) noOfTktRet,sum(mrp_amt) mrpAmtRet,sum(agent_net_amt) netAmtRet from st_dg_ret_sale_refund_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_REFUND_CANCEL','DG_REFUND_FAILED') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) group by mrp_amt order by mrp_amt) saleRet on sale.game_id=saleRet.game_id and unitPriceAmt=unitPriceAmtRet) sale where noOfTkt!=0) union all &quot;;
+			StringBuilder saleQry = new StringBuilder(
+					&quot;select game_nbr gameNo,game_name gameName,unitPriceAmt,noOfTkt,mrpAmt,netAmt from st_dg_game_master gm,(&quot;);
+			String gameQry = &quot;select game_nbr from st_dg_game_master&quot;;
+			PreparedStatement pstmtGame = con.prepareStatement(gameQry);
+			ResultSet rsGame = pstmtGame.executeQuery();
+
+			while (rsGame.next()) {
+				saleQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame
+						.getString(&quot;game_nbr&quot;)));
+			}
+			saleQry.delete(saleQry.length() - 10, saleQry.length());
+			saleQry.append(&quot;) saleTlb where gm.game_nbr=saleTlb.game_id&quot;);
+
+			pstmt = con.prepareStatement(saleQry.toString());
+			logger.info(&quot;----Game Expand Qry---&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				reportsBean = new CSSaleReportBean();
+				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));
+				reportsBean.setGameNo(rs.getInt(&quot;gameNo&quot;));
+				reportsBean.setSaleMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));
+				reportsBean.setSaleNetAmt(rs.getDouble(&quot;netAmt&quot;));
+				reportsBean.setUnitPriceAmt(rs.getDouble(&quot;unitPriceAmt&quot;));
+				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));
+				beanList.add(reportsBean);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			con.close();
+		}
+		return beanList;
+	}*/
+	
+	/*public List&lt;CSSaleReportBean&gt; drawSaleGameWiseExpandForAgent(Timestamp startDate,
+			Timestamp endDate,int agtOrgId) throws SQLException {
+		logger.info(&quot;---Draw Sale Report Game Wise Expand Helper---&quot;);
+		Connection con = DBConnect.getConnection();
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		CSSaleReportBean reportsBean = null;
+		List&lt;CSSaleReportBean&gt; beanList = new ArrayList&lt;CSSaleReportBean&gt;();
+		try {
+			String indGameQry = &quot;(select game_id,unitPriceAmt,noOfTkt,mrpAmt,netAmt from (select sale.game_id,unitPriceAmt,(ifnull(noOfTkt,0)-ifnull(noOfTktRet,0)) noOfTkt,(ifnull(mrpAmt,0.0)-ifnull(mrpAmtRet,0.0)) mrpAmt,(ifnull(netAmt,0.0)-ifnull(netAmtRet,0.0)) netAmt from (select game_id,mrp_amt unitPriceAmt,count(mrp_amt) noOfTkt,sum(mrp_amt) mrpAmt,sum(net_amt) netAmt from st_dg_ret_sale_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_SALE','DG_SALE_OFFLINE') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in(select organization_id from st_lms_organization_master where parent_id=&quot;+agtOrgId+&quot;) group by mrp_amt order by mrp_amt) sale left outer join (select game_id,mrp_amt unitPriceAmtRet,count(mrp_amt) noOfTktRet,sum(mrp_amt) mrpAmtRet,sum(net_amt) netAmtRet from st_dg_ret_sale_refund_* where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_REFUND_CANCEL','DG_REFUND_FAILED') and transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' ) and retailer_org_id in(select organization_id from st_lms_organization_master where parent_id=&quot;+agtOrgId+&quot;) group by mrp_amt order by mrp_amt) saleRet on sale.game_id=saleRet.game_id and unitPriceAmt=unitPriceAmtRet) sale where noOfTkt!=0) union all &quot;;
+			StringBuilder saleQry = new StringBuilder(
+					&quot;select game_nbr gameNo,game_name gameName,unitPriceAmt,noOfTkt,mrpAmt,netAmt from st_dg_game_master gm,(&quot;);
+			String gameQry = &quot;select game_nbr from st_dg_game_master&quot;;
+			PreparedStatement pstmtGame = con.prepareStatement(gameQry);
+			ResultSet rsGame = pstmtGame.executeQuery();
+
+			while (rsGame.next()) {
+				saleQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame
+						.getString(&quot;game_nbr&quot;)));
+			}
+			saleQry.delete(saleQry.length() - 10, saleQry.length());
+			saleQry.append(&quot;) saleTlb where gm.game_nbr=saleTlb.game_id&quot;);
+
+			pstmt = con.prepareStatement(saleQry.toString());
+			logger.info(&quot;----Game Expand Qry---&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				reportsBean = new CSSaleReportBean();
+				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));
+				reportsBean.setGameNo(rs.getInt(&quot;gameNo&quot;));
+				reportsBean.setSaleMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));
+				reportsBean.setSaleNetAmt(rs.getDouble(&quot;netAmt&quot;));
+				reportsBean.setUnitPriceAmt(rs.getDouble(&quot;unitPriceAmt&quot;));
+				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));
+				beanList.add(reportsBean);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			con.close();
+		}
+		return beanList;
+	}*/
+	
+	public String getOrgAdd(int orgId) throws LMSException {
+<span class="nc" id="L681">		String orgAdd = &quot;&quot;;</span>
+<span class="nc" id="L682">		Connection con = null;</span>
+<span class="nc" id="L683">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L684">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L685">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L687">			pstmt = con</span>
+					.prepareStatement(&quot;select addr_line1, addr_line2, city from st_lms_organization_master where organization_id = ?&quot;);
+<span class="nc" id="L689">			pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L690">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L691">			logger.debug(pstmt);</span>
+<span class="nc bnc" id="L692" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L693">				orgAdd = rs.getString(&quot;addr_line1&quot;) + &quot;, &quot;</span>
+						+ rs.getString(&quot;addr_line2&quot;) + &quot;, &quot;
+						+ rs.getString(&quot;city&quot;);
+			}
+<span class="nc" id="L697">		} catch (SQLException e) {</span>
+<span class="nc" id="L698">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L699">			e.printStackTrace();</span>
+<span class="nc" id="L700">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L702">			try {</span>
+<span class="nc bnc" id="L703" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L704">					con.close();</span>
+				}
+<span class="nc" id="L706">			} catch (SQLException e) {</span>
+<span class="nc" id="L707">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L708">				e.printStackTrace();</span>
+<span class="nc" id="L709">				throw new LMSException(e);</span>
+<span class="nc" id="L710">			}</span>
+		}
+<span class="nc" id="L712">		return orgAdd;</span>
+	}
+	
+	public Map&lt;Integer, List&lt;String&gt;&gt; fetchOrgAddMap(String orgType, Integer agtOrgId)throws LMSException{
+<span class="nc" id="L716">		Map&lt;Integer, List&lt;String&gt;&gt; map = new TreeMap&lt;Integer, List&lt;String&gt;&gt;();</span>
+<span class="nc" id="L717">		Connection con = null;</span>
+<span class="nc" id="L718">		String orgAdd = &quot;&quot;;</span>
+<span class="nc" id="L719">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L720">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L721">		ResultSet rs = null;</span>
+<span class="nc" id="L722">		List&lt;String&gt; tempList = null;</span>
+		try {
+<span class="nc bnc" id="L724" title="All 2 branches missed.">			if(orgType.equalsIgnoreCase(&quot;AGENT&quot;)){</span>
+<span class="nc" id="L725">				pstmt = con.prepareStatement(&quot;select organization_id, name,addr_line1, addr_line2, city from st_lms_organization_master where organization_type = '&quot;+ orgType +&quot;'&quot;);</span>
+			}else{
+<span class="nc" id="L727">				pstmt = con.prepareStatement(&quot;select organization_id, name,addr_line1, addr_line2, city from st_lms_organization_master where organization_type = '&quot;+ orgType +&quot;' and parent_id = &quot;+ agtOrgId);</span>
+			}
+<span class="nc" id="L729">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L730">			logger.debug(pstmt);</span>
+<span class="nc bnc" id="L731" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L732">				tempList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L733">				orgAdd = rs.getString(&quot;addr_line1&quot;) + &quot;, &quot;</span>
+						+ rs.getString(&quot;addr_line2&quot;) + &quot;, &quot;
+						+ rs.getString(&quot;city&quot;);
+<span class="nc" id="L736">				tempList.add(rs.getString(&quot;name&quot;));</span>
+<span class="nc" id="L737">				tempList.add(orgAdd);</span>
+<span class="nc" id="L738">				map.put(rs.getInt(&quot;organization_id&quot;), tempList);</span>
+			}
+<span class="nc" id="L740">		} catch (SQLException e) {</span>
+<span class="nc" id="L741">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L742">			e.printStackTrace();</span>
+<span class="nc" id="L743">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L745">			try {</span>
+<span class="nc bnc" id="L746" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L747">					con.close();</span>
+				}
+<span class="nc" id="L749">			} catch (SQLException e) {</span>
+<span class="nc" id="L750">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L751">				e.printStackTrace();</span>
+<span class="nc" id="L752">				throw new LMSException(e);</span>
+<span class="nc" id="L753">			}</span>
+		}
+<span class="nc" id="L755">		return map;</span>
+	}
+	
+	public Map&lt;Integer, String&gt; fetchActiveCategoryMap()throws LMSException{
+<span class="nc" id="L759">		Map&lt;Integer, String&gt; map = new TreeMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L760">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L761">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L762">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L764">			pstmt = con.prepareStatement(&quot;select category_id, category_code from st_cs_product_category_master where status = 'ACTIVE'&quot;);</span>
+<span class="nc" id="L765">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L766">			logger.debug(pstmt);</span>
+<span class="nc bnc" id="L767" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L768">				map.put(rs.getInt(&quot;category_id&quot;), rs.getString(&quot;category_code&quot;));</span>
+			}
+<span class="nc" id="L770">		} catch (SQLException e) {</span>
+<span class="nc" id="L771">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L772">			e.printStackTrace();</span>
+<span class="nc" id="L773">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L775">			try {</span>
+<span class="nc bnc" id="L776" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L777">					con.close();</span>
+				}
+<span class="nc" id="L779">			} catch (SQLException e) {</span>
+<span class="nc" id="L780">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L781">				e.printStackTrace();</span>
+<span class="nc" id="L782">				throw new LMSException(e);</span>
+<span class="nc" id="L783">			}</span>
+		}
+<span class="nc" id="L785">		return map;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

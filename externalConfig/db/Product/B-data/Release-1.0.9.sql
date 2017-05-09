@@ -1,0 +1,5 @@
+--liquibase formatted sql
+
+-- changeset Mukesh_Sharma_LMS_1615:1
+update `st_se_priviledge_rep` set `priv_title`='bo_rep_customer_specific_Menu',`priv_disp_name`='Scratch Sale Winning Collection Report',`action_mapping`='bo_rep_customer_specific_Menu',`parent_priv_id`='0',`status`='ACTIVE',`priv_owner`='BO',`related_to`='REPORTS',`group_name`='SAFARI BET-Customer Specific Report',`is_start`='Y',`channel`='WEB',`priv_code`=NULL,`hidden`=NULL,`group_name_fr`=NULL,`group_name_en`='SAFARI BET-Customer Specific Report' where `priv_title`='bo_rep_customer_specific_Menu';
+-- rollback update `st_se_priviledge_rep` set `priv_title`='bo_rep_customer_specific_Menu',`priv_disp_name`='SAFARI BET-Customer Specific Report',`action_mapping`='bo_rep_customer_specific_Menu',`parent_priv_id`='0',`status`='ACTIVE',`priv_owner`='BO',`related_to`='REPORTS',`group_name`='SAFARI BET-Customer Specific Report',`is_start`='Y',`channel`='WEB',`priv_code`=NULL,`hidden`=NULL,`group_name_fr`=NULL,`group_name_en`='SAFARI BET-Customer Specific Report' where `priv_title`='bo_rep_customer_specific_Menu';

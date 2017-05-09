@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LongLatService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com</a> &gt; <span class="el_source">LongLatService.java</span></div><h1>LongLatService.java</h1><pre class="source lang-java linenums">package com;
+
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.net.URLEncoder;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.MultiThreadedHttpConnectionManager;
+import org.apache.commons.httpclient.methods.GetMethod;
+import org.apache.commons.lang.StringUtils;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+
+import com.skilrock.lms.common.db.DBConnect;
+
+<span class="nc" id="L31">public class LongLatService {</span>
+    private static final String GEOCODE_REQUEST_URL = &quot;http://maps.googleapis.com/maps/api/geocode/xml?sensor=false&amp;&quot;;
+<span class="nc" id="L33">    private static HttpClient httpClient = new HttpClient(</span>
+            new MultiThreadedHttpConnectionManager());
+
+    public static void main(String[] args) throws Exception {
+<span class="nc" id="L37">        Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L38">        LongLatService tDirectionService = new LongLatService();</span>
+<span class="nc" id="L39">        Statement pstmt = con.createStatement();</span>
+<span class="nc" id="L40">        ResultSet rs = pstmt</span>
+                .executeQuery(&quot;select organization_id,concat(addr_line1,concat(' ',addr_line2),concat(' ',city),concat(' ',cm.name)) address from st_lms_organization_master om,st_lms_country_master cm&quot;);
+<span class="nc bnc" id="L42" title="All 2 branches missed.">        while (rs.next()) {</span>
+<span class="nc" id="L43">            tDirectionService</span>
+                    .getLongitudeLatitude(rs.getString(&quot;address&quot;), con , rs.getInt(&quot;organization_id&quot;));
+        }
+<span class="nc" id="L46">    }</span>
+
+    public void getLongitudeLatitude(String address, Connection con,int userOrgId) {
+        try {
+
+<span class="nc" id="L51">            StringBuilder urlBuilder = new StringBuilder(GEOCODE_REQUEST_URL);</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            if (StringUtils.isNotBlank(address)) {</span>
+<span class="nc" id="L53">                urlBuilder.append(&quot;&amp;address=&quot;).append(</span>
+                        URLEncoder.encode(address, &quot;UTF-8&quot;));
+            }
+
+<span class="nc" id="L57">            final GetMethod getMethod = new GetMethod(urlBuilder.toString());</span>
+
+            try {
+
+<span class="nc" id="L61">                httpClient.executeMethod(getMethod);</span>
+
+<span class="nc" id="L63">                Reader reader = new InputStreamReader(getMethod</span>
+                        .getResponseBodyAsStream(), getMethod
+                        .getResponseCharSet());
+
+<span class="nc" id="L67">                int data = reader.read();</span>
+<span class="nc" id="L68">                char[] buffer = new char[1024];</span>
+<span class="nc" id="L69">                Writer writer = new StringWriter();</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                while ((data = reader.read(buffer)) != -1) {</span>
+<span class="nc" id="L71">                    writer.write(buffer, 0, data);</span>
+                }
+                // String result = writer.toString();
+                // System.out.println(result.toString());
+
+<span class="nc" id="L76">                DocumentBuilderFactory dbf = DocumentBuilderFactory</span>
+                        .newInstance();
+<span class="nc" id="L78">                DocumentBuilder db = dbf.newDocumentBuilder();</span>
+<span class="nc" id="L79">                InputSource is = new InputSource();</span>
+<span class="nc" id="L80">                is.setCharacterStream(new StringReader(&quot;&lt;&quot;</span>
+                        + writer.toString().trim()));
+<span class="nc" id="L82">                Document doc = db.parse(is);</span>
+
+<span class="nc" id="L84">                String strLatitude = getXpathValue(doc,</span>
+                        &quot;//GeocodeResponse/result/geometry/location/lat/text()&quot;);
+<span class="nc" id="L86">                System.out.println(&quot;Latitude:&quot; + strLatitude);</span>
+
+<span class="nc" id="L88">                String strLongtitude = getXpathValue(doc,</span>
+                        &quot;//GeocodeResponse/result/geometry/location/lng/text()&quot;);
+<span class="nc" id="L90">                System.out.println(&quot;Longitude : &quot; + strLongtitude);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                if(strLatitude==null)</span>
+<span class="nc" id="L92">                	strLatitude = &quot;0.000000&quot;;</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                if(strLongtitude==null)</span>
+<span class="nc" id="L94">                	strLongtitude = &quot;0.000000&quot;;</span>
+<span class="nc" id="L95">                PreparedStatement pstmt = con</span>
+                        .prepareStatement(&quot;update st_lms_ret_offline_master set lat=&quot;
+                                + strLatitude + &quot;,lon=&quot; + strLongtitude + &quot; where organization_id=&quot;+userOrgId+&quot;&quot;);
+<span class="nc" id="L98">                pstmt.executeUpdate();</span>
+            } finally {
+<span class="nc" id="L100">                getMethod.releaseConnection();</span>
+<span class="nc" id="L101">            }</span>
+<span class="nc" id="L102">        } catch (Exception e) {</span>
+<span class="nc" id="L103">            e.printStackTrace();</span>
+<span class="nc" id="L104">        }</span>
+<span class="nc" id="L105">    }</span>
+
+    private String getXpathValue(Document doc, String strXpath)
+            throws XPathExpressionException {
+<span class="nc" id="L109">        XPath xPath = XPathFactory.newInstance().newXPath();</span>
+<span class="nc" id="L110">        XPathExpression expr = xPath.compile(strXpath);</span>
+<span class="nc" id="L111">        String resultData = null;</span>
+<span class="nc" id="L112">        Object result4 = expr.evaluate(doc, XPathConstants.NODESET);</span>
+<span class="nc" id="L113">        NodeList nodes = (NodeList) result4;</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        for (int i = 0; i &lt; nodes.getLength(); i++) {</span>
+<span class="nc" id="L115">            resultData = nodes.item(i).getNodeValue();</span>
+        }
+<span class="nc" id="L117">        return resultData;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

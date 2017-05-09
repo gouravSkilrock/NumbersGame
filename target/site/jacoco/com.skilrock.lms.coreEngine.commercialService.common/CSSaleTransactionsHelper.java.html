@@ -1,0 +1,463 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSSaleTransactionsHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.commercialService.common</a> &gt; <span class="el_source">CSSaleTransactionsHelper.java</span></div><h1>CSSaleTransactionsHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.commercialService.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Date;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.CSSaleBean;
+import com.skilrock.lms.beans.CSUserBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper;
+
+<span class="nc" id="L21">public class CSSaleTransactionsHelper {</span>
+<span class="nc" id="L22">	static Log logger = LogFactory.getLog(CSSaleTransactionsHelper.class);</span>
+
+	public CSSaleBean CommServSaleBalDeduction(CSSaleBean saleBean) {
+<span class="nc" id="L25">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L26">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L27">		ResultSet rsTrns = null;</span>
+<span class="nc" id="L28">		saleBean.setStatus(&quot;Failure&quot;);</span>
+<span class="nc" id="L29">		CSUserBean userBean = CSUtil.fetchUserInfo(saleBean.getUserName());</span>
+		
+		// validations
+<span class="nc bnc" id="L32" title="All 2 branches missed.">		if (userBean == null) {</span>
+<span class="nc" id="L33">			saleBean.setErrorCode(103); // 103 : wrong userName</span>
+<span class="nc" id="L34">			return saleBean;</span>
+<span class="nc bnc" id="L35" title="All 2 branches missed.">		} else if (userBean.getUserOrgStatus().equalsIgnoreCase(&quot;INACTIVE&quot;)) {</span>
+<span class="nc" id="L36">			saleBean.setErrorCode(105); // 105 : retailer inactive</span>
+<span class="nc" id="L37">			return saleBean;</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">		} else if (userBean.getParentOrgStatus().equalsIgnoreCase(&quot;INACTIVE&quot;)) {</span>
+<span class="nc" id="L39">			saleBean.setErrorCode(106); // 106 : retailer's parent</span>
+			// inactive
+<span class="nc" id="L41">			return saleBean;</span>
+<span class="nc bnc" id="L42" title="All 4 branches missed.">		} else if (Double.compare(saleBean.getMrpAmt(), saleBean.getUnitPrice()</span>
+				* saleBean.getMult()) != 0 || Double.compare(saleBean.getMrpAmt(), 0.0) == 0) {
+<span class="nc" id="L44">			saleBean.setErrorCode(113); // 113 : wrong MRP Calculation</span>
+<span class="nc" id="L45">			return saleBean;</span>
+		}
+
+<span class="nc" id="L48">		saleBean.setBalance(userBean.getUserOrgBalance());</span>
+<span class="nc" id="L49">		logger.debug(&quot;setting balance before calculation in case of sale:&quot;+saleBean.getBalance());</span>
+<span class="nc" id="L50">		saleBean.setRetOrgId(userBean.getUserOrgId());</span>
+		try {
+<span class="nc" id="L52">			con.setAutoCommit(false);</span>
+<span class="nc" id="L53">			boolean isFraud = false;/*</span>
+									 * ResponsibleGaming.respGaming(userBean,
+									 * &quot;CS_SALE&quot;, saleBean.getMrpAmt() + &quot;&quot;);
+									 */
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">			if (!isFraud) {</span>
+				// fetch commission rates from DB
+<span class="nc" id="L60">				String merchant = LMSFilterDispatcher.csProvider;</span>
+<span class="nc" id="L61">				Map&lt;String, Double&gt; commMap = CSUtil.fetchCommisions(saleBean</span>
+						.getProdCode(),saleBean.getOperatorCode(), saleBean.getCircleCode(), saleBean.getDenomination(), merchant,con);
+<span class="nc" id="L63">				double retailerComm = 0.0;</span>
+<span class="nc" id="L64">				double agentComm = 0.0;</span>
+<span class="nc" id="L65">				double jvComm = 0.0;</span>
+<span class="nc" id="L66">				double isFlexi = 0.0;</span>
+<span class="nc" id="L67">				int categoryId = 0;</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">				if (commMap.size() == 0) {</span>
+<span class="nc" id="L69">					saleBean.setErrorCode(107); // 107 : wrong product code</span>
+<span class="nc" id="L70">					return saleBean;</span>
+				} else {
+<span class="nc" id="L72">					saleBean.setProdId(commMap.get(&quot;prodId&quot;).intValue());</span>
+<span class="nc" id="L73">					categoryId = commMap.get(&quot;category_id&quot;).intValue();</span>
+<span class="nc" id="L74">					saleBean.setCategoryId(categoryId);</span>
+<span class="nc" id="L75">					CSUtil</span>
+							.fetchRetCommVar(userBean, saleBean.getProdId(),
+									con);
+<span class="nc" id="L78">					retailerComm = commMap.get(&quot;retailerComm&quot;)</span>
+							+ userBean.getUserSaleCommVar();
+<span class="nc" id="L80">					agentComm = commMap.get(&quot;agentComm&quot;)</span>
+							+ userBean.getParentSaleCommVar();
+<span class="nc" id="L82">					jvComm = commMap.get(&quot;jvComm&quot;);</span>
+<span class="nc" id="L83">					isFlexi = commMap.get(&quot;is_flexi&quot;);</span>
+					// Net sale is being calculated without jv and vat
+<span class="nc" id="L85">					saleBean.setNetAmt(CSUtil.fmtToFourDecimal(saleBean.getMrpAmt()</span>
+							- saleBean.getMrpAmt() * retailerComm / 100)); // set
+					// retailer
+					// net
+					// amount
+					// in
+					// saleBeann12
+					
+<span class="nc bnc" id="L93" title="All 4 branches missed.">					if ((Double.compare(isFlexi, 1.0) != 0) &amp;&amp; (Double.compare(commMap.get(&quot;unit_price&quot;), saleBean</span>
+							.getUnitPrice()) != 0)) {
+<span class="nc" id="L95">						saleBean.setErrorCode(115); // 115 : unitPrice not</span>
+						// matching with RMS
+						// database
+<span class="nc" id="L98">						return saleBean;</span>
+					}
+				}
+
+				// balance availability check
+<span class="nc bnc" id="L103" title="All 2 branches missed.">				if (Double.compare(userBean.getUserOrgBalance(), saleBean</span>
+						.getNetAmt()) &lt; 0) {
+<span class="nc" id="L105">					saleBean.setErrorCode(101); // 3 : balance insufficient</span>
+<span class="nc" id="L106">					return saleBean;</span>
+				}
+
+<span class="nc bnc" id="L109" title="All 2 branches missed.">				if (Double.compare(userBean.getParentBalance(), saleBean</span>
+						.getNetAmt()) &lt; 0) {
+<span class="nc" id="L111">					saleBean.setErrorCode(102); // 3 : parent balance</span>
+					// insufficient
+<span class="nc" id="L113">					return saleBean;</span>
+				}
+<span class="nc" id="L115">				double totComm = (saleBean.getMrpAmt()*retailerComm/100)+ (saleBean.getMrpAmt()*agentComm/100) + (saleBean.getMrpAmt()*jvComm/100);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">				if(Double.compare(saleBean.getMrpAmt(),totComm) &lt; 0){</span>
+<span class="nc" id="L117">					logger.debug(&quot;improper total commission:---- retComm:&quot;+ (saleBean.getMrpAmt()*retailerComm/100)+&quot;, agentComm:&quot;+ (saleBean.getMrpAmt()*agentComm/100)+&quot;, jvComm:&quot;+ (saleBean.getMrpAmt()*jvComm/100));</span>
+<span class="nc" id="L118">					saleBean.setErrorCode(110); // improper JV Cost Calculation</span>
+<span class="nc" id="L119">					return saleBean;</span>
+				}
+
+				// insert in main transaction table
+<span class="nc" id="L123">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_lms_transaction_master (user_type, service_code, interface) values('RETAILER','CS','TERMINAL')&quot;);
+<span class="nc" id="L125">				pstmt.executeUpdate();</span>
+<span class="nc" id="L126">				rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">				if (rsTrns.next()) {</span>
+<span class="nc" id="L128">					int transId = rsTrns.getInt(1);</span>
+<span class="nc" id="L129">					logger.debug(&quot;trans id &quot; + transId);</span>
+
+					// insert into retailer transaction master
+<span class="nc" id="L132">					pstmt = con</span>
+							.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L134">					pstmt.setInt(1, transId);</span>
+<span class="nc" id="L135">					pstmt.setInt(2, CSUtil.fetchUserOrgId(&quot;&quot;,</span>
+							saleBean.getRetOrgId()).get(&quot;UserId&quot;)); //retailer User Id
+<span class="nc" id="L137">					pstmt.setInt(3, saleBean.getRetOrgId());</span>
+<span class="nc" id="L138">					pstmt.setInt(4, saleBean.getProdId());</span>
+<span class="nc" id="L139">					pstmt.setTimestamp(5, new java.sql.Timestamp(new Date()</span>
+							.getTime()));
+					//log transaction time in bean
+<span class="nc" id="L142">					saleBean.setTransTime(new Date());</span>
+<span class="nc" id="L143">					pstmt.setString(6, &quot;CS_SALE&quot;);</span>
+<span class="nc" id="L144">					pstmt.executeUpdate();</span>
+
+					// insert in cs sale table
+<span class="nc" id="L147">					pstmt = con</span>
+							.prepareStatement(&quot;insert into st_cs_sale_? (transaction_id, product_id, retailer_org_id, cs_ref_transaction_id, mrp_amt, net_amt, agent_net_amt, retailer_comm, agent_comm, jv_comm, jv_comm_amt, vat, vat_amt,govt_comm, govt_comm_amt, multiple, purchase_channel, claim_status) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L149">					pstmt.setInt(1, categoryId);</span>
+<span class="nc" id="L150">					pstmt.setInt(2, transId);</span>
+<span class="nc" id="L151">					pstmt.setInt(3, saleBean.getProdId());</span>
+<span class="nc" id="L152">					pstmt.setInt(4, saleBean.getRetOrgId());</span>
+<span class="nc" id="L153">					pstmt.setInt(5, saleBean.getCSRefTxId());</span>
+<span class="nc" id="L154">					pstmt.setDouble(6, saleBean.getMrpAmt()); // mrp_amt</span>
+<span class="nc" id="L155">					pstmt.setDouble(7, CSUtil.fmtToFourDecimal(saleBean.getNetAmt()));</span>
+<span class="nc" id="L156">					pstmt.setDouble(8, CSUtil.fmtToFourDecimal(saleBean.getMrpAmt()</span>
+							- saleBean.getMrpAmt() * agentComm / 100)); // agent_net_amt
+<span class="nc" id="L158">					pstmt.setDouble(9, retailerComm); // retailer_comm</span>
+<span class="nc" id="L159">					pstmt.setDouble(10, agentComm); // agent_comm</span>
+<span class="nc" id="L160">					pstmt.setDouble(11, jvComm); // jv_comm</span>
+<span class="nc" id="L161">					pstmt.setDouble(12, CSUtil.fmtToFourDecimal(saleBean.getMrpAmt()</span>
+							- saleBean.getMrpAmt() * jvComm / 100)); // jv_comm_amt
+<span class="nc" id="L163">					pstmt.setDouble(13, 0.0); //vat</span>
+<span class="nc" id="L164">					pstmt.setDouble(14, 0.0); //vat_amt</span>
+<span class="nc" id="L165">					pstmt.setDouble(15, 0.0); //govt_comm</span>
+<span class="nc" id="L166">					pstmt.setDouble(16, 0.0); //govt_comm_amt</span>
+<span class="nc" id="L167">					pstmt.setInt(17, saleBean.getMult());</span>
+<span class="nc" id="L168">					pstmt.setString(18, &quot;TERMINAL&quot;);</span>
+<span class="nc" id="L169">					pstmt.setString(19, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L170">					pstmt.executeUpdate();</span>
+
+					
+					//Now make payment updte method only one
+<span class="nc" id="L174">					OrgCreditUpdation.updateOrganizationBalWithValidate(saleBean</span>
+							.getNetAmt(), &quot;CLAIM_BAL&quot;, 
+							&quot;CREDIT&quot;, saleBean.getRetOrgId(),userBean
+							.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+					
+<span class="nc" id="L179">					OrgCreditUpdation.updateOrganizationBalWithValidate(saleBean</span>
+							.getMrpAmt()
+							- saleBean.getMrpAmt() * agentComm / 100, &quot;CLAIM_BAL&quot;,
+							&quot;CREDIT&quot;,userBean
+							.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+				
+					
+					/*// update st_lms_organization_master for claimable balance
+					// for
+					// retailer
+					CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+					commHelper
+							.updateOrgBalance(&quot;CLAIM_BAL&quot;,
+									saleBean.getNetAmt(), saleBean
+											.getRetOrgId(), &quot;CREDIT&quot;, con);
+
+					// update st_lms_organization_master for claimable balance
+					// for
+					// agent
+					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, saleBean
+							.getMrpAmt()
+							- saleBean.getMrpAmt() * agentComm / 100, userBean
+							.getParentOrgId(), &quot;CREDIT&quot;, con);*/
+
+					// update balance in saleBean
+<span class="nc" id="L204">					saleBean.setRMSRefId(transId);</span>
+<span class="nc" id="L205">					saleBean.setBalance(CommonMethods.fmtToTwoDecimal(userBean.getUserOrgBalance()</span>
+							- saleBean.getNetAmt()));
+<span class="nc" id="L207">					logger.debug(&quot;setting balance in case of sale:&quot;+saleBean.getBalance());</span>
+				}
+<span class="nc" id="L209">				con.commit();</span>
+<span class="nc" id="L210">				saleBean.setErrorCode(100);</span>
+<span class="nc" id="L211">				saleBean.setStatus(&quot;Success&quot;);</span>
+<span class="nc" id="L212">			} else {</span>
+<span class="nc" id="L213">				logger.debug(&quot;Responsing Gaming not allowed to sale&quot;);</span>
+<span class="nc" id="L214">				saleBean.setErrorCode(112);</span>
+<span class="nc" id="L215">				return saleBean;</span>
+			}
+<span class="nc" id="L217">		} catch (Exception e) {</span>
+<span class="nc" id="L218">			e.printStackTrace();</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">			if (e.getLocalizedMessage().indexOf(&quot;cs_ref_transaction_id&quot;) != -1) {</span>
+<span class="nc" id="L220">				saleBean.setErrorCode(107); // 107: invalid CS Ref. Transaction</span>
+				// id
+<span class="nc bnc" id="L222" title="All 2 branches missed.">			} else if (e.getLocalizedMessage()</span>
+					.indexOf(&quot;rms_ref_transaction_id&quot;) != -1) {
+<span class="nc" id="L224">				saleBean.setErrorCode(108); // 108: invalid RMS Ref. transaction</span>
+				// id
+			} else {
+<span class="nc" id="L227">				saleBean.setErrorCode(114); // 114: Internal Server Error</span>
+			}
+			//e.printStackTrace();
+			try {
+<span class="nc" id="L231">				con.rollback();</span>
+<span class="nc" id="L232">			} catch (SQLException e1) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L234">				saleBean.setErrorCode(114); // 114 : Internal Server Error</span>
+<span class="nc" id="L235">				e1.printStackTrace();</span>
+<span class="nc" id="L236">				return saleBean;</span>
+<span class="nc" id="L237">			}</span>
+
+<span class="nc" id="L239">			e.printStackTrace();</span>
+<span class="nc" id="L240">			return saleBean;</span>
+
+		} finally {
+<span class="nc" id="L243">			try {</span>
+<span class="nc" id="L244">				con.close();</span>
+<span class="nc" id="L245">			} catch (SQLException e) {</span>
+<span class="nc" id="L246">				e.printStackTrace();</span>
+<span class="nc" id="L247">			}</span>
+<span class="nc" id="L248">		}</span>
+<span class="nc" id="L249">		return saleBean;</span>
+	}
+
+	public CSSaleBean CommServSaleRefund(CSSaleBean saleBean) {
+<span class="nc" id="L253">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L254">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L255">		ResultSet rsTrns = null;</span>
+<span class="nc" id="L256">		ResultSet rsTrns2 = null;</span>
+<span class="nc" id="L257">		saleBean.setStatus(&quot;Failure&quot;);</span>
+<span class="nc" id="L258">		int categoryId = 0;</span>
+		try {
+<span class="nc" id="L260">			con.setAutoCommit(false);</span>
+<span class="nc" id="L261">			boolean isFraud = false;/*</span>
+									 * ResponsibleGaming.respGaming(userBean,
+									 * &quot;CS_SALE_CANCEL&quot;, saleBean.getMrpAmt() +
+									 * &quot;&quot;);
+									 */
+
+<span class="nc bnc" id="L267" title="All 2 branches missed.">			if (!isFraud) {</span>
+
+				// get Product Code from st_cs_product_master
+<span class="nc" id="L270">				pstmt = con</span>
+						.prepareStatement(&quot;select cpm.product_code, cpm.category_id, cpm.product_id from st_cs_product_master cpm,(select game_id from st_lms_retailer_transaction_master where transaction_id = ? and transaction_type = 'CS_SALE')rtm where cpm.product_id=rtm.game_id&quot;);
+<span class="nc" id="L272">				pstmt.setInt(1, saleBean.getRMSRefIdForRefund());</span>
+<span class="nc" id="L273">				rsTrns2 = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">				if (rsTrns2.next()) {</span>
+<span class="nc" id="L275">					categoryId = rsTrns2.getInt(&quot;category_id&quot;);</span>
+<span class="nc" id="L276">					saleBean.setCategoryId(categoryId);</span>
+<span class="nc" id="L277">					saleBean.setProdId(rsTrns2.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L278">					saleBean.setProdCode(rsTrns2.getString(&quot;product_code&quot;));</span>
+				} else {
+<span class="nc" id="L280">					saleBean.setErrorCode(109); // 109 : RMS Ref Id for</span>
+					// Cancellation is not in DB
+<span class="nc" id="L282">					return saleBean;</span>
+				}
+				
+//  To Stop Duplicate  Refund  
+<span class="nc" id="L286">				 PreparedStatement pstmt1 = con.prepareStatement(&quot;select rms_ref_transaction_id from st_cs_refund_? where rms_ref_transaction_id=?&quot;);</span>
+<span class="nc" id="L287">			        pstmt1.setInt(1, categoryId);</span>
+<span class="nc" id="L288">			        pstmt1.setInt(2, saleBean.getRMSRefIdForRefund());</span>
+<span class="nc" id="L289">			        ResultSet rsTrns1 = pstmt1.executeQuery();</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">			        if(rsTrns1.next())</span>
+			        {			
+			        	
+<span class="nc" id="L293">			        	saleBean.setErrorCode(0);</span>
+			        	   
+			        
+<span class="nc" id="L296">			           return saleBean ;</span>
+			        }
+// by neeraj			  
+				
+				
+				
+				
+<span class="nc" id="L303">				pstmt = con</span>
+						.prepareStatement(&quot;select retailer_org_id,product_id, mrp_amt, net_amt, agent_net_amt, retailer_comm, agent_comm, jv_comm, jv_comm_amt,vat, vat_amt, govt_comm, govt_comm_amt, agent_ref_transaction_id from st_cs_sale_? where cs_ref_transaction_id = ? and transaction_id = ?&quot;);
+<span class="nc" id="L305">				pstmt.setInt(1, categoryId);</span>
+<span class="nc" id="L306">				pstmt.setInt(2, saleBean.getCSRefTxIdForRefund());</span>
+<span class="nc" id="L307">				pstmt.setInt(3, saleBean.getRMSRefIdForRefund());</span>
+<span class="nc" id="L308">				logger.debug(&quot;sale table data &quot; + pstmt);</span>
+<span class="nc" id="L309">				rsTrns = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">				if (rsTrns.next()) {</span>
+<span class="nc" id="L311">					saleBean.setRetOrgId(rsTrns.getInt(&quot;retailer_org_id&quot;));</span>
+<span class="nc" id="L312">					saleBean.setProdId(rsTrns.getInt(&quot;product_id&quot;));</span>
+<span class="nc" id="L313">					saleBean.setMrpAmt(rsTrns.getDouble(&quot;mrp_amt&quot;));</span>
+<span class="nc" id="L314">					saleBean.setNetAmt(rsTrns.getDouble(&quot;net_amt&quot;));</span>
+				} else {
+<span class="nc" id="L316">					saleBean.setErrorCode(108); // 108 : CS Ref transaction Id</span>
+					// for Cancellation is not in DB
+<span class="nc" id="L318">					return saleBean;</span>
+				}
+
+				// insert in main transaction master
+<span class="nc" id="L322">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_lms_transaction_master (user_type, service_code, interface) values('RETAILER','CS','TERMINAL')&quot;);
+<span class="nc" id="L324">				pstmt.executeUpdate();</span>
+<span class="nc" id="L325">				rsTrns2 = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">				if (rsTrns2.next()) {</span>
+<span class="nc" id="L327">					int transId = rsTrns2.getInt(1);</span>
+<span class="nc" id="L328">					logger.debug(&quot;trans id &quot; + transId);</span>
+					// insert into retailer transaction master
+<span class="nc" id="L330">					pstmt = con</span>
+							.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L332">					pstmt.setInt(1, transId);</span>
+<span class="nc" id="L333">					pstmt.setInt(2, CSUtil.fetchUserOrgId(&quot;&quot;,</span>
+							saleBean.getRetOrgId()).get(&quot;UserId&quot;)); // retailer
+					// user Id
+<span class="nc" id="L336">					pstmt.setInt(3, saleBean.getRetOrgId());</span>
+<span class="nc" id="L337">					pstmt.setInt(4, saleBean.getProdId());</span>
+<span class="nc" id="L338">					pstmt.setTimestamp(5, new java.sql.Timestamp(new Date()</span>
+							.getTime()));
+					//log transaction time in bean
+<span class="nc" id="L341">					saleBean.setTransTime(new Date());</span>
+<span class="nc" id="L342">					pstmt.setString(6, &quot;CS_&quot;</span>
+							+ saleBean.getReasonForCancel().toUpperCase()); // transactionType
+<span class="nc" id="L344">					pstmt.executeUpdate();</span>
+
+					// insert in cs sale refund table
+<span class="nc" id="L347">					double cancellationCharge = 0.0;</span>
+<span class="nc" id="L348">					pstmt = con</span>
+							.prepareStatement(&quot;insert into st_cs_refund_? (transaction_id, product_id, retailer_org_id, cs_ref_transaction_id, rms_ref_transaction_id, claim_status, cancel_reason, mrp_amt, net_amt, agent_net_amt, retailer_comm ,agent_comm, jv_comm, jv_comm_cost, vat, vat_amt, govt_comm, govt_comm_amt, agent_ref_transaction_id, cancellation_charges ) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L350">					pstmt.setInt(1, categoryId);</span>
+<span class="nc" id="L351">					pstmt.setInt(2, transId);</span>
+<span class="nc" id="L352">					pstmt.setInt(3, saleBean.getProdId());</span>
+<span class="nc" id="L353">					pstmt.setInt(4, saleBean.getRetOrgId());</span>
+<span class="nc" id="L354">					pstmt.setInt(5, saleBean.getCSRefTxId());</span>
+<span class="nc" id="L355">					pstmt.setInt(6, saleBean.getRMSRefIdForRefund());</span>
+<span class="nc" id="L356">					pstmt.setString(7, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L357">					pstmt.setString(8, saleBean.getReasonForCancel());</span>
+<span class="nc" id="L358">					pstmt.setDouble(9, saleBean.getMrpAmt());</span>
+<span class="nc" id="L359">					pstmt.setDouble(10, saleBean.getNetAmt());</span>
+<span class="nc" id="L360">					pstmt.setDouble(11, rsTrns.getDouble(&quot;agent_net_amt&quot;));</span>
+<span class="nc" id="L361">					pstmt.setDouble(12, rsTrns.getDouble(&quot;retailer_comm&quot;));</span>
+<span class="nc" id="L362">					pstmt.setDouble(13, rsTrns.getDouble(&quot;agent_comm&quot;));</span>
+<span class="nc" id="L363">					pstmt.setDouble(14, rsTrns.getDouble(&quot;jv_comm&quot;));</span>
+<span class="nc" id="L364">					pstmt.setDouble(15, rsTrns.getDouble(&quot;jv_comm_amt&quot;));</span>
+<span class="nc" id="L365">					pstmt.setDouble(16, rsTrns.getDouble(&quot;vat&quot;));</span>
+<span class="nc" id="L366">					pstmt.setDouble(17, rsTrns.getDouble(&quot;vat_amt&quot;));</span>
+<span class="nc" id="L367">					pstmt.setDouble(18, rsTrns.getDouble(&quot;govt_comm&quot;));</span>
+<span class="nc" id="L368">					pstmt.setDouble(19, rsTrns.getDouble(&quot;govt_comm_amt&quot;));</span>
+<span class="nc" id="L369">					pstmt.setInt(20, rsTrns.getInt(&quot;agent_ref_transaction_id&quot;));</span>
+<span class="nc" id="L370">					pstmt.setString(21, cancellationCharge + &quot;&quot;);</span>
+<span class="nc" id="L371">					logger</span>
+							.debug(&quot;Query for sale refund insert in st_cs_refund: &quot;
+									+ pstmt);
+<span class="nc" id="L374">					int rows = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">					if (rows == 0) {</span>
+<span class="nc" id="L376">						saleBean.setErrorCode(108); // 108 : Invalid CS</span>
+						// Reference Transaction Id
+<span class="nc" id="L378">						return saleBean;</span>
+					}
+<span class="nc" id="L380">					saleBean.setRMSRefId(transId);</span>
+
+					
+					
+					//Now make payment updte method only one
+<span class="nc" id="L385">					OrgCreditUpdation.updateOrganizationBalWithValidate(saleBean</span>
+							.getNetAmt(), &quot;CLAIM_BAL&quot;, 
+							&quot;DEBIT&quot;, saleBean.getRetOrgId(),CSUtil
+							.fetchRetParentId(saleBean.getRetOrgId()), &quot;RETAILER&quot;, 0, con);
+					
+<span class="nc" id="L390">					OrgCreditUpdation.updateOrganizationBalWithValidate(rsTrns</span>
+							.getDouble(&quot;agent_net_amt&quot;), &quot;CLAIM_BAL&quot;,
+							&quot;DEBIT&quot;,CSUtil
+							.fetchRetParentId(saleBean.getRetOrgId()),0, &quot;AGENT&quot;, 0, con);
+				
+					
+					/*
+					// update st_lms_organization_master for claimable balance
+					// for
+					// retailer
+					CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, saleBean
+							.getNetAmt(), saleBean.getRetOrgId(), &quot;DEBIT&quot;, con);
+
+					// update st_lms_organization_master for claimable balance
+					// for
+					// agent
+					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, rsTrns
+							.getDouble(&quot;agent_net_amt&quot;), CSUtil
+							.fetchRetParentId(saleBean.getRetOrgId()), &quot;DEBIT&quot;,
+							con);*/
+
+<span class="nc" id="L412">					pstmt = con</span>
+							.prepareStatement(&quot;select (available_credit - claimable_bal) as bal from st_lms_organization_master where organization_id = ? and organization_type = 'RETAILER'&quot;);
+<span class="nc" id="L414">					pstmt.setInt(1, saleBean.getRetOrgId());</span>
+<span class="nc" id="L415">					rsTrns = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">					if (rsTrns.next()) {</span>
+<span class="nc" id="L417">						saleBean.setBalance(rsTrns.getDouble(&quot;bal&quot;));</span>
+					}
+
+					// update balance in saleBean
+<span class="nc" id="L421">					saleBean.setBalance(CommonMethods.fmtToTwoDecimal(saleBean.getBalance()</span>
+							+ saleBean.getNetAmt()));
+<span class="nc" id="L423">					con.commit();</span>
+<span class="nc" id="L424">					saleBean.setErrorCode(100);</span>
+<span class="nc" id="L425">					saleBean.setStatus(&quot;Success&quot;);</span>
+				}
+<span class="nc" id="L427">			} else {</span>
+<span class="nc" id="L428">				logger.debug(&quot;Responsing Gaming not allowed to cancel sale&quot;);</span>
+<span class="nc" id="L429">				saleBean.setErrorCode(112); // 112: Cancellation Limit Reached</span>
+<span class="nc" id="L430">				return saleBean;</span>
+			}
+<span class="nc" id="L432">		} catch (Exception e) {</span>
+<span class="nc" id="L433">			e.printStackTrace();</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">			if (e.getLocalizedMessage().indexOf(&quot;cs_ref_transaction_id&quot;) != -1) {</span>
+<span class="nc" id="L435">				saleBean.setErrorCode(108); // 108: invalid CS ref.</span>
+				// transaction_id
+<span class="nc bnc" id="L437" title="All 2 branches missed.">			} else if (e.getLocalizedMessage()</span>
+					.indexOf(&quot;rms_ref_transaction_id&quot;) != -1) {
+<span class="nc" id="L439">				saleBean.setErrorCode(109); // 109: invalid RMS Ref id</span>
+			} else {
+<span class="nc" id="L441">				saleBean.setErrorCode(114); // 114: Internal Server Error</span>
+			}
+			try {
+<span class="nc" id="L444">				con.rollback();</span>
+<span class="nc" id="L445">			} catch (SQLException e1) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L447">				e1.printStackTrace();</span>
+<span class="nc" id="L448">				return saleBean;</span>
+<span class="nc" id="L449">			}</span>
+
+<span class="nc" id="L451">			e.printStackTrace();</span>
+<span class="nc" id="L452">			return saleBean;</span>
+		} finally {
+<span class="nc" id="L454">			try {</span>
+<span class="nc" id="L455">				con.close();</span>
+<span class="nc" id="L456">			} catch (SQLException e) {</span>
+<span class="nc" id="L457">				e.printStackTrace();</span>
+<span class="nc" id="L458">			}</span>
+<span class="nc" id="L459">		}</span>
+<span class="nc" id="L460">		return saleBean;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

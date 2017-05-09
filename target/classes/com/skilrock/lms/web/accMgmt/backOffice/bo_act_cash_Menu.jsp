@@ -1,0 +1,294 @@
+
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@page import="com.skilrock.lms.common.utility.FormatNumber"%>
+<%@ taglib prefix="s" uri="/struts-tags"%>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+	<%
+		response.setHeader("Cache-Control", "no-store"); //HTTP 1.1
+		response.setHeader("Pragma", "no-cache"); //HTTP 1.0
+		response.setDateHeader("Expires", 0); //prevents caching at the proxy server
+	%>
+	<head>
+		<META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE" />
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+		<link rel="stylesheet"
+			href="<%=request.getContextPath()%>/LMSImages/css/styles.css"
+			type="text/css" />
+
+		<title><%=application.getAttribute("JSP_PAGE_TITLE")%></title>
+		<script type="text/javascript"
+			src="<%=request.getContextPath()%>/com/skilrock/lms/web/accMgmt/backOffice/js/rightClickDisable.js"></script>
+		<script>var path = "<%=request.getContextPath()%>"</script>
+		<script type="text/javascript"
+			src="<%=request.getContextPath()%>/com/skilrock/lms/web/accMgmt/backOffice/js/ACT_ST5_Validation.js"></script>
+		<script type="text/javascript"
+			src="<%=request.getContextPath()%>/com/skilrock/lms/web/accMgmt/backOffice/js/digitToWord.js"></script>
+		<s:head theme="ajax" debug="false" />
+	</head>
+
+	<body>
+		<%@include file="/com/skilrock/lms/web/loginMgmt/menu.jsp"%>
+
+		<div id="wrap">
+
+			<div id="top_form">
+				<div id="limitDiv" style="align: center;"></div>
+				<h3>
+					<s:text name="label.payment.detail"/>
+				</h3>
+				<div id="divFrm" style="display: block">
+					<s:form name="CashForm" method="post">
+						<s:actionerror />
+						<s:token name="token" />
+						<table cellpadding="2" cellspacing="0" border="0">
+							<tr>
+								<td>
+
+									<table cellpadding="2" cellspacing="0" border="0">
+										<tr>
+											<td valign="top" align="left">
+
+												<div id="cashInput">
+													<table border="0" cellpadding="2" cellspacing="0"
+														width="100%">
+														<tr>
+															<th>
+																<s:text name="label.cash.pay"/>
+															</th>
+														</tr>
+														<tr>
+															<td>
+																<div id="rcErrorDiv" style="color: red;">
+																</div>
+															</td>
+														</tr>
+														<tr>
+															<td>
+																<div id="rtErrorDiv" style="color: red;">
+																</div>
+															</td>
+														</tr>
+														<s:hidden name="paymentType" value="CASH" />
+														<s:if
+															test="%{#application.IS_DIRECT_CASH_ENABLE_FOR_RETAILER=='YES'}">
+															<tr align="left">
+																<td>
+																	<s:select cssClass="option" required="true"
+																		key="label.org.type" id="orgType" name="orgType"
+																		list="#{'RETAILER':'RETAILER'}"
+																		onchange="hideAndShow();"></s:select>
+																</td>
+															</tr>
+														</s:if>
+														<s:else>
+															<tr align="left">
+																<td>
+																	<s:select cssClass="option" required="true"
+																		key="label.org.type" id="orgType" name="orgType"
+																		list="#{'AGENT':#application.TIER_MAP.AGENT.toUpperCase()}"
+																		onchange="hideAndShow();"></s:select>
+																</td>
+															</tr>
+														</s:else>
+														<tr>
+															<td>
+																<div id="orgName1" style="color: red;">
+																</div>
+															</td>
+														</tr>
+														<s:hidden name="agentNameValue" id="agentNameValue"></s:hidden>
+
+														<tr>
+															<td align="left">
+																<s:select cssClass="option" headerKey="-1"
+																	required="true"
+																	headerValue="%{getText('label.please.select')}"
+																	key="label.agt.name" name="orgId" id="orgName"
+																	list="%{agentInfoMap}"
+																	onchange="getRetList();verifyAgent(this.value);removeData();">
+
+																</s:select>
+															</td>
+														</tr>
+														<tr>
+															<td>
+																<div id="retOrgName1">
+																</div>
+															</td>
+														</tr>
+														<s:if test="%{#application.IS_DIRECT_CASH_ENABLE_FOR_RETAILER=='YES'}">
+															<tr id="retName" align="left">	
+														</s:if>
+														<s:else>
+															<tr id="retName" align="left" style="display: none;">
+														</s:else>
+															<td style="text-align: right;">
+																<s:text name="label.ret.name"></s:text><span class="required">*</span>
+															</td>
+															<td>
+																<table cellpadding="0" cellspacing="0" width="100%"">
+																	<tbody>
+																		<tr>
+																			<td>
+																				<s:select id="retOrgName" required="true"
+																					cssClass="option" list="{}" name="retOrgName"
+																					headerKey="-1"
+																					headerValue="%{getText('label.please.select')}"
+																					onchange="varifyRetailer(this.value)" />
+																			</td>
+																		</tr>
+																		</tbody>
+																</table>
+															</td>
+														</tr>
+														<tr>
+															<td>
+																<div id="totalAmount1" style="color: red;">
+																</div>
+															</td>
+														</tr>
+														<tr align="left">
+															<td>
+																<s:actionerror />
+																<s:textfield key="label.cash.amt" required="true"
+																	name="totalAmount" id="totalAmount" size="15"
+																	maxlength="09" value=""></s:textfield>
+															</td>
+														</tr>
+														<tr>
+															<td>
+																<div id="cashAmnt1" style="color: red;">
+																</div>
+															</td>
+														</tr>
+														<tr>
+															<td align="left">
+																<s:textfield key="label.verify.cash.amt" required="true"
+																	value="" name="cashAmnt" id="cashAmnt" size="15"
+																	maxlength="09" onchange="appendDenoTab('Rec')"></s:textfield>
+															</td>
+														</tr>
+
+													</table>
+												</div>
+											</td>
+											<td></td>
+
+
+										</tr>
+										<s:if test="%{isCashRegister=='ACTIVE'}">
+											<tr>
+												<td>
+													&nbsp;
+													<div id="totAmtDiv" style="display: none;">
+														<b><s:text name="label.total.amt"/>:</b> &nbsp;&nbsp;
+														<input type="text" id="totalAmt" size="10"
+															readonly="readonly" />
+													</div>
+												</td>
+											</tr>
+										</s:if>
+									</table>
+								</td>
+								<td>
+									<s:if test="%{isCashRegister=='ACTIVE'}">
+
+										<td colspan="1">
+											<br />
+											<div id="recd" style="display: none;">
+												<h3>
+													<s:text name="label.enter.rec.denom"/>
+												</h3>
+											</div>
+											<br />
+											<table border="1" cellpadding="0" cellspacing="0" width="200"
+												id="table"
+												style="border-bottom-color: purple; display: none;">
+												<tr>
+													<th>
+														<s:text name="label.type"/>
+													</th>
+													<th></th>
+												</tr>
+											</table>
+										</td>
+										<td>
+											<div id="rd" style="display: none;">
+												<br />
+												<h3>
+													<s:text name="label.enter.ret.denom"/>
+												</h3>
+												<br />
+											</div>
+											<table border="0" cellpadding="0" cellspacing="0" width="200"
+												id="retTable"
+												style="display: none; border-bottom-color: purple;">
+												<tr>
+													<th>
+														<s:text name="label.type"/>
+													</th>
+													<th></th>
+												</tr>
+											</table>
+										</td>
+									</s:if>
+								</td>
+							</tr>
+							<tr>
+								<td>
+									<div id="finalSubmit">
+										<table border="0" cellpadding="2" cellspacing="0" width="100%">
+											<tr>
+												<td colspan="5" align="center" style="padding-left: 110px;">
+													<div id="subCheck"></div>
+													<s:if test="%{isCashRegister=='ACTIVE'}">
+														<div id="verifyButtonDiv" style="display: none;">
+															<input type="button" value="<s:text name="btn.verify"/>"
+																onclick="return validateAmount();"/>
+														</div>
+													</s:if>
+													<s:submit theme="simple" key="btn.submit.pay" id="sb"
+														action="bo_act_cash_Save"
+														onclick="return displayPaymentDetails(this.id);"
+														cssClass="button" />
+
+													<s:reset theme="simple" key="btn.reset" cssClass="button"
+														onclick="return removeMessages()" />
+												</td>
+											</tr>
+
+										</table>
+									</div>
+								</td>
+							</tr>
+						</table>
+
+						<s:div id="bottom">
+						</s:div>
+
+					</s:form>
+				</div>
+				<div id="orgData" style="display: none">
+					<table cellpadding="2" cellspacing="0" border="1" width="450">
+						<tr>
+							<td valign="top" align="center">
+								<s:text name="label.no.org.reg"/>
+							</td>
+						</tr>
+					</table>
+				</div>
+			</div>
+		</div>
+
+	</body>
+
+</html>
+
+<code id="headId" style="visibility: hidden">
+	$RCSfile: bo_act_cash_Menu.jsp,v $ $Revision: 1.3 $
+</code>

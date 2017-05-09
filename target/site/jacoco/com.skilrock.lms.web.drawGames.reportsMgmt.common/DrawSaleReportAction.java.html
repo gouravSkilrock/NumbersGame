@@ -1,0 +1,756 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DrawSaleReportAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.drawGames.reportsMgmt.common</a> &gt; <span class="el_source">DrawSaleReportAction.java</span></div><h1>DrawSaleReportAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.drawGames.reportsMgmt.common;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import jxl.Workbook;
+import jxl.write.WritableWorkbook;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.beans.ReportStatusBean;
+import com.skilrock.lms.beans.SalePwtReportsBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.SendReportMailerMain;
+import com.skilrock.lms.coreEngine.drawGames.reportMgmt.DrawSaleReportHelper;
+import com.skilrock.lms.coreEngine.drawGames.reportMgmt.DrawSaleReportHelperSP;
+import com.skilrock.lms.coreEngine.drawGames.reportMgmt.IDrawSaleReportHelper;
+import com.skilrock.lms.web.drawGames.reportsMgmt.beans.RegionWiseDataBean;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+
+<span class="nc" id="L44">public class DrawSaleReportAction extends ActionSupport implements</span>
+		ServletRequestAware, ServletResponseAware {
+	private static final long serialVersionUID = 1L;
+	private int agentOrgId;
+	private String end_Date;
+<span class="nc" id="L49">	Log logger = LogFactory.getLog(DrawSaleReportAction.class);</span>
+	private String reportType;
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+	private String start_date;
+	private String lastDate;
+	private int gameId;
+	private Map&lt;String,RegionWiseDataBean&gt; regionDataMap;
+	private String stateCode;
+	private String cityCode;
+	private String[] area;
+	private Map&lt;String, String&gt; stateMap;
+	
+	@Override
+	public String execute() throws Exception {
+<span class="nc" id="L64">		String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L65">		ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);</span>
+
+<span class="nc bnc" id="L67" title="All 2 branches missed.">		if(&quot;SUCCESS&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L68">			HttpSession session = request.getSession();</span>
+<span class="nc" id="L69">			session.setAttribute(&quot;presentDate&quot;, new java.sql.Date(new Date().getTime()).toString());</span>
+<span class="nc" id="L70">			session.setAttribute(&quot;DRAWGAME_LIST&quot;, ReportUtility.fetchDrawDataMenu());</span>
+<span class="nc" id="L71">			stateMap = CommonMethods.fetchStateList();</span>
+<span class="nc" id="L72">		} else {</span>
+<span class="nc" id="L73">			return &quot;RESULT_TIMING_RESTRICTION&quot;;</span>
+		}
+
+<span class="nc" id="L76">		return SUCCESS;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; fetchReportAgentWise(Timestamp startDate,
+			Timestamp endDate, ReportStatusBean reportStatusBean, String cityCode, String stateCode) throws SQLException {
+<span class="nc" id="L81">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L83">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L85">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L87">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L88">		reportList = helper.drawSaleAgentWise(startDate, endDate, reportStatusBean, cityCode, stateCode);</span>
+<span class="nc" id="L89">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L90">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L93">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L96">		} catch (LMSException ex) {</span>
+<span class="nc" id="L97">			ex.printStackTrace();</span>
+<span class="nc" id="L98">		}</span>
+<span class="nc" id="L99">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L100">		return reportList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; fetchReportRetailerWise(Timestamp startDate,
+			Timestamp endDate, ReportStatusBean reportStatusBean, String cityCode, String stateCode) throws SQLException {
+<span class="nc" id="L105">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L107">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L109">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L111">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L112">		reportList = helper.drawSaleRetailerWise(startDate, endDate,agentOrgId, reportStatusBean, cityCode, stateCode);</span>
+<span class="nc" id="L113">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L114">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L117">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L120">		} catch (LMSException ex) {</span>
+<span class="nc" id="L121">			ex.printStackTrace();</span>
+<span class="nc" id="L122">		}</span>
+<span class="nc" id="L123">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L124">		return reportList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; fetchReportAgentWiseExpand(
+			Timestamp startDate, Timestamp endDate, ReportStatusBean reportStatusBean, String stateCode, String cityCode) throws SQLException {
+<span class="nc" id="L129">		logger.info(&quot;------Agent Org Id---&quot; + agentOrgId);</span>
+<span class="nc" id="L130">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L132">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L134">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L136">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L137">		reportList = helper.drawSaleAgentWiseExpand(startDate, endDate,</span>
+				agentOrgId, reportStatusBean, stateCode, cityCode);
+<span class="nc" id="L139">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L140">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L143">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L146">		} catch (LMSException ex) {</span>
+<span class="nc" id="L147">			ex.printStackTrace();</span>
+<span class="nc" id="L148">		}</span>
+<span class="nc" id="L149">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L150">		return reportList;</span>
+	}
+	
+	public List&lt;SalePwtReportsBean&gt; fetchReportRetailerWiseExpand(
+			Timestamp startDate, Timestamp endDate, ReportStatusBean reportStatusBean, String stateCode, String cityCode) throws SQLException {
+<span class="nc" id="L155">		logger.info(&quot;------Agent Org Id---&quot; + agentOrgId);</span>
+<span class="nc" id="L156">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L158">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L160">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L162">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L163">		reportList = helper.drawSaleRetailerWiseExpand(startDate, endDate,</span>
+				agentOrgId, reportStatusBean, stateCode, cityCode);
+<span class="nc" id="L165">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L166">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L169">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L172">		} catch (LMSException ex) {</span>
+<span class="nc" id="L173">			ex.printStackTrace();</span>
+<span class="nc" id="L174">		}</span>
+<span class="nc" id="L175">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L176">		return reportList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; fetchReportGameWise(Timestamp startDate,
+			Timestamp endDate, ReportStatusBean reportStatusBean, String cityCode, String stateCode) throws SQLException {
+<span class="nc" id="L181">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L183">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L185">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L187">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L188">		reportList = helper.drawSaleGameWise(startDate, endDate, reportStatusBean, cityCode, stateCode);</span>
+<span class="nc" id="L189">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L190">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L193">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L196">		} catch (LMSException ex) {</span>
+<span class="nc" id="L197">			ex.printStackTrace();</span>
+<span class="nc" id="L198">		}</span>
+<span class="nc" id="L199">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L200">		return reportList;</span>
+	}
+	
+	public List&lt;SalePwtReportsBean&gt; fetchReportGameWiseForAgent(Timestamp startDate,
+			Timestamp endDate, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L205">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L207">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L209">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L211">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L212">		reportList = helper.drawSaleGameWiseForAgent(startDate, endDate,agentOrgId, reportStatusBean);</span>
+<span class="nc" id="L213">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L214">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L217">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L220">		} catch (LMSException ex) {</span>
+<span class="nc" id="L221">			ex.printStackTrace();</span>
+<span class="nc" id="L222">		}</span>
+<span class="nc" id="L223">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L224">		return reportList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; fetchReportGameWiseExpand(
+			Timestamp startDate, Timestamp endDate, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L229">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L231">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L233">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L235">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L236">		reportList = helper.drawSaleGameWiseExpand(startDate, endDate, reportStatusBean);</span>
+<span class="nc" id="L237">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L238">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L241">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L244">		} catch (LMSException ex) {</span>
+<span class="nc" id="L245">			ex.printStackTrace();</span>
+<span class="nc" id="L246">		}</span>
+<span class="nc" id="L247">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L248">		return reportList;</span>
+	}
+	
+	public List&lt;SalePwtReportsBean&gt; fetchReportGameWiseExpandForAgent(
+			Timestamp startDate, Timestamp endDate, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L253">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L255">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L257">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L259">		List&lt;SalePwtReportsBean&gt; reportList = null;</span>
+<span class="nc" id="L260">		reportList = helper.drawSaleGameWiseExpandForAgent(startDate, endDate,agentOrgId, reportStatusBean);</span>
+<span class="nc" id="L261">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L262">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		try {
+<span class="nc" id="L265">			session.setAttribute(&quot;orgAdd&quot;, ReportUtility</span>
+					.getOrgAdd(((UserInfoBean) session
+							.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));
+<span class="nc" id="L268">		} catch (LMSException ex) {</span>
+<span class="nc" id="L269">			ex.printStackTrace();</span>
+<span class="nc" id="L270">		}</span>
+<span class="nc" id="L271">		logger.info(&quot;---reportList---&quot; + reportList);</span>
+<span class="nc" id="L272">		return reportList;</span>
+	}
+
+	public int getAgentOrgId() {
+<span class="nc" id="L276">		return agentOrgId;</span>
+	}
+
+	public String getEnd_Date() {
+<span class="nc" id="L280">		return end_Date;</span>
+	}
+
+	public String getReportType() {
+<span class="nc" id="L284">		return reportType;</span>
+	}
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L288">		return request;</span>
+	}
+
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L292">		return response;</span>
+	}
+
+	public String getStart_date() {
+<span class="nc" id="L296">		return start_date;</span>
+	}
+	public String getLastDate()
+	{
+<span class="nc" id="L300">		return lastDate;</span>
+	}
+	public String search() throws LMSException {
+<span class="nc" id="L303">		logger.info(&quot;--Draw Sale Report Search ----&quot; + reportType + &quot;---&quot;);</span>
+
+<span class="nc" id="L305">		String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L306">		ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);</span>
+		
+<span class="nc bnc" id="L308" title="All 2 branches missed.">		if(cityCode == null)</span>
+<span class="nc" id="L309">			cityCode = &quot;ALL&quot;;</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">		if(stateCode == null)</span>
+<span class="nc" id="L311">			stateCode = &quot;ALL&quot;;</span>
+
+<span class="nc bnc" id="L313" title="All 2 branches missed.">		if(&quot;SUCCESS&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L314">			HttpSession session = request.getSession();</span>
+<span class="nc" id="L315">			ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L316">			String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+<span class="nc" id="L317">			Timestamp startDate = null;</span>
+<span class="nc" id="L318">			Timestamp endDate = null;</span>
+			try {
+<span class="nc bnc" id="L320" title="All 4 branches missed.">				if(start_date!=null &amp;&amp; end_Date!=null){</span>
+<span class="nc" id="L321">				startDate = new Timestamp((new SimpleDateFormat(dateFormat)).parse(</span>
+						start_date).getTime());
+<span class="nc" id="L323">				endDate = new Timestamp((new SimpleDateFormat(dateFormat)).parse(</span>
+						end_Date).getTime()
+						+ 24 * 60 * 60 * 1000 - 1000);
+<span class="nc" id="L326">				session.setAttribute(&quot;reportList&quot;, null);</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">				if (&quot;Game Wise&quot;.equals(reportType)) {</span>
+<span class="nc" id="L328">					session.setAttribute(&quot;reportList&quot;, fetchReportGameWise(</span>
+							startDate, endDate, reportStatusBean, cityCode, stateCode));
+<span class="nc" id="L330">					session.setAttribute(&quot;excelData&quot;,</span>
+							(List&lt;SalePwtReportsBean&gt;) session
+									.getAttribute(&quot;reportList&quot;));
+<span class="nc" id="L333">					return &quot;GAME_WISE&quot;;</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">				} else if (&quot;Agent Wise&quot;.equals(reportType)) {</span>
+<span class="nc" id="L335">					session.setAttribute(&quot;reportList&quot;, fetchReportAgentWise(</span>
+							startDate, endDate, reportStatusBean, cityCode, stateCode));
+<span class="nc" id="L337">					session.setAttribute(&quot;excelData&quot;,</span>
+							(List&lt;SalePwtReportsBean&gt;) session
+									.getAttribute(&quot;reportList&quot;));
+<span class="nc" id="L340">					return &quot;AGENT_WISE&quot;;</span>
+				}
+<span class="nc bnc" id="L342" title="All 2 branches missed.">				else if (&quot;Retailer Wise&quot;.equals(reportType)) {</span>
+<span class="nc" id="L343">					session.setAttribute(&quot;reportList&quot;, fetchReportRetailerWise(</span>
+							startDate, endDate, reportStatusBean, cityCode, stateCode));
+<span class="nc" id="L345">					session.setAttribute(&quot;excelData&quot;,</span>
+							(List&lt;SalePwtReportsBean&gt;) session
+									.getAttribute(&quot;reportList&quot;));
+<span class="nc" id="L348">					return &quot;RETAILER_WISE&quot;;</span>
+				}
+				}else
+				{
+<span class="nc" id="L352">					return NONE;</span>
+				}
+<span class="nc" id="L354">			} catch (Exception e) {</span>
+<span class="nc" id="L355">				e.printStackTrace();</span>
+<span class="nc" id="L356">				throw new LMSException(&quot;Date Format Error&quot;);</span>
+<span class="nc" id="L357">			}</span>
+<span class="nc" id="L358">			return ERROR;</span>
+		} else
+<span class="nc" id="L360">			return &quot;RESULT_TIMING_RESTRICTION&quot;;</span>
+	}
+
+	public String searchExpand() throws LMSException {
+<span class="nc" id="L364">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L365">		ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L366">		String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+<span class="nc" id="L367">		Timestamp startDate = null;</span>
+<span class="nc" id="L368">		Timestamp endDate = null;</span>
+		
+<span class="nc" id="L370">		boolean isExpand = false;</span>
+		try {
+<span class="nc" id="L372">			String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L373">			ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);</span>
+
+<span class="nc bnc" id="L375" title="All 2 branches missed.">			if(&quot;SUCCESS&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L376">				startDate = new Timestamp((new SimpleDateFormat(dateFormat)).parse(</span>
+						start_date).getTime());
+<span class="nc" id="L378">				endDate = new Timestamp((new SimpleDateFormat(dateFormat)).parse(</span>
+						end_Date).getTime()
+						+ 24 * 60 * 60 * 1000 - 1000);
+<span class="nc" id="L381">				session.setAttribute(&quot;reportList&quot;, null);</span>
+<span class="nc" id="L382">				lastDate = CommonMethods.getLastArchDate();</span>
+<span class="nc" id="L383">				System.out.println(&quot;last archieve date&quot;+lastDate);</span>
+<span class="nc" id="L384">				SimpleDateFormat formatOld = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L385">				Date oldDate = formatOld.parse(start_date);</span>
+<span class="nc" id="L386">				System.out.println(&quot;last archieve date&quot;+lastDate);</span>
+<span class="nc" id="L387">				Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L388">				Calendar calLast = Calendar.getInstance();</span>
+<span class="nc" id="L389">				SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L390">				Date devLastDate = format.parse(lastDate);</span>
+<span class="nc" id="L391">				Date devStartDate = format.parse(format.format(oldDate));</span>
+<span class="nc" id="L392">				calStart.setTime(devStartDate);</span>
+<span class="nc" id="L393">				calLast.setTime(devLastDate);</span>
+<span class="nc bnc" id="L394" title="All 4 branches missed.">				if(calStart.before(calLast) || calStart.equals(calLast))</span>
+				{
+<span class="nc" id="L396">					isExpand = true;</span>
+				}
+<span class="nc bnc" id="L398" title="All 2 branches missed.">				else if(calStart.after(calLast))</span>
+				{
+<span class="nc" id="L400">					isExpand = false;</span>
+				}
+<span class="nc" id="L402">				session.setAttribute(&quot;isExpand&quot;, isExpand);</span>
+<span class="nc bnc" id="L403" title="All 2 branches missed.">				if (&quot;Game Wise Expand&quot;.equals(reportType)) {</span>
+<span class="nc" id="L404">					session.setAttribute(&quot;reportList&quot;, fetchReportGameWiseExpand(</span>
+							startDate, endDate, reportStatusBean));
+<span class="nc" id="L406">					return SUCCESS;</span>
+<span class="nc bnc" id="L407" title="All 2 branches missed.">				} else if (&quot;Agent Wise Expand&quot;.equals(reportType)) {</span>
+<span class="nc" id="L408">					session.setAttribute(&quot;reportList&quot;, fetchReportAgentWiseExpand(</span>
+							startDate, endDate, reportStatusBean, &quot;ALL&quot;, &quot;ALL&quot;));
+<span class="nc" id="L410">					return SUCCESS;</span>
+				}
+<span class="nc" id="L412">			} else {</span>
+<span class="nc" id="L413">				return &quot;RESULT_TIMING_RESTRICTION&quot;;</span>
+			}
+<span class="nc" id="L415">		} catch (Exception e) {</span>
+<span class="nc" id="L416">			e.printStackTrace();</span>
+<span class="nc" id="L417">			throw new LMSException(&quot;Date Format Error&quot;);</span>
+<span class="nc" id="L418">		}</span>
+<span class="nc" id="L419">		return ERROR;</span>
+	}
+
+	
+	public String searchByAgent() throws LMSException {
+<span class="nc" id="L424">		logger.info(&quot;--Draw Sale Report Search ----&quot; + reportType + &quot;---&quot;);</span>
+<span class="nc" id="L425">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L426">		ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L427">		String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+<span class="nc" id="L428">		Timestamp startDate = null;</span>
+<span class="nc" id="L429">		Timestamp endDate = null;</span>
+<span class="nc bnc" id="L430" title="All 4 branches missed.">		if (start_date != null &amp;&amp; end_Date != null) {</span>
+			try {
+<span class="nc" id="L432">				String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L433">				ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);</span>
+
+<span class="nc bnc" id="L435" title="All 2 branches missed.">				if(&quot;SUCCESS&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L436">					startDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+							.parse(start_date).getTime());
+<span class="nc" id="L438">					endDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+							.parse(end_Date).getTime()
+							+ 24 * 60 * 60 * 1000 - 1000);
+<span class="nc" id="L441">					session.setAttribute(&quot;reportList&quot;, null);</span>
+<span class="nc bnc" id="L442" title="All 2 branches missed.">					if (&quot;Game Wise&quot;.equals(reportType)) {</span>
+<span class="nc" id="L443">						session.setAttribute(&quot;reportList&quot;,</span>
+								fetchReportGameWiseForAgent(startDate, endDate, reportStatusBean));
+<span class="nc" id="L445">						session.setAttribute(&quot;excelData&quot;,</span>
+								(List&lt;SalePwtReportsBean&gt;) session
+										.getAttribute(&quot;reportList&quot;));
+<span class="nc" id="L448">						return &quot;GAME_WISE&quot;;</span>
+<span class="nc bnc" id="L449" title="All 2 branches missed.">					} else if (&quot;Retailer Wise&quot;.equals(reportType)) {</span>
+<span class="nc" id="L450">						session.setAttribute(&quot;reportList&quot;, fetchReportRetailerWise(</span>
+								startDate, endDate, reportStatusBean, cityCode, stateCode));
+<span class="nc" id="L452">						session.setAttribute(&quot;excelData&quot;,</span>
+								(List&lt;SalePwtReportsBean&gt;) session
+										.getAttribute(&quot;reportList&quot;));
+<span class="nc" id="L455">						return &quot;RETAILER_WISE&quot;;</span>
+					}
+				} else {
+<span class="nc" id="L458">					return &quot;RESULT_TIMING_RESTRICTION&quot;;</span>
+				}
+<span class="nc" id="L460">			} catch (Exception e) {</span>
+<span class="nc" id="L461">				e.printStackTrace();</span>
+<span class="nc" id="L462">				throw new LMSException(&quot;Date Format Error&quot;);</span>
+<span class="nc" id="L463">			}</span>
+		}else{
+<span class="nc" id="L465">			return NONE;</span>
+		}
+<span class="nc" id="L467">		return ERROR;</span>
+	}
+
+	public String searchExpandByAgent() throws LMSException {
+<span class="nc" id="L471">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L472">		ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L473">		String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+<span class="nc" id="L474">		Timestamp startDate = null;</span>
+<span class="nc" id="L475">		Timestamp endDate = null;</span>
+<span class="nc" id="L476">		boolean isExpand = false;</span>
+		try {
+<span class="nc" id="L478">			String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L479">			ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);</span>
+
+<span class="nc bnc" id="L481" title="All 2 branches missed.">			if(&quot;SUCCESS&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L482">				startDate = new Timestamp((new SimpleDateFormat(dateFormat)).parse(</span>
+						start_date).getTime());
+<span class="nc" id="L484">				endDate = new Timestamp((new SimpleDateFormat(dateFormat)).parse(</span>
+						end_Date).getTime()
+						+ 24 * 60 * 60 * 1000 - 1000);
+<span class="nc" id="L487">				session.setAttribute(&quot;reportList&quot;, null);</span>
+<span class="nc" id="L488">				lastDate = CommonMethods.getLastArchDate();</span>
+<span class="nc" id="L489">				System.out.println(&quot;last archieve date&quot;+lastDate);</span>
+<span class="nc" id="L490">				SimpleDateFormat formatOld = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L491">				Date oldDate = formatOld.parse(start_date);</span>
+<span class="nc" id="L492">				System.out.println(&quot;last archieve date&quot;+lastDate);</span>
+<span class="nc" id="L493">				Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L494">				Calendar calLast = Calendar.getInstance();</span>
+<span class="nc" id="L495">				SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L496">				Date devLastDate = format.parse(lastDate);</span>
+<span class="nc" id="L497">				Date devStartDate = format.parse(format.format(oldDate));</span>
+<span class="nc" id="L498">				calStart.setTime(devStartDate);</span>
+<span class="nc" id="L499">				calLast.setTime(devLastDate);</span>
+<span class="nc bnc" id="L500" title="All 4 branches missed.">				if(calStart.before(calLast) || calStart.equals(calLast))</span>
+				{
+<span class="nc" id="L502">					isExpand = true;</span>
+				}
+<span class="nc bnc" id="L504" title="All 2 branches missed.">				else if(calStart.after(calLast))</span>
+				{
+<span class="nc" id="L506">					isExpand = false;</span>
+				}
+<span class="nc" id="L508">				session.setAttribute(&quot;isExpand&quot;, isExpand);</span>
+<span class="nc bnc" id="L509" title="All 2 branches missed.">				if (&quot;Game Wise Expand&quot;.equals(reportType)) {</span>
+<span class="nc" id="L510">					session.setAttribute(&quot;reportList&quot;, fetchReportGameWiseExpandForAgent(startDate, endDate, reportStatusBean));</span>
+<span class="nc" id="L511">					return SUCCESS;</span>
+<span class="nc bnc" id="L512" title="All 2 branches missed.">				} else if (&quot;Retailer Wise Expand&quot;.equals(reportType)) {</span>
+<span class="nc" id="L513">					session.setAttribute(&quot;reportList&quot;, fetchReportRetailerWiseExpand(startDate, endDate, reportStatusBean, &quot;ALL&quot;, &quot;ALL&quot;));</span>
+<span class="nc" id="L514">					return SUCCESS;</span>
+				}
+<span class="nc" id="L516">			} else {</span>
+<span class="nc" id="L517">				return &quot;RESULT_TIMING_RESTRICTION&quot;;</span>
+			}
+<span class="nc" id="L519">		} catch (Exception e) {</span>
+<span class="nc" id="L520">			e.printStackTrace();</span>
+<span class="nc" id="L521">			throw new LMSException(&quot;Date Format Error&quot;);</span>
+<span class="nc" id="L522">		}</span>
+<span class="nc" id="L523">		return ERROR;</span>
+	}
+	
+	public void exportExcel() {
+<span class="nc" id="L527">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L528">		List&lt;SalePwtReportsBean&gt; data = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+<span class="nc" id="L529">		List&lt;SalePwtReportsBean&gt; dataExpended = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+<span class="nc" id="L530">		ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L531">		IDrawSaleReportHelper helper = null;</span>
+<span class="nc bnc" id="L532" title="All 2 branches missed.">		if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L533">			helper = new DrawSaleReportHelperSP();</span>
+		}else{
+<span class="nc" id="L535">			helper = new DrawSaleReportHelper();</span>
+		}
+<span class="nc" id="L537">		String dateFormat = (String) sc.getAttribute(&quot;date_format&quot;);</span>
+<span class="nc" id="L538">		data = (ArrayList) session.getAttribute(&quot;excelData&quot;);</span>
+
+		try {
+<span class="nc" id="L541">			response.setContentType(&quot;application/vnd.ms-excel&quot;);</span>
+<span class="nc" id="L542">			response.setHeader(&quot;Content-disposition&quot;,</span>
+					&quot;attachment;filename=DrawSaleReport.xls&quot;);
+<span class="nc" id="L544">			WritableWorkbook w = Workbook.createWorkbook(response</span>
+					.getOutputStream());
+<span class="nc" id="L546">			Timestamp startDate = null;</span>
+<span class="nc" id="L547">			Timestamp endDate = null;</span>
+			
+<span class="nc bnc" id="L549" title="All 4 branches missed.">			if(stateCode == null || stateCode.trim().isEmpty()) </span>
+<span class="nc" id="L550">				stateCode = &quot;ALL&quot;;</span>
+<span class="nc bnc" id="L551" title="All 4 branches missed.">			if(cityCode == null || cityCode.trim().isEmpty())</span>
+<span class="nc" id="L552">				cityCode = &quot;ALL&quot;;</span>
+
+			try {
+<span class="nc" id="L555">				String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L556">				ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);</span>
+
+<span class="nc bnc" id="L558" title="All 2 branches missed.">				if(&quot;SUCCESS&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L559">					startDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+							.parse(start_date).getTime());
+<span class="nc" id="L561">					endDate = new Timestamp((new SimpleDateFormat(dateFormat))</span>
+							.parse(end_Date).getTime()
+							+ 24 * 60 * 60 * 1000 - 1000);
+<span class="nc" id="L564">					WriteExcelForDrawSaleReport excel = new WriteExcelForDrawSaleReport(</span>
+							startDate, endDate, reportType);
+<span class="nc bnc" id="L566" title="All 2 branches missed.">					if (&quot;Game Wise&quot;.equalsIgnoreCase(reportType)) {</span>
+<span class="nc" id="L567">						dataExpended = fetchReportGameWiseExpand(startDate, endDate, reportStatusBean);</span>
+<span class="nc" id="L568">						excel.writeGameWise(data, dataExpended, w, (String) session</span>
+								.getAttribute(&quot;orgName&quot;), (String) session
+								.getAttribute(&quot;orgAdd&quot;), &quot;BO&quot;, (String) request
+								.getSession().getServletContext().getAttribute(
+										&quot;CURRENCY_SYMBOL&quot;), stateCode, cityCode);
+<span class="nc bnc" id="L573" title="All 2 branches missed.">					}else if(&quot;Game Wise Expand&quot;.equalsIgnoreCase(reportType)){</span>
+<span class="nc" id="L574">						dataExpended = fetchReportGameWiseExpandForAgent(startDate, endDate, reportStatusBean);</span>
+<span class="nc" id="L575">						excel.writeGameWise(data, dataExpended, w, (String) session</span>
+								.getAttribute(&quot;orgName&quot;), (String) session
+								.getAttribute(&quot;orgAdd&quot;), &quot;AGENT&quot;, (String) request
+								.getSession().getServletContext().getAttribute(
+										&quot;CURRENCY_SYMBOL&quot;), stateCode, cityCode);
+	
+<span class="nc bnc" id="L581" title="All 4 branches missed.">					} else if (&quot;Agent Wise&quot;.equalsIgnoreCase(reportType) || &quot;Retailer Wise&quot;.equalsIgnoreCase(reportType)) {</span>
+<span class="nc" id="L582">						Map&lt;Integer, List&lt;String&gt;&gt; addMap = new TreeMap&lt;Integer, List&lt;String&gt;&gt;();</span>
+<span class="nc" id="L583">						addMap = helper.fetchOrgAddMap(reportType.split(&quot; &quot;)[0].toUpperCase(),agentOrgId);</span>
+<span class="nc" id="L584">						Iterator&lt;Map.Entry&lt;Integer, List&lt;String&gt;&gt;&gt; it = addMap</span>
+								.entrySet().iterator();
+<span class="nc" id="L586">						Map&lt;Integer, List&lt;SalePwtReportsBean&gt;&gt; tempMap = new TreeMap&lt;Integer, List&lt;SalePwtReportsBean&gt;&gt;();</span>
+<span class="nc bnc" id="L587" title="All 2 branches missed.">						while (it.hasNext()) {</span>
+<span class="nc" id="L588">							Map.Entry&lt;Integer, List&lt;String&gt;&gt; pair = it.next();</span>
+<span class="nc" id="L589">							setAgentOrgId(pair.getKey());</span>
+<span class="nc bnc" id="L590" title="All 2 branches missed.">							if(&quot;Agent Wise&quot;.equalsIgnoreCase(reportType)){</span>
+<span class="nc" id="L591">								tempMap.put(pair.getKey(), fetchReportAgentWiseExpand(startDate, endDate, reportStatusBean, stateCode, cityCode));</span>
+<span class="nc bnc" id="L592" title="All 2 branches missed.">							}else if(&quot;Retailer Wise&quot;.equalsIgnoreCase(reportType)){</span>
+<span class="nc" id="L593">								tempMap.put(pair.getKey(), fetchReportRetailerWiseExpand(startDate, endDate, reportStatusBean, stateCode, cityCode));</span>
+							}
+<span class="nc" id="L595">						}</span>
+<span class="nc" id="L596">						excel.writeAgentWise(data, tempMap, w, addMap,</span>
+								(String) session.getAttribute(&quot;orgName&quot;),
+								(String) session.getAttribute(&quot;orgAdd&quot;), &quot;BO&quot;,
+								(String) request.getSession().getServletContext()
+										.getAttribute(&quot;CURRENCY_SYMBOL&quot;), cityCode, stateCode);
+					}
+<span class="nc" id="L602">				} else {</span>
+<span class="nc" id="L603">					throw new LMSException(&quot;Result Timing Restriction&quot;);</span>
+				}
+<span class="nc" id="L605">			} catch (Exception e) {</span>
+<span class="nc" id="L606">				e.printStackTrace();</span>
+<span class="nc" id="L607">				throw new LMSException(&quot;Date Format Error&quot;);</span>
+<span class="nc" id="L608">			}</span>
+<span class="nc" id="L609">		} catch (FileNotFoundException e) {</span>
+<span class="nc" id="L610">			e.printStackTrace();</span>
+<span class="nc" id="L611">		} catch (IOException e) {</span>
+<span class="nc" id="L612">			e.printStackTrace();</span>
+<span class="nc" id="L613">		} catch (Exception e) {</span>
+<span class="nc" id="L614">			e.printStackTrace();</span>
+<span class="nc" id="L615">		}</span>
+<span class="nc" id="L616">	}</span>
+	public String fetchRegionWiseRetSaleData(){
+
+<span class="nc" id="L619">		String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L620">		ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);</span>
+
+<span class="nc bnc" id="L622" title="All 2 branches missed.">		if(&quot;SUCCESS&quot;.equals(reportStatusBean.getReportStatus())) {</span>
+<span class="nc" id="L623">			 RegionWiseDataBean dataBean=new RegionWiseDataBean();</span>
+<span class="nc bnc" id="L624" title="All 2 branches missed.">			 if(gameId&gt;0){</span>
+<span class="nc" id="L625">				 dataBean.setGameId(gameId);</span>
+<span class="nc" id="L626">				 dataBean.setStartDate(start_date+&quot; 00:00:00&quot;);</span>
+<span class="nc" id="L627">				 dataBean.setEndDate(end_Date+&quot; 23:59:59&quot;);</span>
+<span class="nc" id="L628">				 dataBean.setStateCode(stateCode);</span>
+<span class="nc" id="L629">				 dataBean.setCityCode(cityCode);</span>
+<span class="nc" id="L630">				 StringBuilder areaList =new StringBuilder();</span>
+<span class="nc bnc" id="L631" title="All 4 branches missed.">				 if(area!=null&amp;&amp;area.length&gt;0){</span>
+					 
+<span class="nc bnc" id="L633" title="All 2 branches missed.">					 for(int i=0;i&lt;area.length;i++){</span>
+<span class="nc" id="L634">						 areaList.append(area[i]+&quot;,&quot;);</span>
+							 
+					 }
+				 }else{
+					 
+<span class="nc" id="L639">					 areaList.append(&quot;-1&quot;);</span>
+				 }
+<span class="nc" id="L641">				 dataBean.setOrgId(agentOrgId);</span>
+<span class="nc" id="L642">				 dataBean.setAreaCode(areaList.toString());</span>
+				 //String actionName = ActionContext.getContext().getName();
+				 //ReportStatusBean reportStatusBean = ReportUtility.getReportStatus(actionName);
+				// repType=&quot;DT&quot;;
+				// DrawAnalysisReportRetailerWiseHelper helper=new DrawAnalysisReportRetailerWiseHelper();
+					try {
+<span class="nc" id="L648">						regionDataMap =DrawSaleReportHelper.fetchRegionWiseRetSaleData(dataBean,reportStatusBean);</span>
+					
+						/*Iterator  itr = regionDataMap.entrySet().iterator();
+						while(itr.hasNext()){
+							Map.Entry&lt;String,RegionWiseDataBean&gt; entry = (Map.Entry&lt;String,RegionWiseDataBean&gt;)itr.next();
+							System.out.println(entry.getKey()+&quot; :&quot;+entry.getValue().getSaleAmt());
+							
+						}*/
+<span class="nc" id="L656">					}catch (LMSException e) {</span>
+<span class="nc" id="L657">						addActionError(e.getErrorMessage());</span>
+<span class="nc" id="L658">					} catch (Exception e) {</span>
+<span class="nc" id="L659">						e.printStackTrace();</span>
+<span class="nc" id="L660">					}</span>
+<span class="nc" id="L661">			 }else{</span>
+<span class="nc" id="L662">				 addActionError(&quot;Some Internal Error Please Try Again &quot;);</span>
+			 }
+<span class="nc" id="L664">		} else</span>
+<span class="nc" id="L665">			return &quot;RESULT_TIMING_RESTRICTION&quot;;</span>
+
+<span class="nc" id="L667">		return SUCCESS;</span>
+	}
+
+	public void setAgentOrgId(int agentOrgId) {
+<span class="nc" id="L671">		this.agentOrgId = agentOrgId;</span>
+<span class="nc" id="L672">	}</span>
+
+	public void setEnd_Date(String end_Date) {
+<span class="nc" id="L675">		this.end_Date = end_Date;</span>
+<span class="nc" id="L676">	}</span>
+
+	public void setReportType(String reportType) {
+<span class="nc" id="L679">		this.reportType = reportType;</span>
+<span class="nc" id="L680">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L683">		this.request = request;</span>
+<span class="nc" id="L684">	}</span>
+
+	public void setServletResponse(HttpServletResponse response) {
+<span class="nc" id="L687">		this.response = response;</span>
+<span class="nc" id="L688">	}</span>
+
+	public void setStart_date(String start_date) {
+<span class="nc" id="L691">		this.start_date = start_date;</span>
+<span class="nc" id="L692">	}</span>
+
+	public void dailyReport() throws Exception {
+<span class="nc" id="L695">		new SendReportMailerMain(null).dailyReport();</span>
+<span class="nc" id="L696">	}</span>
+	public void setLastDate(String lastDate)
+	{
+<span class="nc" id="L699">		this.lastDate = lastDate;</span>
+<span class="nc" id="L700">	}</span>
+
+	public int getGameId() {
+<span class="nc" id="L703">		return gameId;</span>
+	}
+
+	public Map&lt;String, RegionWiseDataBean&gt; getRegionDataMap() {
+<span class="nc" id="L707">		return regionDataMap;</span>
+	}
+
+	public String getStateCode() {
+<span class="nc" id="L711">		return stateCode;</span>
+	}
+
+	public String getCityCode() {
+<span class="nc" id="L715">		return cityCode;</span>
+	}
+
+	
+
+	public void setGameId(int gameId) {
+<span class="nc" id="L721">		this.gameId = gameId;</span>
+<span class="nc" id="L722">	}</span>
+
+	public void setRegionDataMap(Map&lt;String, RegionWiseDataBean&gt; regionDataMap) {
+<span class="nc" id="L725">		this.regionDataMap = regionDataMap;</span>
+<span class="nc" id="L726">	}</span>
+
+	public void setStateCode(String stateCode) {
+<span class="nc" id="L729">		this.stateCode = stateCode;</span>
+<span class="nc" id="L730">	}</span>
+
+	public void setCityCode(String cityCode) {
+<span class="nc" id="L733">		this.cityCode = cityCode;</span>
+<span class="nc" id="L734">	}</span>
+
+	public String[] getArea() {
+<span class="nc" id="L737">		return area;</span>
+	}
+
+	public void setArea(String[] area) {
+<span class="nc" id="L741">		this.area = area;</span>
+<span class="nc" id="L742">	}</span>
+
+	public Map&lt;String, String&gt; getStateMap() {
+<span class="nc" id="L745">		return stateMap;</span>
+	}
+
+	public void setStateMap(Map&lt;String, String&gt; stateMap) {
+<span class="nc" id="L749">		this.stateMap = stateMap;</span>
+<span class="nc" id="L750">	}</span>
+	
+	
+
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

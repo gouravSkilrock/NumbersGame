@@ -1,0 +1,435 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OrgBalanceUpdateHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.accMgmt.common</a> &gt; <span class="el_source">OrgBalanceUpdateHelper.java</span></div><h1>OrgBalanceUpdateHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.accMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.beans.AgentCollectionReportOverAllBean;
+import com.skilrock.lms.beans.OrganizationBalanceData;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.accMgmt.common.AgentOpeningBalanceHelper;
+import com.skilrock.lms.web.accMgmt.common.RetailerOpeningBalanceHelper;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+
+<span class="nc" id="L31">public class OrgBalanceUpdateHelper {</span>
+<span class="nc" id="L32">	private static final Logger logger = LoggerFactory.getLogger(OrgBalanceUpdateHelper.class);</span>
+
+	public void inserOpeningBalForAgentAndRetailer() throws LMSException {
+<span class="nc" id="L35">		Connection con = null;</span>
+<span class="nc" id="L36">		Calendar from  = Calendar.getInstance();</span>
+
+<span class="nc" id="L38">		Calendar yesterday  = Calendar.getInstance();</span>
+<span class="nc" id="L39">		Calendar to = Calendar.getInstance();</span>
+
+<span class="nc" id="L41">		Calendar tmpFrom = Calendar.getInstance();</span>
+//		Calendar tmpTo = Calendar.getInstance();
+
+<span class="nc" id="L44">		int diff = 0, prop = 0;</span>
+<span class="nc" id="L45">		yesterday.add(Calendar.DAY_OF_MONTH, -1);</span>
+		try {
+<span class="nc" id="L47">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L48">			String lastRunDate = ReportUtility.fetchLastRunDate(con);</span>
+<span class="nc" id="L49">			logger.info(&quot;Last Run Date is {}&quot;, lastRunDate);</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">			if (lastRunDate != null) {</span>
+<span class="nc" id="L51">				from.setTimeInMillis(new SimpleDateFormat(&quot;dd-MM-yyyy&quot;).parse(lastRunDate).getTime());</span>
+<span class="nc" id="L52">				diff = (int) TimeUnit.DAYS.convert(yesterday.getTimeInMillis() - from.getTimeInMillis(), TimeUnit.MILLISECONDS);</span>
+
+<span class="nc" id="L54">				prop = Integer.parseInt(Utility.getPropertyValue(&quot;OPENING_BAL_SCHEDULER_RUN_DAY_COUNT&quot;));</span>
+
+<span class="nc bnc" id="L56" title="All 2 branches missed.">				Integer[] durationArray = new Integer[(diff / prop) + (diff % prop == 0 ? 0 : 1)];</span>
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">				if (diff &lt;= prop) {</span>
+<span class="nc" id="L59">					durationArray[0] = diff;</span>
+				} else {
+<span class="nc" id="L61">					int count = diff / prop;</span>
+<span class="nc" id="L62">					int iLoop = 0;</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">					for (; iLoop &lt; count; iLoop++) {</span>
+<span class="nc" id="L64">						durationArray[iLoop] = prop;</span>
+					}
+					
+<span class="nc bnc" id="L67" title="All 2 branches missed.">					if((diff % prop) &gt; 0) {</span>
+<span class="nc" id="L68">						durationArray[iLoop] = diff % prop; </span>
+					}
+				}
+
+<span class="nc" id="L72">				logger.info(&quot;Duration to run Opening Bal Scheduler {}&quot;, Arrays.toString(durationArray));</span>
+
+<span class="nc" id="L74">				from.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">				for (Integer iValue : durationArray) {</span>
+<span class="nc bnc" id="L76" title="All 4 branches missed.">					if (iValue != null &amp;&amp; iValue != 0) {</span>
+<span class="nc" id="L77">						to.setTimeInMillis(from.getTimeInMillis());</span>
+<span class="nc" id="L78">						to.add(Calendar.DAY_OF_MONTH, iValue);</span>
+
+<span class="nc" id="L80">						tmpFrom.setTime(from.getTime());</span>
+
+<span class="nc" id="L82">						con.setAutoCommit(false);</span>
+<span class="nc" id="L83">						logger.info(&quot;Checking CL and XCL Scheduler Last Run Date&quot;);</span>
+<span class="nc" id="L84">						to.add(Calendar.DAY_OF_MONTH, -1);</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">						if (!checkCLXCLSchedulerLastRunDate(to, con)) {</span>
+<span class="nc" id="L86">							logger.info(&quot;Run CL and XCl Scheduler First&quot;);</span>
+<span class="nc" id="L87">							throw new LMSException(&quot;Please Run the CL/XCL Scheduler First.&quot;);</span>
+						}
+<span class="nc" id="L89">						to.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc" id="L90">						logger.info(&quot;Starting Org Balance Update For Agent&quot;);</span>
+<span class="nc" id="L91">						insertOrgBalance(tmpFrom, to, con);</span>
+<span class="nc" id="L92">						logger.info(&quot;Org Balance Update For Agent Completed&quot;);</span>
+
+<span class="nc" id="L94">						tmpFrom.setTime(from.getTime());</span>
+
+<span class="nc" id="L96">						logger.info(&quot;Starting Org Balance Update For Reailers&quot;);</span>
+<span class="nc" id="L97">						insertRetailerOrgBalance(tmpFrom, to, con);</span>
+<span class="nc" id="L98">						logger.info(&quot;Org Balance Update For Retailer Completed&quot;);</span>
+<span class="nc" id="L99">						con.commit();</span>
+<span class="nc" id="L100">						from.setTime(to.getTime());</span>
+					}
+				}
+<span class="nc" id="L103">			} else {</span>
+<span class="nc" id="L104">				logger.info(&quot;Last Run Fetch Error, Returning&quot;);</span>
+				return;
+			}
+<span class="nc" id="L107">		} catch (LMSException e) {</span>
+<span class="nc" id="L108">			e.printStackTrace();</span>
+<span class="nc" id="L109">			throw e;</span>
+<span class="nc" id="L110">		} catch (Exception e) {</span>
+<span class="nc" id="L111">			e.printStackTrace();</span>
+<span class="nc" id="L112">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L114">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L115">		}</span>
+<span class="nc" id="L116">	}</span>
+
+	public boolean checkCLXCLSchedulerLastRunDate(Calendar compTo, Connection con) {
+<span class="nc" id="L119">		boolean isRun = false;</span>
+
+<span class="nc" id="L121">		Statement stmt = null;</span>
+<span class="nc" id="L122">		ResultSet rs = null;</span>
+<span class="nc" id="L123">		Date clXclLastRunDate = null;</span>
+
+		try {
+<span class="nc" id="L126">			stmt = con.createStatement();</span>
+<span class="nc" id="L127">			rs = stmt.executeQuery(&quot;select date_format(last_success_time, '%d-%m-%Y') date_time from st_lms_scheduler_master where dev_name = 'Auto_Quartz_SCHEDULER';&quot;);</span>
+
+<span class="nc bnc" id="L129" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L130">				clXclLastRunDate = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;).parse(rs.getString(&quot;date_time&quot;));</span>
+			}
+<span class="nc" id="L132">			logger.info(&quot;CL And XCl Scheduler Last Run Date is {}&quot;, clXclLastRunDate);</span>
+
+<span class="nc bnc" id="L134" title="All 2 branches missed.">			if (clXclLastRunDate.getTime() &gt;= compTo.getTimeInMillis()) {</span>
+<span class="nc" id="L135">				isRun = true;</span>
+			}
+<span class="nc" id="L137">		} catch (Exception e) {</span>
+<span class="nc" id="L138">			e.printStackTrace();</span>
+<span class="nc" id="L139">		}</span>
+<span class="nc" id="L140">		return isRun;</span>
+	}
+
+	private void setDefaultValueForRetailerOrgBalacnceBean(Map&lt;String, AgentCollectionReportOverAllBean&gt; agtMap) {
+<span class="nc" id="L144">		AgentCollectionReportOverAllBean collBean = null;</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">		for (Map.Entry&lt;String, AgentCollectionReportOverAllBean&gt; entrySet : agtMap.entrySet()) {</span>
+<span class="nc" id="L146">			collBean = entrySet.getValue();</span>
+<span class="nc" id="L147">			collBean.setOpeningBal(0.0);</span>
+<span class="nc" id="L148">			collBean.setLiveOpeningBal(0.0);</span>
+<span class="nc" id="L149">			collBean.setClLimit(0.0);</span>
+<span class="nc" id="L150">			collBean.setXclLimit(0.0);</span>
+<span class="nc" id="L151">			collBean.setNetTxnAmt(0.0);</span>
+<span class="nc" id="L152">			collBean.setCash(0.0);</span>
+<span class="nc" id="L153">			collBean.setCheque(0.0);</span>
+<span class="nc" id="L154">			collBean.setChequeReturn(0.0);</span>
+<span class="nc" id="L155">			collBean.setCredit(0.0);</span>
+<span class="nc" id="L156">			collBean.setDebit(0.0);</span>
+<span class="nc" id="L157">			collBean.setBankDep(0.0);</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">			if (ReportUtility.isDG) {</span>
+<span class="nc" id="L159">				collBean.setDgSale(0.0);</span>
+<span class="nc" id="L160">				collBean.setDgPwt(0.0);</span>
+<span class="nc" id="L161">				collBean.setDgCancel(0.0);</span>
+<span class="nc" id="L162">				collBean.setDgDirPlyPwt(0.0);</span>
+			}
+<span class="nc bnc" id="L164" title="All 2 branches missed.">			if (ReportUtility.isSE) {</span>
+<span class="nc" id="L165">				collBean.setSeSale(0.0);</span>
+<span class="nc" id="L166">				collBean.setSePwt(0.0);</span>
+<span class="nc" id="L167">				collBean.setSeDirPlyPwt(0.0);</span>
+			}
+<span class="nc bnc" id="L169" title="All 2 branches missed.">			if (ReportUtility.isCS) {</span>
+<span class="nc" id="L170">				collBean.setCSSale(0.0);</span>
+<span class="nc" id="L171">				collBean.setCSCancel(0.0);</span>
+			}
+<span class="nc bnc" id="L173" title="All 2 branches missed.">			if (ReportUtility.isOLA) {</span>
+<span class="nc" id="L174">				collBean.setDeposit(0.0);</span>
+<span class="nc" id="L175">				collBean.setDepositRefund(0.0);</span>
+<span class="nc" id="L176">				collBean.setWithdrawal(0.0);</span>
+<span class="nc" id="L177">				collBean.setWithdrawalRefund(0.0);</span>
+<span class="nc" id="L178">				collBean.setNetGamingComm(0.0);</span>
+			}
+<span class="nc" id="L180">		}</span>
+<span class="nc" id="L181">	}</span>
+
+	//Change to Agent
+	private void setDefaultValueForOrgBalacnceBean(Map&lt;String, OrganizationBalanceData&gt; agtMap) {
+<span class="nc" id="L185">		OrganizationBalanceData orgBalanceDataBean = null;</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">		for (Map.Entry&lt;String, OrganizationBalanceData&gt; entrySet : agtMap.entrySet()) {</span>
+<span class="nc" id="L187">			orgBalanceDataBean = entrySet.getValue();</span>
+<span class="nc" id="L188">			orgBalanceDataBean.setOpeningBal(0.0);</span>
+<span class="nc" id="L189">			orgBalanceDataBean.setLiveOpeningBal(0.0);</span>
+<span class="nc" id="L190">			orgBalanceDataBean.setClLimit(0.0);</span>
+<span class="nc" id="L191">			orgBalanceDataBean.setXclLimit(0.0);</span>
+<span class="nc" id="L192">			orgBalanceDataBean.setNetTxnAmt(0.0);</span>
+<span class="nc" id="L193">			orgBalanceDataBean.setCash(0.0);</span>
+<span class="nc" id="L194">			orgBalanceDataBean.setCheque(0.0);</span>
+<span class="nc" id="L195">			orgBalanceDataBean.setChequeReturn(0.0);</span>
+<span class="nc" id="L196">			orgBalanceDataBean.setCredit(0.0);</span>
+<span class="nc" id="L197">			orgBalanceDataBean.setDebit(0.0);</span>
+<span class="nc" id="L198">			orgBalanceDataBean.setBankDep(0.0);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">			if (ReportUtility.isDG) {</span>
+<span class="nc" id="L200">				orgBalanceDataBean.setDgSale(0.0);</span>
+<span class="nc" id="L201">				orgBalanceDataBean.setDgPwt(0.0);</span>
+<span class="nc" id="L202">				orgBalanceDataBean.setDgCancel(0.0);</span>
+<span class="nc" id="L203">				orgBalanceDataBean.setDgDirPlyPwt(0.0);</span>
+			}
+<span class="nc bnc" id="L205" title="All 2 branches missed.">			if (ReportUtility.isSE) {</span>
+<span class="nc" id="L206">				orgBalanceDataBean.setSeSale(0.0);</span>
+<span class="nc" id="L207">				orgBalanceDataBean.setSePwt(0.0);</span>
+<span class="nc" id="L208">				orgBalanceDataBean.setSeDirPlyPwt(0.0);</span>
+			}
+<span class="nc bnc" id="L210" title="All 2 branches missed.">			if (ReportUtility.isCS) {</span>
+<span class="nc" id="L211">				orgBalanceDataBean.setCSSale(0.0);</span>
+<span class="nc" id="L212">				orgBalanceDataBean.setCSCancel(0.0);</span>
+			}
+<span class="nc bnc" id="L214" title="All 2 branches missed.">			if (ReportUtility.isOLA) {</span>
+<span class="nc" id="L215">				orgBalanceDataBean.setDeposit(0.0);</span>
+<span class="nc" id="L216">				orgBalanceDataBean.setDepositRefund(0.0);</span>
+<span class="nc" id="L217">				orgBalanceDataBean.setWithdrawal(0.0);</span>
+<span class="nc" id="L218">				orgBalanceDataBean.setWithdrawalRefund(0.0);</span>
+<span class="nc" id="L219">				orgBalanceDataBean.setNetGamingComm(0.0);</span>
+			}
+<span class="nc" id="L221">		}</span>
+<span class="nc" id="L222">	}</span>
+
+	public void insertRetailerOrgBalance(Calendar from, Calendar to, Connection con) throws LMSException {
+<span class="nc" id="L225">		Statement stmt = null;</span>
+<span class="nc" id="L226">		Statement stmtRetailer = null;</span>
+<span class="nc" id="L227">		ResultSet rs = null;</span>
+<span class="nc" id="L228">		ResultSet rsRetailer = null;</span>
+
+<span class="nc" id="L230">		Map&lt;String, AgentCollectionReportOverAllBean&gt; agtMap = null;</span>
+<span class="nc" id="L231">		AgentCollectionReportOverAllBean collBean = null;</span>
+		
+<span class="nc" id="L233">		Calendar tmpFrom = Calendar.getInstance();</span>
+<span class="nc" id="L234">		Calendar tmpTo = Calendar.getInstance();</span>
+
+		try {
+<span class="nc" id="L237">			stmt = con.createStatement();</span>
+<span class="nc" id="L238">			rs = stmt.executeQuery(&quot;select organization_id from st_lms_organization_master where organization_type = 'AGENT'&quot;);</span>
+<span class="nc" id="L239">			stmtRetailer = con.createStatement();</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L241">				rsRetailer = stmtRetailer.executeQuery(&quot;select name, organization_id from st_lms_organization_master where parent_id=&quot; + rs.getInt(&quot;organization_id&quot;) + &quot; order by name&quot;);</span>
+<span class="nc" id="L242">				agtMap = new LinkedHashMap&lt;String, AgentCollectionReportOverAllBean&gt;();</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">				while (rsRetailer.next()) {</span>
+<span class="nc" id="L244">					collBean = new AgentCollectionReportOverAllBean();</span>
+<span class="nc" id="L245">					collBean.setRetailerName(rsRetailer.getString(&quot;name&quot;));</span>
+<span class="nc" id="L246">					collBean.setRetailerOrgId(rsRetailer.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L247">					collBean.setOpeningBal(0.0);</span>
+<span class="nc" id="L248">					collBean.setCash(0.0);</span>
+<span class="nc" id="L249">					collBean.setCheque(0.0);</span>
+<span class="nc" id="L250">					collBean.setChequeReturn(0.0);</span>
+<span class="nc" id="L251">					collBean.setCredit(0.0);</span>
+<span class="nc" id="L252">					collBean.setDebit(0.0);</span>
+<span class="nc" id="L253">					collBean.setBankDep(0.0);</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">					if (ReportUtility.isDG) {</span>
+<span class="nc" id="L255">						collBean.setDgSale(0.0);</span>
+<span class="nc" id="L256">						collBean.setDgPwt(0.0);</span>
+<span class="nc" id="L257">						collBean.setDgCancel(0.0);</span>
+<span class="nc" id="L258">						collBean.setDgDirPlyPwt(0.0);</span>
+					}
+<span class="nc bnc" id="L260" title="All 2 branches missed.">					if (ReportUtility.isSE) {</span>
+<span class="nc" id="L261">						collBean.setSeSale(0.0);</span>
+<span class="nc" id="L262">						collBean.setSePwt(0.0);</span>
+<span class="nc" id="L263">						collBean.setSeDirPlyPwt(0.0);</span>
+					}
+<span class="nc bnc" id="L265" title="All 2 branches missed.">					if (ReportUtility.isCS) {</span>
+<span class="nc" id="L266">						collBean.setCSSale(0.0);</span>
+<span class="nc" id="L267">						collBean.setCSCancel(0.0);</span>
+					}
+<span class="nc bnc" id="L269" title="All 2 branches missed.">					if (ReportUtility.isOLA) {</span>
+<span class="nc" id="L270">						collBean.setDeposit(0.0);</span>
+<span class="nc" id="L271">						collBean.setDepositRefund(0.0);</span>
+<span class="nc" id="L272">						collBean.setWithdrawal(0.0);</span>
+<span class="nc" id="L273">						collBean.setWithdrawalRefund(0.0);</span>
+<span class="nc" id="L274">						collBean.setNetGamingComm(0.0);</span>
+					}
+<span class="nc" id="L276">					agtMap.put(rsRetailer.getString(&quot;organization_id&quot;), collBean);</span>
+				}
+<span class="nc" id="L278">				tmpFrom.setTime(from.getTime());</span>
+<span class="nc" id="L279">				tmpTo.setTime(to.getTime());</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">				if (agtMap.size() &gt; 0)</span>
+<span class="nc" id="L281">					insertRetailerOpeningBalance(tmpFrom, tmpTo, rs.getInt(&quot;organization_id&quot;), agtMap, con);</span>
+<span class="nc" id="L282">				agtMap = null;</span>
+			}
+<span class="nc" id="L284">		} catch (LMSException e) {</span>
+<span class="nc" id="L285">			throw e;</span>
+<span class="nc" id="L286">		} catch (SQLException e) {</span>
+<span class="nc" id="L287">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L288">		} catch (Exception e) {</span>
+<span class="nc" id="L289">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L290">		}</span>
+<span class="nc" id="L291">	}</span>
+
+	public void insertRetailerOpeningBalance(Calendar from, Calendar to, int agentOrgId, Map&lt;String, AgentCollectionReportOverAllBean&gt; agtMap, Connection con) throws LMSException {
+<span class="nc" id="L294">		AgentCollectionReportOverAllBean organizationBalanceData = null;</span>
+<span class="nc" id="L295">		PreparedStatement pStmt = null;</span>
+
+<span class="nc" id="L297">		RetailerOpeningBalanceHelper helper = new RetailerOpeningBalanceHelper();</span>
+		try {
+<span class="nc" id="L299">			pStmt = con.prepareStatement(&quot;insert into st_rep_org_bal_history(organization_id, organization_type, parent_id, finaldate, opening_bal, opening_bal_cl_inc, net_amount_transaction, cl, xcl) values(?, ?, ?, ?, ?, ?, ?, ?, ?);&quot;);</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">			for (from.getTime(); from.before(to); from.add(Calendar.DAY_OF_MONTH, 1)) {</span>
+<span class="nc" id="L301">				Calendar temp = Calendar.getInstance();</span>
+<span class="nc" id="L302">				temp.setTime(from.getTime());</span>
+<span class="nc" id="L303">				temp.add(Calendar.HOUR_OF_DAY, 23);</span>
+<span class="nc" id="L304">				temp.add(Calendar.MINUTE, 59);</span>
+<span class="nc" id="L305">				temp.add(Calendar.SECOND, 59);</span>
+
+<span class="nc" id="L307">				helper.collectionRetailerWiseOpenBalData(agentOrgId, new Timestamp(from.getTimeInMillis()), new Timestamp(temp.getTimeInMillis()), con, agtMap, 0);</span>
+<span class="nc" id="L308">				logger.info(&quot;Starting Opening Balance Update for Retailers of agentId {} For Date {}&quot;, agentOrgId, new Timestamp(from.getTimeInMillis()));</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">				for (Map.Entry&lt;String, AgentCollectionReportOverAllBean&gt; entrySet : agtMap.entrySet()) {</span>
+<span class="nc" id="L310">					organizationBalanceData = entrySet.getValue();</span>
+<span class="nc" id="L311">					pStmt.setInt(1, Integer.parseInt(entrySet.getKey()));</span>
+<span class="nc" id="L312">					pStmt.setString(2, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L313">					pStmt.setInt(3, agentOrgId);</span>
+<span class="nc" id="L314">					pStmt.setString(4, new SimpleDateFormat(&quot;yyyy-MM-dd&quot;).format(from.getTime()));</span>
+<span class="nc" id="L315">					pStmt.setDouble(5, organizationBalanceData.getOpeningBal());</span>
+<span class="nc" id="L316">					pStmt.setDouble(6, organizationBalanceData.getLiveOpeningBal());</span>
+<span class="nc" id="L317">					pStmt.setDouble(7, organizationBalanceData.getNetTxnAmt());</span>
+<span class="nc" id="L318">					pStmt.setDouble(8, organizationBalanceData.getClLimit());</span>
+<span class="nc" id="L319">					pStmt.setDouble(9, organizationBalanceData.getXclLimit());</span>
+<span class="nc" id="L320">					pStmt.executeUpdate();</span>
+<span class="nc" id="L321">					pStmt.clearParameters();</span>
+<span class="nc" id="L322">				}</span>
+<span class="nc" id="L323">				setDefaultValueForRetailerOrgBalacnceBean(agtMap);</span>
+			}
+<span class="nc" id="L325">		} catch (LMSException e) {</span>
+<span class="nc" id="L326">			throw e;</span>
+<span class="nc" id="L327">		} catch (SQLException e) {</span>
+<span class="nc" id="L328">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L329">		} catch (Exception e) {</span>
+<span class="nc" id="L330">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L331">		}</span>
+<span class="nc" id="L332">	}</span>
+
+	public void insertOrgBalance(Calendar from, Calendar to, Connection con) throws LMSException {
+<span class="nc" id="L335">		Statement stmt = null;</span>
+<span class="nc" id="L336">		ResultSet rs = null;</span>
+
+<span class="nc" id="L338">		Map&lt;String, OrganizationBalanceData&gt; agtMap = null;</span>
+<span class="nc" id="L339">		OrganizationBalanceData orgBalanceDataBean = null;</span>
+
+		try {
+<span class="nc" id="L342">			stmt = con.createStatement();</span>
+
+<span class="nc" id="L344">			agtMap = new HashMap&lt;String, OrganizationBalanceData&gt;();</span>
+<span class="nc" id="L345">			rs = stmt.executeQuery(&quot;select name orgCode, organization_id, parent_id from st_lms_organization_master where organization_type = 'AGENT';&quot;);</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L347">				orgBalanceDataBean = new OrganizationBalanceData();</span>
+<span class="nc" id="L348">				orgBalanceDataBean.setAgentName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L349">				orgBalanceDataBean.setOrgId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L350">				orgBalanceDataBean.setParentorgId(rs.getInt(&quot;parent_id&quot;));</span>
+<span class="nc" id="L351">				orgBalanceDataBean.setOpeningBal(0.0);</span>
+<span class="nc" id="L352">				orgBalanceDataBean.setNetTxnAmt(0.0);</span>
+<span class="nc" id="L353">				orgBalanceDataBean.setCash(0.0);</span>
+<span class="nc" id="L354">				orgBalanceDataBean.setCheque(0.0);</span>
+<span class="nc" id="L355">				orgBalanceDataBean.setChequeReturn(0.0);</span>
+<span class="nc" id="L356">				orgBalanceDataBean.setCredit(0.0);</span>
+<span class="nc" id="L357">				orgBalanceDataBean.setDebit(0.0);</span>
+<span class="nc" id="L358">				orgBalanceDataBean.setBankDep(0.0);</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">				if (ReportUtility.isDG) {</span>
+<span class="nc" id="L360">					orgBalanceDataBean.setDgSale(0.0);</span>
+<span class="nc" id="L361">					orgBalanceDataBean.setDgPwt(0.0);</span>
+<span class="nc" id="L362">					orgBalanceDataBean.setDgCancel(0.0);</span>
+<span class="nc" id="L363">					orgBalanceDataBean.setDgDirPlyPwt(0.0);</span>
+				}
+<span class="nc bnc" id="L365" title="All 2 branches missed.">				if (ReportUtility.isSE) {</span>
+<span class="nc" id="L366">					orgBalanceDataBean.setSeSale(0.0);</span>
+<span class="nc" id="L367">					orgBalanceDataBean.setSePwt(0.0);</span>
+<span class="nc" id="L368">					orgBalanceDataBean.setSeDirPlyPwt(0.0);</span>
+				}
+<span class="nc bnc" id="L370" title="All 2 branches missed.">				if (ReportUtility.isCS) {</span>
+<span class="nc" id="L371">					orgBalanceDataBean.setCSSale(0.0);</span>
+<span class="nc" id="L372">					orgBalanceDataBean.setCSCancel(0.0);</span>
+				}
+<span class="nc bnc" id="L374" title="All 2 branches missed.">				if (ReportUtility.isOLA) {</span>
+<span class="nc" id="L375">					orgBalanceDataBean.setDeposit(0.0);</span>
+<span class="nc" id="L376">					orgBalanceDataBean.setDepositRefund(0.0);</span>
+<span class="nc" id="L377">					orgBalanceDataBean.setWithdrawal(0.0);</span>
+<span class="nc" id="L378">					orgBalanceDataBean.setWithdrawalRefund(0.0);</span>
+<span class="nc" id="L379">					orgBalanceDataBean.setNetGamingComm(0.0);</span>
+				}
+<span class="nc" id="L381">				agtMap.put(rs.getString(&quot;organization_id&quot;), orgBalanceDataBean);</span>
+			}
+<span class="nc" id="L383">			insertOpeningBalance(from, to, agtMap, con);</span>
+<span class="nc" id="L384">		} catch (LMSException e) {</span>
+<span class="nc" id="L385">			throw e;</span>
+<span class="nc" id="L386">		} catch (SQLException e) {</span>
+<span class="nc" id="L387">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L388">		} catch (Exception e) {</span>
+<span class="nc" id="L389">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L390">		}</span>
+<span class="nc" id="L391">	}</span>
+
+	public void insertOpeningBalance(Calendar from, Calendar to, Map&lt;String, OrganizationBalanceData&gt; agtMap, Connection con) throws LMSException {
+<span class="nc" id="L394">		OrganizationBalanceData organizationBalanceData = null;</span>
+<span class="nc" id="L395">		PreparedStatement pStmt = null;</span>
+
+<span class="nc" id="L397">		AgentOpeningBalanceHelper helper = new AgentOpeningBalanceHelper();</span>
+		try {
+<span class="nc" id="L399">			pStmt = con.prepareStatement(&quot;insert into st_rep_org_bal_history(organization_id, organization_type, parent_id, finaldate, opening_bal, opening_bal_cl_inc, net_amount_transaction, cl, xcl) values(?, ?, ?, ?, ?, ?, ?, ?, ?);&quot;);</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">			for (from.getTime(); from.before(to); from.add(Calendar.DAY_OF_MONTH, 1)) {</span>
+<span class="nc" id="L401">				Calendar temp = Calendar.getInstance();</span>
+//				temp.setTime(new SimpleDateFormat(&quot;dd-MM-yyyy HH:mm:ss&quot;).parse(sdf.format(lastInsertedDate.getTime()) + &quot; 23:59:59&quot;));
+<span class="nc" id="L403">				temp.setTime(from.getTime());</span>
+<span class="nc" id="L404">				temp.add(Calendar.HOUR_OF_DAY, 23);</span>
+<span class="nc" id="L405">				temp.add(Calendar.MINUTE, 59);</span>
+<span class="nc" id="L406">				temp.add(Calendar.SECOND, 59);</span>
+
+<span class="nc" id="L408">				helper.collectionAgentWiseBalanceData(new Timestamp(from.getTimeInMillis()), new Timestamp(temp.getTimeInMillis()), con, agtMap);</span>
+<span class="nc" id="L409">				logger.info(&quot;Starting Agent Opening Balance For Date {}&quot;, new Timestamp(from.getTimeInMillis()));</span>
+<span class="nc bnc" id="L410" title="All 2 branches missed.">				for (Map.Entry&lt;String, OrganizationBalanceData&gt; entrySet : agtMap.entrySet()) {</span>
+<span class="nc" id="L411">					organizationBalanceData = entrySet.getValue();</span>
+<span class="nc" id="L412">					pStmt.setInt(1, Integer.parseInt(entrySet.getKey()));</span>
+<span class="nc" id="L413">					pStmt.setString(2, &quot;AGENT&quot;);</span>
+<span class="nc" id="L414">					pStmt.setInt(3, organizationBalanceData.getParentorgId());</span>
+<span class="nc" id="L415">					pStmt.setString(4, new SimpleDateFormat(&quot;yyyy-MM-dd&quot;).format(from.getTime()));</span>
+<span class="nc" id="L416">					pStmt.setDouble(5, organizationBalanceData.getOpeningBal());</span>
+<span class="nc" id="L417">					pStmt.setDouble(6, organizationBalanceData.getLiveOpeningBal());</span>
+<span class="nc" id="L418">					pStmt.setDouble(7, organizationBalanceData.getNetTxnAmt());</span>
+<span class="nc" id="L419">					pStmt.setDouble(8, organizationBalanceData.getClLimit());</span>
+<span class="nc" id="L420">					pStmt.setDouble(9, organizationBalanceData.getXclLimit());</span>
+<span class="nc" id="L421">					pStmt.executeUpdate();</span>
+<span class="nc" id="L422">					pStmt.clearParameters();</span>
+<span class="nc" id="L423">				}</span>
+<span class="nc" id="L424">				setDefaultValueForOrgBalacnceBean(agtMap);</span>
+			}
+<span class="nc" id="L426">		} catch (LMSException e) {</span>
+<span class="nc" id="L427">			throw e;</span>
+<span class="nc" id="L428">		} catch (SQLException e) {</span>
+<span class="nc" id="L429">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L430">		} catch (Exception e) {</span>
+<span class="nc" id="L431">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L432">		}</span>
+<span class="nc" id="L433">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PwtReportsRetHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.reportsMgmt.common</a> &gt; <span class="el_source">PwtReportsRetHelper.java</span></div><h1>PwtReportsRetHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.scratchService.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.PwtReportBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.utility.FormatNumber;
+
+public class PwtReportsRetHelper {
+
+<span class="nc" id="L21">	private Connection con = null;</span>
+<span class="nc" id="L22">	private Date endDate = null;</span>
+<span class="nc" id="L23">	private int parOrgId = -1;</span>
+<span class="nc" id="L24">	private PreparedStatement pstmt = null;</span>
+<span class="nc" id="L25">	private int retOrgId = -1;</span>
+<span class="nc" id="L26">	private ResultSet rs = null;</span>
+<span class="nc" id="L27">	private Date startDate = null;</span>
+
+<span class="nc" id="L29">	public PwtReportsRetHelper(UserInfoBean userbean, DateBeans dateBeans) {</span>
+<span class="nc" id="L30">		this.parOrgId = userbean.getParentOrgId();</span>
+<span class="nc" id="L31">		this.retOrgId = userbean.getUserOrgId();</span>
+<span class="nc" id="L32">		this.startDate = dateBeans.getFirstdate();</span>
+<span class="nc" id="L33">		this.endDate = dateBeans.getLastdate();</span>
+<span class="nc" id="L34">		System.out.println(this.startDate + &quot;  &quot; + this.endDate);</span>
+<span class="nc" id="L35">	}</span>
+
+	private PwtReportBean getAGTPwtDetail(Connection conn) {
+<span class="nc" id="L38">		PwtReportBean bean = null;</span>
+		try {
+<span class="nc" id="L40">			String getAgtPwtDetQuery = &quot;select retailer_org_id ,bb.name, ifnull(sum(apwt.pwt_amt),0) &quot;</span>
+					+ &quot; total_pwt_amt   from st_se_agent_pwt apwt, st_lms_agent_transaction_master atm, &quot;
+					+ &quot; st_lms_organization_master bb where atm.transaction_id=apwt.transaction_id and &quot;
+					+ &quot; bb.organization_id = apwt.retailer_org_id and atm.user_org_id=? and retailer_org_id=? &quot;
+					+ &quot; and ( atm.transaction_date&gt;=? and atm.transaction_date&lt;?) group by retailer_org_id &quot;
+					+ &quot; order by name&quot;;
+<span class="nc" id="L46">			PreparedStatement pst = conn.prepareStatement(getAgtPwtDetQuery);</span>
+<span class="nc" id="L47">			pst.setInt(1, parOrgId);</span>
+<span class="nc" id="L48">			pst.setInt(2, retOrgId);</span>
+<span class="nc" id="L49">			pst.setDate(3, startDate);</span>
+<span class="nc" id="L50">			pst.setDate(4, endDate);</span>
+<span class="nc" id="L51">			ResultSet rss = pst.executeQuery();</span>
+<span class="nc" id="L52">			System.out.println(&quot; get pwt detail query == &quot; + pst);</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">			while (rss.next()) {</span>
+<span class="nc" id="L54">				bean = new PwtReportBean();</span>
+<span class="nc" id="L55">				double pwtAmt = rss.getDouble(&quot;total_pwt_amt&quot;);</span>
+<span class="nc" id="L56">				bean.setPwtAmt(FormatNumber.formatNumber(pwtAmt));</span>
+<span class="nc" id="L57">				bean.setPartyName(&quot;To Agent PWT&quot;);</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">				if (Double.parseDouble(bean.getPwtAmt()) == 0.0) {</span>
+<span class="nc" id="L59">					bean = null;</span>
+				}
+<span class="nc" id="L61">			}</span>
+
+<span class="nc" id="L63">			rss.close();</span>
+<span class="nc" id="L64">			pst.close();</span>
+<span class="nc" id="L65">		} catch (SQLException e) {</span>
+<span class="nc" id="L66">			e.printStackTrace();</span>
+<span class="nc" id="L67">		}</span>
+<span class="nc" id="L68">		return bean;</span>
+	}
+
+	public Map&lt;String, List&lt;PwtReportBean&gt;&gt; getPwtDetail() {
+
+<span class="nc" id="L73">		Map&lt;String, List&lt;PwtReportBean&gt;&gt; pwtMap = new TreeMap&lt;String, List&lt;PwtReportBean&gt;&gt;();</span>
+
+<span class="nc" id="L75">		List&lt;PwtReportBean&gt; list = new ArrayList&lt;PwtReportBean&gt;();</span>
+<span class="nc" id="L76">		PwtReportBean reportbean = null;</span>
+<span class="nc" id="L77">		con = DBConnect.getConnection();</span>
+
+		try {
+			// get Retailer's player PWT details
+<span class="nc" id="L81">			String getDirPlrPwtDetailQuery = &quot;select 'Direct Player' as name, ifnull(sum(pwt_amt),0) &quot;</span>
+					+ &quot; total_pwt_amt from st_se_retailer_direct_player_pwt aa, st_lms_retailer_transaction_master atm &quot;
+					+ &quot; where aa.transaction_id = atm.transaction_id and  atm.retailer_org_id = ? and &quot;
+					+ &quot;( atm.transaction_date&gt;=? and atm.transaction_date&lt;?) &quot;;
+<span class="nc" id="L85">			pstmt = con.prepareStatement(getDirPlrPwtDetailQuery);</span>
+<span class="nc" id="L86">			pstmt.setInt(1, retOrgId);</span>
+<span class="nc" id="L87">			pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L88">			pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L89">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L90">			System.out.println(&quot; get Player pwt detail query == &quot; + pstmt);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L92">				reportbean = new PwtReportBean();</span>
+<span class="nc" id="L93">				double pwtAmt = rs.getDouble(&quot;total_pwt_amt&quot;);</span>
+<span class="nc" id="L94">				reportbean.setPwtAmt(FormatNumber.formatNumber(pwtAmt));</span>
+<span class="nc" id="L95">				reportbean.setPartyName(rs.getString(&quot;name&quot;));</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">				if (pwtAmt &gt; 0) {</span>
+<span class="nc" id="L97">					list.add(reportbean);</span>
+				}
+<span class="nc" id="L99">			}</span>
+			// get PWT Details for Retailer
+<span class="nc" id="L101">			String getPwtDetailForRetQuery = &quot;select ifnull(sum(rpwt.pwt_amt),0) total_pwt_amt  &quot;</span>
+					+ &quot; from st_se_retailer_pwt rpwt, st_lms_retailer_transaction_master atm where atm.transaction_id &quot;
+					+ &quot; =rpwt.transaction_id and atm.retailer_org_id=? and ( atm.transaction_date&gt;=? &quot;
+					+ &quot; and atm.transaction_date&lt;?) &quot;;
+<span class="nc" id="L105">			pstmt = con.prepareStatement(getPwtDetailForRetQuery);</span>
+<span class="nc" id="L106">			pstmt.setInt(1, retOrgId);</span>
+<span class="nc" id="L107">			pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L108">			pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L109">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L110">			System.out</span>
+					.println(&quot; get pwt detail for retailer query == &quot; + pstmt);
+<span class="nc bnc" id="L112" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L113">				reportbean = new PwtReportBean();</span>
+<span class="nc" id="L114">				double pwtAmt = rs.getDouble(&quot;total_pwt_amt&quot;);</span>
+<span class="nc" id="L115">				reportbean.setPwtAmt(FormatNumber.formatNumber(pwtAmt));</span>
+<span class="nc" id="L116">				reportbean.setPartyName(&quot;Anonymous Player&quot;);</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">				if (pwtAmt &gt; 0) {</span>
+<span class="nc" id="L118">					list.add(reportbean);</span>
+				}
+<span class="nc" id="L120">			}</span>
+<span class="nc" id="L121">			pwtMap.put(&quot;plrPwtDtlList&quot;, list);</span>
+
+			// used to add a row of total player PWT amount
+<span class="nc" id="L124">			PwtReportBean agtpwtdetail = getAGTPwtDetail(con);</span>
+<span class="nc" id="L125">			list = new ArrayList&lt;PwtReportBean&gt;();</span>
+<span class="nc" id="L126">			list.add(agtpwtdetail);</span>
+<span class="nc" id="L127">			pwtMap.put(&quot;agtPwtDtlList&quot;, list);</span>
+
+<span class="nc" id="L129">		} catch (SQLException e) {</span>
+<span class="nc" id="L130">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L132">			try {</span>
+<span class="nc bnc" id="L133" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L134">					con.close();</span>
+				}
+<span class="nc" id="L136">			} catch (SQLException e) {</span>
+<span class="nc" id="L137">				e.printStackTrace();</span>
+<span class="nc" id="L138">			}</span>
+<span class="nc" id="L139">		}</span>
+
+<span class="nc" id="L141">		return pwtMap;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

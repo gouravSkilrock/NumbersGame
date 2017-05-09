@@ -1,0 +1,611 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateNewPlayerHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.ola</a> &gt; <span class="el_source">CreateNewPlayerHelper.java</span></div><h1>CreateNewPlayerHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.ola;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import net.sf.json.JSONObject;
+
+import com.skilrock.lms.beans.FlexiCardPurchaseBean;
+import com.skilrock.lms.beans.OlaGetPendingWithdrawalDetailsBean;
+import com.skilrock.lms.beans.OlaPlayerDetailsBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.MailSend;
+import com.skilrock.lms.coreEngine.ola.common.OLAClient;
+import com.skilrock.lms.coreEngine.ola.common.OLAConstants;
+import com.skilrock.lms.coreEngine.ola.common.OLAUtility;
+import com.skilrock.lms.web.ola.CashCardPinGeneratorHelper;
+import com.skilrock.lms.web.ola.OlaRummyRefundPinHelper;
+<span class="nc" id="L36">public class CreateNewPlayerHelper {</span>
+	
+<span class="nc" id="L38">	Log logger =LogFactory.getLog(CreateNewPlayerHelper.class);</span>
+	public String savePlayerDetails(int walletId,String walletName,UserInfoBean userBean,String depositAnyWhere,OlaPlayerDetailsBean playerBean,double depositAmount,String rootPath) throws LMSException{
+		try{
+<span class="nc" id="L41">			boolean isPendingData = false;</span>
+<span class="nc" id="L42">			String countryCode = null;</span>
+<span class="nc" id="L43">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L44">		con.setAutoCommit(false);</span>
+<span class="nc" id="L45">		Statement stmt = con.createStatement();</span>
+<span class="nc" id="L46">			String getCountryCode = QueryManager.getST3CountryCode()</span>
+			+ &quot; where name='&quot; + playerBean.getCountry() + &quot;' &quot;;
+<span class="nc" id="L48">			ResultSet rs = stmt.executeQuery(getCountryCode);</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">			while(rs.next())</span>
+			{
+<span class="nc" id="L51">				countryCode = rs.getString(&quot;country_code&quot;);</span>
+			}
+<span class="nc" id="L53">			String responseData = OLAUtility.newPlayerRegistration(playerBean,countryCode);</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">			if(responseData.equalsIgnoreCase(&quot;OK&quot;))</span>
+			{
+<span class="nc" id="L56">				OlaHelper helper = new OlaHelper();</span>
+<span class="nc" id="L57">				OlaGetPendingWithdrawalDetailsBean bean = null;</span>
+<span class="nc" id="L58">				bean = helper.depositMoney(playerBean.getUsername(), depositAmount, walletName, userBean, walletId, depositAnyWhere,bean,isPendingData,rootPath);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">				if(bean.getReturnType().equalsIgnoreCase(&quot;true&quot;))</span>
+				{
+<span class="nc" id="L61">				String insQry = &quot;insert into st_ola_player_master(username,date_of_birth, password, email, phone, address, city, state, country, status, registration_date) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)&quot;;</span>
+<span class="nc" id="L62">				PreparedStatement statement = con.prepareStatement(insQry);</span>
+<span class="nc" id="L63">				statement.setString(1, playerBean.getUsername());</span>
+<span class="nc" id="L64">				statement.setString(2, playerBean.getDateOfBirth());</span>
+<span class="nc" id="L65">				statement.setString(3, playerBean.getPassword());</span>
+<span class="nc" id="L66">				statement.setString(4, playerBean.getEmail());</span>
+<span class="nc" id="L67">				statement.setString(5, playerBean.getPhone());</span>
+<span class="nc" id="L68">				statement.setString(6, playerBean.getAddress());</span>
+<span class="nc" id="L69">				statement.setString(7, playerBean.getCity());</span>
+<span class="nc" id="L70">				statement.setString(8, playerBean.getState());</span>
+<span class="nc" id="L71">				statement.setString(9, playerBean.getCountry());</span>
+<span class="nc" id="L72">				statement.setString(10, &quot;ACTIVE&quot;);</span>
+<span class="nc" id="L73">				statement.setTimestamp(11, new java.sql.Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L74">				statement.executeUpdate();</span>
+<span class="nc" id="L75">				con.commit();</span>
+<span class="nc" id="L76">				return bean.getReturnType();</span>
+				}
+				else
+				{
+<span class="nc" id="L80">				return bean.getReturnType()+&quot; During Deposit the money But Player is Registered Successfully... &quot;;</span>
+				}
+			}
+			else
+			{
+<span class="nc" id="L85">				return responseData;</span>
+			}
+			
+<span class="nc" id="L88">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L90">			e.printStackTrace();</span>
+		}
+<span class="nc" id="L92">		return &quot;true&quot;;</span>
+		
+	}
+	
+	public Map&lt;String, String&gt; verifyOrgName(String userName) throws LMSException {
+<span class="nc" id="L97">		Map&lt;String, String&gt; errorMap = new TreeMap&lt;String, String&gt;();</span>
+		try {
+			//here call the API for check User Name Availability
+<span class="nc" id="L100">			  InputStream iStream = OLAUtility.parseCheckUserNameAvailabilityApi(userName);</span>
+<span class="nc" id="L101">			  BufferedReader reader = new BufferedReader(new InputStreamReader(iStream ));</span>
+<span class="nc" id="L102">			  StringBuilder sb =new StringBuilder();</span>
+<span class="nc" id="L103">			  String line =null;</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">			while ((line = reader.readLine()) != null) {</span>
+<span class="nc" id="L105">			      sb.append(line);</span>
+			    }
+			
+<span class="nc" id="L108">			String msg = sb.toString();</span>
+<span class="nc" id="L109">			System.out.println(&quot;Verification Message&quot;+msg);</span>
+<span class="nc" id="L110">			String success_flag = msg.split(&quot;,&quot;)[0].split(&quot;:&quot;)[1];</span>
+<span class="nc" id="L111">			String success_msg = msg.split(&quot;,&quot;)[1].split(&quot;:&quot;)[1].split(&quot;}&quot;)[0];</span>
+<span class="nc bnc" id="L112" title="All 4 branches missed.">			if(success_flag.equalsIgnoreCase(&quot;false&quot;)&amp;&amp; success_msg.equalsIgnoreCase(&quot;true&quot;)){</span>
+<span class="nc" id="L113">				System.out.println(&quot;User Name Already Exists !!&quot;);</span>
+<span class="nc" id="L114">				errorMap.put(&quot;userError&quot;, &quot;User Name Already exists !!&quot;);</span>
+				
+			}
+<span class="nc bnc" id="L117" title="All 4 branches missed.">			else if(success_flag.equalsIgnoreCase(&quot;true&quot;)&amp;&amp; success_msg.equalsIgnoreCase(&quot;false&quot;)){</span>
+<span class="nc" id="L118">				System.out.println(&quot;User Name Availiable !!&quot;);</span>
+<span class="nc" id="L119">					errorMap.put(&quot;userError&quot;,&quot;Avail&quot;);</span>
+				}
+			else {
+<span class="nc" id="L122">				System.out.println(&quot;User Name Invalid!!&quot;);</span>
+<span class="nc" id="L123">				errorMap.put(&quot;userError&quot;, &quot;User Name Invalid&quot;);</span>
+				
+			}
+<span class="nc" id="L126">			return errorMap;</span>
+<span class="nc" id="L127">		} catch (Exception se) {</span>
+<span class="nc" id="L128">			se.printStackTrace();</span>
+<span class="nc" id="L129">			throw new LMSException(se);</span>
+		}
+	}
+	
+	public 	FlexiCardPurchaseBean  registerPlayer(int walletId,String walletName,UserInfoBean userBean,String depositAnyWhere,OlaPlayerDetailsBean playerBean,double depositAmount,String rootPath,int  validMonths,String desKey,String propKey) throws LMSException{
+<span class="nc" id="L134">		FlexiCardPurchaseBean flexiCardPurchaseBean = new 	FlexiCardPurchaseBean();</span>
+<span class="nc" id="L135">		boolean isPendingData = false;</span>
+		//if deposit amount &gt;0 then  proceed 
+<span class="nc bnc" id="L137" title="All 2 branches missed.">		if(depositAmount&lt;=0){</span>
+<span class="nc" id="L138">			flexiCardPurchaseBean.setReturnType(&quot;Deposit Amount Should Be Greater Than Zero&quot;);</span>
+<span class="nc" id="L139">			flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L140">			return flexiCardPurchaseBean;</span>
+		}	
+<span class="nc" id="L142">		Connection con = DBConnect.getConnection();</span>
+		try{
+<span class="nc" id="L144">			con.setAutoCommit(false);</span>
+<span class="nc" id="L145">			flexiCardPurchaseBean.setPlayerName(playerBean.getUsername());</span>
+			//Make  deposit in LMS and generate pin  
+<span class="nc" id="L147">			OLARummyHelper olaRummy = new OLARummyHelper();</span>
+<span class="nc" id="L148">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L149">			java.sql.Date purchaseDate = new java.sql.Date(cal.getTime().getTime());</span>
+<span class="nc" id="L150">			cal.add(Calendar.MONTH,validMonths);//  Expiry date </span>
+<span class="nc" id="L151">			java.sql.Date expiryDate = new java.sql.Date(cal.getTime().getTime());</span>
+<span class="nc" id="L152">			flexiCardPurchaseBean.setPurchaseDate(purchaseDate.toString());</span>
+<span class="nc" id="L153">			flexiCardPurchaseBean.setAmount(depositAmount);</span>
+<span class="nc" id="L154">			flexiCardPurchaseBean.setDenomiationType(&quot;FLEXI&quot;);</span>
+<span class="nc" id="L155">			flexiCardPurchaseBean  = olaRummy.rummyDeposit(con,depositAmount,userBean, walletId,depositAnyWhere,flexiCardPurchaseBean,expiryDate,</span>
+															playerBean.getPhone(),desKey,propKey);
+							
+<span class="nc bnc" id="L158" title="All 2 branches missed.">			if(flexiCardPurchaseBean.getReturnType().equalsIgnoreCase(&quot;true&quot;))</span>
+			{
+<span class="nc" id="L160">				playerBean = OLAUtility.newRummyPlayerRegistration(playerBean);</span>
+				
+					
+				//Save the Player in the database
+<span class="nc bnc" id="L164" title="All 2 branches missed.">				if(playerBean.isSuccess())</span>
+				{		
+<span class="nc" id="L166">					flexiCardPurchaseBean.setPartyId(playerBean.getAccountId());</span>
+<span class="nc" id="L167">					String insQry = &quot;insert into st_ola_player_master(username,wallet_id,account_id,fname,lname,gender,date_of_birth, password, email, phone, address, city, state, country, status, registration_date) values (?, ?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)&quot;;</span>
+<span class="nc" id="L168">					PreparedStatement statement = con.prepareStatement(insQry);</span>
+<span class="nc" id="L169">					statement.setString(1, playerBean.getUsername());</span>
+<span class="nc" id="L170">					statement.setInt(2, playerBean.getWalletId());</span>
+<span class="nc" id="L171">					statement.setString(3, playerBean.getAccountId());</span>
+<span class="nc" id="L172">					statement.setString(4, playerBean.getFirstName());</span>
+<span class="nc" id="L173">					statement.setString(5, playerBean.getLastName());</span>
+<span class="nc" id="L174">					statement.setString(6, playerBean.getGender());</span>
+<span class="nc" id="L175">					statement.setString(7, playerBean.getDateOfBirth());</span>
+<span class="nc" id="L176">					CashCardPinGeneratorHelper helper = new CashCardPinGeneratorHelper();</span>
+<span class="nc" id="L177">					String   password= helper.encryptPin(playerBean.getPassword(),desKey,propKey);// encrypt password</span>
+<span class="nc" id="L178">					statement.setString(8,password);</span>
+<span class="nc" id="L179">					statement.setString(9, playerBean.getEmail());</span>
+<span class="nc" id="L180">					statement.setString(10, playerBean.getPhone());</span>
+<span class="nc" id="L181">					statement.setString(11, playerBean.getAddress());</span>
+<span class="nc" id="L182">					statement.setString(12, playerBean.getCity());</span>
+<span class="nc" id="L183">					statement.setString(13, playerBean.getState());</span>
+<span class="nc" id="L184">					statement.setString(14, playerBean.getCountry());</span>
+<span class="nc" id="L185">					statement.setString(15, &quot;ACTIVE&quot;);</span>
+<span class="nc" id="L186">					statement.setTimestamp(16, new java.sql.Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L187">					int isUpdate =statement.executeUpdate();</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">					if(isUpdate!=1){</span>
+<span class="nc" id="L189">						flexiCardPurchaseBean.setReturnType(&quot;Error In Saving Player Data&quot;);</span>
+<span class="nc" id="L190">						flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L191">						return flexiCardPurchaseBean;</span>
+					}
+					// Bind Player 
+				//	CommonFunctionsHelper.bindPlrNAffiliate(con, playerBean
+					//		.getUsername(), userBean.getUserName(), walletId);
+						
+<span class="nc" id="L197">					con.commit();</span>
+					//send Deposit Info to Rummy 
+<span class="nc" id="L199">					OLARummyHelper infoHelper = new OLARummyHelper();</span>
+<span class="nc" id="L200">					String depositInfoStatus= infoHelper.sendDepositInfoToRummy(flexiCardPurchaseBean.getPlayerName(),flexiCardPurchaseBean.getSerialNumber(),flexiCardPurchaseBean.getPinNbr(),depositAmount,playerBean.getPhone());</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">					if(!depositInfoStatus.equalsIgnoreCase(&quot;success&quot;)){</span>
+<span class="nc" id="L202">						flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L203">						OlaRummyRefundPinHelper refundHelper = new OlaRummyRefundPinHelper();</span>
+<span class="nc" id="L204">						String cancelReason=&quot;CANCEL_SERVER&quot;;</span>
+<span class="nc" id="L205">						String returnType =refundHelper.refundPin(walletId,flexiCardPurchaseBean.getPinNbr(),flexiCardPurchaseBean.getSerialNumber(),flexiCardPurchaseBean.getPlayerName(),depositAmount,desKey,propKey,con,cancelReason);</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">						if(returnType.equalsIgnoreCase(&quot;success&quot;)){</span>
+<span class="nc" id="L207">							flexiCardPurchaseBean.setReturnType(&quot; Player Registered Successfully,Error In Deposit at KhelPlay Rummy : Amount Refunded&quot;);</span>
+<span class="nc" id="L208">							return flexiCardPurchaseBean;</span>
+						}
+						else{
+<span class="nc" id="L211">							flexiCardPurchaseBean.setReturnType(&quot; Player Registered Successfully, Error In Deposit at KhelPlay Rummy :&quot;+returnType);</span>
+<span class="nc" id="L212">							return flexiCardPurchaseBean;</span>
+						}
+					}else{
+						
+<span class="nc" id="L216">						flexiCardPurchaseBean.setSuccess(true);</span>
+						
+						//Send Msg
+<span class="nc" id="L219">						StringBuilder sb = new StringBuilder(flexiCardPurchaseBean.getSerialNumber().toString());</span>
+<span class="nc" id="L220">						String srNbr =sb.substring(0,4)+&quot; &quot;+sb.substring(4,8)+&quot; &quot;+sb.substring(8,12);</span>
+						//		sb = new StringBuilder(flexiCardPurchaseBean.getPinNbr()+&quot;&quot;);
+						//String pinNbr =flexiCardPurchaseBean.getPinNbr()+&quot;&quot;;		
+<span class="nc" id="L223">						String msg =&quot;Welcome to Khelplay Rummy :Your account has been created successfully, and Your Deposit Request of Amt:&quot;+depositAmount+&quot; has been initiated with PlrName:&quot;+flexiCardPurchaseBean.getPlayerName()+&quot; and RefCode:&quot;+srNbr+&quot;,please visit the cashier page at khelplayrummy.com to confirm deposit&quot;;</span>
+<span class="nc" id="L224">						SendSMS smsSend = new SendSMS(msg,playerBean.getPhone());</span>
+<span class="nc" id="L225">						smsSend.setDaemon(true);</span>
+<span class="nc" id="L226">						smsSend.start();</span>
+<span class="nc" id="L227">						System.out.println(&quot; Sending Message..... &quot;);</span>
+						//send Mail
+<span class="nc" id="L229">						String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Dear  &quot;</span>
+								+ flexiCardPurchaseBean.getPlayerName()+&quot; &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt; Welcome to Khelplay Rummy !!&quot;+
+								 &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Your account has been created successfully, and your  details are&lt;/td&gt;&lt;/tr&gt;&quot; +
+								 &quot;&lt;tr&gt;&lt;td&gt;User Name :  &quot;+flexiCardPurchaseBean.getPlayerName()+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Password :  &quot;+playerBean.getPassword()+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Deposit Amount :  &quot;+depositAmount+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Deposit RefCode:&quot;+srNbr+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt; please visit the cashier page at khelplayrummy.com to confirm deposit &lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L233">						MailSend mailSend = new MailSend(playerBean.getEmail(),</span>
+								emailMsgTxt);
+<span class="nc" id="L235">						mailSend.setDaemon(true);</span>
+<span class="nc" id="L236">						mailSend.start();</span>
+<span class="nc" id="L237">						System.out.println(&quot; Sending Mail..... &quot;);</span>
+<span class="nc" id="L238">						return flexiCardPurchaseBean;</span>
+					}
+					
+					
+				}
+				else
+				{	
+<span class="nc" id="L245">					flexiCardPurchaseBean.setReturnType(playerBean.getMsg());</span>
+<span class="nc" id="L246">					flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L247">					return flexiCardPurchaseBean;</span>
+				}
+				
+			}
+			
+			else
+			{
+<span class="nc" id="L254">				flexiCardPurchaseBean.setSuccess(false);// Error In Rummy  Deposit </span>
+<span class="nc" id="L255">				System.out.println(flexiCardPurchaseBean.getReturnType());</span>
+<span class="nc" id="L256">				return flexiCardPurchaseBean;</span>
+			}
+			
+			
+<span class="nc" id="L260">		} catch (SQLException e) {</span>
+<span class="nc" id="L261">			flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L262">			flexiCardPurchaseBean.setReturnType(&quot;ERROR IN RMS&quot;);</span>
+<span class="nc" id="L263">			e.printStackTrace();</span>
+		}finally {
+<span class="nc" id="L265">			try {</span>
+<span class="nc" id="L266">				con.close();</span>
+<span class="nc" id="L267">			} catch (SQLException e) {</span>
+<span class="nc" id="L268">				e.printStackTrace();</span>
+
+<span class="nc" id="L270">			}</span>
+<span class="nc" id="L271">		}</span>
+		
+		
+<span class="nc" id="L274">		return flexiCardPurchaseBean;</span>
+		//return &quot;true&quot;;
+		
+	}	
+
+	 public Map&lt;String, String&gt; verifyEmail(String email) throws LMSException {
+<span class="nc" id="L280">		Map&lt;String, String&gt; errorMap = new TreeMap&lt;String, String&gt;();</span>
+		try {
+			//here call the API for check User Name Availability
+<span class="nc" id="L283">			  InputStream iStream = OLAUtility.parseCheckEmailAvailabilityApi(email);</span>
+<span class="nc" id="L284">			  BufferedReader reader = new BufferedReader(new InputStreamReader(iStream ));</span>
+<span class="nc" id="L285">			  StringBuilder sb =new StringBuilder();</span>
+<span class="nc" id="L286">			  String line =null;</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">			while ((line = reader.readLine()) != null) {</span>
+<span class="nc" id="L288">			      sb.append(line);</span>
+			    }
+			
+<span class="nc" id="L291">			String msg = sb.toString();</span>
+<span class="nc" id="L292">			System.out.println(&quot; Email Verification Message&quot;+msg);</span>
+<span class="nc" id="L293">			String success_flag = msg.split(&quot;,&quot;)[0].split(&quot;:&quot;)[1];</span>
+<span class="nc" id="L294">			String success_msg = msg.split(&quot;,&quot;)[1].split(&quot;:&quot;)[1].split(&quot;}&quot;)[0];</span>
+<span class="nc bnc" id="L295" title="All 4 branches missed.">			if(success_flag.equalsIgnoreCase(&quot;false&quot;)&amp;&amp; success_msg.equalsIgnoreCase(&quot;true&quot;)){</span>
+<span class="nc" id="L296">				System.out.println(&quot;Email Already exits !!&quot;);</span>
+<span class="nc" id="L297">				errorMap.put(&quot;EmailError&quot;, &quot;Email Already exits !!&quot;);</span>
+				
+			}
+<span class="nc bnc" id="L300" title="All 4 branches missed.">			else if(success_flag.equalsIgnoreCase(&quot;true&quot;)&amp;&amp; success_msg.equalsIgnoreCase(&quot;false&quot;)){</span>
+<span class="nc" id="L301">				System.out.println(&quot;Email Availiable !!&quot;);</span>
+<span class="nc" id="L302">					errorMap.put(&quot;EmailError&quot;,&quot;Avail&quot;);</span>
+				}
+			else {
+<span class="nc" id="L305">					errorMap.put(&quot;EmailError&quot;,&quot;Error&quot;);</span>
+				}
+<span class="nc" id="L307">			return errorMap;</span>
+<span class="nc" id="L308">		} catch (Exception se) {</span>
+<span class="nc" id="L309">			se.printStackTrace();</span>
+<span class="nc" id="L310">			throw new LMSException(se);</span>
+		}
+	}
+	public 	FlexiCardPurchaseBean  registerPlayerForPMS(int walletId,String walletName,UserInfoBean userBean,String depositAnyWhere,OlaPlayerDetailsBean playerBean,double depositAmount,String rootPath) throws LMSException{
+<span class="nc" id="L314">		FlexiCardPurchaseBean flexiCardPurchaseBean = new 	FlexiCardPurchaseBean();</span>
+<span class="nc" id="L315">		boolean isPendingData = false;</span>
+		//if deposit amount &gt;0 then  proceed 
+<span class="nc bnc" id="L317" title="All 2 branches missed.">		if(depositAmount&lt;=0){</span>
+<span class="nc" id="L318">			flexiCardPurchaseBean.setReturnType(&quot;Deposit Amount Should Be Greater Than Zero&quot;);</span>
+<span class="nc" id="L319">			flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L320">			return flexiCardPurchaseBean;</span>
+		}	
+<span class="nc" id="L322">		flexiCardPurchaseBean.setAmount(depositAmount);</span>
+<span class="nc" id="L323">		Connection con = DBConnect.getConnection();</span>
+		try{
+<span class="nc" id="L325">			con.setAutoCommit(false);</span>
+			// call PMS API 
+<span class="nc" id="L327">			playerBean= OLAUtility.newPMSPlayerRegistration(playerBean);</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">			if(playerBean.isSuccess()){</span>
+				// save Player Details
+<span class="nc" id="L330">				flexiCardPurchaseBean.setPlayerName(playerBean.getUsername());</span>
+<span class="nc" id="L331">				String insQry = &quot;insert into st_ola_player_master(username,wallet_id,account_id,fname,lname,gender,date_of_birth,password,email,phone, address, city, state, country, status, registration_date) values (?, ?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)&quot;;</span>
+<span class="nc" id="L332">				PreparedStatement statement = con.prepareStatement(insQry);</span>
+<span class="nc" id="L333">				statement.setString(1, playerBean.getUsername());</span>
+<span class="nc" id="L334">				statement.setInt(2, playerBean.getWalletId());</span>
+<span class="nc" id="L335">				statement.setString(3, playerBean.getAccountId());</span>
+<span class="nc" id="L336">				statement.setString(4, playerBean.getFirstName());</span>
+<span class="nc" id="L337">				statement.setString(5, playerBean.getLastName());</span>
+<span class="nc" id="L338">				statement.setString(6, playerBean.getGender());</span>
+<span class="nc" id="L339">				statement.setString(7, playerBean.getDateOfBirth());</span>
+<span class="nc" id="L340">				statement.setString(8,playerBean.getPassword());</span>
+<span class="nc" id="L341">				statement.setString(9, playerBean.getEmail());</span>
+<span class="nc" id="L342">				statement.setString(10, playerBean.getPhone());</span>
+<span class="nc" id="L343">				statement.setString(11, playerBean.getAddress());</span>
+<span class="nc" id="L344">				statement.setString(12, playerBean.getCity());</span>
+<span class="nc" id="L345">				statement.setString(13, playerBean.getState());</span>
+<span class="nc" id="L346">				statement.setString(14, playerBean.getCountry());</span>
+<span class="nc" id="L347">				statement.setString(15, &quot;ACTIVE&quot;);</span>
+<span class="nc" id="L348">				statement.setTimestamp(16, new java.sql.Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L349">				int isUpdate =statement.executeUpdate();</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">				if(isUpdate!=1){</span>
+<span class="nc" id="L351">					flexiCardPurchaseBean.setReturnType(&quot;Error In Saving Player Data&quot;);</span>
+<span class="nc" id="L352">					flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L353">					return flexiCardPurchaseBean;</span>
+				}
+<span class="nc" id="L355">				con.commit();</span>
+<span class="nc" id="L356">				OLAPlrLotteryHelper plrLottery = new OLAPlrLotteryHelper();</span>
+<span class="nc" id="L357">				String  returnType =plrLottery.plrLotteryDeposit(depositAnyWhere,playerBean.getUsername(),depositAmount,</span>
+												userBean, walletId,playerBean.getPhone());
+				//String returnType=&quot;true&quot;;
+<span class="nc bnc" id="L360" title="All 2 branches missed.">				if(returnType.equalsIgnoreCase(&quot;true&quot;)){</span>
+<span class="nc" id="L361">					flexiCardPurchaseBean.setSuccess(true);</span>
+					
+<span class="nc" id="L363">					return flexiCardPurchaseBean ;</span>
+					
+				}else{
+<span class="nc" id="L366">					flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L367">					flexiCardPurchaseBean.setReturnType(&quot;Player Registered Successfully. &lt;/br&gt;Deposit Error :&quot;+returnType);</span>
+<span class="nc" id="L368">					return flexiCardPurchaseBean ;</span>
+				}
+			
+			
+			
+			}else{
+<span class="nc" id="L374">				flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L375">				flexiCardPurchaseBean.setReturnType(playerBean.getMsg());</span>
+<span class="nc" id="L376">				return flexiCardPurchaseBean ;</span>
+			}
+			
+			
+			
+<span class="nc" id="L381">		} catch (Exception e) {</span>
+<span class="nc" id="L382">			flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L383">			flexiCardPurchaseBean.setReturnType(&quot;ERROR IN RMS&quot;);</span>
+<span class="nc" id="L384">			e.printStackTrace();</span>
+		}finally {
+<span class="nc" id="L386">			try {</span>
+<span class="nc" id="L387">				con.close();</span>
+<span class="nc" id="L388">			} catch (SQLException e) {</span>
+<span class="nc" id="L389">				e.printStackTrace();</span>
+
+<span class="nc" id="L391">			}</span>
+<span class="nc" id="L392">		}</span>
+		
+		
+<span class="nc" id="L395">		return flexiCardPurchaseBean;</span>
+		//return &quot;true&quot;;
+		
+	}
+	public Map&lt;String, String&gt; verifyPlrName(String userName) throws LMSException {
+<span class="nc" id="L400">		Map&lt;String, String&gt; errorMap = new TreeMap&lt;String, String&gt;();</span>
+		try {
+		
+			// Call Player Mgmt Api  
+<span class="nc" id="L404">			String method = &quot;playerVerificationAction&quot;;</span>
+<span class="nc" id="L405">			JSONObject params = new JSONObject();</span>
+<span class="nc" id="L406">	        params.put(&quot;userName&quot;,userName);</span>
+<span class="nc" id="L407">	        JSONObject responseObj =Utility.sendCallApi(method, params, &quot;6&quot;);</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">			if(responseObj==null){</span>
+<span class="nc" id="L409">				errorMap.put(&quot;inValid&quot;,&quot;Error In Connection With Player Lottery&quot;);</span>
+			}
+			else{
+<span class="nc" id="L412">				boolean isSuccess = responseObj.getBoolean(&quot;isSuccess&quot;);</span>
+<span class="nc bnc" id="L413" title="All 2 branches missed.">				if(isSuccess){</span>
+					//Player Not Exist at Player Lottery
+<span class="nc" id="L415">					errorMap.put(&quot;valid&quot;,&quot;User Name is Valid !! &quot;);</span>
+				}else{
+					//Player Exist at Player Lottery
+<span class="nc" id="L418">					errorMap.put(&quot;inValid&quot;,&quot;User Name is Invalid !!&quot;);</span>
+					
+				}
+			}
+			 
+<span class="nc" id="L423">			return errorMap;</span>
+<span class="nc" id="L424">		} catch (Exception se) {</span>
+<span class="nc" id="L425">			se.printStackTrace();</span>
+<span class="nc" id="L426">			throw new LMSException(se);</span>
+		}
+	}
+
+	@Deprecated
+	public FlexiCardPurchaseBean registerPlayerForKpRummy(int walletId,String walletName, UserInfoBean userBean, String depositAnyWhere,
+												OlaPlayerDetailsBean playerBean, double depositAmount) {
+<span class="nc" id="L433">		FlexiCardPurchaseBean flexiCardPurchaseBean = new 	FlexiCardPurchaseBean();</span>
+		
+		//if deposit amount &gt;0 then  proceed 
+<span class="nc bnc" id="L436" title="All 2 branches missed.">		if(depositAmount&lt;=0){</span>
+<span class="nc" id="L437">			flexiCardPurchaseBean.setReturnType(&quot;Deposit Amount Should Be Greater Than Zero&quot;);</span>
+<span class="nc" id="L438">			flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L439">			return flexiCardPurchaseBean;</span>
+		}	
+<span class="nc" id="L441">		Connection con =null;</span>
+<span class="nc" id="L442">		PreparedStatement pstmt=null;</span>
+		try{
+			
+<span class="nc" id="L445">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L446">			con.setAutoCommit(false);</span>
+<span class="nc" id="L447">			flexiCardPurchaseBean.setPlayerName(playerBean.getUsername());</span>
+			//Register Player 
+			
+		//	playerBean = OLAUtility.newKpRummyPlayerRegistration(playerBean,walletId);
+			//Save the Player in the database
+<span class="nc bnc" id="L452" title="All 2 branches missed.">		if(playerBean.isSuccess())</span>
+				{		
+<span class="nc" id="L454">					flexiCardPurchaseBean.setPartyId(playerBean.getAccountId());</span>
+<span class="nc" id="L455">					String insQry = &quot;insert into st_ola_player_master(username,wallet_id,account_id,fname,lname,gender,date_of_birth, password, email, phone, address, city, state, country, status, registration_date) values (?, ?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?)&quot;;</span>
+<span class="nc" id="L456">					pstmt = con.prepareStatement(insQry);</span>
+<span class="nc" id="L457">					pstmt.setString(1, playerBean.getUsername());</span>
+<span class="nc" id="L458">					pstmt.setInt(2, playerBean.getWalletId());</span>
+<span class="nc" id="L459">					pstmt.setString(3, playerBean.getAccountId());</span>
+<span class="nc" id="L460">					pstmt.setString(4, playerBean.getFirstName());</span>
+<span class="nc" id="L461">					pstmt.setString(5, playerBean.getLastName());</span>
+<span class="nc" id="L462">					pstmt.setString(6, playerBean.getGender());</span>
+<span class="nc" id="L463">					pstmt.setString(7, playerBean.getDateOfBirth());</span>
+<span class="nc" id="L464">					pstmt.setString(8,playerBean.getPassword());</span>
+<span class="nc" id="L465">					pstmt.setString(9, playerBean.getEmail());</span>
+<span class="nc" id="L466">					pstmt.setString(10, playerBean.getPhone());</span>
+<span class="nc" id="L467">					pstmt.setString(11, playerBean.getAddress());</span>
+<span class="nc" id="L468">					pstmt.setString(12, playerBean.getCity());</span>
+<span class="nc" id="L469">					pstmt.setString(13, playerBean.getState());</span>
+<span class="nc" id="L470">					pstmt.setString(14, playerBean.getCountry());</span>
+<span class="nc" id="L471">					pstmt.setString(15, &quot;ACTIVE&quot;);</span>
+<span class="nc" id="L472">					pstmt.setTimestamp(16, new java.sql.Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L473">					int isUpdate =pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">					if(isUpdate!=1){</span>
+<span class="nc" id="L475">						flexiCardPurchaseBean.setReturnType(&quot;Error In Saving Player Data&quot;);</span>
+<span class="nc" id="L476">						flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L477">						return flexiCardPurchaseBean;</span>
+					}
+					
+<span class="nc" id="L480">					con.commit();</span>
+					//send Deposit Info to KP Rummy 
+<span class="nc" id="L482">					String depositResp =OlaHelper.depositMoneyForKpRummy(depositAnyWhere, playerBean.getUsername(), depositAmount,</span>
+							userBean, walletName, walletId, playerBean.getPhone());
+
+
+<span class="nc bnc" id="L486" title="All 2 branches missed.">					if(depositResp.equalsIgnoreCase(&quot;true&quot;)){</span>
+<span class="nc" id="L487">						flexiCardPurchaseBean.setAmount(depositAmount);</span>
+<span class="nc" id="L488">						flexiCardPurchaseBean.setSuccess(true);</span>
+<span class="nc" id="L489">						flexiCardPurchaseBean.setSerialNumber(0);</span>
+						
+						//Send Msg
+							
+<span class="nc" id="L493">						String msg =&quot;Welcome to Khelplay Rummy :Your account has been created successfully, and Your Deposit Request of Amt:&quot;+depositAmount+&quot; has been initiated with PlrName:&quot;+flexiCardPurchaseBean.getPlayerName()+&quot; ,please visit the cashier page at khelplayrummy.com &quot;;</span>
+<span class="nc" id="L494">						SendSMS smsSend = new SendSMS(msg,playerBean.getPhone());</span>
+<span class="nc" id="L495">						smsSend.setDaemon(true);</span>
+<span class="nc" id="L496">						smsSend.start();</span>
+<span class="nc" id="L497">						logger.info(&quot; Sending Message..... &quot;);</span>
+						//send Mail
+<span class="nc" id="L499">						String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Dear  &quot;</span>
+								+ flexiCardPurchaseBean.getPlayerName()+&quot; &lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt; Welcome to Khelplay Rummy !!&quot;+
+								 &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Your account has been created successfully, and your  details are&lt;/td&gt;&lt;/tr&gt;&quot; +
+								 &quot;&lt;tr&gt;&lt;td&gt;User Name :  &quot;+flexiCardPurchaseBean.getPlayerName()+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Deposit Amount :  &quot;+depositAmount+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt; please visit the cashier page at khelplayrummy.com  &lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L503">						MailSend mailSend = new MailSend(playerBean.getEmail(),</span>
+								emailMsgTxt);
+<span class="nc" id="L505">						mailSend.setDaemon(true);</span>
+<span class="nc" id="L506">						mailSend.start();</span>
+<span class="nc" id="L507">						logger.info(&quot; Sending Mail..... &quot;);</span>
+<span class="nc" id="L508">						return flexiCardPurchaseBean;</span>
+						
+					
+					}else{
+				
+<span class="nc" id="L513">						flexiCardPurchaseBean.setReturnType(&quot; Player Registered Successfully,&lt;/br&gt;Deposit Error :&quot;+depositResp);</span>
+<span class="nc" id="L514">						return flexiCardPurchaseBean;</span>
+					}
+				}else{
+<span class="nc" id="L517">						flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L518">						logger.info(&quot;ERROR IN Player Registration At OLA&quot;);</span>
+<span class="nc" id="L519">						flexiCardPurchaseBean.setReturnType(&quot;ERROR IN Player Registration: &quot;+playerBean.getMsg());</span>
+<span class="nc" id="L520">						return flexiCardPurchaseBean;</span>
+				}
+	
+<span class="nc" id="L523">		} catch (Exception e) {</span>
+<span class="nc" id="L524">			flexiCardPurchaseBean.setSuccess(false);</span>
+<span class="nc" id="L525">			logger.info(&quot;ERROR IN Player Registration At OLA&quot;);</span>
+<span class="nc" id="L526">			flexiCardPurchaseBean.setReturnType(&quot;ERROR IN Player Registration&quot;);</span>
+<span class="nc" id="L527">			e.printStackTrace();</span>
+		}finally {
+<span class="nc" id="L529">			try {</span>
+<span class="nc bnc" id="L530" title="All 12 branches missed.">				if(con!=null){</span>
+<span class="nc" id="L531">					con.close();</span>
+					
+				}
+				
+<span class="nc" id="L535">			} catch (SQLException e) {</span>
+<span class="nc" id="L536">				e.printStackTrace();</span>
+
+<span class="nc" id="L538">			}</span>
+<span class="nc" id="L539">		}</span>
+		
+		
+<span class="nc" id="L542">		return flexiCardPurchaseBean;</span>
+	}		
+	 public Map&lt;String, String&gt; verifyEmailForKpRummy(String email,int walletId) throws LMSException {
+<span class="nc" id="L545">			Map&lt;String, String&gt; errorMap = new TreeMap&lt;String, String&gt;();</span>
+			try {
+				//here call the API for check User Name Availability
+<span class="nc" id="L548">				Map&lt;String,String&gt; verifyEmailReqMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L549">				verifyEmailReqMap.put(&quot;requestType&quot;,&quot;EMAIL_AVAILABILITY&quot;);</span>
+<span class="nc" id="L550">				verifyEmailReqMap.put(&quot;domainName&quot;,OLAUtility.getWalletIntBean(walletId+&quot;&quot;).getTpIp());</span>
+<span class="nc" id="L551">				verifyEmailReqMap.put(&quot;availabilityValue&quot;,email);</span>
+<span class="nc" id="L552">				InputStream verifyEmailResponse =  OLAClient.callKhelPlayRummy(OLAUtility.prepareXMLFromData(verifyEmailReqMap),walletId,OLAConstants.depReq);</span>
+<span class="nc" id="L553">				Map&lt;String,String&gt; verifyEmailRespMap = null;</span>
+<span class="nc" id="L554">				verifyEmailRespMap=OLAUtility.prepareDataFromXml(verifyEmailResponse);</span>
+<span class="nc" id="L555">				logger.info(verifyEmailRespMap);</span>
+<span class="nc bnc" id="L556" title="All 2 branches missed.">				if(verifyEmailRespMap==null){</span>
+<span class="nc" id="L557">					errorMap.put(&quot;EmailError&quot;,&quot;Error&quot;);</span>
+					
+					
+<span class="nc bnc" id="L560" title="All 4 branches missed.">				}else if(verifyEmailRespMap.get(&quot;errorCode&quot;)!=null || verifyEmailRespMap.get(&quot;errorMsg&quot;)!=null){</span>
+					
+<span class="nc" id="L562">					errorMap.put(&quot;EmailError&quot;, &quot;Email Already exits !!&quot;);</span>
+				
+					
+<span class="nc bnc" id="L565" title="All 2 branches missed.">				}else if(verifyEmailRespMap.get(&quot;respMsg&quot;)!=null){</span>
+<span class="nc" id="L566">						errorMap.put(&quot;EmailError&quot;,&quot;Avail&quot;);</span>
+				
+				}
+				
+<span class="nc" id="L570">				return errorMap;</span>
+<span class="nc" id="L571">			} catch (Exception se) {</span>
+<span class="nc" id="L572">				se.printStackTrace();</span>
+<span class="nc" id="L573">				throw new LMSException(se);</span>
+			}
+		}	
+	 
+	 public Map&lt;String, String&gt; verifyPhoneForKpRummy(String phone,int walletId) throws LMSException {
+<span class="nc" id="L578">			Map&lt;String, String&gt; errorMap = new TreeMap&lt;String, String&gt;();</span>
+			try {
+				//here call the API for check User Name Availability
+<span class="nc" id="L581">				Map&lt;String,String&gt; verifyPhoneReqMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L582">				verifyPhoneReqMap.put(&quot;requestType&quot;,&quot;MOBILE_AVAILABILITY&quot;);</span>
+<span class="nc" id="L583">				verifyPhoneReqMap.put(&quot;domainName&quot;,OLAUtility.getWalletIntBean(walletId+&quot;&quot;).getTpIp());</span>
+<span class="nc" id="L584">				verifyPhoneReqMap.put(&quot;availabilityValue&quot;,phone);</span>
+<span class="nc" id="L585">				InputStream verifyPhoneResponse =  OLAClient.callKhelPlayRummy(OLAUtility.prepareXMLFromData(verifyPhoneReqMap),walletId,OLAConstants.depReq);</span>
+<span class="nc" id="L586">				Map&lt;String,String&gt; verifyPhoneRespMap = null;</span>
+<span class="nc" id="L587">				verifyPhoneRespMap=OLAUtility.prepareDataFromXml(verifyPhoneResponse);</span>
+<span class="nc" id="L588">				logger.info(verifyPhoneRespMap);</span>
+<span class="nc bnc" id="L589" title="All 2 branches missed.">				if(verifyPhoneRespMap==null){</span>
+<span class="nc" id="L590">					errorMap.put(&quot;PhoneError&quot;,&quot;Error&quot;);</span>
+					
+					
+<span class="nc bnc" id="L593" title="All 4 branches missed.">				}else if(verifyPhoneRespMap.get(&quot;errorCode&quot;)!=null||verifyPhoneRespMap.get(&quot;errorMsg&quot;)!=null){</span>
+					
+<span class="nc" id="L595">					errorMap.put(&quot;PhoneError&quot;, &quot;Phone Number Already exits !!&quot;);</span>
+				
+					
+<span class="nc bnc" id="L598" title="All 2 branches missed.">				}else if(verifyPhoneRespMap.get(&quot;respMsg&quot;)!=null){</span>
+<span class="nc" id="L599">						errorMap.put(&quot;PhoneError&quot;,&quot;Avail&quot;);</span>
+				
+				}
+				
+<span class="nc" id="L603">				return errorMap;</span>
+<span class="nc" id="L604">			} catch (Exception se) {</span>
+<span class="nc" id="L605">				se.printStackTrace();</span>
+<span class="nc" id="L606">				throw new LMSException(se);</span>
+			}
+		}	 
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

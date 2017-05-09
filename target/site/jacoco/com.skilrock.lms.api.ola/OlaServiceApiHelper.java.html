@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaServiceApiHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.api.ola</a> &gt; <span class="el_source">OlaServiceApiHelper.java</span></div><h1>OlaServiceApiHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.api.ola;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.common.CommonValidation;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.ola.OlaHelper;
+import com.skilrock.lms.coreEngine.ola.OlaRummyWithRequestHelper;
+import com.skilrock.lms.coreEngine.ola.common.OLAUtility;
+import com.skilrock.lms.web.ola.CashCardPinGeneratorHelper;
+import com.skilrock.lms.api.ola.beans.OlaRummyDepositBean;
+import com.skilrock.lms.api.ola.beans.OlaWithdrawlRequestBean;
+import com.skilrock.lms.api.ola.beans.OlaWithdrwalDetailsBean;
+
+<span class="nc" id="L26">public class OlaServiceApiHelper {</span>
+<span class="nc" id="L27">	static Log logger = LogFactory.getLog(OlaServiceApiHelper.class);</span>
+	public OlaRummyDepositBean verifyUserRefId(OlaRummyDepositBean olaServiceBean,String ip,String desKey,String propKey) throws Exception {
+<span class="nc" id="L29">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L30">		CashCardPinGeneratorHelper helper = new CashCardPinGeneratorHelper();</span>
+<span class="nc" id="L31">		con.setAutoCommit(false);</span>
+<span class="nc" id="L32">		String plrId = olaServiceBean.getPlayerId();</span>
+<span class="nc" id="L33">		String serialNumber =olaServiceBean.getSerialNumber();</span>
+<span class="nc" id="L34">		String pinNumber=helper.encryptPin(olaServiceBean.getOlaPIN(),desKey,propKey); // encrypt Pin </span>
+<span class="nc" id="L35">  		String userName = olaServiceBean.getUserName();</span>
+<span class="nc" id="L36">		String password = olaServiceBean.getPassword();</span>
+<span class="nc" id="L37">		String tpTransId =olaServiceBean.getRefTransId();</span>
+<span class="nc" id="L38">		double amount =olaServiceBean.getDepositeAmount();</span>
+<span class="nc" id="L39">		String query = null;</span>
+<span class="nc" id="L40">		String query1 =null;</span>
+<span class="nc" id="L41">		Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L42">		Timestamp currentDate = null;</span>
+<span class="nc" id="L43">		currentDate = new Timestamp(cal.getTime().getTime());</span>
+<span class="nc" id="L44">		java.sql.Date dateNow =	new java.sql.Date(currentDate.getTime());</span>
+<span class="nc" id="L45">		int walletId = getWalletId(userName,password,ip,con);// check for userName,Password,Ip</span>
+<span class="nc" id="L46">		int deno = (int)amount;</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">			if(walletId==-1){</span>
+<span class="nc" id="L48">				olaServiceBean.setErrorCode(500);	</span>
+<span class="nc" id="L49">				olaServiceBean.setValidDeposit(false);</span>
+<span class="nc" id="L50">			logger.info(&quot;Some Internal Exception&quot;);</span>
+<span class="nc" id="L51">				return olaServiceBean;</span>
+						}
+<span class="nc bnc" id="L53" title="All 2 branches missed.">			else if(walletId==0){</span>
+<span class="nc" id="L54">				olaServiceBean.setErrorCode(102);	//Authentication Error</span>
+<span class="nc" id="L55">				olaServiceBean.setValidDeposit(false);</span>
+<span class="nc" id="L56">				logger.info(&quot;Authentication Error Username or Password or IP doesnot match&quot;);</span>
+<span class="nc" id="L57">				return olaServiceBean;</span>
+			}
+		
+<span class="nc bnc" id="L60" title="All 2 branches missed.">		if(olaServiceBean.getDepositType().equalsIgnoreCase(&quot;OLA&quot;)){</span>
+<span class="nc" id="L61">				query = &quot;select verification_status,lms_transaction_id  from st_ola_pin_rep_rm_2 where &quot; +</span>
+						&quot; serial_number='&quot; +serialNumber+&quot;' and  pin_number='&quot;+pinNumber+&quot;'and amount=&quot;+amount+&quot; and player_id  ='&quot;
+						+ plrId + &quot;' and expiry_date&gt;='&quot;+dateNow+&quot;'&quot;;
+<span class="nc" id="L64">				query1=&quot; update st_ola_pin_rep_rm_2 set verification_status='DONE',tp_transaction_id='&quot;+tpTransId+&quot;', verification_date ='&quot;+currentDate+&quot;'where &quot; +</span>
+						&quot; serial_number='&quot; +serialNumber+&quot;' and  pin_number='&quot;+pinNumber+&quot;'and amount=&quot;+amount+&quot; and player_id  ='&quot;
+						+ plrId + &quot;'&quot;;
+<span class="nc bnc" id="L67" title="All 2 branches missed.">				}else if(olaServiceBean.getDepositType().equalsIgnoreCase(&quot;PIN&quot;)){</span>
+<span class="nc" id="L68">					String tableName = 	&quot;st_ola_cashcard_rm_&quot;+walletId+&quot;_&quot;+deno+&quot;&quot;;</span>
+<span class="nc" id="L69">					boolean tableExits = checkTable(tableName,con ); </span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">						if(!tableExits){</span>
+<span class="nc" id="L71">											olaServiceBean.setErrorCode(500);	</span>
+<span class="nc" id="L72">											olaServiceBean.setValidDeposit(false);</span>
+<span class="nc" id="L73">											logger.info(&quot;Some Internal Error::Table doesnot exits &quot;);</span>
+<span class="nc" id="L74">											return olaServiceBean;</span>
+									}
+<span class="nc" id="L76">					query = &quot;select verification_status,generation_id,lms_transaction_id from st_ola_cashcard_rm_&quot;+walletId+&quot;_&quot;+deno+&quot; where serial_number='&quot; +serialNumber+&quot;' and  pin_number ='&quot;+pinNumber+&quot;'and amount=&quot;+amount+&quot; and expiry_date&gt;='&quot;+dateNow+&quot;'&quot;;</span>
+<span class="nc" id="L77">					query1=&quot; update st_ola_cashcard_rm_&quot;+walletId+&quot;_&quot;+deno+&quot; set verification_status='DONE',tp_transaction_id='&quot;+tpTransId+&quot;',player_id='&quot;+plrId+&quot;',verification_date ='&quot;+currentDate+&quot;' where  serial_number='&quot; +serialNumber+&quot;' and  pin_number='&quot;+pinNumber+&quot;'and amount=&quot;+amount+&quot;&quot;;</span>
+				
+<span class="nc" id="L79">				}else{</span>
+<span class="nc" id="L80">						olaServiceBean.setErrorCode(500);	</span>
+<span class="nc" id="L81">						olaServiceBean.setValidDeposit(false);</span>
+<span class="nc" id="L82">						logger.info(&quot;Some Internal Error &quot;);</span>
+<span class="nc" id="L83">						return olaServiceBean;</span>
+						
+					}
+				
+			try {
+<span class="nc" id="L88">				PreparedStatement ps = con.prepareStatement(query);</span>
+<span class="nc" id="L89">				ResultSet rs1 = ps.executeQuery();</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">				if (rs1.next()) {</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">						if(rs1.getString(&quot;verification_status&quot;).equalsIgnoreCase(&quot;PENDING&quot;))</span>
+						{						
+<span class="nc" id="L93">							PreparedStatement ps1 = con.prepareStatement(query1);</span>
+<span class="nc" id="L94">							ps1.executeUpdate();</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">							if(rs1.getInt(&quot;lms_transaction_id&quot;)==0){</span>
+								//Update Pin Status 
+<span class="nc" id="L97">								boolean isUpdate = updatePinStatus(con,rs1.getInt(&quot;generation_id&quot;));</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">								if(!isUpdate){</span>
+<span class="nc" id="L99">									olaServiceBean.setErrorCode(500);		//Some Error;	</span>
+<span class="nc" id="L100">									logger.info(&quot;Some Internal Error in Pin Status Update&quot;);</span>
+<span class="nc" id="L101">									olaServiceBean.setValidDeposit(false);</span>
+<span class="nc" id="L102">									return olaServiceBean;</span>
+								}
+							}
+							
+<span class="nc" id="L106">							con.commit();</span>
+<span class="nc" id="L107">							olaServiceBean.setErrorCode(100);// Success</span>
+<span class="nc" id="L108">							olaServiceBean.setValidDeposit(true);</span>
+<span class="nc" id="L109">							return olaServiceBean;</span>
+						}
+<span class="nc bnc" id="L111" title="All 2 branches missed.">						else if(rs1.getString(&quot;verification_status&quot;).equalsIgnoreCase(&quot;DONE&quot;)){							</span>
+<span class="nc" id="L112">							olaServiceBean.setErrorCode(101);	//Invalid Deposit;</span>
+<span class="nc" id="L113">							olaServiceBean.setValidDeposit(false);</span>
+<span class="nc" id="L114">							return olaServiceBean;</span>
+						}
+						else {
+<span class="nc" id="L117">							olaServiceBean.setErrorCode(500);		//Some Error;	</span>
+<span class="nc" id="L118">							logger.info(&quot;Some Internal Error &quot;);</span>
+<span class="nc" id="L119">							olaServiceBean.setValidDeposit(false);</span>
+<span class="nc" id="L120">							return olaServiceBean;</span>
+						}				
+				}		
+				else {
+<span class="nc" id="L124">					olaServiceBean.setErrorCode(101);	    // Invalid Deposit</span>
+<span class="nc" id="L125">					logger.info(&quot;Invalid Deposit&quot;);</span>
+<span class="nc" id="L126">					olaServiceBean.setValidDeposit(false);	//verify = &quot;declined&quot;;</span>
+<span class="nc" id="L127">					return olaServiceBean;</span>
+				}	
+			}	
+<span class="nc" id="L130">			catch (Exception e){</span>
+<span class="nc" id="L131">				e.printStackTrace();</span>
+<span class="nc" id="L132">				logger.info(&quot;Some Internal Exception &quot;);</span>
+<span class="nc" id="L133">				olaServiceBean.setErrorCode(500);// Some Error</span>
+<span class="nc" id="L134">				olaServiceBean.setValidDeposit(false);	//verify = &quot;declined&quot;;</span>
+<span class="nc" id="L135">				return olaServiceBean;</span>
+				
+			}
+		
+}
+	
+	private int getWalletId(String userName,String password,String ip,Connection con){
+<span class="nc" id="L142">		String query = &quot;select wallet_id,system_ip from st_ola_wallet_authentication_master where system_user_name=? and system_password=? &quot;;</span>
+	try {
+<span class="nc" id="L144">			PreparedStatement ps1 = con.prepareStatement(query);</span>
+			String validIPs[] ;
+<span class="nc" id="L146">			ps1.setString(1,userName);</span>
+<span class="nc" id="L147">			ps1.setString(2,password);</span>
+<span class="nc" id="L148">			logger.info(&quot;Authentication Query&quot;+ps1);</span>
+<span class="nc" id="L149">			ResultSet rs2 = ps1.executeQuery();</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">		if(rs2.next()){</span>
+<span class="nc" id="L151">					validIPs = rs2.getString(&quot;system_ip&quot;).split(&quot;,&quot;);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">					for(int i=0;i&lt;validIPs.length;i++){</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">						if(ip.equalsIgnoreCase(validIPs[i])){</span>
+<span class="nc" id="L154">								logger.info(&quot;Address &quot;+ip+&quot; is authorized &quot;);</span>
+<span class="nc" id="L155">								return rs2.getInt(&quot;wallet_id&quot;);</span>
+						}
+						
+					}
+<span class="nc" id="L159">					logger.info(&quot;Address &quot;+ip+&quot; is not authorized &quot;);	</span>
+<span class="nc" id="L160">				return 0;	</span>
+			}
+		else {
+<span class="nc" id="L163">			return 0;</span>
+		}
+<span class="nc" id="L165">		}catch(Exception e) {</span>
+<span class="nc" id="L166">			e.printStackTrace();</span>
+<span class="nc" id="L167">			return -1;</span>
+		}
+		
+	}
+	
+	public boolean checkTable(String tableName, Connection con) {
+
+		try {
+<span class="nc" id="L175">			ResultSet rs = con.getMetaData().getTables(null, null, tableName,null);</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L177">				return true;</span>
+			}
+		}
+<span class="nc" id="L180">		catch (SQLException e) {</span>
+<span class="nc" id="L181">			e.printStackTrace();</span>
+<span class="nc" id="L182">			return false;</span>
+<span class="nc" id="L183">		}</span>
+
+<span class="nc" id="L185">		return false;</span>
+	}
+   public boolean updatePinStatus(Connection con,int generationId){
+<span class="nc" id="L188">	   String query =&quot;update st_ola_pin_status set no_of_pin_redeemed=no_of_pin_redeemed+1 where generation_id=&quot;+generationId;</span>
+		   try{
+<span class="nc" id="L190">			   PreparedStatement ps = con.prepareStatement(query);</span>
+<span class="nc" id="L191">			   int update= ps.executeUpdate();</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">			   if(update==1){</span>
+<span class="nc" id="L193">				   return true;</span>
+			   }
+<span class="nc" id="L195">		   }catch(Exception e){</span>
+<span class="nc" id="L196">			e.printStackTrace();     </span>
+<span class="nc" id="L197">		   }</span>
+
+<span class="nc" id="L199">	   return false;</span>
+   }
+   
+	public OlaWithdrawlRequestBean processWithdrawalRequest(OlaWithdrawlRequestBean olaServiceBean,String ip) throws Exception {
+<span class="nc" id="L203">		Connection con = null;</span>
+<span class="nc" id="L204">		PreparedStatement ps=null;</span>
+<span class="nc" id="L205">		String userName = olaServiceBean.getUserName();</span>
+<span class="nc" id="L206">		String password = olaServiceBean.getPassword();</span>
+<span class="nc" id="L207">		boolean isProcessedFlag =false; //falg to check that atleast one withdrwal request processed</span>
+<span class="nc" id="L208">		ResultSet rs =null;</span>
+	try {
+<span class="nc" id="L210">			con = DBConnect.getConnection();</span>
+			// check for userName,Password,Ip
+<span class="nc" id="L212">			int walletId = getWalletId(userName,password,ip,con);</span>
+			
+<span class="nc bnc" id="L214" title="All 2 branches missed.">			if(walletId==-1){</span>
+<span class="nc" id="L215">					olaServiceBean.setErrorCode(500);	</span>
+<span class="nc" id="L216">					olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L217">					olaServiceBean.setErrorMsg(&quot;Internal Server Error  In Verification&quot;);</span>
+<span class="nc" id="L218">					logger.info(&quot;Internal Server Error  In Verification&quot;);</span>
+<span class="nc" id="L219">					return olaServiceBean;</span>
+					}
+<span class="nc bnc" id="L221" title="All 2 branches missed.">			else if(walletId==0){</span>
+<span class="nc" id="L222">					olaServiceBean.setErrorCode(102);	//Authentication Error</span>
+<span class="nc" id="L223">					olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L224">					olaServiceBean.setErrorMsg(&quot;Authentication Error Username or Password or IP doesnot match&quot;);</span>
+<span class="nc" id="L225">					logger.info(&quot;Authentication Error Username or Password or IP doesnot match&quot;);</span>
+<span class="nc" id="L226">					return olaServiceBean;</span>
+				}
+<span class="nc" id="L228">			con.setAutoCommit(false);</span>
+<span class="nc" id="L229">			double amount=0;</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">			for(OlaWithdrwalDetailsBean olaWithDetailsBean : olaServiceBean.getWithdrawalDetailList()){</span>
+<span class="nc" id="L231">				olaWithDetailsBean.setSuccess(false);</span>
+<span class="nc" id="L232">				String requestId =olaWithDetailsBean.getRequestId();</span>
+<span class="nc" id="L233">				amount = olaWithDetailsBean.getPlrAmount();</span>
+<span class="nc" id="L234">				String plrUserName = olaWithDetailsBean.getUserName();</span>
+<span class="nc" id="L235">				String walletName =OLAUtility.getWalletBean(OLAUtility.getWalletIntBean(olaWithDetailsBean.getWalletName()).getWalletId()).getWalletDevName();	</span>
+<span class="nc" id="L236">				String phonNbr =olaWithDetailsBean.getPlrPhoneNbr();</span>
+				// Validate Data
+				
+<span class="nc bnc" id="L239" title="All 2 branches missed.">				if(CommonValidation.isEmpty(plrUserName)){</span>
+<span class="nc" id="L240">					logger.info(&quot;IllegalArgument plrUserName  In Wihtdrawal Request Processing &quot;);</span>
+<span class="nc" id="L241">					olaServiceBean.setErrorCode(500);</span>
+<span class="nc" id="L242">					olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L243">					olaServiceBean.setErrorMsg(&quot;Illegal UserName&quot;);</span>
+<span class="nc" id="L244">					return olaServiceBean;</span>
+				}
+<span class="nc bnc" id="L246" title="All 2 branches missed.">				if(CommonValidation.isEmpty(walletName)){</span>
+<span class="nc" id="L247">					logger.info(&quot;IllegalArgument WalletName In Wihtdrawal Request Processing &quot;);</span>
+<span class="nc" id="L248">					olaServiceBean.setErrorCode(500);</span>
+<span class="nc" id="L249">					olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L250">					olaServiceBean.setErrorMsg(&quot;Illegal WalletName&quot;);</span>
+<span class="nc" id="L251">					return olaServiceBean;</span>
+				}
+<span class="nc bnc" id="L253" title="All 2 branches missed.">				if(CommonValidation.isEmpty(requestId)){</span>
+<span class="nc" id="L254">					logger.info(&quot;Illegal Request Id Wihtdrawal Request  &quot;);</span>
+<span class="nc" id="L255">					olaServiceBean.setErrorCode(500);</span>
+<span class="nc" id="L256">					olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L257">					olaServiceBean.setErrorMsg(&quot;Illegal Request Id&quot;);</span>
+<span class="nc" id="L258">					return olaServiceBean;</span>
+				}
+<span class="nc bnc" id="L260" title="All 2 branches missed.">				if(amount&lt;=0){</span>
+					
+<span class="nc" id="L262">					logger.info(&quot;IllegalArgument Withdrawal Amount  In Wihtdrawal Request &quot;);</span>
+<span class="nc" id="L263">					olaServiceBean.setErrorCode(500);</span>
+<span class="nc" id="L264">					olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L265">					olaServiceBean.setErrorMsg(&quot;Invalid Withdrawal Amount&quot;);</span>
+<span class="nc" id="L266">					return olaServiceBean;</span>
+					
+				}
+<span class="nc bnc" id="L269" title="All 2 branches missed.">				if(!CommonValidation.isValidPhoneNumber(phonNbr)){</span>
+<span class="nc" id="L270">					logger.info(&quot;IllegalArgument Phone Number  In Wihtdrawal Request  &quot;);</span>
+<span class="nc" id="L271">					olaServiceBean.setErrorCode(500);</span>
+<span class="nc" id="L272">					olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L273">					olaServiceBean.setErrorMsg(&quot;Invalid Phone Number &quot;);</span>
+<span class="nc" id="L274">					return olaServiceBean;</span>
+				}
+				
+<span class="nc" id="L277">				String	query =&quot;select request_id from st_ola_rummy_withdrawal_rep where request_id=?&quot;;</span>
+<span class="nc" id="L278">				ps = con.prepareStatement(query);</span>
+<span class="nc" id="L279">				ps.setString(1,requestId);</span>
+<span class="nc" id="L280">				rs = ps.executeQuery();</span>
+<span class="nc" id="L281">				logger.info(&quot;Duplicate Req Id Query&quot;+query);</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">				if(rs.next()){</span>
+<span class="nc" id="L283">					olaWithDetailsBean.setSuccess(false);</span>
+<span class="nc" id="L284">					olaWithDetailsBean.setErrorCode(103);</span>
+<span class="nc" id="L285">					olaWithDetailsBean.setErrorMsg(&quot;Duplicate Withdrawal Request&quot;);</span>
+<span class="nc" id="L286">					continue;</span>
+				}
+<span class="nc" id="L288">				boolean isOlaBind =OlaHelper.checkPlrBinding(con,olaWithDetailsBean.getUserName(),olaWithDetailsBean.getWalletName());</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">				if(!isOlaBind){</span>
+<span class="nc" id="L290">					olaWithDetailsBean.setSuccess(false);</span>
+<span class="nc" id="L291">					olaWithDetailsBean.setErrorCode(104);</span>
+<span class="nc" id="L292">					olaWithDetailsBean.setErrorMsg(&quot;Player Not Present In Ola System&quot;);</span>
+<span class="nc" id="L293">					continue;</span>
+				}
+<span class="nc" id="L295">				query = &quot;insert into st_ola_rummy_withdrawal_rep(account_id,user_id,wallet_name,request_id,isBind,request_date,plr_email,plr_phone,plr_banking_name,bank_name,bank_account_nbr,bank_branch_name,bank_branch_city,ifs_code,amount,transfer_mode,approval_date,rms_process_status) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;;</span>
+				
+<span class="nc" id="L297">				ps = con.prepareStatement(query);</span>
+<span class="nc" id="L298">				ps.setString(1,olaWithDetailsBean.getPlrId());</span>
+<span class="nc" id="L299">				ps.setString(2,plrUserName.trim());</span>
+<span class="nc" id="L300">				ps.setString(3,olaWithDetailsBean.getWalletName());</span>
+<span class="nc" id="L301">				ps.setString(4,requestId.trim());</span>
+<span class="nc" id="L302">				ps.setString(5,&quot;YES&quot;);</span>
+<span class="nc" id="L303">				ps.setDate(6,olaWithDetailsBean.getRequestDate() );</span>
+<span class="nc" id="L304">				ps.setString(7,olaWithDetailsBean.getPlrEmail());</span>
+<span class="nc" id="L305">				ps.setString(8,phonNbr.trim());</span>
+<span class="nc" id="L306">				ps.setString(9,&quot;NA&quot;);</span>
+<span class="nc" id="L307">				ps.setString(10,&quot;NA&quot;);</span>
+<span class="nc" id="L308">				ps.setString(11,&quot;NA&quot;);</span>
+<span class="nc" id="L309">				ps.setString(12,&quot;NA&quot;);</span>
+<span class="nc" id="L310">				ps.setString(13,&quot;NA&quot;);</span>
+<span class="nc" id="L311">				ps.setString(14,&quot;NA&quot;);</span>
+<span class="nc" id="L312">				ps.setDouble(15,amount);</span>
+<span class="nc" id="L313">				ps.setString(16,&quot;ONLINE&quot;);</span>
+<span class="nc" id="L314">				ps.setDate(17,olaWithDetailsBean.getApproveDate() );</span>
+<span class="nc" id="L315">				ps.setString(18,&quot;PENDING&quot;);</span>
+<span class="nc" id="L316">				logger.info(&quot;Withdrawal Request Query&quot;+ps);</span>
+<span class="nc" id="L317">				int insertedRow =ps.executeUpdate();</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">				if(insertedRow!=1){</span>
+<span class="nc" id="L319">					olaWithDetailsBean.setSuccess(false);</span>
+<span class="nc" id="L320">					olaWithDetailsBean.setErrorCode(500);</span>
+<span class="nc" id="L321">					olaWithDetailsBean.setErrorMsg(&quot;Internal Server Error While Processing This Withdrawal Request  &quot;);</span>
+<span class="nc" id="L322">					continue;</span>
+				}
+<span class="nc" id="L324">				con.commit();</span>
+<span class="nc" id="L325">				isProcessedFlag=true;</span>
+<span class="nc" id="L326">				olaWithDetailsBean.setSuccess(true);</span>
+<span class="nc" id="L327">				olaWithDetailsBean.setErrorCode(100);</span>
+<span class="nc" id="L328">				olaWithDetailsBean.setErrorMsg(&quot; Withdrawal Request  Processed Successfully&quot;);</span>
+				
+				
+<span class="nc" id="L331">			}</span>
+		
+<span class="nc" id="L333">		}catch (Exception e){</span>
+			
+<span class="nc" id="L335">			e.printStackTrace();</span>
+<span class="nc" id="L336">			logger.info(&quot;Internal Server Error  In Wihtdrawal Request Processing &quot;);</span>
+<span class="nc" id="L337">			olaServiceBean.setErrorCode(500);</span>
+<span class="nc" id="L338">			olaServiceBean.setSuccess(false);</span>
+<span class="nc" id="L339">			olaServiceBean.setErrorMsg(&quot;Internal Server Error  In Wihtdrawal Request Processing &quot;);</span>
+<span class="nc" id="L340">			return olaServiceBean;</span>
+			
+	}finally{
+			
+<span class="nc" id="L344">			try{</span>
+				
+<span class="nc bnc" id="L346" title="All 20 branches missed.">				if(con!=null){</span>
+					
+<span class="nc" id="L348">					con.close();</span>
+				}
+<span class="nc bnc" id="L350" title="All 20 branches missed.">				if(rs!=null){</span>
+					
+<span class="nc" id="L352">					rs.close();</span>
+				}
+<span class="nc bnc" id="L354" title="All 20 branches missed.">				if(ps!=null){</span>
+	
+<span class="nc" id="L356">					ps.close();</span>
+				}
+<span class="nc" id="L358">			}catch(Exception e){</span>
+<span class="nc" id="L359">				e.printStackTrace();</span>
+				
+<span class="nc" id="L361">			}</span>
+			
+<span class="nc" id="L363">		}</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">	if(isProcessedFlag){</span>
+<span class="nc" id="L365">		ExecutorService executorService = Executors.newSingleThreadExecutor();</span>
+
+<span class="nc" id="L367">		executorService.execute(new Runnable() {</span>
+		    public void run() {
+		    	try {
+<span class="nc" id="L370">					OlaRummyWithRequestHelper.processWithRequest();</span>
+<span class="nc" id="L371">				} catch (LMSException e) {</span>
+<span class="nc" id="L372">						e.printStackTrace();</span>
+<span class="nc" id="L373">				}</span>
+<span class="nc" id="L374">		    }</span>
+		});
+		    
+<span class="nc" id="L377">		executorService.shutdown();</span>
+
+	
+	}
+<span class="nc" id="L381">		olaServiceBean.setErrorCode(100);	</span>
+<span class="nc" id="L382">		olaServiceBean.setSuccess(true);</span>
+<span class="nc" id="L383">		olaServiceBean.setErrorMsg(&quot;Withdrawal Request Processed Successfully&quot;);</span>
+<span class="nc" id="L384">		return olaServiceBean;</span>
+		
+}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CommonCamlotHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.camlot.coreEngine.common</a> &gt; <span class="el_source">CommonCamlotHelper.java</span></div><h1>CommonCamlotHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.camlot.coreEngine.common;
+
+import java.math.BigInteger;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.NumberFormat;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.cssl.ctp.il.xsd.infra_v1.EntryMethodType;
+import com.cssl.ctp.il.xsd.infra_v1.PaymentMethodType;
+import com.cssl.ctp.il.xsd.infra_v1.TransactionTypeType;
+import com.skilrock.cs.beans.CamlotAvailBean;
+import com.skilrock.cs.beans.CamlotFaultBean;
+import com.skilrock.cs.beans.CamlotSOAPHeaderBean;
+import com.skilrock.cs.beans.CamlotSaleBean;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.CSSaleBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.common.utility.PropertyLoader;
+import com.skilrock.lms.coreEngine.commercialService.common.CSSaleTransactionsHelper;
+import com.skilrock.lms.coreEngine.commercialService.common.CSUtil;
+import com.skilrock.lms.embedded.drawGames.common.EmbeddedErrors;
+<span class="nc" id="L31">public class CommonCamlotHelper {</span>
+<span class="nc" id="L32">	private static Log logger = LogFactory.getLog(CommonCamlotHelper.class);</span>
+<span class="nc" id="L33">	private boolean saleSuccessFlag = false;</span>
+	private  static String CTPOutletID;
+	private  static String CTPUniqueID;
+	private  static String CTP_CurrCode;
+	private  static String CTP_Locale;
+	static{
+		
+<span class="nc" id="L40">		PropertyLoader.loadProperties(&quot;config/LMS.properties&quot;);		</span>
+		//added by yogesh
+<span class="nc" id="L42">		CTPOutletID = PropertyLoader.getProperty(&quot;CTPOutletID&quot;);</span>
+<span class="nc" id="L43">		CTPUniqueID = PropertyLoader.getProperty(&quot;CTPUniqueID&quot;);</span>
+<span class="nc" id="L44">		CTP_CurrCode=PropertyLoader.getProperty(&quot;CTP_CurrCode&quot;);</span>
+<span class="nc" id="L45">		CTP_Locale =PropertyLoader.getProperty(&quot;CTP_Locale&quot;);</span>
+<span class="nc" id="L46">	}</span>
+	
+	public String camlotSale(String product, String retailerid, String userName, String operatorCode, double denomination, double rechargeAmt, int bulkqty,String mobileNum,long lastTransId) throws Exception{
+<span class="nc" id="L49">		StringBuilder finalResp = new StringBuilder();</span>
+<span class="nc" id="L50">		CamlotSaleBean cbean = new CamlotSaleBean();</span>
+<span class="nc" id="L51">		CamlotAvailBean availBean = new CamlotAvailBean();</span>
+<span class="nc" id="L52">		CamlotSOAPHeaderBean headerBean = new CamlotSOAPHeaderBean();</span>
+<span class="nc" id="L53">		CamlotFaultBean fault = new CamlotFaultBean();</span>
+<span class="nc" id="L54">		cbean.setFault(fault);</span>
+<span class="nc" id="L55">		CSSaleBean csbean = new CSSaleBean();</span>
+<span class="nc" id="L56">		CSSaleTransactionsHelper sale = new CSSaleTransactionsHelper();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">		if(Double.compare(rechargeAmt, 0D) == 0){</span>
+<span class="nc" id="L58">			cbean.setAmount(denomination*bulkqty);  // case of non-flexi</span>
+<span class="nc" id="L59">			cbean.setCategoryId(fetchCategoryId(product,operatorCode,&quot;*&quot;,denomination));</span>
+<span class="nc" id="L60">			csbean.setDenomination(cbean.getAmount());</span>
+		}else{
+<span class="nc" id="L62">			cbean.setAmount(rechargeAmt);   // case of flexi</span>
+<span class="nc" id="L63">			cbean.setCategoryId(fetchCategoryId(product,operatorCode,&quot;*&quot;,0.00));</span>
+<span class="nc" id="L64">			csbean.setDenomination(0.00);</span>
+		}
+<span class="nc bnc" id="L66" title="All 2 branches missed.">		if(cbean.getCategoryId() == 0){</span>
+<span class="nc" id="L67">			finalResp.append(&quot;ErrorMsg:Inavlid Product|&quot;);</span>
+<span class="nc" id="L68">			return finalResp.toString();</span>
+		}
+<span class="nc" id="L70">		System.out.println(&quot;sale Success&quot;);</span>
+		//csbean.setBalance(balance);
+<span class="nc" id="L72">		csbean.setProdCode(product);</span>
+<span class="nc" id="L73">		csbean.setCategoryId(cbean.getCategoryId());</span>
+<span class="nc" id="L74">		csbean.setCircleCode(&quot;*&quot;); //hardcoded untill now</span>
+<span class="nc" id="L75">		csbean.setCSRefTxId(0); //Before sending request to CAMLOT</span>
+		
+<span class="nc" id="L77">		csbean.setMrpAmt((double)cbean.getAmount());</span>
+<span class="nc" id="L78">		csbean.setMult(1);     //hardcoded untill now</span>
+<span class="nc" id="L79">		csbean.setOperatorCode(operatorCode);</span>
+<span class="nc" id="L80">		csbean.setRetOrgId(Integer.parseInt(retailerid));</span>
+<span class="nc" id="L81">		csbean.setUnitPrice(cbean.getAmount());</span>
+<span class="nc" id="L82">		csbean.setUserName(userName);</span>
+		//Check Last Successful Transaction
+
+<span class="nc bnc" id="L85" title="All 2 branches missed.">		if(lastTransId !=0){</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if(!(lastTransId+&quot;&quot;).equalsIgnoreCase(CSUtil.fetchLastCSTransId(csbean.getRetOrgId()))){</span>
+<span class="nc" id="L87">				return &quot;ErrorMsg:Reprint last voucher|ErrorCode:02&quot;;</span>
+			}
+		}
+<span class="nc" id="L90">		csbean = sale.CommServSaleBalDeduction(csbean);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">		if(csbean.getErrorCode() != 100){</span>
+<span class="nc" id="L92">			Class name = EmbeddedErrors.class;</span>
+<span class="nc" id="L93">			finalResp.append(&quot;ErrorMsg:&quot;+(String)name.getDeclaredField(&quot;ERROR_&quot;+csbean.getErrorCode()).get(null)+ &quot;|&quot;);</span>
+<span class="nc" id="L94">			return finalResp.toString(); </span>
+		}else{
+			//cbean.setMobileNum(new BigInteger(mobileNum+&quot;&quot;,10));
+<span class="nc" id="L97">			cbean.setProductId(product.split(&quot;-&quot;)[0]);</span>
+			//headerBean.setCTPOutletID(&quot;101001&quot;);  // hard coded untill now: CTP Outlet Id
+<span class="nc" id="L99">			headerBean.setCTPOutletID(CTPOutletID);</span>
+			//headerBean.setUniqueID(&quot;67b8c439add16df4280faf529963d3927f94a51d&quot;);     // hard coded untill now: Unique Id
+<span class="nc" id="L101">			headerBean.setUniqueID(CTPUniqueID);   </span>
+<span class="nc" id="L102">			headerBean.setRetailerStoreID(retailerid);</span>
+<span class="nc" id="L103">			headerBean.setTransactionType(TransactionTypeType.SALE);</span>
+<span class="nc" id="L104">			headerBean.setPaymentMethod(PaymentMethodType.CASH);</span>
+<span class="nc" id="L105">			headerBean.setEntryMethod(EntryMethodType.MAGNETIC_SWIPE);</span>
+<span class="nc" id="L106">			headerBean.setClientRequestID(csbean.getRMSRefId()+&quot;&quot;);</span>
+<span class="nc" id="L107">			headerBean.setMessageSequenceID(csbean.getRMSRefId()+&quot;&quot;);</span>
+<span class="nc" id="L108">			headerBean.setTimeStamp(&quot;&quot;);  // timestamp need to be set</span>
+			//headerBean.setLocale(&quot;en_TZ&quot;); //hardcoded untill now
+<span class="nc" id="L110">			headerBean.setLocale(CTP_Locale);</span>
+<span class="nc" id="L111">			cbean.setHeader(headerBean);</span>
+<span class="nc" id="L112">			cbean.setMobileNum(mobileNum);</span>
+			//cbean.setCurrCode(&quot;TZS&quot;);
+<span class="nc" id="L114">			cbean.setCurrCode(CTP_CurrCode);</span>
+			//checking availability on each sale
+<span class="nc" id="L116">			availBean.setHeader(headerBean);</span>
+<span class="nc" id="L117">			availBean.setVerbose(true);</span>
+			
+			try{
+				//availBean = new CamlotAvailabilityHelper(availBean).checkServiceAvailabilty();
+				/*checking service availability*/
+				//if(availBean.getFault().getCode().equalsIgnoreCase(&quot;Service Unavailable&quot;) &amp;&amp; availBean.isAvailable()){
+<span class="nc" id="L123">					System.out.println(&quot;Availability Success&quot;);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">					if(Double.compare(csbean.getDenomination(),0.0) != 0){ //voucher type (non-flexible)</span>
+						try{
+<span class="nc" id="L126">							cbean.getHeader().setMessageTypeID(&quot;MobileVoucherTopUp&quot;);</span>
+<span class="nc" id="L127">									new CamlotMobileVTUSaleHelper(cbean).saleMobileVTU();</span>
+<span class="nc" id="L128">						}catch(Exception e){</span>
+<span class="nc" id="L129">							e.printStackTrace();</span>
+<span class="nc" id="L130">						}</span>
+<span class="nc bnc" id="L131" title="All 4 branches missed.">						if(cbean.getFault().getCode().equalsIgnoreCase(&quot;2010&quot;)&amp;&amp; cbean.getFault().getMessage().equalsIgnoreCase(&quot;Mobile voucher top up request successful.&quot;)){</span>
+<span class="nc" id="L132">							CommonCamlotHelper.updatePWTransId(cbean.getHeader().getClientRequestID().toString(), cbean.getHeader().getOriginalTransactionID().toString(), cbean.getCategoryId());</span>
+<span class="nc" id="L133">							CSUtil.updateLastCSTransId(csbean.getRetOrgId(), csbean.getRMSRefId());</span>
+<span class="nc" id="L134">							CSUtil.insertIntoCamlotTansactionLog(csbean.getRMSRefId(), cbean.getHeader().getOriginalTransactionID(),cbean.getProviderTransactionRef() , cbean.getPINNumber().toString(), cbean.getExpiryDate(), cbean.getMobileNum());</span>
+<span class="nc" id="L135">							formatCamlotSaleResponse(csbean, cbean, csbean.getBalance(), finalResp);</span>
+<span class="nc" id="L136">							logger.debug(finalResp.toString());</span>
+<span class="nc" id="L137">							saleSuccessFlag = true;</span>
+<span class="nc" id="L138">							return finalResp.toString();</span>
+							
+						}else{//Response from Camlot Sale is not SUCCESS
+							//send error in cbean that some sale service fault occured while transaction @ camlot
+<span class="nc" id="L142">							String faultmsg = cbean.getFault().getMessage();</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">							if(faultmsg.length()&gt;20){</span>
+<span class="nc" id="L144">								finalResp.append(&quot;ErrorMsg:&quot;+ faultmsg.substring(0, 20) +&quot;|&quot;);</span>
+							}else{
+<span class="nc" id="L146">								finalResp.append(&quot;ErrorMsg:&quot;+ faultmsg +&quot;|&quot;);</span>
+							}
+							
+						}
+						/*}else{// Response from CAMLOT Availability is False
+								//send error in cbean that the service is unavailable
+								finalResp.append(&quot;ErrorMsg:&quot;+ cbean.getFault().getMessage() +&quot;|&quot;);
+						}*/
+<span class="nc bnc" id="L154" title="All 2 branches missed.">						if(!saleSuccessFlag){</span>
+<span class="nc" id="L155">							csbean.setCSRefTxIdForRefund(0);</span>
+<span class="nc" id="L156">							csbean.setRMSRefIdForRefund(csbean.getRMSRefId());</span>
+<span class="nc" id="L157">							csbean.setReasonForCancel(&quot;cancel_server&quot;);</span>
+<span class="nc" id="L158">							csbean = sale.CommServSaleBalDeduction(csbean);</span>
+<span class="nc" id="L159">							System.out.println(&quot;CSErrorCode:&quot;+csbean.getErrorCode());</span>
+						}
+<span class="nc" id="L161">						return finalResp.toString();</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">					}else if(Double.compare(csbean.getDenomination(),0.0) == 0){   // For Electronic Top Up (Flexible)</span>
+						try{
+<span class="nc" id="L164">							cbean.getHeader().setMessageTypeID(&quot;MobileElectronicTopUp&quot;);</span>
+<span class="nc" id="L165">								new CamlotMobileETUSaleHelper(cbean).saleMobileETU();</span>
+<span class="nc" id="L166">						 }catch(Exception e){</span>
+<span class="nc" id="L167">						 	e.printStackTrace();</span>
+<span class="nc" id="L168">						 }</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">						 if(cbean.getFault().getCode().equalsIgnoreCase(&quot;2020&quot;)){</span>
+<span class="nc" id="L170">							 CommonCamlotHelper.updatePWTransId(cbean.getHeader().getClientRequestID().toString(), cbean.getHeader().getOriginalTransactionID().toString(), cbean.getCategoryId());</span>
+<span class="nc" id="L171">							 CSUtil.updateLastCSTransId(csbean.getRetOrgId(), csbean.getRMSRefId());</span>
+<span class="nc" id="L172">							 CSUtil.insertIntoCamlotTansactionLog(csbean.getRMSRefId(), cbean.getHeader().getOriginalTransactionID(),cbean.getProviderTransactionRef() , null, null, cbean.getMobileNum());</span>
+<span class="nc" id="L173">							 finalResp.append(csbean.getRMSRefId()+&quot;%$&quot;);</span>
+<span class="nc" id="L174">							 finalResp.append(csbean.getBalance()+&quot;%$&quot;);</span>
+<span class="nc" id="L175">							finalResp.append(cbean.getHeader().getOriginalTransactionID()+&quot;%$&quot;);</span>
+<span class="nc" id="L176">							finalResp.append((new java.sql.Timestamp(csbean.getTransTime().getTime())).toString().split(&quot;\\.&quot;)[0]+&quot;%$&quot;);</span>
+<span class="nc" id="L177">							finalResp.append(cbean.getMobileNum()+&quot;%$&quot;);</span>
+<span class="nc" id="L178">							finalResp.append(FormatNumber.formatNumber(cbean.getAmount())+&quot;|&quot;);</span>
+							
+<span class="nc" id="L180">							 logger.debug(finalResp.toString());</span>
+<span class="nc" id="L181">							 saleSuccessFlag = true;</span>
+<span class="nc" id="L182">							return finalResp.toString();</span>
+						 }else{
+<span class="nc" id="L184">							 String faultmsg = cbean.getFault().getMessage();</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">								if(faultmsg.length()&gt;20){</span>
+<span class="nc" id="L186">									finalResp.append(&quot;ErrorMsg:&quot;+ faultmsg.substring(0, 20) +&quot;|&quot;);</span>
+								}else{
+<span class="nc" id="L188">									finalResp.append(&quot;ErrorMsg:&quot;+ faultmsg +&quot;|&quot;);</span>
+								}
+						 }
+<span class="nc bnc" id="L191" title="All 2 branches missed.">						 if(!saleSuccessFlag){</span>
+<span class="nc" id="L192">								csbean.setCSRefTxIdForRefund(0);</span>
+<span class="nc" id="L193">								csbean.setRMSRefIdForRefund(csbean.getRMSRefId());</span>
+<span class="nc" id="L194">								csbean.setReasonForCancel(&quot;cancel_server&quot;);</span>
+<span class="nc" id="L195">								csbean = sale.CommServSaleBalDeduction(csbean);</span>
+<span class="nc" id="L196">								System.out.println(&quot;CSErrorCode:&quot;+csbean.getErrorCode());</span>
+							}
+<span class="nc" id="L198">						 return finalResp.toString();</span>
+					}
+<span class="nc" id="L200">			}catch(Exception e){</span>
+<span class="nc" id="L201">				e.printStackTrace();</span>
+<span class="nc" id="L202">				csbean.setCSRefTxIdForRefund(0);</span>
+<span class="nc" id="L203">				csbean.setRMSRefIdForRefund(csbean.getRMSRefId());</span>
+<span class="nc" id="L204">				csbean.setReasonForCancel(&quot;cancel_server&quot;);</span>
+<span class="nc" id="L205">				csbean = sale.CommServSaleRefund(csbean);</span>
+<span class="nc" id="L206">				logger.debug(&quot;CSErrorCode:&quot;+csbean.getErrorCode());</span>
+<span class="nc" id="L207">				String errorMsg = e.getLocalizedMessage();</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">				if(errorMsg.length()&gt;20){</span>
+<span class="nc" id="L209">					finalResp.append(&quot;ErrorMsg:&quot;+e.getLocalizedMessage().substring(0, 20)+ &quot;|&quot;);</span>
+				}else{
+<span class="nc" id="L211">					finalResp.append(&quot;ErrorMsg:&quot;+e.getLocalizedMessage()+ &quot;|&quot;);</span>
+				}
+<span class="nc" id="L213">			}</span>
+<span class="nc" id="L214">			return finalResp.toString();</span>
+		}
+			
+	}
+	
+	public static boolean updatePWTransId(String RMSTxId, String CamlotTxId, int categoryId)throws LMSException{
+<span class="nc" id="L220">		boolean status = false;</span>
+<span class="nc" id="L221">		Connection con = DBConnect.getConnection();</span>
+		try{
+<span class="nc" id="L223">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L224">			String query = &quot;update st_cs_sale_&quot;+categoryId+&quot; set cs_ref_transaction_id='&quot;+CamlotTxId+&quot;' where transaction_id=&quot;+RMSTxId;</span>
+<span class="nc" id="L225">			logger.debug(&quot;update transaction id got from Camlot: &quot;+query);</span>
+<span class="nc" id="L226">			int rows = stmt.executeUpdate(query);</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">			if(rows == 1){</span>
+<span class="nc" id="L228">				status = true;</span>
+			}
+<span class="nc" id="L230">		}catch (SQLException e) {</span>
+<span class="nc" id="L231">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L232">			e.printStackTrace();</span>
+<span class="nc" id="L233">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L235">			try {</span>
+<span class="nc bnc" id="L236" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L237">					con.close();</span>
+				}
+<span class="nc" id="L239">			} catch (SQLException e) {</span>
+<span class="nc" id="L240">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L241">				e.printStackTrace();</span>
+<span class="nc" id="L242">				throw new LMSException(e);</span>
+<span class="nc" id="L243">			}</span>
+		}
+<span class="nc" id="L245">		return status;</span>
+	}
+	
+	private void formatCamlotSaleResponse(CSSaleBean bean, CamlotSaleBean camlotbean, double balance, StringBuilder resp)throws Exception {
+<span class="nc" id="L249">		resp.append(camlotbean.getHeader().getClientRequestID()+&quot;%$&quot;);</span>
+<span class="nc" id="L250">		NumberFormat nFormat = NumberFormat.getInstance();</span>
+<span class="nc" id="L251">		nFormat.setMinimumFractionDigits(2);</span>
+<span class="nc" id="L252">		resp.append(nFormat.format(balance).replaceAll(&quot;,&quot;, &quot;&quot;)+&quot;%$&quot;);</span>
+<span class="nc" id="L253">		resp.append(camlotbean.getHeader().getOriginalTransactionID()+&quot;%$&quot;);</span>
+<span class="nc" id="L254">		resp.append((new java.sql.Timestamp(bean.getTransTime().getTime())).toString().split(&quot;\\.&quot;)[0]+&quot;%$&quot;);</span>
+<span class="nc" id="L255">		resp.append(&quot;&quot;+&quot;%$&quot;);</span>
+<span class="nc" id="L256">		resp.append(camlotbean.getPINNumber()+&quot;%$&quot;);</span>
+<span class="nc" id="L257">		resp.append(camlotbean.getExpiryDate()+&quot;|&quot;);</span>
+		
+		/*Map&lt;String, List&lt;String&gt;&gt; advMap= Util.getAdvMessage(bean.getRetOrgId(),	bean.getCategoryId(), &quot;PLAYER&quot;, &quot;SALE&quot;, &quot;CS&quot;);
+		
+		StringBuilder topMsgsStr = new StringBuilder(&quot;&quot;);
+		StringBuilder bottomMsgsStr = new StringBuilder(&quot;&quot;);
+		String advtMsg = &quot;&quot;;
+
+		UtilApplet.getAdvMsgs(advMap, topMsgsStr,
+				bottomMsgsStr, 10);
+		
+		if (topMsgsStr.length() != 0) {
+			advtMsg = &quot;topAdvMsg:&quot; + topMsgsStr + &quot;|&quot;;
+		}
+
+		if (bottomMsgsStr.length() != 0) {
+			advtMsg = advtMsg + &quot;bottomAdvMsg:&quot; + bottomMsgsStr + &quot;|&quot;;
+		}
+		
+		resp.append(advtMsg+&quot;|&quot;);*/
+		
+<span class="nc" id="L278">	}</span>
+	
+	public int fetchCategoryId(String prodCode, String operatorCode, String circleCode, double denomination){
+<span class="nc" id="L281">		int catId = 0;</span>
+<span class="nc" id="L282">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L283">		PreparedStatement pstmt = null;</span>
+		try{
+<span class="nc" id="L285">				pstmt = con.prepareStatement(&quot;select category_id from st_cs_product_master pm, st_cs_operator_master om where pm.operator_code = om.operator_code and product_code = ? and om.operator_code = ? and circle_code = ? and denomination = ? and pm.status = 'ACTIVE' and om.status = 'ACTIVE'&quot;);</span>
+<span class="nc" id="L286">				pstmt.setString(1, prodCode);</span>
+<span class="nc" id="L287">				pstmt.setString(2, operatorCode);</span>
+<span class="nc" id="L288">				pstmt.setString(3, circleCode);</span>
+<span class="nc" id="L289">				pstmt.setDouble(4, denomination);</span>
+<span class="nc" id="L290">				ResultSet rs =pstmt.executeQuery();</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">				if(rs.next()){</span>
+<span class="nc" id="L292">					catId = rs.getInt(&quot;category_id&quot;);</span>
+				}
+<span class="nc" id="L294">		} catch (SQLException sqe) {</span>
+<span class="nc" id="L295">			sqe.printStackTrace();</span>
+<span class="nc" id="L296">		}</span>
+<span class="nc" id="L297">		return catId;</span>
+	}
+	
+	public String camlotRefund(UserInfoBean userBean){
+<span class="nc" id="L301">		CamlotSaleBean cbean = new CamlotSaleBean();</span>
+<span class="nc" id="L302">		CSSaleBean csbean = new CSSaleBean();</span>
+<span class="nc" id="L303">		String optr_name = null;</span>
+<span class="nc" id="L304">		String circle_name = null;</span>
+		
+<span class="nc" id="L306">		StringBuffer finalResp = new StringBuffer();</span>
+<span class="nc" id="L307">		Connection con = DBConnect.getConnection();</span>
+		try{
+<span class="nc" id="L309">			PreparedStatement pstmt = con.prepareStatement(&quot;select RMS_trans_id, cs_trans_id, Provider_ref_id, pin, expiry_date, mobile_num from st_cs_camlot_transaction_log where RMS_trans_id  = (select CSLastSaleTransId from st_lms_last_sale_transaction where organization_id = ?)&quot;);</span>
+<span class="nc" id="L310">			pstmt.setInt(1, userBean.getUserOrgId());</span>
+<span class="nc" id="L311">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L313">				csbean.setRMSRefId(rs.getInt(&quot;RMS_trans_id&quot;));</span>
+<span class="nc" id="L314">				csbean.setCSRefTxId(Integer.parseInt(rs.getString(&quot;cs_trans_id&quot;)));</span>
+<span class="nc" id="L315">				cbean.setProviderTransactionRef(rs.getString(&quot;Provider_ref_id&quot;));</span>
+<span class="nc bnc" id="L316" title="All 2 branches missed.">				if(&quot;NA&quot;.equalsIgnoreCase(rs.getString(&quot;pin&quot;))){</span>
+<span class="nc" id="L317">					cbean.setPINNumber(new BigInteger(&quot;0&quot;,10));</span>
+				}else{
+<span class="nc" id="L319">					cbean.setPINNumber(new BigInteger(rs.getString(&quot;pin&quot;),10));</span>
+				}
+<span class="nc" id="L321">				cbean.setExpiryDate(rs.getString(&quot;expiry_date&quot;));</span>
+<span class="nc" id="L322">				cbean.setMobileNum(rs.getString(&quot;mobile_num&quot;));</span>
+			}
+<span class="nc" id="L324">			pstmt.close();</span>
+<span class="nc" id="L325">			rs.close();</span>
+<span class="nc" id="L326">			pstmt = con.prepareStatement(&quot;select pcm.category_code,pm.category_id, pm.product_code, om.operator_name, om.operator_code, cm.circle_name, cm.circle_code, pm.denomination, rtm.transaction_date from st_lms_retailer_transaction_master rtm, st_cs_product_master pm, st_cs_product_details pdm, st_cs_operator_master om, st_cs_circle_master cm,st_cs_product_category_master pcm where rtm.transaction_type = 'CS_SALE' and pm.category_id=pcm.category_id and rtm.transaction_id = ? and rtm.game_id = pm.product_id and rtm.game_id = pdm.product_id and om.operator_code = pm.operator_code and cm.circle_code = pm.circle_code&quot;);</span>
+<span class="nc" id="L327">			pstmt.setInt(1, csbean.getRMSRefId());</span>
+<span class="nc" id="L328">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L330">				csbean.setTransTime(rs.getTimestamp(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L331">				csbean.setCategoryId(rs.getInt(&quot;category_id&quot;));</span>
+<span class="nc" id="L332">				csbean.setCategoryCode(rs.getString(&quot;category_code&quot;));</span>
+<span class="nc" id="L333">				csbean.setDenomination(rs.getDouble(&quot;denomination&quot;));</span>
+<span class="nc" id="L334">				csbean.setProdCode(rs.getString(&quot;product_code&quot;));</span>
+<span class="nc" id="L335">				csbean.setOperatorCode(rs.getString(&quot;operator_code&quot;));</span>
+<span class="nc" id="L336">				csbean.setCircleCode(rs.getString(&quot;circle_code&quot;));</span>
+<span class="nc" id="L337">				optr_name = rs.getString(&quot;operator_name&quot;);</span>
+<span class="nc" id="L338">			    circle_name = rs.getString(&quot;circle_name&quot;);</span>
+				
+			}
+<span class="nc" id="L341">			pstmt.close();</span>
+<span class="nc" id="L342">			rs.close();</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">			if(Double.compare(csbean.getDenomination(),0.0) == 0){ //case of flexi</span>
+<span class="nc" id="L344">				pstmt = con.prepareStatement(&quot;select mrp_amt from st_cs_sale_? where transaction_id = ?&quot;);</span>
+<span class="nc" id="L345">				pstmt.setInt(1, csbean.getCategoryId());</span>
+<span class="nc" id="L346">				pstmt.setInt(2, csbean.getRMSRefId());</span>
+<span class="nc" id="L347">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L348" title="All 2 branches missed.">				if(rs.next()){</span>
+<span class="nc" id="L349">					csbean.setMrpAmt(rs.getDouble(&quot;mrp_amt&quot;));</span>
+				}
+			}
+<span class="nc" id="L352">			NumberFormat nFormat = NumberFormat.getInstance();</span>
+<span class="nc" id="L353">			nFormat.setMinimumFractionDigits(2);</span>
+<span class="nc" id="L354">			finalResp.append(nFormat.format(Double.parseDouble(new AjaxRequestHelper().getAvlblCreditAmt(userBean).split(&quot;=&quot;)[3])).replaceAll(&quot;,&quot;, &quot;&quot;)+&quot;%$&quot;);</span>
+<span class="nc" id="L355">			finalResp.append(csbean.getCSRefTxId()+&quot;%$&quot;);</span>
+<span class="nc" id="L356">			finalResp.append(csbean.getRMSRefId()+&quot;%$&quot;);</span>
+<span class="nc" id="L357">			finalResp.append(&quot;%$&quot;);</span>
+<span class="nc bnc" id="L358" title="All 2 branches missed.">			if(Double.compare(csbean.getDenomination(),0.0) == 0){</span>
+<span class="nc" id="L359">				finalResp.append(&quot;%$&quot;);</span>
+			}else{
+<span class="nc" id="L361">				finalResp.append(cbean.getPINNumber()+&quot;%$&quot;);</span>
+			}
+<span class="nc" id="L363">			finalResp.append(csbean.getOperatorCode()+&quot;%$&quot;);</span>
+<span class="nc" id="L364">			finalResp.append(csbean.getCircleCode()+&quot;%$&quot;);</span>
+<span class="nc" id="L365">			finalResp.append(csbean.getCategoryCode()+&quot;%$&quot;);</span>
+<span class="nc" id="L366">			finalResp.append(FormatNumber.formatNumber(csbean.getDenomination())+&quot;%$&quot;);</span>
+<span class="nc" id="L367">			finalResp.append(&quot;%$&quot;);</span>
+<span class="nc" id="L368">			finalResp.append((new java.sql.Timestamp(csbean.getTransTime().getTime())).toString().split(&quot;\\.&quot;)[0]+&quot;%$&quot;);</span>
+<span class="nc" id="L369">			finalResp.append(cbean.getExpiryDate());</span>
+<span class="nc bnc" id="L370" title="All 2 branches missed.">			if(Double.compare(csbean.getDenomination(),0.0) == 0){</span>
+<span class="nc" id="L371">				finalResp.append(&quot;%$&quot;);</span>
+<span class="nc" id="L372">				finalResp.append(cbean.getMobileNum()+&quot;%$&quot;);</span>
+<span class="nc" id="L373">				finalResp.append(FormatNumber.formatNumber(csbean.getMrpAmt()));</span>
+			}
+<span class="nc" id="L375">			finalResp.append(&quot;|&quot;);</span>
+<span class="nc" id="L376">		}catch(Exception sqe){</span>
+<span class="nc" id="L377">			sqe.printStackTrace();</span>
+<span class="nc" id="L378">			finalResp.append(&quot;ErrorMsg:Reprint Error|&quot;);</span>
+<span class="nc" id="L379">		}</span>
+<span class="nc" id="L380">		return finalResp.toString();</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

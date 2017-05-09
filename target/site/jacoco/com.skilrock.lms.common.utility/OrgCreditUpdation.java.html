@@ -1,0 +1,1074 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OrgCreditUpdation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.common.utility</a> &gt; <span class="el_source">OrgCreditUpdation.java</span></div><h1>OrgCreditUpdation.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.common.utility;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+
+import com.skilrock.lms.beans.EmailBean;
+import com.skilrock.lms.beans.HistoryBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.coreEngine.accMgmt.serviceImpl.AgentAutoBlockServiceImpl;
+
+<span class="nc" id="L29">public class OrgCreditUpdation {</span>
+<span class="nc" id="L30">	static Log logger = LogFactory.getLog(OrgCreditUpdation.class);</span>
+
+<span class="nc" id="L32">	private static final String projectName = LMSFilterDispatcher.projectName;</span>
+
+	/*
+	public static synchronized boolean updateOrgSecurityDeposit(int orgId, double securityDeposit, Connection con) {
+
+		boolean isValid = true;
+
+		if(securityDeposit &lt; 0)
+			return false;
+
+		PreparedStatement pstmt = null;
+		try {
+			pstmt = con.prepareStatement(&quot;update st_lms_organization_master set security_deposit=? where organization_id=?;&quot;);
+			pstmt.setDouble(1, securityDeposit);
+			pstmt.setDouble(2, orgId);
+			pstmt.executeUpdate();
+			pstmt.close();
+		} catch (SQLException se) {
+			se.printStackTrace();
+			isValid = false;
+		}
+
+		return isValid;
+	}
+	*/
+
+	/**
+	 * Created by sumit on 15 April 2013
+	 * this function is used for Update balance of any organization and any transaction(Sale,Cash,CHEQUE)
+	 * @param amount
+	 * @param updateType
+	 * @param transactionType
+	 * @param orgId
+	 * @param parentOrgId
+	 * @param orgType
+	 * @param noOfDays
+	 * @param con
+	 * @return
+	 * @throws LMSException 
+	 */
+		public static boolean  updateOrganizationBalWithValidate(double amount,String updateType,String transactionType,
+				int orgId, int parentOrgId, String orgType, int noOfDays,
+				Connection con) throws LMSException {
+<span class="nc" id="L75">			logger.info(&quot;Balance Logger 1: Amount=&quot;+amount+&quot; ,updateType=&quot;+updateType+&quot;,&quot; +</span>
+                    &quot;transactionType=&quot;+transactionType+&quot;,orgId=&quot;+orgId+&quot;,parentOrgId&quot;+parentOrgId+&quot;orgType=&quot;+orgType+&quot;,noOfDays=&quot;+noOfDays);
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">			amount = &quot;DEBIT&quot;.equals(transactionType) ? -1 * amount : amount;</span>
+<span class="nc" id="L79">			PreparedStatement updatePstmt = null;</span>
+<span class="nc" id="L80">			ResultSet rs = null;</span>
+<span class="nc" id="L81">			PreparedStatement pstmt = null;</span>
+			
+<span class="nc" id="L83">			double retMaxBalLimit = 0.0;</span>
+<span class="nc" id="L84">			boolean isValid = false;</span>
+			try {
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">				if (&quot;AGENT&quot;.equals(orgType)) {</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">					if (&quot;CLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L89">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set claimable_bal = (claimable_bal+?)  where organization_id = ?&quot;);
+<span class="nc" id="L91">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L92">						updatePstmt.setInt(2, orgId);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">						if (&quot;CREDIT&quot;.equals(transactionType)) {</span>
+							
+<span class="nc bnc" id="L95" title="All 2 branches missed.">							if(&quot;GHANA&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L96">								isValid=true;</span>
+							}else{
+<span class="nc" id="L98">								pstmt = con</span>
+										.prepareStatement(&quot;select (available_credit-claimable_bal) as availbale_sale_bal from st_lms_organization_master where organization_id=? for update&quot;);
+<span class="nc" id="L100">								pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L101">								logger.info(&quot;Balance Logger 2:pstmt&quot;+pstmt);</span>
+<span class="nc" id="L102">								rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">								if (rs.next()) {</span>
+<span class="nc" id="L104">									logger.info(&quot;Balance Logger 3:availbale_sale_bal&quot;+rs.getDouble(&quot;availbale_sale_bal&quot;));</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">									if (rs.getDouble(&quot;availbale_sale_bal&quot;) &gt;= amount)</span>
+<span class="nc" id="L106">										isValid = true;</span>
+	
+								}
+							}
+						}else
+<span class="nc" id="L111">							isValid = true;</span>
+
+<span class="nc bnc" id="L113" title="All 2 branches missed.">					} else if (&quot;CL&quot;.equals(updateType)) {</span>
+<span class="nc" id="L114">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set available_credit=available_credit+? ,credit_limit=credit_limit+?  where organization_id=?&quot;);
+<span class="nc" id="L116">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L117">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L118">						updatePstmt.setInt(3, orgId);</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">						if (&quot;DEBIT&quot;.equals(transactionType)) {</span>
+<span class="nc" id="L120">							pstmt = con</span>
+									.prepareStatement(&quot;select credit_limit+? cl from st_lms_organization_master where organization_id=? for update&quot;);
+<span class="nc" id="L122">							pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L123">							pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L124">                            logger.info(&quot;Balance Logger 4:pstmt&quot;+pstmt);</span>
+<span class="nc" id="L125">							rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">							if (rs.next()) {</span>
+<span class="nc" id="L127">                                logger.info(&quot;Balance Logger 5:cl&quot;+rs.getDouble(&quot;cl&quot;));</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">								if (rs.getDouble(&quot;cl&quot;) &gt;= 0)</span>
+<span class="nc" id="L129">									isValid = true;</span>
+							}
+						}else
+<span class="nc" id="L132">							isValid = true;</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">					} else if (&quot;XCL&quot;.equals(updateType)) {</span>
+<span class="nc" id="L134">						Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L135">						calendar.add(Calendar.DATE, noOfDays);</span>
+<span class="nc" id="L136">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set extended_credit_limit=extended_credit_limit+?,available_credit=available_credit+?,extends_credit_limit_upto=? where organization_id=?&quot;);
+
+<span class="nc" id="L139">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L140">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L141">						updatePstmt.setTimestamp(3, new Timestamp(calendar.getTimeInMillis()));</span>
+<span class="nc" id="L142">						updatePstmt.setInt(4, orgId);</span>
+<span class="nc" id="L143">						isValid = true;</span>
+
+<span class="nc bnc" id="L145" title="All 2 branches missed.">					} else if (&quot;TRANSACTION&quot;.equals(updateType)) {</span>
+
+<span class="nc bnc" id="L147" title="All 16 branches missed.">						if (transactionType.equals(&quot;SALE&quot;)</span>
+								|| transactionType.equals(&quot;CHQ_BOUNCE&quot;)
+								|| transactionType.equals(&quot;DR_NOTE_CASH&quot;)
+								|| transactionType.equals(&quot;OLA_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE&quot;)
+								|| transactionType.equals(&quot;DRAW_GAME_SALE&quot;)
+								|| transactionType.equals(&quot;CS_SALE&quot;)
+								|| transactionType.equals(&quot;SLE_SALE&quot;)) {
+<span class="nc" id="L155">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt+?, available_credit=available_credit-? where organization_id = ?&quot;);
+<span class="nc" id="L157">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L158">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L159">							updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L160">							isValid = true;</span>
+<span class="nc bnc" id="L161" title="All 22 branches missed.">						} else if (transactionType.equals(&quot;SALE_RET&quot;)</span>
+								|| transactionType.equals(&quot;CASH&quot;)
+								|| transactionType.equals(&quot;CHEQUE&quot;)
+								|| transactionType.equals(&quot;PWT&quot;)
+								|| transactionType.equals(&quot;PWT_AUTO&quot;)
+								|| transactionType.equals(&quot;CASH_CHEQUE&quot;)
+								|| transactionType.equals(&quot;CR_NOTE_CASH&quot;) // added
+								// by
+								// Arun
+								|| transactionType.equals(&quot;BANK_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;OLA_WITHDRAWL&quot;)
+								|| transactionType.equals(&quot;OLA_COMMISSION&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE_RET&quot;)) {
+<span class="nc" id="L174">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt-?, available_credit=available_credit+? where organization_id = ?&quot;);
+<span class="nc" id="L176">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L177">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L178">							updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L179">							isValid = true;</span>
+<span class="nc bnc" id="L180" title="All 8 branches missed.">						}else if (&quot;IW_PWT&quot;.equals(transactionType)</span>
+								|| &quot;IW_CANCEL&quot;.equals(transactionType) || &quot;VS_CANCEL&quot;.equals(transactionType) || &quot;VS_PWT&quot;.equals(transactionType)) {
+<span class="nc" id="L182">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt-?, available_credit=available_credit+? where organization_id = ?&quot;);
+<span class="nc" id="L184">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L185">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L186">							updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L187">							isValid = true;</span>
+<span class="nc bnc" id="L188" title="All 4 branches missed.">						}else if (&quot;IW_SALE&quot;.equals(transactionType) || &quot;VS_SALE&quot;.equals(transactionType)) {</span>
+<span class="nc" id="L189">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt+?, available_credit=available_credit-? where organization_id = ?&quot;);
+<span class="nc" id="L191">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L192">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L193">							updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L194">							pstmt = con</span>
+									.prepareStatement(&quot;select (available_credit-claimable_bal) as availbale_sale_bal from st_lms_organization_master where organization_id=? for update&quot;);
+<span class="nc" id="L196">							pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L197">							logger.info(&quot;Balance Logger 28:pstmt&quot;+pstmt);</span>
+<span class="nc" id="L198">							rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">							if (rs.next()) {</span>
+<span class="nc" id="L200">								logger.info(&quot;Balance Logger 28:availbale_sale_bal&quot;+rs.getDouble(&quot;availbale_sale_bal&quot;));</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">								if (rs.getDouble(&quot;availbale_sale_bal&quot;) &gt;= amount)</span>
+<span class="nc" id="L202">									isValid = true;</span>
+
+							}
+						}
+
+<span class="nc bnc" id="L207" title="All 2 branches missed.">					} else if (&quot;UNCLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L208">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set unclaimable_bal = (unclaimable_bal+?) where organization_id = ?&quot;);
+<span class="nc" id="L210">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L211">						updatePstmt.setInt(2, orgId);</span>
+<span class="nc" id="L212">						isValid = true;</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">					} else if (&quot;ACA_N_CLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L214">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set claimable_bal = (claimable_bal-?), available_credit=(available_credit+?) where organization_id = ?&quot;);
+<span class="nc" id="L216">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L217">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L218">						updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L219">						isValid = true;</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">					} else if (&quot;ACA_N_UNCLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L221">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set unclaimable_bal = (unclaimable_bal-?), available_credit=(available_credit+?) where organization_id = ?&quot;);
+<span class="nc" id="L223">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L224">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L225">						updatePstmt.setInt(3, orgId);</span>
+					}
+<span class="nc bnc" id="L227" title="All 2 branches missed.">					if (isValid){</span>
+<span class="nc bnc" id="L228" title="All 16 branches missed.">						if(transactionType.equals(&quot;SALE&quot;)</span>
+								|| transactionType.equals(&quot;CHQ_BOUNCE&quot;)
+								|| transactionType.equals(&quot;DR_NOTE_CASH&quot;)
+								|| transactionType.equals(&quot;OLA_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE&quot;)
+								|| transactionType.equals(&quot;DRAW_GAME_SALE&quot;)
+								|| transactionType.equals(&quot;CS_SALE&quot;)
+								|| transactionType.equals(&quot;SLE_SALE&quot;)){
+							// in case of 0
+							/*pstmt=con.prepareStatement(&quot;select if(available_credit-claimable_bal-?&gt;0,'ACTIVE','INACTIVE') status,organization_status from st_lms_organization_master where organization_id=?  and organization_status = 'INACTIVE';&quot;);
+							pstmt.setDouble(1, amount);
+							pstmt.setInt(2, orgId);
+							rs=pstmt.executeQuery();
+							if(rs.next()){
+								if(!rs.getString(&quot;status&quot;).equals(rs.getString(&quot;organization_status&quot;))){
+									String comments=&quot;Organization becomes&quot;+rs.getString(&quot;status&quot;)+&quot; because Available Credit change by &quot;+ transactionType+&quot; With amount &quot;+amount;
+									HistoryBean historyBean=new HistoryBean(orgId, &quot;ORGANIZATION_STATUS&quot;, rs.getString(&quot;organization_status&quot;), rs.getString(&quot;status&quot;), 0,comments, &quot;&quot;);
+									CommonMethods.insertUpdateOrganizationHistory(historyBean,con);
+									
+								}
+							}*/
+							
+<span class="nc bnc" id="L250" title="All 30 branches missed.">						}else if(transactionType.equals(&quot;SALE_RET&quot;)</span>
+								|| transactionType.equals(&quot;CASH&quot;)
+								|| transactionType.equals(&quot;CHEQUE&quot;)
+								|| transactionType.equals(&quot;PWT&quot;)
+								|| transactionType.equals(&quot;PWT_AUTO&quot;)
+								|| transactionType.equals(&quot;IW_PWT&quot;)
+								|| transactionType.equals(&quot;CASH_CHEQUE&quot;)
+								|| transactionType.equals(&quot;CR_NOTE_CASH&quot;) // added
+								// by
+								// Arun
+								|| transactionType.equals(&quot;BANK_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;OLA_WITHDRAWL&quot;)
+								|| transactionType.equals(&quot;OLA_COMMISSION&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE_RET&quot;)
+								|| &quot;CL&quot;.equals(updateType)
+								||&quot;XCL&quot;.equals(updateType)
+								||&quot;DEBIT&quot;.equals(transactionType)){
+
+<span class="nc" id="L268">							String countryDeployed = Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;);</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">							if(&quot;NIGERIA&quot;.equals(countryDeployed)) {</span>
+<span class="nc" id="L270">								double amt=amount;</span>
+<span class="nc bnc" id="L271" title="All 12 branches missed.">								if(&quot;CASH&quot;.equalsIgnoreCase(transactionType) || </span>
+										&quot;CHEQUE&quot;.equalsIgnoreCase(transactionType) ||
+										&quot;IW_PWT&quot;.equalsIgnoreCase(transactionType)  || &quot;CASH_CHEQUE&quot;.equalsIgnoreCase(transactionType) 
+										|| &quot;CR_NOTE_CASH&quot;.equalsIgnoreCase(transactionType)  ||  &quot;BANK_DEPOSIT&quot;.equalsIgnoreCase(transactionType)){
+<span class="nc" id="L275">									amt=0.0;</span>
+									
+								}
+								// in case of 0
+								//pstmt=con.prepareStatement(&quot;select if(available_credit-claimable_bal+?&gt;0,'ACTIVE','INACTIVE') status,organization_status from st_lms_organization_master where organization_id=? and organization_status in ('ACTIVE','INACTIVE')&quot;);
+								//pstmt=con.prepareStatement(&quot;SELECT IF((credit_limit-(available_credit-claimable_bal+?))&gt;block_amt,'ACTIVE','INACTIVE') STATUS, organization_status FROM st_lms_organization_master om INNER JOIN st_lms_oranization_limits ol ON om.organization_id=ol.organization_id WHERE om.organization_id=? AND organization_status IN ('ACTIVE','INACTIVE');&quot;);
+								//pstmt=con.prepareStatement(&quot;SELECT available_credit, claimable_bal, credit_limit, block_amt, IF(((available_credit-claimable_bal-credit_limit+?)) &gt; (-block_amt),'ACTIVE','INACTIVE') STATUS, organization_status FROM st_lms_organization_master om INNER JOIN st_lms_oranization_limits ol ON om.organization_id=ol.organization_id WHERE om.organization_id=? AND organization_status ='INACTIVE';&quot;);
+								//Query for current day sales of that agent on the basis of current day sales on/off
+
+<span class="nc" id="L284">								double claimBalance = AgentAutoBlockServiceImpl.getInstance().getCBForPayment(orgId, con);</span>
+<span class="nc" id="L285">								logger.info(&quot;claimble Balance Calculated - &quot;+claimBalance);</span>
+
+<span class="nc" id="L287">								pstmt = con.prepareStatement(&quot;SELECT available_credit, claimable_bal, credit_limit, extended_credit_limit, extends_credit_limit_upto, block_amt, IF(((available_credit-?-?-credit_limit-extended_credit_limit+?)) &gt; (-block_amt),'ACTIVE','INACTIVE') STATUS, organization_status FROM st_lms_organization_master om INNER JOIN st_lms_oranization_limits ol ON om.organization_id=ol.organization_id WHERE om.organization_id=? AND organization_status ='INACTIVE' for update;&quot;);</span>
+<span class="nc" id="L288">								pstmt.setDouble(1, claimBalance);</span>
+<span class="nc" id="L289">								pstmt.setDouble(2, amt);</span>
+<span class="nc" id="L290">								pstmt.setDouble(3, amount);</span>
+<span class="nc" id="L291">								pstmt.setInt(4, orgId);</span>
+<span class="nc" id="L292">								logger.info(&quot;Query - &quot;+pstmt);</span>
+<span class="nc" id="L293">								rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L294" title="All 2 branches missed.">								if(rs.next()) {</span>
+<span class="nc" id="L295">									logger.info(&quot;-- Inside If Condition --&quot;);</span>
+<span class="nc" id="L296">									logger.info(&quot;Organization Id - &quot;+orgId);</span>
+<span class="nc" id="L297">									logger.info(&quot;Amount - &quot;+amount);</span>
+<span class="nc" id="L298">									logger.info(&quot;Available Credit - &quot;+rs.getString(&quot;available_credit&quot;));</span>
+<span class="nc" id="L299">									logger.info(&quot;Claimble Balance - &quot;+rs.getString(&quot;claimable_bal&quot;));</span>
+<span class="nc" id="L300">									logger.info(&quot;Credit Limit - &quot;+rs.getString(&quot;credit_limit&quot;));</span>
+<span class="nc" id="L301">									logger.info(&quot;Extended Credit Limit - &quot;+rs.getString(&quot;extended_credit_limit&quot;));</span>
+<span class="nc" id="L302">									logger.info(&quot;Extended Credit Limit Upto - &quot;+rs.getString(&quot;extends_credit_limit_upto&quot;));</span>
+<span class="nc" id="L303">									logger.info(&quot;Block Amount - &quot;+rs.getString(&quot;block_amt&quot;));</span>
+<span class="nc" id="L304">									logger.info(&quot;Status - &quot;+rs.getString(&quot;status&quot;));</span>
+<span class="nc" id="L305">									logger.info(&quot;Organization Status - &quot;+rs.getString(&quot;organization_status&quot;));</span>
+
+<span class="nc bnc" id="L307" title="All 2 branches missed.">									if(!rs.getString(&quot;status&quot;).equals(rs.getString(&quot;organization_status&quot;))) {</span>
+<span class="nc" id="L308">										logger.info(&quot;-- Status Not Match, Inside If --&quot;);</span>
+<span class="nc" id="L309">										String comments=&quot;Organization becomes&quot;+rs.getString(&quot;status&quot;)+&quot; because Available Credit change by &quot;+ transactionType+&quot; With amount &quot;+amount;</span>
+<span class="nc" id="L310">										HistoryBean historyBean=new HistoryBean(orgId, &quot;ORGANIZATION_STATUS&quot;, rs.getString(&quot;organization_status&quot;), rs.getString(&quot;status&quot;), 0,comments, &quot;&quot;);</span>
+<span class="nc" id="L311">										CommonMethods.insertUpdateOrganizationHistory(historyBean,con);</span>
+<span class="nc" id="L312">									} else</span>
+<span class="nc" id="L313">										logger.info(&quot;-- Status Match, Inside Else --&quot;);</span>
+								} else
+<span class="nc" id="L315">									logger.info(&quot;-- Inside Else Condition --&quot;);</span>
+							}
+						}
+<span class="nc bnc" id="L318" title="All 2 branches missed.">						isValid = updatePstmt.executeUpdate()&gt;0;</span>
+					}
+
+<span class="nc bnc" id="L321" title="All 2 branches missed.">				} else if (&quot;RETAILER&quot;.equals(orgType)) {</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">					if (&quot;CLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L323">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set claimable_bal = (claimable_bal+?)  where organization_id = ?&quot;);
+<span class="nc" id="L325">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L326">						updatePstmt.setInt(2, orgId);</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">						if (&quot;CREDIT&quot;.equals(transactionType)) {</span>
+<span class="nc" id="L328">							pstmt = con</span>
+									.prepareStatement(&quot;select (available_credit-claimable_bal) as availbale_sale_bal from st_lms_organization_master where organization_id=? for update;&quot;);
+<span class="nc" id="L330">							pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L331">                            logger.info(&quot;Balance Logger 6:pstmt&quot;+pstmt);</span>
+<span class="nc" id="L332">							rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">							if (rs.next()) {</span>
+<span class="nc" id="L334">                                logger.info(&quot;Balance Logger 7:availbale_sale_bal&quot;+rs.getDouble(&quot;availbale_sale_bal&quot;));</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">								if (rs.getDouble(&quot;availbale_sale_bal&quot;) &gt;= amount)</span>
+<span class="nc" id="L336">									isValid = true;</span>
+							}
+						}else
+<span class="nc" id="L339">							isValid = true;</span>
+
+<span class="nc bnc" id="L341" title="All 2 branches missed.">					} else if (&quot;CL&quot;.equals(updateType)) {</span>
+<span class="nc" id="L342">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set available_credit=available_credit+? ,credit_limit=credit_limit+?  where organization_id=?&quot;);
+<span class="nc" id="L344">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L345">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L346">						updatePstmt.setInt(3, orgId);</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">						if (&quot;DEBIT&quot;.equals(transactionType)) {</span>
+<span class="nc" id="L348">							pstmt = con</span>
+									.prepareStatement(&quot;select credit_limit+? cl from st_lms_organization_master where organization_id=? for update;&quot;);
+<span class="nc" id="L350">							pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L351">							pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L352">                            logger.info(&quot;Balance Logger 8:pstmt&quot;+pstmt);</span>
+<span class="nc" id="L353">							rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">							if (rs.next()) {</span>
+<span class="nc" id="L355">                                logger.info(&quot;Balance Logger 9:cl&quot;+rs.getDouble(&quot;cl&quot;));</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">								if (rs.getDouble(&quot;cl&quot;) &gt;= 0)</span>
+<span class="nc" id="L357">									isValid = true;</span>
+							}
+						}else
+<span class="nc" id="L360">							isValid = true;</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">					} else if (&quot;XCL&quot;.equals(updateType)) {</span>
+<span class="nc" id="L362">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set extended_credit_limit=extended_credit_limit+?,available_credit=available_credit+?,extends_credit_limit_upto=? where organization_id=?&quot;);
+
+<span class="nc" id="L365">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L366">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L367">						updatePstmt.setTimestamp(3, new Timestamp(System</span>
+								.currentTimeMillis()
+								+ 86400 * 1000 * noOfDays));
+<span class="nc" id="L370">						updatePstmt.setInt(4, orgId);</span>
+<span class="nc" id="L371">						isValid = true;</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">					} else if (&quot;TRANSACTION&quot;.equals(updateType)) {</span>
+
+<span class="nc bnc" id="L374" title="All 16 branches missed.">						if (transactionType.equals(&quot;SALE&quot;)</span>
+								|| transactionType.equals(&quot;CHQ_BOUNCE&quot;)
+								|| transactionType.equals(&quot;DR_NOTE_CASH&quot;)
+								|| transactionType.equals(&quot;OLA_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE&quot;)
+								|| transactionType.equals(&quot;DRAW_GAME_SALE&quot;)
+								|| transactionType.equals(&quot;CS_SALE&quot;)
+								|| transactionType.equals(&quot;SLE_SALE&quot;)) {
+<span class="nc" id="L382">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt+?, available_credit=available_credit-? where organization_id = ?&quot;);
+<span class="nc" id="L384">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L385">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L386">							updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L387">							isValid = true;</span>
+
+<span class="nc bnc" id="L389" title="All 22 branches missed.">						} else if (transactionType.equals(&quot;SALE_RET&quot;)</span>
+								|| transactionType.equals(&quot;CASH&quot;)
+								|| transactionType.equals(&quot;CHEQUE&quot;)
+								|| transactionType.equals(&quot;PWT&quot;)
+								|| transactionType.equals(&quot;PWT_AUTO&quot;)
+								|| transactionType.equals(&quot;CASH_CHEQUE&quot;)
+								|| transactionType.equals(&quot;CR_NOTE_CASH&quot;)
+								|| transactionType.equals(&quot;BANK_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;OLA_WITHDRAWL&quot;)
+								|| transactionType.equals(&quot;OLA_COMMISSION&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE_RET&quot;)) {
+<span class="nc" id="L400">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt-?, available_credit=available_credit+? where organization_id = ?&quot;);
+<span class="nc" id="L402">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L403">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L404">							updatePstmt.setInt(3, orgId);</span>
+							
+<span class="nc bnc" id="L406" title="All 4 branches missed.">							if(&quot;PWT_AUTO&quot;.equals(transactionType) || &quot;GHANA&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L407">								isValid = true;</span>
+							}else{
+
+<span class="nc" id="L410">								pstmt = con</span>
+										.prepareStatement(&quot;select ifnull(slom.available_credit-slom.claimable_bal,0)-ifnull(retbal.bal,0) as totalbal from st_lms_organization_master slom,(select sum(retBal.retBal) as bal from (select if(available_credit-claimable_bal&gt;0,available_credit-claimable_bal,0) as retBal from st_lms_organization_master where parent_id=? ) as retBal) as retbal where slom.organization_id=? for update;&quot;);
+<span class="nc" id="L412">								pstmt.setInt(1, parentOrgId);</span>
+<span class="nc" id="L413">								pstmt.setInt(2, parentOrgId);</span>
+<span class="nc" id="L414">								logger.info(&quot;Bal Query::&quot; + pstmt);</span>
+<span class="nc" id="L415">								rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">								if (rs.next()) {</span>
+<span class="nc" id="L417">									retMaxBalLimit = rs.getDouble(&quot;totalbal&quot;);</span>
+<span class="nc" id="L418">                                    logger.info(&quot;Balance Logger 10:retMaxBalLimit&quot;+retMaxBalLimit);</span>
+								}
+<span class="nc bnc" id="L420" title="All 2 branches missed.">								if (retMaxBalLimit &gt;= amount) {</span>
+<span class="nc" id="L421">									isValid = true;</span>
+									}
+								
+								
+							}
+<span class="nc bnc" id="L426" title="All 4 branches missed.">						}else if (&quot;IW_SALE&quot;.equals(transactionType) || &quot;VS_SALE&quot;.equals(transactionType)) {</span>
+<span class="nc" id="L427">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt+?, available_credit=available_credit-? where organization_id = ?&quot;);
+<span class="nc" id="L429">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L430">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L431">							updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L432">							pstmt = con</span>
+									.prepareStatement(&quot;select (available_credit-claimable_bal) as availbale_sale_bal from st_lms_organization_master where organization_id=? for update;&quot;);
+<span class="nc" id="L434">							pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L435">                            logger.info(&quot;Balance Logger 27:pstmt&quot;+pstmt);</span>
+<span class="nc" id="L436">							rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L437" title="All 2 branches missed.">							if (rs.next()) {</span>
+<span class="nc" id="L438">                                logger.info(&quot;Balance Logger 27:availbale_sale_bal&quot;+rs.getDouble(&quot;availbale_sale_bal&quot;));</span>
+<span class="nc bnc" id="L439" title="All 2 branches missed.">								if (rs.getDouble(&quot;availbale_sale_bal&quot;) &gt;= amount)</span>
+<span class="nc" id="L440">									isValid = true;</span>
+							}
+														
+						}
+<span class="nc bnc" id="L444" title="All 8 branches missed.">						else if (&quot;IW_PWT&quot;.equals(transactionType)</span>
+								|| &quot;IW_CANCEL&quot;.equals(transactionType) || &quot;VS_CANCEL&quot;.equals(transactionType) || &quot;VS_PWT&quot;.equals(transactionType)) {
+<span class="nc" id="L446">							updatePstmt = con</span>
+									.prepareStatement(&quot;update st_lms_organization_master set current_credit_amt =current_credit_amt-?, available_credit=available_credit+? where organization_id = ?&quot;);
+<span class="nc" id="L448">							updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L449">							updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L450">							updatePstmt.setInt(3, orgId);							</span>
+<span class="nc" id="L451">							isValid = true;</span>
+							
+						}
+
+<span class="nc bnc" id="L455" title="All 2 branches missed.">					} else if (&quot;UNCLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L456">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set unclaimable_bal = (unclaimable_bal+?) where organization_id = ?&quot;);
+<span class="nc" id="L458">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L459">						updatePstmt.setInt(2, orgId);</span>
+<span class="nc" id="L460">						isValid = true;</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">					} else if (&quot;ACA_N_CLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L462">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set claimable_bal = (claimable_bal-?), available_credit=(available_credit+?) where organization_id = ?&quot;);
+<span class="nc" id="L464">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L465">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L466">						updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L467">						isValid = true;</span>
+<span class="nc bnc" id="L468" title="All 2 branches missed.">					} else if (&quot;ACA_N_UNCLAIM_BAL&quot;.equalsIgnoreCase(updateType)) {</span>
+<span class="nc" id="L469">						updatePstmt = con</span>
+								.prepareStatement(&quot;update st_lms_organization_master set unclaimable_bal = (unclaimable_bal-?), available_credit=(available_credit+?) where organization_id = ?&quot;);
+<span class="nc" id="L471">						updatePstmt.setDouble(1, amount);</span>
+<span class="nc" id="L472">						updatePstmt.setDouble(2, amount);</span>
+<span class="nc" id="L473">						updatePstmt.setInt(3, orgId);</span>
+<span class="nc" id="L474">						isValid = true;</span>
+					}
+<span class="nc bnc" id="L476" title="All 2 branches missed.">					if (isValid){</span>
+<span class="nc bnc" id="L477" title="All 14 branches missed.">						if(transactionType.equals(&quot;SALE&quot;)</span>
+								|| transactionType.equals(&quot;CHQ_BOUNCE&quot;)
+								|| transactionType.equals(&quot;DR_NOTE_CASH&quot;)
+								|| transactionType.equals(&quot;OLA_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE&quot;)
+								|| transactionType.equals(&quot;DRAW_GAME_SALE&quot;)
+								|| transactionType.equals(&quot;CS_SALE&quot;)){
+							
+							/*pstmt=con.prepareStatement(&quot;select if(available_credit-claimable_bal-?&gt;0,'ACTIVE','INACTIVE') status,organization_status from st_lms_organization_master where organization_id=? and organization_status = 'INACTIVE';&quot;);
+							pstmt.setDouble(1, amount);
+							pstmt.setInt(2, orgId);
+							rs=pstmt.executeQuery();
+							if(rs.next()){
+								if(!rs.getString(&quot;status&quot;).equals(rs.getString(&quot;organization_status&quot;))){
+									String comments=&quot;Organization becomes&quot;+rs.getString(&quot;status&quot;)+&quot; because Available Credit change by &quot;+ transactionType+&quot; With amount &quot;+amount;
+									HistoryBean historyBean=new HistoryBean(orgId, &quot;ORGANIZATION_STATUS&quot;, rs.getString(&quot;organization_status&quot;), rs.getString(&quot;status&quot;), 0,comments, &quot;&quot;);
+									CommonMethods.insertUpdateOrganizationHistory(historyBean,con);
+									
+								}
+							}*/
+														
+<span class="nc bnc" id="L498" title="All 26 branches missed.">						}else if(transactionType.equals(&quot;SALE_RET&quot;)</span>
+								|| transactionType.equals(&quot;CASH&quot;)
+								|| transactionType.equals(&quot;CHEQUE&quot;)
+								|| transactionType.equals(&quot;PWT&quot;)
+								|| transactionType.equals(&quot;PWT_AUTO&quot;)
+								|| transactionType.equals(&quot;CASH_CHEQUE&quot;)
+								|| transactionType.equals(&quot;CR_NOTE_CASH&quot;)
+								|| transactionType.equals(&quot;BANK_DEPOSIT&quot;)
+								|| transactionType.equals(&quot;OLA_WITHDRAWL&quot;)
+								|| transactionType.equals(&quot;OLA_COMMISSION&quot;)
+								|| transactionType.equals(&quot;LOOSE_SALE_RET&quot;)
+								|| &quot;CL&quot;.equals(updateType)
+								||&quot;XCL&quot;.equals(updateType)){
+
+							
+							//pstmt=con.prepareStatement(&quot;select if(available_credit-claimable_bal+?&gt;0,'ACTIVE','INACTIVE') status,organization_status from st_lms_organization_master where organization_id=? and organization_status in ('ACTIVE','INACTIVE')&quot;);
+<span class="nc" id="L514">							pstmt=con.prepareStatement(&quot;select if(available_credit-claimable_bal+?&gt;0,'ACTIVE','INACTIVE') status,organization_status from st_lms_organization_master where organization_id=? and organization_status = 'INACTIVE' for update;&quot;);</span>
+<span class="nc" id="L515">							pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L516">							pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L517">                            logger.info(&quot;Balance Logger 11:pstmt&quot;+pstmt);</span>
+<span class="nc" id="L518">							rs=pstmt.executeQuery();</span>
+<span class="nc bnc" id="L519" title="All 2 branches missed.">							if(rs.next()){</span>
+<span class="nc bnc" id="L520" title="All 2 branches missed.">								if(!rs.getString(&quot;status&quot;).equals(rs.getString(&quot;organization_status&quot;))){</span>
+<span class="nc" id="L521">									String comments=&quot;Organization becomes&quot;+rs.getString(&quot;status&quot;)+&quot; because Available Credit change by &quot;+ transactionType+&quot; With amount &quot;+amount;</span>
+<span class="nc" id="L522">									HistoryBean historyBean=new HistoryBean(orgId, &quot;ORGANIZATION_STATUS&quot;, rs.getString(&quot;organization_status&quot;), rs.getString(&quot;status&quot;), 0,comments, &quot;&quot;);</span>
+<span class="nc" id="L523">									CommonMethods.insertUpdateOrganizationHistory(historyBean,con);</span>
+									
+								}
+							}
+											
+						}
+<span class="nc" id="L529">                        logger.info(&quot;Balance Logger 12:updatePstmt&quot;+updatePstmt);</span>
+<span class="nc bnc" id="L530" title="All 2 branches missed.">						isValid= updatePstmt.executeUpdate()&gt;0;</span>
+					}
+				}
+<span class="nc" id="L533">			} catch (SQLException se) {</span>
+<span class="nc" id="L534">				se.printStackTrace();</span>
+<span class="nc" id="L535">				throw new LMSException();</span>
+				//isValid=false;
+<span class="nc" id="L537">			}</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">			if(!isValid){</span>
+<span class="nc" id="L539">				logger.debug(&quot;AMOUNT_ERROR:  Org Id=&quot;+orgId+&quot; = amount=&quot;+amount +&quot; = updateType=&quot;+updateType+&quot; =transaction Type=&quot;+transactionType+&quot;=Parent Org Id=&quot;+parentOrgId);</span>
+<span class="nc" id="L540">				throw new LMSException();</span>
+			}
+<span class="nc" id="L542">			return isValid;</span>
+
+		}
+		
+		
+	
+	
+	
+	
+	
+	
+	
+	
+	/**
+	 * This Function check for (ACA-ClaimableBal)&lt;=0 and return a Map which
+	 * contain two Entries. 1. Key is &quot;ORG_STATUS&quot; and value, if Balance is
+	 * negative or Zero than status 'INACTIVE' otherwise 'ACTIVE' 2. key is
+	 * 'EMAIL_BEAN' and value contain a Object of EmailBean which contain
+	 * emailMsg and receiver's mail id
+	 * 
+	 * @param orgId
+	 * @param connection
+	 * @param creditLimit
+	 * @return
+	 * @throws SQLException
+	 */
+	public static Map&lt;String, Object&gt; fetchOrgStatusWithMailMsg(int orgId,
+			Connection connection, double availableCredit) throws SQLException {
+
+<span class="nc" id="L571">		String orgStatus = &quot;INACTIVE&quot;;</span>
+<span class="nc" id="L572">		boolean mailSendControlFlag = false;</span>
+<span class="nc" id="L573">		EmailBean emailBean = new EmailBean();</span>
+
+<span class="nc" id="L575">		String emailMsgTxt = &quot;&quot;, email = &quot;&quot;;</span>
+
+<span class="nc" id="L577">		String emailQuery = &quot;select a.email_id,a.first_name,a.last_name,b.organization_status, b.claimable_bal from st_lms_user_contact_details a,st_lms_organization_master b where user_id=(select user_id from st_lms_user_master where organization_id='&quot;</span>
+				+ orgId
+				+ &quot;' and  isrolehead='Y') and b.organization_id=&quot;
+				+ orgId;
+<span class="nc" id="L581">		Statement statement = connection.createStatement();</span>
+<span class="nc" id="L582">		ResultSet set = statement.executeQuery(emailQuery);</span>
+<span class="nc bnc" id="L583" title="All 2 branches missed.">		if (set.next()) {</span>
+<span class="nc" id="L584">			email = set.getString(&quot;email_id&quot;);</span>
+<span class="nc" id="L585">			String firstName = set.getString(&quot;first_name&quot;);</span>
+<span class="nc" id="L586">			String lastName = set.getString(&quot;last_name&quot;);</span>
+<span class="nc" id="L587">			String currentStatus = set.getString(&quot;organization_status&quot;);</span>
+<span class="nc" id="L588">			double claimableBal = set.getDouble(&quot;claimable_bal&quot;);</span>
+<span class="nc" id="L589">			double availableCreditLimit = availableCredit - claimableBal;</span>
+
+<span class="nc bnc" id="L591" title="All 2 branches missed.">			if (availableCreditLimit &lt;= 0) {</span>
+<span class="nc" id="L592">				orgStatus = &quot;INACTIVE&quot;;</span>
+<span class="nc bnc" id="L593" title="All 2 branches missed.">				if (&quot;ACTIVE&quot;.equalsIgnoreCase(currentStatus)) {</span>
+<span class="nc" id="L594">					String msgFor = &quot;Your  account has been temporarily suspended because of insufficient Credit Limit.  \n Your Account Balance is: &quot;</span>
+							+ availableCreditLimit
+							+ &quot; &quot;
+							+ LMSFilterDispatcher.currencySymbol;
+<span class="nc" id="L598">					emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+							+ firstName
+							+ &quot; &quot;
+							+ lastName
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+							+ msgFor
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td align='right'&gt;log on &lt;/td&gt;&lt;td align='left'&gt;&quot;
+							+ LMSFilterDispatcher.webLink + projectName
+							+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L607">					mailSendControlFlag = true;</span>
+<span class="nc" id="L608">				}</span>
+			} else {
+<span class="nc" id="L610">				orgStatus = &quot;ACTIVE&quot;;</span>
+<span class="nc bnc" id="L611" title="All 2 branches missed.">				if (&quot;INACTIVE&quot;.equalsIgnoreCase(currentStatus)) {</span>
+<span class="nc" id="L612">					String msgFor = &quot;Your  account has been Activated. \n Your Account Balance is: &quot;</span>
+							+ availableCreditLimit
+							+ &quot; &quot;
+							+ LMSFilterDispatcher.currencySymbol;
+<span class="nc" id="L616">					emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+							+ firstName
+							+ &quot; &quot;
+							+ lastName
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+							+ msgFor
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td align='right'&gt;log on &lt;/td&gt;&lt;td align='left'&gt;&quot;
+							+ LMSFilterDispatcher.webLink + projectName
+							+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L625">					mailSendControlFlag = true;</span>
+				}
+			}
+		}
+
+<span class="nc" id="L630">		emailBean.setEmailMsg(emailMsgTxt);</span>
+<span class="nc" id="L631">		emailBean.setTo(email);</span>
+<span class="nc" id="L632">		emailBean.setEmailSendControlFlag(mailSendControlFlag);</span>
+
+<span class="nc" id="L634">		Map&lt;String, Object&gt; map = new HashMap&lt;String, Object&gt;();</span>
+<span class="nc" id="L635">		map.put(&quot;ORG_STATUS&quot;, orgStatus);</span>
+<span class="nc" id="L636">		map.put(&quot;EMAIL_BEAN&quot;, emailBean);</span>
+<span class="nc" id="L637">		return map;</span>
+	}
+
+	public synchronized static boolean updateCreditLimitForAgent(int orgId,
+			String transactionType, double amount, Connection connection)
+			throws SQLException, LMSException {
+
+<span class="nc" id="L644">		logger.debug(&quot;Agent ###########&quot; + orgId);</span>
+
+<span class="nc" id="L646">		PreparedStatement orgPstmt = null;</span>
+<span class="nc" id="L647">		PreparedStatement orgUpdatePstmt = null;</span>
+<span class="nc" id="L648">		PreparedStatement orgHistPstmt = null;</span>
+<span class="nc" id="L649">		String emailQuery = null;</span>
+<span class="nc" id="L650">		Statement statement = null;</span>
+<span class="nc" id="L651">		ResultSet set = null;</span>
+<span class="nc" id="L652">		String email = null;</span>
+<span class="nc" id="L653">		String firstName = null;</span>
+<span class="nc" id="L654">		String lastName = null;</span>
+<span class="nc" id="L655">		String currentStatus = null;</span>
+<span class="nc" id="L656">		String comment = null;</span>
+<span class="nc" id="L657">		String reason = null;</span>
+
+<span class="nc" id="L659">		ResultSet resultSet = null;</span>
+
+<span class="nc" id="L661">		String orgQuery = null;</span>
+<span class="nc" id="L662">		String orgUpdateQuery = null;</span>
+<span class="nc" id="L663">		HttpSession session = ServletActionContext.getRequest().getSession(false);</span>
+<span class="nc" id="L664">		int parentUserId = 0;</span>
+<span class="nc bnc" id="L665" title="All 2 branches missed.">		if (session != null) {</span>
+<span class="nc" id="L666">			parentUserId = ((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;))</span>
+					.getUserId();
+		}
+<span class="nc" id="L669">		double currCreditAmt = 0.0;</span>
+<span class="nc" id="L670">		double creditLimit = 0.0;</span>
+<span class="nc" id="L671">		double newCreditAmt = 0.0;</span>
+<span class="nc" id="L672">		double newCreditLimit = 0.0;</span>
+<span class="nc" id="L673">		double clamableBal = 0.0;</span>
+<span class="nc" id="L674">		boolean isOrgAvailable = false;</span>
+<span class="nc" id="L675">		boolean isUpdateDone = false;</span>
+
+<span class="nc" id="L677">		String orgType = null;</span>
+
+<span class="nc" id="L679">		orgQuery = QueryManager.getST1OrgCreditQuery();</span>
+<span class="nc" id="L680">		orgPstmt = connection.prepareStatement(orgQuery);</span>
+
+<span class="nc" id="L682">		orgPstmt.setInt(1, orgId);</span>
+<span class="nc" id="L683">		resultSet = orgPstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L685" title="All 2 branches missed.">		while (resultSet.next()) {</span>
+<span class="nc" id="L686">			isOrgAvailable = true;</span>
+
+<span class="nc" id="L688">			orgType = resultSet.getString(TableConstants.SOM_ORG_TYPE);</span>
+<span class="nc" id="L689">			currCreditAmt = resultSet</span>
+					.getDouble(TableConstants.SOM_CURR_CREDIT_AMT);
+<span class="nc" id="L691">			creditLimit = resultSet</span>
+					.getDouble(TableConstants.SOM_AVAILABLE_CREDIT);
+		}
+
+<span class="nc bnc" id="L695" title="All 2 branches missed.">		if (isOrgAvailable) {</span>
+
+<span class="nc bnc" id="L697" title="All 4 branches missed.">			if (orgType != null &amp;&amp; !orgType.equals(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L698">				throw new LMSException(&quot;Not a Valid Organization Type&quot;);</span>
+			}
+
+<span class="nc bnc" id="L701" title="All 10 branches missed.">			if (transactionType.equals(&quot;SALE&quot;)</span>
+					|| transactionType.equals(&quot;CHQ_BOUNCE&quot;)
+					|| transactionType.equals(&quot;DR_NOTE_CASH&quot;) || transactionType.equals(&quot;OLA_DEPOSIT&quot;) || transactionType.equals(&quot;LOOSE_SALE&quot;)) {
+
+<span class="nc" id="L705">				newCreditAmt = currCreditAmt + amount;</span>
+<span class="nc" id="L706">				newCreditLimit = creditLimit - amount;</span>
+
+<span class="nc bnc" id="L708" title="All 22 branches missed.">			} else if (transactionType.equals(&quot;SALE_RET&quot;)</span>
+					|| transactionType.equals(&quot;CASH&quot;)
+					|| transactionType.equals(&quot;CHEQUE&quot;)
+					|| transactionType.equals(&quot;PWT&quot;)
+					|| transactionType.equals(&quot;PWT_AUTO&quot;)
+					|| transactionType.equals(&quot;CASH_CHEQUE&quot;)
+					|| transactionType.equals(&quot;CR_NOTE_CASH&quot;) // added by Arun
+					|| transactionType.equals(&quot;BANK_DEPOSIT&quot;)
+					|| transactionType.equals(&quot;OLA_WITHDRAWL&quot;)
+					|| transactionType.equals(&quot;OLA_COMMISSION&quot;)
+					|| transactionType.equals(&quot;LOOSE_SALE_RET&quot;)
+			) {
+<span class="nc" id="L720">				newCreditAmt = currCreditAmt - amount;</span>
+<span class="nc" id="L721">				newCreditLimit = creditLimit + amount;</span>
+
+<span class="nc bnc" id="L723" title="All 4 branches missed.">			} else if (transactionType.equals(&quot;DRAW_GAME_SALE&quot;)||transactionType.equals(&quot;CS_SALE&quot;)) {</span>
+<span class="nc" id="L724">				newCreditAmt = currCreditAmt + amount;</span>
+<span class="nc" id="L725">				newCreditLimit = creditLimit - amount;</span>
+			}
+
+<span class="nc" id="L728">			logger.debug(transactionType + &quot; New newCreditLimit: Agent&quot;</span>
+					+ newCreditLimit);
+<span class="nc" id="L730">			logger.debug(transactionType + &quot; New Credit Amt: Agent&quot;</span>
+					+ newCreditAmt);
+<span class="nc" id="L732">			logger.debug(transactionType + &quot; New currCreditAmt: Agent&quot;</span>
+					+ currCreditAmt);
+<span class="nc bnc" id="L734" title="All 2 branches missed.">			logger.debug((newCreditAmt &gt;= newCreditLimit) + &quot;Amt: Agent&quot;</span>
+					+ amount);
+<span class="nc" id="L736">			orgUpdateQuery = QueryManager.getST1OrgCreditUpdateQuery();</span>
+<span class="nc" id="L737">			orgUpdatePstmt = connection.prepareStatement(orgUpdateQuery);</span>
+
+<span class="nc" id="L739">			emailQuery = &quot;select a.email_id,a.first_name,a.last_name,b.organization_status, b.claimable_bal &quot;</span>
+					+ &quot; from st_lms_user_contact_details a,st_lms_organization_master b where a.user_id = (select &quot;
+					+ &quot; user_id from st_lms_user_master where organization_id='&quot;
+					+ orgId
+					+ &quot;'and isrolehead='Y') and b.organization_id=&quot;
+					+ orgId;
+
+<span class="nc" id="L746">			statement = connection.createStatement();</span>
+<span class="nc" id="L747">			set = statement.executeQuery(emailQuery);</span>
+<span class="nc bnc" id="L748" title="All 2 branches missed.">			while (set.next()) {</span>
+<span class="nc" id="L749">				email = set.getString(&quot;email_id&quot;);</span>
+<span class="nc" id="L750">				firstName = set.getString(&quot;first_name&quot;);</span>
+<span class="nc" id="L751">				lastName = set.getString(&quot;last_name&quot;);</span>
+<span class="nc" id="L752">				currentStatus = set.getString(&quot;organization_status&quot;);</span>
+<span class="nc" id="L753">				clamableBal = set.getDouble(&quot;claimable_bal&quot;);</span>
+
+<span class="nc" id="L755">				orgUpdatePstmt.setDouble(1, newCreditAmt);</span>
+<span class="nc bnc" id="L756" title="All 4 branches missed.">				if (newCreditLimit - clamableBal &lt;= 0</span>
+						&amp;&amp; &quot;ACTIVE&quot;.equalsIgnoreCase(currentStatus)) {
+<span class="nc" id="L758">					orgUpdatePstmt.setString(2, &quot;INACTIVE&quot;);</span>
+<span class="nc" id="L759">					comment = &quot;Organization becomes INACTIVE because Available Credit goes Negative by &quot;</span>
+							+ transactionType;
+<span class="nc" id="L761">					reason = &quot;INACTIVE_AUTO_ACT&quot;;</span>
+					/*String query = &quot;insert into st_lms_organization_master_history select '&quot;
+							+ parentUserId
+							+ &quot;',organization_id, addr_line1, addr_line2,division_code,area_code, city, pin_code, security_deposit, credit_limit,'&quot;
+							+ reason
+							+ &quot;', '&quot;
+							+ comment
+							+ &quot;','INACTIVE','&quot;
+							+ new java.sql.Timestamp(new java.util.Date()
+									.getTime())
+							+ &quot;', pwt_scrap, recon_report_type  from st_lms_organization_master where organization_id = &quot;
+							+ orgId;
+					orgHistPstmt = connection.prepareStatement(query);
+					orgHistPstmt.executeUpdate();*/
+<span class="nc" id="L775">					String msgFor = &quot;Your  account has been temporarily suspended because of insufficient Credit Limit. \n Your Account Balance is: &quot;</span>
+							+ (newCreditLimit - clamableBal)
+							+ &quot; &quot;
+							+ LMSFilterDispatcher.currencySymbol;
+<span class="nc" id="L779">					String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+							+ firstName
+							+ &quot; &quot;
+							+ lastName
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+							+ msgFor
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td align='right'&gt;log on &lt;/td&gt;&lt;td align='left'&gt;&quot;
+							+ LMSFilterDispatcher.webLink + projectName
+							+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L788">					MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L789">					mailSend.setDaemon(true);</span>
+<span class="nc" id="L790">					mailSend.start();</span>
+
+					// MailSend.sendMail(email,firstName,lastName,msgFor);
+<span class="nc bnc" id="L793" title="All 4 branches missed.">				} else if (newCreditLimit - clamableBal &lt;= 0</span>
+						&amp;&amp; &quot;INACTIVE&quot;.equalsIgnoreCase(currentStatus)) {
+<span class="nc" id="L795">					orgUpdatePstmt.setString(2, &quot;INACTIVE&quot;);</span>
+<span class="nc" id="L796">					comment = &quot;Organization becomes INACTIVE because Available Credit goes Negative by &quot;</span>
+							+ transactionType;
+<span class="nc" id="L798">					reason = &quot;INACTIVE_AUTO_ACT&quot;;</span>
+			/*		String query = &quot;insert into st_lms_organization_master_history select '&quot;
+							+ parentUserId
+							+ &quot;',organization_id, addr_line1, addr_line2,division_code,area_code, city, pin_code, security_deposit, credit_limit,'&quot;
+							+ reason
+							+ &quot;', '&quot;
+							+ comment
+							+ &quot;','INACTIVE','&quot;
+							+ new java.sql.Timestamp(new java.util.Date()
+									.getTime())
+							+ &quot;', pwt_scrap, recon_report_type  from st_lms_organization_master where organization_id = &quot;
+							+ orgId;
+					orgHistPstmt = connection.prepareStatement(query);
+					orgHistPstmt.executeUpdate();*/
+<span class="nc" id="L812">					String msgFor = &quot;Your  account has been temporarily suspended because of insufficient Credit Limit. \n Your Account Balance is: &quot;</span>
+							+ (newCreditLimit - clamableBal)
+							+ &quot; &quot;
+							+ LMSFilterDispatcher.currencySymbol;
+<span class="nc" id="L816">					String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+							+ firstName
+							+ &quot; &quot;
+							+ lastName
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+							+ msgFor
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td align='right'&gt;log on &lt;/td&gt;&lt;td align='left'&gt;&quot;
+							+ LMSFilterDispatcher.webLink + projectName
+							+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L825">					MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L826">					mailSend.setDaemon(true);</span>
+<span class="nc" id="L827">					mailSend.start();</span>
+
+					// MailSend.sendMail(email,firstName,lastName,msgFor);
+<span class="nc bnc" id="L830" title="All 2 branches missed.">				} else if (!&quot;TERMINATE&quot;.equalsIgnoreCase(currentStatus)) {</span>
+<span class="nc" id="L831">					orgUpdatePstmt.setString(2, &quot;ACTIVE&quot;);</span>
+<span class="nc bnc" id="L832" title="All 2 branches missed.">					if (&quot;INACTIVE&quot;.equalsIgnoreCase(currentStatus)) {</span>
+<span class="nc" id="L833">						comment = &quot;Organization becomes ACTIVE because Available Credit goes Positive by &quot;</span>
+								+ transactionType;
+<span class="nc" id="L835">						reason = &quot;ACTIVE_AUTO_ACT&quot;;</span>
+		/*				String query = &quot;insert into st_lms_organization_master_history select '&quot;
+								+ parentUserId
+								+ &quot;',organization_id, addr_line1, addr_line2,division_code,area_code,city,  pin_code, security_deposit, credit_limit,'&quot;
+								+ reason
+								+ &quot;', '&quot;
+								+ comment
+								+ &quot;','ACTIVE','&quot;
+								+ new java.sql.Timestamp(new java.util.Date()
+										.getTime())
+								+ &quot;', pwt_scrap, recon_report_type  from st_lms_organization_master where organization_id = &quot;
+								+ orgId;
+						orgHistPstmt = connection.prepareStatement(query);
+						orgHistPstmt.executeUpdate();*/
+<span class="nc" id="L849">						String msgFor = &quot;Your  account has been Activated. \n Your Account Balance is: &quot;</span>
+								+ (newCreditLimit - clamableBal)
+								+ &quot; &quot;
+								+ LMSFilterDispatcher.currencySymbol;
+<span class="nc" id="L853">						String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+								+ firstName
+								+ &quot; &quot;
+								+ lastName
+								+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+								+ msgFor
+								+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td align='right'&gt;log on &lt;/td&gt;&lt;td align='left'&gt;&quot;
+								+ LMSFilterDispatcher.webLink + projectName
+								+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L862">						MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L863">						mailSend.setDaemon(true);</span>
+<span class="nc" id="L864">						mailSend.start();</span>
+						// MailSend.sendMail(email,firstName,lastName,msgFor);
+					}
+				}
+<span class="nc bnc" id="L868" title="All 2 branches missed.">				if (&quot;TERMINATE&quot;.equalsIgnoreCase(currentStatus)) {</span>
+<span class="nc" id="L869">					orgUpdatePstmt.setString(2, currentStatus);</span>
+				}
+<span class="nc" id="L871">				orgUpdatePstmt.setDouble(3, newCreditLimit);</span>
+
+<span class="nc" id="L873">				orgUpdatePstmt.setInt(4, orgId);</span>
+<span class="nc" id="L874">				isUpdateDone = orgUpdatePstmt.execute();</span>
+
+			}
+
+		}
+
+<span class="nc" id="L880">		return isUpdateDone;</span>
+	}
+
+	public static boolean updateCreditLimitForRetailer(int orgId,
+			String transactionType, double amount, Connection connection)
+			throws SQLException, LMSException {
+
+<span class="nc" id="L887">		logger.debug(&quot;Retailer  ###########&quot; + orgId);</span>
+<span class="nc" id="L888">		HttpSession session = ServletActionContext.getRequest().getSession(false);</span>
+<span class="nc" id="L889">		PreparedStatement orgPstmt = null;</span>
+<span class="nc" id="L890">		PreparedStatement orgUpdatePstmt = null;</span>
+		//PreparedStatement orgHistPstmt = null;
+
+<span class="nc" id="L893">		ResultSet resultSet = null;</span>
+
+<span class="nc" id="L895">		String orgQuery = null;</span>
+<span class="nc" id="L896">		String orgUpdateQuery = null;</span>
+
+<span class="nc" id="L898">		double currCreditAmt = 0.0;</span>
+<span class="nc" id="L899">		double creditLimit = 0.0;</span>
+<span class="nc" id="L900">		double newCreditAmt = 0.0;</span>
+<span class="nc" id="L901">		double newCreditLimit = 0.0;</span>
+<span class="nc" id="L902">		boolean isOrgAvailable = false;</span>
+<span class="nc" id="L903">		boolean isUpdateDone = false;</span>
+<span class="nc" id="L904">		String currentStatus = null;</span>
+<span class="nc" id="L905">		String comment = null;</span>
+<span class="nc" id="L906">		String reason = null;</span>
+<span class="nc" id="L907">		double clamableBal = 0.0;</span>
+<span class="nc" id="L908">		int parentUserId = 0; // For Update Ledger By Cron Job</span>
+<span class="nc bnc" id="L909" title="All 2 branches missed.">		if (session != null) {</span>
+<span class="nc" id="L910">			parentUserId = ((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;))</span>
+					.getUserId();
+		}
+<span class="nc" id="L913">		String emailQuery = null;</span>
+<span class="nc" id="L914">		Statement statement = null;</span>
+<span class="nc" id="L915">		ResultSet set = null;</span>
+<span class="nc" id="L916">		String email = null;</span>
+<span class="nc" id="L917">		String firstName = null;</span>
+<span class="nc" id="L918">		String lastName = null;</span>
+
+<span class="nc" id="L920">		String orgType = null;</span>
+
+<span class="nc" id="L922">		orgQuery = QueryManager.getST1OrgCreditQuery();</span>
+<span class="nc" id="L923">		orgPstmt = connection.prepareStatement(orgQuery);</span>
+
+<span class="nc" id="L925">		orgPstmt.setInt(1, orgId);</span>
+<span class="nc" id="L926">		resultSet = orgPstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L928" title="All 2 branches missed.">		while (resultSet.next()) {</span>
+<span class="nc" id="L929">			isOrgAvailable = true;</span>
+
+<span class="nc" id="L931">			orgType = resultSet.getString(TableConstants.SOM_ORG_TYPE);</span>
+<span class="nc" id="L932">			currCreditAmt = resultSet</span>
+					.getDouble(TableConstants.SOM_CURR_CREDIT_AMT);
+<span class="nc" id="L934">			creditLimit = resultSet</span>
+					.getDouble(TableConstants.SOM_AVAILABLE_CREDIT);
+		}
+
+<span class="nc bnc" id="L938" title="All 2 branches missed.">		if (isOrgAvailable) {</span>
+
+<span class="nc bnc" id="L940" title="All 4 branches missed.">			if (orgType != null &amp;&amp; !orgType.equals(&quot;RETAILER&quot;)) {</span>
+<span class="nc" id="L941">				throw new LMSException(&quot;Not a Valid Organization Type&quot;);</span>
+			}
+
+<span class="nc bnc" id="L944" title="All 10 branches missed.">			if (transactionType.equals(&quot;SALE&quot;)</span>
+					|| transactionType.equals(&quot;CHQ_BOUNCE&quot;)
+					|| transactionType.equals(&quot;DR_NOTE_CASH&quot;) || transactionType.equals(&quot;OLA_DEPOSIT&quot;)||transactionType.equals(&quot;LOOSE_SALE&quot;)) {
+
+<span class="nc" id="L948">				newCreditAmt = currCreditAmt + amount;</span>
+<span class="nc" id="L949">				newCreditLimit = creditLimit - amount;</span>
+
+<span class="nc bnc" id="L951" title="All 20 branches missed.">			} else if (transactionType.equals(&quot;SALE_RET&quot;)</span>
+					|| transactionType.equals(&quot;CASH&quot;)
+					|| transactionType.equals(&quot;CHEQUE&quot;)
+					|| transactionType.equals(&quot;PWT&quot;)
+					|| transactionType.equals(&quot;PWT_AUTO&quot;)
+					|| transactionType.equals(&quot;CASH_CHEQUE&quot;)
+					|| transactionType.equals(&quot;CR_NOTE_CASH&quot;) || transactionType.equals(&quot;OLA_COMMISSION&quot;) || transactionType.equals(&quot;OLA_WITHDRAWL&quot;)
+					|| transactionType.equals(&quot;LOOSE_SALE_RET&quot;)) {// @amit
+
+<span class="nc" id="L960">				newCreditAmt = currCreditAmt - amount;</span>
+<span class="nc" id="L961">				newCreditLimit = creditLimit + amount;</span>
+
+<span class="nc bnc" id="L963" title="All 4 branches missed.">			} else if (transactionType.equals(&quot;DRAW_GAME_SALE&quot;) || transactionType.equals(&quot;CS_SALE&quot;)) {</span>
+<span class="nc" id="L964">				newCreditAmt = currCreditAmt + amount;</span>
+<span class="nc" id="L965">				newCreditLimit = creditLimit - amount;</span>
+			}
+<span class="nc" id="L967">			logger.debug(&quot;New Credit Amt: RETailer&quot; + newCreditAmt);</span>
+<span class="nc" id="L968">			logger.debug(&quot;New currCreditAmt: RETailer&quot; + currCreditAmt);</span>
+<span class="nc" id="L969">			logger.debug(&quot;Amt: RETailer&quot; + amount);</span>
+<span class="nc" id="L970">			logger.debug(&quot;New Credit Amt: RETailer&quot; + newCreditAmt);</span>
+<span class="nc" id="L971">			orgUpdateQuery = QueryManager.getST1OrgCreditUpdateQuery();</span>
+<span class="nc" id="L972">			orgUpdatePstmt = connection.prepareStatement(orgUpdateQuery);</span>
+<span class="nc" id="L973">			emailQuery = &quot;select a.email_id,a.first_name,a.last_name,b.organization_status, b.claimable_bal from st_lms_user_contact_details a,st_lms_organization_master b where user_id=(select user_id from st_lms_user_master where organization_id='&quot;</span>
+					+ orgId
+					+ &quot;' and  isrolehead='Y') and b.organization_id=&quot;
+					+ orgId;
+<span class="nc" id="L977">			statement = connection.createStatement();</span>
+<span class="nc" id="L978">			set = statement.executeQuery(emailQuery);</span>
+<span class="nc bnc" id="L979" title="All 2 branches missed.">			while (set.next()) {</span>
+<span class="nc" id="L980">				email = set.getString(&quot;email_id&quot;);</span>
+<span class="nc" id="L981">				firstName = set.getString(&quot;first_name&quot;);</span>
+<span class="nc" id="L982">				lastName = set.getString(&quot;last_name&quot;);</span>
+<span class="nc" id="L983">				currentStatus = set.getString(&quot;organization_status&quot;);</span>
+<span class="nc" id="L984">				clamableBal = set.getDouble(&quot;claimable_bal&quot;);</span>
+			}
+
+<span class="nc" id="L987">			orgUpdatePstmt.setDouble(1, newCreditAmt);</span>
+<span class="nc bnc" id="L988" title="All 2 branches missed.">			if (newCreditLimit - clamableBal &lt;= 0) {</span>
+<span class="nc" id="L989">				orgUpdatePstmt.setString(2, &quot;INACTIVE&quot;);</span>
+<span class="nc bnc" id="L990" title="All 2 branches missed.">				if (&quot;ACTIVE&quot;.equalsIgnoreCase(currentStatus)) {</span>
+<span class="nc" id="L991">					comment = &quot;Organization becomes INACTIVE because Available Credit goes Negative by &quot;</span>
+							+ transactionType;
+<span class="nc" id="L993">					reason = &quot;INACTIVE_AUTO_ACT&quot;;</span>
+			/*		String query = &quot;insert into st_lms_organization_master_history select '&quot;
+							+ parentUserId
+							+ &quot;',organization_id, addr_line1, addr_line2,division_code,area_code, city,  pin_code, security_deposit, credit_limit,'&quot;
+							+ reason
+							+ &quot;', '&quot;
+							+ comment
+							+ &quot;','INACTIVE','&quot;
+							+ new java.sql.Timestamp(new java.util.Date()
+									.getTime())
+							+ &quot;', pwt_scrap, recon_report_type  from st_lms_organization_master where organization_id = &quot;
+							+ orgId;
+					orgHistPstmt = connection.prepareStatement(query);
+					orgHistPstmt.executeUpdate();*/
+<span class="nc" id="L1007">					String msgFor = &quot;Your  account has been temporarily suspended because of insufficient Credit Limit.  \n Your Account Balance is: &quot;</span>
+							+ (newCreditLimit - clamableBal)
+							+ &quot; &quot;
+							+ LMSFilterDispatcher.currencySymbol;
+<span class="nc" id="L1011">					String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+							+ firstName
+							+ &quot; &quot;
+							+ lastName
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+							+ msgFor
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td align='right'&gt;log on &lt;/td&gt;&lt;td align='left'&gt;&quot;
+							+ LMSFilterDispatcher.webLink + projectName
+							+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L1020">					MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L1021">					mailSend.setDaemon(true);</span>
+<span class="nc" id="L1022">					mailSend.start();</span>
+<span class="nc" id="L1023">				}</span>
+				// MailSend.sendMail(email,firstName,lastName,msgFor);
+			} else {
+<span class="nc" id="L1026">				orgUpdatePstmt.setString(2, &quot;ACTIVE&quot;);</span>
+<span class="nc bnc" id="L1027" title="All 2 branches missed.">				if (&quot;INACTIVE&quot;.equalsIgnoreCase(currentStatus)) {</span>
+<span class="nc" id="L1028">					comment = &quot;Organization becomes ACTIVE because Available Credit goes Positive by &quot;</span>
+							+ transactionType;
+<span class="nc" id="L1030">					reason = &quot;ACTIVE_AUTO_ACT&quot;;</span>
+					/*String query = &quot;insert into st_lms_organization_master_history select '&quot;
+							+ parentUserId
+							+ &quot;',organization_id, addr_line1, addr_line2,division_code,area_code, city,  pin_code, security_deposit, credit_limit,'&quot;
+							+ reason
+							+ &quot;', '&quot;
+							+ comment
+							+ &quot;','ACTIVE','&quot;
+							+ new java.sql.Timestamp(new java.util.Date()
+									.getTime())
+							+ &quot;', pwt_scrap, recon_report_type  from st_lms_organization_master where organization_id = &quot;
+							+ orgId;
+					orgHistPstmt = connection.prepareStatement(query);
+					orgHistPstmt.executeUpdate();*/
+<span class="nc" id="L1044">					String msgFor = &quot;Your  account has been Activated. \n Your Account Balance is: &quot;</span>
+							+ (newCreditLimit - clamableBal)
+							+ &quot; &quot;
+							+ LMSFilterDispatcher.currencySymbol;
+<span class="nc" id="L1048">					String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+							+ firstName
+							+ &quot; &quot;
+							+ lastName
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+							+ msgFor
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td align='right'&gt;log on &lt;/td&gt;&lt;td align='left'&gt;&quot;
+							+ LMSFilterDispatcher.webLink + projectName
+							+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L1057">					MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L1058">					mailSend.setDaemon(true);</span>
+<span class="nc" id="L1059">					mailSend.start();</span>
+					// MailSend.sendMail(email,firstName,lastName,msgFor);
+					// MailSend.sendMail(email,firstName,lastName,msgFor);
+				}
+			}
+
+<span class="nc" id="L1065">			orgUpdatePstmt.setDouble(3, newCreditLimit);</span>
+<span class="nc" id="L1066">			orgUpdatePstmt.setInt(4, orgId);</span>
+<span class="nc" id="L1067">			isUpdateDone = orgUpdatePstmt.execute();</span>
+
+		}
+
+<span class="nc" id="L1071">		return isUpdateDone;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

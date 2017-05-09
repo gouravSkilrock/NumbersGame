@@ -1,0 +1,1537 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RetailerActivityHistory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.common</a> &gt; <span class="el_source">RetailerActivityHistory.java</span></div><h1>RetailerActivityHistory.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.common;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.DecimalFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.sql.Date;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import javax.servlet.ServletContext;
+
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.quartz.Job;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
+
+import net.sf.json.JSONObject;
+
+import com.google.gson.Gson;
+import com.skilrock.lms.beans.SchedulerDetailsBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.scheduler.SchedulerCommonFuntionsHelper;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L44">public class RetailerActivityHistory implements Job{</span>
+
+<span class="nc" id="L46">	Log logger = LogFactory.getLog(RetailerActivityHistory.class);</span>
+
+	public void execute(JobExecutionContext context)
+			throws JobExecutionException {
+		
+		try{
+<span class="nc" id="L52">			String jobName = context.getJobDetail().getFullName();</span>
+<span class="nc" id="L53">			logger.info(&quot;SimpleJob says: &quot; + jobName + &quot; executing at &quot;</span>
+					+ new java.util.Date());
+			
+<span class="nc" id="L56">			Map&lt;String,SchedulerDetailsBean&gt; scheBeanMap =SchedulerCommonFuntionsHelper.getSchedulerBeanMap( context.getJobDetail().getGroup());</span>
+			
+<span class="nc" id="L58">			SchedulerCommonFuntionsHelper.insertSchedulerGroupHistory(context.getJobDetail().getGroup());</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">			if(scheBeanMap.size()&gt;0){</span>
+				
+<span class="nc bnc" id="L61" title="All 2 branches missed.">				if(scheBeanMap.get(&quot;Retailer_ActivityHistory_Daily_SCHEDULER&quot;).isActive()){</span>
+					
+<span class="nc" id="L63">					String errorMsg = null;</span>
+					try{
+<span class="nc" id="L65">						SchedulerCommonFuntionsHelper.updateSchedulerStart( scheBeanMap.get(&quot;Retailer_ActivityHistory_Daily_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L66">						logger.info(&quot;Post Sale Commission Scheduler Started&quot;);</span>
+<span class="nc" id="L67">						updateRetailerActivityHistoryDetails();</span>
+<span class="nc" id="L68">						SchedulerCommonFuntionsHelper.updateSchedulerEnd( scheBeanMap.get(&quot;Retailer_ActivityHistory_Daily_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L69">					}catch (Exception e) {</span>
+<span class="nc" id="L70">						logger.error(&quot;Exception in Post_Commission_Monthly_SCHEDULER &quot;, e);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">						if(e.getMessage()!=null){</span>
+<span class="nc" id="L72">							errorMsg =e.getMessage();</span>
+						}else{
+							
+<span class="nc" id="L75">							errorMsg=&quot;Error Occurred Msg Is Null &quot;;</span>
+						}
+<span class="nc" id="L77">					}</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">					if(errorMsg!=null){</span>
+<span class="nc" id="L79">						SchedulerCommonFuntionsHelper.updateSchedulerError( scheBeanMap.get(&quot;Retailer_ActivityHistory_Daily_SCHEDULER&quot;).getJobId(), errorMsg);</span>
+					}
+					
+				}
+			}
+			
+<span class="nc" id="L85">		}catch (LMSException e) {</span>
+<span class="nc" id="L86">			logger.error(&quot;LMSException in Weekly Job Scheduler  &quot;, e);</span>
+<span class="nc" id="L87">		}catch (Exception e) {</span>
+<span class="nc" id="L88">			logger.error(&quot;Exception in Weekly Job Scheduler  &quot;, e);</span>
+<span class="nc" id="L89">		}</span>
+<span class="nc" id="L90">	}</span>
+
+	
+	public static void main(String[] args) throws ParseException, LMSException, SQLException{
+		
+		
+	
+	
+		
+<span class="nc" id="L99">		new RetailerActivityHistory().updateRetailerActivityHistoryDetails();</span>
+<span class="nc" id="L100">	}</span>
+	
+	public void updateRetailerActivityHistoryDetails() throws ParseException,
+			LMSException, SQLException {
+<span class="nc" id="L104">		SimpleDateFormat frmt = null;</span>
+<span class="nc" id="L105">		String drawDate = null;</span>
+<span class="nc" id="L106">		Connection con = null;</span>
+		try {
+<span class="nc" id="L108">			con = DBConnect.getConnection();  </span>
+<span class="nc" id="L109">			frmt = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L110">			drawDate = getStartNEndDates(con);</span>
+<span class="nc" id="L111">			Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L112">			Calendar calEnd = Calendar.getInstance();</span>
+<span class="nc" id="L113">			calStart.setTime(frmt.parse(drawDate));</span>
+		//	calEnd.setTime(new java.util.Date());
+<span class="nc" id="L115">			calEnd.add(Calendar.DAY_OF_MONTH, -1);</span>
+<span class="nc" id="L116">			ServletContext servletContext = LMSUtility.sc;</span>
+<span class="nc" id="L117">			String  isGPSActivate =(String)servletContext.getAttribute(&quot;GPS_ACTIVATION&quot;); </span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">			if(isGPSActivate.equalsIgnoreCase(&quot;YES&quot;)){</span>
+<span class="nc" id="L119">				logger.info(&quot;update the city code using lan and lon in offline master table ..... &quot;);</span>
+<span class="nc" id="L120">				updateAddressThroughLatAndLongitude(con);</span>
+			}
+<span class="nc" id="L122">			calEnd.set(Calendar.HOUR_OF_DAY, 0);</span>
+<span class="nc" id="L123">			calEnd.set(Calendar.MINUTE, 0);                                                    </span>
+<span class="nc" id="L124">			calEnd.set(Calendar.SECOND, 0);</span>
+<span class="nc" id="L125">			calEnd.set(Calendar.MILLISECOND, 0);</span>
+<span class="nc" id="L126">			con.setAutoCommit(false);	</span>
+<span class="nc" id="L127">			logger.info(&quot;start updating st_lms_new_ret_activity_history table &quot;);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">			while ((calStart.getTime()).compareTo(calEnd.getTime())&lt;=0) {       </span>
+<span class="nc" id="L129">				Date date = new Date(calStart.getTime().getTime());</span>
+<span class="nc" id="L130">				String date1 = frmt.format(date);</span>
+<span class="nc" id="L131">				updateDailyRetActivity(date1,con);</span>
+<span class="nc" id="L132">				logger	</span>
+						.info(&quot;start updating st_lms_location_wise_history table&quot;);
+		
+<span class="nc" id="L135">				updateLocationWiseHistoryDetails(date,con);</span>
+<span class="nc" id="L136">				logger</span>
+						.info(&quot;start updating st_lms_daily_connectivity_history table... &quot;);
+
+<span class="nc" id="L139">				updateConnectivityHistoryDetails(date,con);</span>
+<span class="nc" id="L140">				logger.info(&quot;start updating st_lms_pos_version_history table&quot;);</span>
+
+<span class="nc" id="L142">				updateVersionHistoryDetails(date,con);</span>
+				
+				//this is for new agent history
+<span class="nc" id="L145">				logger.info(&quot;start updating st_lms_ret_activityHistory_agentwise,st_lms_ret_saleHistory_agentwise table&quot;);</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				if(date.compareTo(calEnd.getTime())==0){</span>
+<span class="nc" id="L147">					logger.info(&quot;cuureDate&quot;);</span>
+<span class="nc" id="L148">					updateRetActivityAgentWise(date, con,true);</span>
+				}else{
+<span class="nc" id="L150">					logger.info(&quot;notcurrdate&quot;);</span>
+<span class="nc" id="L151">					updateRetActivityAgentWise(date, con,false);</span>
+				}
+<span class="nc" id="L153">				calStart.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc" id="L154">			}</span>
+<span class="nc" id="L155">		} catch (SQLException e) {</span>
+<span class="nc" id="L156">			logger.info(&quot;SQL Exception &quot;,e);</span>
+<span class="nc" id="L157">			throw new LMSException(&quot;SQL Exception &quot;+e.getMessage());</span>
+<span class="nc" id="L158">		}catch (Exception e) {</span>
+<span class="nc" id="L159">			logger.info(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L160">			throw new LMSException(&quot;Exception&quot;+e.getMessage());</span>
+		} finally {
+<span class="nc" id="L162">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L163">		}</span>
+<span class="nc" id="L164">	}</span>
+	
+	
+	public static Date getZeroTimeDate(Date fecha) {
+<span class="nc" id="L168">	    Date res = fecha;</span>
+<span class="nc" id="L169">	    Calendar calendar = Calendar.getInstance();</span>
+
+<span class="nc" id="L171">	    calendar.setTime( fecha );</span>
+<span class="nc" id="L172">	    calendar.set(Calendar.HOUR_OF_DAY, 0);</span>
+<span class="nc" id="L173">	    calendar.set(Calendar.MINUTE, 0);</span>
+<span class="nc" id="L174">	    calendar.set(Calendar.SECOND, 0);</span>
+<span class="nc" id="L175">	    calendar.set(Calendar.MILLISECOND, 0);</span>
+
+<span class="nc" id="L177">	    res = new Date(calendar.getTime().getTime());</span>
+
+<span class="nc" id="L179">	    return res;</span>
+	}
+
+	public void updateAddressThroughLatAndLongitude(Connection con)
+			throws SQLException {
+<span class="nc" id="L184">		Statement stmt = null;</span>
+<span class="nc" id="L185">		int organizationId = 0;</span>
+<span class="nc" id="L186">		ResultSet rs = null;</span>
+<span class="nc" id="L187">		String address = null;</span>
+<span class="nc" id="L188">		String cityName = null;</span>
+<span class="nc" id="L189">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L191">			con.setAutoCommit(false);</span>
+<span class="nc" id="L192">			stmt = con.createStatement();</span>
+<span class="nc" id="L193">			rs = stmt</span>
+					.executeQuery(&quot;select organization_id,lat,lon from st_lms_ret_offline_master where lat!='0.000000'&quot;);
+<span class="nc bnc" id="L195" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L196">				organizationId = rs.getInt(&quot;organization_id&quot;);</span>
+<span class="nc" id="L197">				address = convertLatLongToAddress(rs.getString(&quot;lat&quot;), rs</span>
+						.getString(&quot;lon&quot;));
+<span class="nc" id="L199">				cityName = address.split(&quot;,&quot;)[1];</span>
+<span class="nc" id="L200">				System.out.println(&quot;Address : &quot; + address + &quot; City Name : &quot;</span>
+						+ cityName + &quot; of&quot; + &quot; Organization id : &quot;
+						+ organizationId);
+<span class="nc" id="L203">				pstmt = con</span>
+						.prepareStatement(&quot;update st_lms_ret_offline_master rm,st_lms_city_master cm set rm.city_code=cm.city_code where cm.city_name like '&quot;
+								+ cityName.trim() + &quot;%' and organization_id=?&quot;);
+<span class="nc" id="L206">				pstmt.setInt(1, organizationId);</span>
+<span class="nc" id="L207">				pstmt.executeUpdate();</span>
+			}
+<span class="nc" id="L209">			con.commit();</span>
+<span class="nc" id="L210">		} catch (SQLException e) {</span>
+<span class="nc" id="L211">			con.rollback();</span>
+<span class="nc" id="L212">			logger.error(e);</span>
+		} finally {
+<span class="nc" id="L214">			stmt.close();</span>
+<span class="nc" id="L215">			rs.close();</span>
+<span class="nc" id="L216">		}</span>
+<span class="nc" id="L217">	}</span>
+
+	public String convertLatLongToAddress(String latitude, String longitude) {
+<span class="nc" id="L220">		String address = null;</span>
+		try {
+<span class="nc" id="L222">			URL url = new URL(</span>
+					&quot;http://maps.googleapis.com/maps/api/geocode/json?latlng=&quot;
+							+ latitude + &quot;,&quot; + longitude + &quot;&amp;sensor=true&quot;);
+<span class="nc" id="L225">			HttpURLConnection con = (HttpURLConnection) url.openConnection();</span>
+<span class="nc" id="L226">			con.setInstanceFollowRedirects(true);</span>
+<span class="nc" id="L227">			con.setDoOutput(true);</span>
+<span class="nc" id="L228">			System.out</span>
+					.println(&quot;latitude and longitude to address URL : &quot; + url);
+<span class="nc" id="L230">			InputStream is = con.getInputStream();</span>
+<span class="nc" id="L231">			BufferedReader br = new BufferedReader(new InputStreamReader(is));</span>
+<span class="nc" id="L232">			StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L233">			String result = &quot;&quot;;</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">			while ((result = br.readLine()) != null) {</span>
+<span class="nc" id="L235">				sb.append(result);</span>
+			}
+<span class="nc" id="L237">			System.out.println(sb.toString());</span>
+<span class="nc" id="L238">			JSONObject obje = new Gson().fromJson(sb.toString(),</span>
+					JSONObject.class);
+<span class="nc" id="L240">			System.out.println(obje.getString(&quot;status&quot;));</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">			if (((JSONObject) (obje.getJSONArray(&quot;results&quot;).get(0))) != null)</span>
+<span class="nc" id="L242">				address = (String) ((JSONObject) (obje.getJSONArray(&quot;results&quot;)</span>
+						.get(0))).get(&quot;formatted_address&quot;);
+<span class="nc" id="L244">		} catch (Exception e) {</span>
+<span class="nc" id="L245">			logger.error(e);</span>
+<span class="nc" id="L246">		}</span>
+<span class="nc" id="L247">		return address;</span>
+	}
+
+	public String getStartNEndDates(Connection con) throws SQLException {
+<span class="nc" id="L251">		Date startDate = null;</span>
+<span class="nc" id="L252">		StringBuffer sb = new StringBuffer();</span>
+		try {
+<span class="nc" id="L254">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L255">			ResultSet rSet = stmt.executeQuery(&quot;SELECT date FROM st_lms_new_ret_activity_history ORDER BY date DESC LIMIT 1&quot;);</span>
+<span class="nc" id="L256">			SimpleDateFormat sdf = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">			while (rSet.next()) {</span>
+<span class="nc" id="L258">				startDate = rSet.getDate(&quot;date&quot;);</span>
+			}
+<span class="nc" id="L260">			Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L261">			java.util.Date currDate = new java.util.Date(calStart</span>
+					.getTimeInMillis());
+<span class="nc bnc" id="L263" title="All 2 branches missed.">			if (startDate != null) {</span>
+<span class="nc" id="L264">				calStart.setTime(startDate);</span>
+<span class="nc" id="L265">				calStart.add(Calendar.DAY_OF_MONTH, 1);</span>
+			} else {
+<span class="nc" id="L267">				calStart.setTime(currDate);</span>
+<span class="nc" id="L268">				calStart.add(Calendar.DAY_OF_MONTH, -1);</span>
+			}
+<span class="nc" id="L270">			sb.append(sdf.format(calStart.getTimeInMillis()));</span>
+<span class="nc" id="L271">		} catch (Exception e) {</span>
+<span class="nc" id="L272">			e.printStackTrace();</span>
+<span class="nc" id="L273">		}</span>
+
+<span class="nc" id="L275">		logger.info(sb.toString());</span>
+<span class="nc" id="L276">		return sb.toString();</span>
+	}
+
+	public void updateDailyRetActivity(String date,Connection con)
+			throws LMSException, SQLException {
+<span class="nc" id="L281">		String fromDate = date + &quot; 00:00:00&quot;;</span>
+<span class="nc" id="L282">		String toDate = date + &quot; 23:59:59&quot;;</span>
+<span class="nc" id="L283">		Statement stmt = null;</span>
+<span class="nc" id="L284">		ResultSet rs = null;</span>
+<span class="nc" id="L285">		String combinedQnry = null;</span>
+<span class="nc" id="L286">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L287">		ArrayList&lt;Double&gt; totAmt = null;</span>
+<span class="nc" id="L288">		int dgSaleRC = 0, dgPwtRC = 0, slSaleRC=0,slPwtRC=0,iwSaleRC=0, iwPwtRC=0,vsSaleRC=0, vsPwtRC=0, seSaleRC = 0, sePwtRC = 0, olaDepoRC = 0, olaWdrlRC = 0, csSaleRC = 0, loginRC = 0, heartBeatRC = 0, dgRC = 0,slRC=0,iwRC=0,vsRC=0, seRC = 0, olaRC = 0, csRC = 0, totalRC = 0, inActiveRet = 0, terminateRet = 0;</span>
+<span class="nc" id="L289">		int gameNum = 0, catNum = 0;</span>
+<span class="nc" id="L290">		int walletNumber = 0;</span>
+<span class="nc" id="L291">		double dgTotalSale = 0.0, slTotalSale=0.0,iwTotalSale=0.0,vsTotalSale=0.0,dgTotalPwt = 0.0,slTotalPwt=0.0,iwTotalPwt=0.0,vsTotalPwt=0.0, tempRetPwt = 0.0;</span>
+<span class="nc" id="L292">		int totTktCnt = 0,slTotTktCnt=0,iwTotTktCnt=0,vsTotTktCnt=0, totPwtCnt = 0,slTotPwtCnt=0, iwTotPwtCnt=0, vsTotPwtCnt=0;</span>
+<span class="nc" id="L293">		double avgSalePerRet = 0.0,slAvgSalePerRet=0.0,iwAvgSalePerRet=0.0,vsAvgSalePerRet=0.0, csTotalSale = 0.0, olaDepo = 0.0, olaWdrl = 0.0, seTotalSale = 0.0, seTotalPwt = 0.0;</span>
+		try {
+			//con.setAutoCommit(false);
+<span class="nc" id="L296">			String trxDate = &quot;transaction_date&gt;'&quot; + fromDate+ &quot;' and transaction_date&lt;'&quot; + toDate + &quot;'&quot;;</span>
+<span class="nc" id="L297">			logger.info(&quot;inside updating daily ret activity  table  for trxDate&quot;+trxDate+&quot;having connection &quot;+con);</span>
+<span class="nc" id="L298">			List&lt;Integer&gt; gameNumList = Util.getLMSGameNumberList();</span>
+<span class="nc" id="L299">			logger.info(&quot;inside updating daily ret activity  table  gameNumList&quot;+gameNumList);</span>
+<span class="nc" id="L300">			stmt = con.createStatement();</span>
+<span class="nc" id="L301">			List&lt;Integer&gt; catNumList = Util.getCategoryNumberList(con);</span>
+<span class="nc" id="L302">			logger.info(&quot;inside updating daily ret activity  table  catNumList&quot;+catNumList);</span>
+<span class="nc" id="L303">			List&lt;Integer&gt; walletNumList = Util.getWalletNumberList(con);</span>
+<span class="nc" id="L304">			logger.info(&quot;inside updating daily ret activity  table  walletNumList&quot;+walletNumList);</span>
+<span class="nc" id="L305">			String query =&quot;select dgSaleRC,dgPwtRC,slSaleRC,slPwtRC,iwSaleRC,iwPwtRC,vsSaleRC,vsPwtRC,seSaleRC,sePwtRC,olaDepoRC,olaWdrlRC,csSaleRC,loginRC,heartBeatRC,dgRC,slRC,iwRC,vsRC,seRC,olaRC,csRC,totalRC,terRetCount,inActiveRetCount  from ((select count(*) dgSaleRC from st_lms_ret_offline_master where dg_last_sale_time&gt;'&quot;</span>
+				+ fromDate
+				+ &quot;' and dg_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') aa inner join (select count(*) dgPwtRC from st_lms_ret_offline_master where dg_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and dg_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') bb inner join (select count(*) slSaleRC from st_lms_ret_offline_master where sle_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') cc inner join (select count(*) slPwtRC from st_lms_ret_offline_master where sle_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') dd inner join (select count(*) iwSaleRC from st_lms_ret_offline_master where iw_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') it inner join (select count(*) iwPwtRC from st_lms_ret_offline_master where iw_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_pwt_time&lt;'&quot;
+				+ toDate								
+				+ &quot;') iw inner join (select count(*) vsSaleRC from st_lms_ret_offline_master where vs_last_sale_time&gt;'&quot; 
+				+ fromDate
+				+ &quot;' and vs_last_sale_time&lt;'&quot;
+				+ toDate 
+				+ &quot;') vt inner join (select count(*) vsPwtRC from st_lms_ret_offline_master where vs_last_pwt_time&gt;'&quot; +
+				fromDate 
+				+ &quot;' and vs_last_pwt_time&lt;'&quot; 
+				+ toDate +
+				&quot;') vs inner join (select count(*) seSaleRC from st_lms_ret_offline_master where se_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') ee inner join (select count(*) sePwtRC from st_lms_ret_offline_master where se_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') ff inner join (select count(*) olaDepoRC from st_lms_ret_offline_master where ola_last_deposit_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_deposit_time&lt;'&quot;
+				+ toDate
+				+ &quot;') gg inner join (select count(*) olaWdrlRC from st_lms_ret_offline_master where ola_last_withdrawal_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_withdrawal_time&lt;'&quot;
+				+ toDate
+				+ &quot;') hh inner join (select count(*) csSaleRC from st_lms_ret_offline_master where cs_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and cs_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') ii inner join (select count(*) loginRC from st_lms_ret_offline_master where last_login_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and last_login_time&lt;'&quot;
+				+ toDate
+				+ &quot;') jj inner join (select count(*) heartBeatRC from st_lms_ret_offline_master where last_HBT_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and last_HBT_time&lt;'&quot;
+				+ toDate
+				+ &quot;') kk inner join (select count(*) dgRC from st_lms_ret_offline_master where (dg_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and dg_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (dg_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and dg_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;')) ll inner join (select count(*) slRC from st_lms_ret_offline_master where (sle_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (sle_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;'))mm inner join (select count(*) iwRC from st_lms_ret_offline_master where (iw_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (iw_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;'))im inner join (select count(*) vsRC from st_lms_ret_offline_master where (vs_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and vs_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (vs_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and vs_last_pwt_time&lt;'&quot;
+				+toDate
+				+ &quot;'))vm inner join (select count(*) seRC from st_lms_ret_offline_master where (se_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (se_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;')) nn inner join (select count(*) olaRC from st_lms_ret_offline_master where (ola_last_deposit_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_deposit_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or  (ola_last_withdrawal_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_withdrawal_time&lt;'&quot;
+				+ toDate
+				+ &quot;')) oo inner join (select count(*) csRC from st_lms_ret_offline_master where cs_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and cs_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') pp inner join (select count(*) totalRC from st_lms_ret_offline_master where last_HBT_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and last_HBT_time&lt;'&quot;
+				+ toDate
+				+ &quot;') qq inner join (select count(distinct(organization_id)) terRetCount from st_lms_organization_master where organization_type='RETAILER' and organization_status='TERMINATE') rr inner join (select count(distinct(organization_id)) inActiveRetCount from st_lms_organization_master where organization_type='RETAILER' and organization_status='INACTIVE') ss)&quot;;
+<span class="nc" id="L422">			logger.info(&quot;inside updating daily ret activity  table  query1&quot;+query);</span>
+<span class="nc" id="L423">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L425">				dgSaleRC = rs.getInt(&quot;dgSaleRC&quot;);</span>
+<span class="nc" id="L426">				dgPwtRC = rs.getInt(&quot;dgPwtRC&quot;);</span>
+<span class="nc" id="L427">				slSaleRC = rs.getInt(&quot;slSaleRC&quot;);</span>
+<span class="nc" id="L428">				slPwtRC = rs.getInt(&quot;slPwtRC&quot;);</span>
+<span class="nc" id="L429">				iwSaleRC = rs.getInt(&quot;iwSaleRC&quot;);</span>
+<span class="nc" id="L430">				iwPwtRC = rs.getInt(&quot;iwPwtRC&quot;);</span>
+<span class="nc" id="L431">				vsSaleRC = rs.getInt(&quot;vsSaleRC&quot;);</span>
+<span class="nc" id="L432">				vsPwtRC = rs.getInt(&quot;vsPwtRC&quot;);</span>
+<span class="nc" id="L433">				seSaleRC = rs.getInt(&quot;seSaleRC&quot;);</span>
+<span class="nc" id="L434">				sePwtRC = rs.getInt(&quot;sePwtRC&quot;);</span>
+<span class="nc" id="L435">				csSaleRC = rs.getInt(&quot;csSaleRC&quot;);</span>
+<span class="nc" id="L436">				olaDepoRC = rs.getInt(&quot;olaDepoRC&quot;);</span>
+<span class="nc" id="L437">				olaWdrlRC = rs.getInt(&quot;olaWdrlRC&quot;);</span>
+<span class="nc" id="L438">				dgRC = rs.getInt(&quot;dgRC&quot;);</span>
+<span class="nc" id="L439">				slRC = rs.getInt(&quot;slRC&quot;);</span>
+<span class="nc" id="L440">				iwRC = rs.getInt(&quot;iwRC&quot;);</span>
+<span class="nc" id="L441">				vsRC = rs.getInt(&quot;vsRC&quot;);</span>
+<span class="nc" id="L442">				seRC = rs.getInt(&quot;seRC&quot;);</span>
+<span class="nc" id="L443">				csRC = rs.getInt(&quot;csRC&quot;);</span>
+<span class="nc" id="L444">				olaRC = rs.getInt(&quot;olaRC&quot;);</span>
+<span class="nc" id="L445">				totalRC = rs.getInt(&quot;totalRC&quot;);</span>
+<span class="nc" id="L446">				heartBeatRC = rs.getInt(&quot;heartBeatRC&quot;);</span>
+<span class="nc" id="L447">				loginRC = rs.getInt(&quot;loginRC&quot;);</span>
+<span class="nc" id="L448">				terminateRet = rs.getInt(&quot;terRetCount&quot;);</span>
+<span class="nc" id="L449">				inActiveRet = rs.getInt(&quot;inActiveRetCount&quot;);</span>
+			}
+
+			// Draw Game
+<span class="nc" id="L453">			logger.info(&quot;Draw Game Service start : &quot;);</span>
+<span class="nc" id="L454">			combinedQnry = &quot;select ifnull(sum(mrp_amt),0.0) res from st_dg_ret_sale_? rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(mrp_amt),0.0) res  from st_dg_ret_sale_refund_? ref inner join st_lms_retailer_transaction_master tm on ref.transaction_id=tm.transaction_id where transaction_date&gt;'&quot;
+					+ fromDate
+					+ &quot;' and transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(pwt_amt),0.0) res from st_dg_ret_pwt_? pwt inner join st_lms_retailer_transaction_master tm on pwt.transaction_id=tm.transaction_id where transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and transaction_date&lt;'&quot; + toDate + &quot;'&quot;;
+
+<span class="nc bnc" id="L465" title="All 2 branches missed.">			for (int i = 0; i &lt; gameNumList.size(); i++) {</span>
+<span class="nc" id="L466">				gameNum = gameNumList.get(i);</span>
+<span class="nc" id="L467">				totAmt = new ArrayList&lt;Double&gt;();</span>
+<span class="nc" id="L468">				pstmt = con.prepareStatement(combinedQnry);</span>
+<span class="nc" id="L469">				pstmt.setInt(1, gameNum);</span>
+<span class="nc" id="L470">				pstmt.setInt(2, gameNum);</span>
+<span class="nc" id="L471">				pstmt.setInt(3, gameNum);</span>
+<span class="nc" id="L472">				rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L474" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L475">					totAmt.add(rs.getDouble(&quot;res&quot;));</span>
+				}
+<span class="nc" id="L477">				dgTotalSale += (totAmt.get(0) - totAmt.get(1));</span>
+<span class="nc" id="L478">				tempRetPwt += totAmt.get(2);</span>
+			}
+			// direct player pwt
+<span class="nc" id="L481">			String dirPlrQry = &quot;select if(a.pwt_amt is null ,0,a.pwt_amt)+if(b.pwt_amt is null ,0,b.pwt_amt) dirPwt from (select sum(pwt_amt) pwt_amt from st_dg_bo_direct_plr_pwt where transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;') a,(select sum(pwt_amt) pwt_amt from st_dg_agt_direct_plr_pwt where transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and transaction_date&lt;'&quot; + toDate + &quot;') b&quot;;
+<span class="nc" id="L487">			double dirPlrPwt = 0.0;</span>
+<span class="nc" id="L488">			pstmt = con.prepareStatement(dirPlrQry);</span>
+<span class="nc" id="L489">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L490" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L491">				dirPlrPwt = rs.getInt(&quot;dirPwt&quot;);</span>
+			}
+
+<span class="nc" id="L494">			dgTotalPwt = tempRetPwt + dirPlrPwt;</span>
+
+			// total ticket sold
+<span class="nc" id="L497">			pstmt = con</span>
+					.prepareStatement(&quot;select (sale.saleCnt - ref.refCnt) as netSaleCnt from &quot;
+							+ &quot;(select ifnull(count(*),0) saleCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and &quot;
+							+ &quot;(transaction_type ='DG_SALE' or transaction_type='DG_SALE_OFFLINE') )sale,&quot;
+							+ &quot;(select ifnull(count(*),0)refCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and (transaction_type ='DG_REFUND_CANCEL' or transaction_type='DG_REFUND_FAILED'))ref&quot;);
+
+<span class="nc" id="L507">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L508" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L509">				totTktCnt = rs.getInt(&quot;netSaleCnt&quot;);</span>
+			}
+
+			// total PWT count
+<span class="nc" id="L513">			pstmt = con</span>
+					.prepareStatement(&quot;select (ret.retPwt+agt.agtPwt+bo.boPwt) as pwtCnt from &quot;
+							+ &quot;((select ifnull(count(*),0) retPwt  from  st_lms_retailer_transaction_master where &quot;
+							+ trxDate
+							+ &quot; and  &quot;
+							+ &quot;transaction_type='DG_PWT'))ret,(select ifnull(count(*),0) agtPwt from st_dg_agt_direct_plr_pwt where &quot;
+							+ trxDate
+							+ &quot;)agt,(select ifnull(count(*),0) boPwt from st_dg_bo_direct_plr_pwt where &quot;
+							+ trxDate + &quot; )bo&quot;);
+<span class="nc" id="L522">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L523" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L524">				totPwtCnt = rs.getInt(&quot;pwtCnt&quot;);</span>
+			}
+
+			// calculating avgSalePerRet
+<span class="nc bnc" id="L528" title="All 4 branches missed.">			if (dgTotalSale != 0.0 &amp;&amp; dgSaleRC != 0)</span>
+<span class="nc" id="L529">				avgSalePerRet = dgTotalSale / dgSaleRC;</span>
+			
+			//Sports Lottery
+<span class="nc" id="L532">			logger.info(&quot;Sports Lottery Service start : &quot;);</span>
+<span class="nc" id="L533">			combinedQnry = &quot;select ifnull(sum(mrp_amt),0.0) res from st_sle_ret_sale rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and tm.transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(mrp_amt),0.0) res  from st_sle_ret_sale_refund ref inner join st_lms_retailer_transaction_master tm on ref.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;
+					+ fromDate
+					+ &quot;' and tm.transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(pwt_amt),0.0) res from st_sle_ret_pwt pwt inner join st_lms_retailer_transaction_master tm on pwt.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and tm.transaction_date&lt;'&quot; + toDate + &quot;'&quot;;
+			
+<span class="nc" id="L544">            pstmt=con.prepareStatement(combinedQnry);</span>
+<span class="nc" id="L545">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L546">           totAmt=new ArrayList&lt;Double&gt;();</span>
+<span class="nc bnc" id="L547" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L548">				totAmt.add(rs.getDouble(&quot;res&quot;));</span>
+			}
+<span class="nc" id="L550">			slTotalSale += (totAmt.get(0) - totAmt.get(1));</span>
+<span class="nc" id="L551">			tempRetPwt = 0.0 ;</span>
+<span class="nc" id="L552">			tempRetPwt += totAmt.get(2);</span>
+
+			// direct player pwt
+<span class="nc" id="L555">			 dirPlrQry = &quot;select if(a.pwt_amt is null ,0,a.pwt_amt)+if(b.pwt_amt is null ,0,b.pwt_amt) dirPwt from (select sum(pwt_amt) pwt_amt from st_sle_bo_direct_plr_pwt where transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;') a,(select sum(pwt_amt) pwt_amt from st_sle_agent_direct_plr_pwt where transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and transaction_date&lt;'&quot; + toDate + &quot;') b&quot;;
+<span class="nc" id="L561">			 dirPlrPwt = 0.0;</span>
+<span class="nc" id="L562">			pstmt = con.prepareStatement(dirPlrQry);</span>
+<span class="nc" id="L563">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L564" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L565">				dirPlrPwt = rs.getInt(&quot;dirPwt&quot;);</span>
+			}
+
+<span class="nc" id="L568">			slTotalPwt = tempRetPwt + dirPlrPwt;</span>
+
+			// total ticket sold
+<span class="nc" id="L571">			pstmt = con</span>
+					.prepareStatement(&quot;select (sale.saleCnt - ref.refCnt) as netSaleCnt from &quot;
+							+ &quot;(select ifnull(count(*),0) saleCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and &quot;
+							+ &quot;(transaction_type ='SLE_SALE') )sale,&quot;
+							+ &quot;(select ifnull(count(*),0)refCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and (transaction_type ='SLE_REFUND_CANCEL'))ref&quot;);
+
+<span class="nc" id="L581">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L582" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L583">				slTotTktCnt = rs.getInt(&quot;netSaleCnt&quot;);</span>
+			}
+
+			// total PWT count
+<span class="nc" id="L587">			pstmt = con</span>
+					.prepareStatement(&quot;select (ret.retPwt+agt.agtPwt+bo.boPwt) as pwtCnt from &quot;
+							+ &quot;((select ifnull(count(*),0) retPwt  from  st_lms_retailer_transaction_master where &quot;
+							+ trxDate
+							+ &quot; and  &quot;
+							+ &quot;transaction_type='SLE_PWT'))ret,(select ifnull(count(*),0) agtPwt from st_sle_agent_direct_plr_pwt where &quot;
+							+ trxDate
+							+ &quot;)agt,(select ifnull(count(*),0) boPwt from st_sle_bo_direct_plr_pwt where &quot;
+							+ trxDate + &quot; )bo&quot;);
+<span class="nc" id="L596">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L597" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L598">				slTotPwtCnt = rs.getInt(&quot;pwtCnt&quot;);</span>
+			}
+
+			// calculating avgSalePerRet
+<span class="nc bnc" id="L602" title="All 4 branches missed.">			if (slTotalSale != 0.0 &amp;&amp; slSaleRC != 0)</span>
+<span class="nc" id="L603">				slAvgSalePerRet = slTotalSale / slSaleRC;</span>
+	
+			
+			// Instant Win Service Start
+<span class="nc" id="L607">			logger.info(&quot;Instant Win Service start : &quot;);</span>
+<span class="nc" id="L608">			combinedQnry = &quot;select ifnull(sum(mrp_amt),0.0) res from st_iw_ret_sale rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and tm.transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(mrp_amt),0.0) res  from st_iw_ret_sale_refund ref inner join st_lms_retailer_transaction_master tm on ref.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;
+					+ fromDate
+					+ &quot;' and tm.transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(pwt_amt),0.0) res from st_iw_ret_pwt pwt inner join st_lms_retailer_transaction_master tm on pwt.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and tm.transaction_date&lt;'&quot; + toDate + &quot;'&quot;;
+			
+<span class="nc" id="L619">            pstmt=con.prepareStatement(combinedQnry);</span>
+<span class="nc" id="L620">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L621">           totAmt=new ArrayList&lt;Double&gt;();</span>
+<span class="nc bnc" id="L622" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L623">				totAmt.add(rs.getDouble(&quot;res&quot;));</span>
+			}
+<span class="nc" id="L625">			iwTotalSale += (totAmt.get(0) - totAmt.get(1));</span>
+<span class="nc" id="L626">			tempRetPwt = 0.0 ;</span>
+<span class="nc" id="L627">			tempRetPwt += totAmt.get(2);</span>
+
+			// direct player pwt
+<span class="nc" id="L630">			 dirPlrQry = &quot;select if(a.pwt_amt is null ,0,a.pwt_amt)+if(b.pwt_amt is null ,0,b.pwt_amt) dirPwt from (select sum(pwt_amt) pwt_amt from st_iw_bo_direct_plr_pwt where transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;') a,(select sum(pwt_amt) pwt_amt from st_iw_agent_direct_plr_pwt where transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and transaction_date&lt;'&quot; + toDate + &quot;') b&quot;;
+<span class="nc" id="L636">			 dirPlrPwt = 0.0;</span>
+<span class="nc" id="L637">			pstmt = con.prepareStatement(dirPlrQry);</span>
+<span class="nc" id="L638">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L639" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L640">				dirPlrPwt = rs.getInt(&quot;dirPwt&quot;);</span>
+			}
+
+<span class="nc" id="L643">			iwTotalPwt = tempRetPwt + dirPlrPwt;</span>
+
+			// total ticket sold
+<span class="nc" id="L646">			pstmt = con</span>
+					.prepareStatement(&quot;select (sale.saleCnt - ref.refCnt) as netSaleCnt from &quot;
+							+ &quot;(select ifnull(count(*),0) saleCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and &quot;
+							+ &quot;(transaction_type ='IW_SALE') )sale,&quot;
+							+ &quot;(select ifnull(count(*),0)refCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and (transaction_type ='IW_REFUND_CANCEL'))ref&quot;);
+
+<span class="nc" id="L656">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L657" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L658">				iwTotTktCnt = rs.getInt(&quot;netSaleCnt&quot;);</span>
+			}
+
+			// total PWT count
+<span class="nc" id="L662">			pstmt = con</span>
+					.prepareStatement(&quot;select (ret.retPwt+agt.agtPwt+bo.boPwt) as pwtCnt from &quot;
+							+ &quot;((select ifnull(count(*),0) retPwt  from  st_lms_retailer_transaction_master where &quot;
+							+ trxDate
+							+ &quot; and  &quot;
+							+ &quot;transaction_type='IW_PWT'))ret,(select ifnull(count(*),0) agtPwt from st_iw_agent_direct_plr_pwt where &quot;
+							+ trxDate
+							+ &quot;)agt,(select ifnull(count(*),0) boPwt from st_iw_bo_direct_plr_pwt where &quot;
+							+ trxDate + &quot; )bo&quot;);
+<span class="nc" id="L671">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L672" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L673">				iwTotPwtCnt = rs.getInt(&quot;pwtCnt&quot;);</span>
+			}
+
+			// calculating avgSalePerRet
+<span class="nc bnc" id="L677" title="All 4 branches missed.">			if (iwTotalSale != 0.0 &amp;&amp; iwSaleRC != 0)</span>
+<span class="nc" id="L678">				iwAvgSalePerRet = iwTotalSale / iwSaleRC;</span>
+	
+        	
+			// Virtual Sports Service Start
+<span class="nc" id="L682">			logger.info(&quot;Virtual Sports Service start : &quot;);</span>
+<span class="nc" id="L683">			combinedQnry = &quot;select ifnull(sum(mrp_amt),0.0) res from st_vs_ret_sale rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and tm.transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(mrp_amt),0.0) res  from st_vs_ret_sale_refund ref inner join st_lms_retailer_transaction_master tm on ref.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;
+					+ fromDate
+					+ &quot;' and tm.transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;' union all select ifnull(sum(pwt_amt),0.0) res from st_vs_ret_pwt pwt inner join st_lms_retailer_transaction_master tm on pwt.transaction_id=tm.transaction_id where tm.transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and tm.transaction_date&lt;'&quot; + toDate + &quot;'&quot;;
+			
+<span class="nc" id="L694">			pstmt = con.prepareStatement(combinedQnry);</span>
+<span class="nc" id="L695">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L696">			totAmt = new ArrayList&lt;Double&gt;();</span>
+<span class="nc bnc" id="L697" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L698">				totAmt.add(rs.getDouble(&quot;res&quot;));</span>
+			}
+<span class="nc" id="L700">			vsTotalSale += (totAmt.get(0) - totAmt.get(1));</span>
+<span class="nc" id="L701">			tempRetPwt = 0.0;</span>
+<span class="nc" id="L702">			tempRetPwt += totAmt.get(2);</span>
+
+			// direct player pwt
+<span class="nc" id="L705">			dirPlrQry = &quot;select if(a.pwt_amt is null ,0,a.pwt_amt)+if(b.pwt_amt is null ,0,b.pwt_amt) dirPwt from (select sum(pwt_amt) pwt_amt from st_vs_bo_direct_plr_pwt where transaction_date&gt;'&quot;</span>
+					+ fromDate
+					+ &quot;' and transaction_date&lt;'&quot;
+					+ toDate
+					+ &quot;') a,(select sum(pwt_amt) pwt_amt from st_vs_agent_direct_plr_pwt where transaction_date&gt;'&quot;
+					+ fromDate + &quot;' and transaction_date&lt;'&quot; + toDate + &quot;') b&quot;;
+<span class="nc" id="L711">			dirPlrPwt = 0.0;</span>
+<span class="nc" id="L712">			pstmt = con.prepareStatement(dirPlrQry);</span>
+<span class="nc" id="L713">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L714" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L715">				dirPlrPwt = rs.getInt(&quot;dirPwt&quot;);</span>
+			}
+
+<span class="nc" id="L718">			vsTotalPwt = tempRetPwt + dirPlrPwt;</span>
+
+			// total ticket sold
+<span class="nc" id="L721">			pstmt = con</span>
+					.prepareStatement(&quot;select (sale.saleCnt - ref.refCnt) as netSaleCnt from &quot;
+							+ &quot;(select ifnull(count(*),0) saleCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and &quot;
+							+ &quot;(transaction_type ='VS_SALE') )sale,&quot;
+							+ &quot;(select ifnull(count(*),0)refCnt from st_lms_retailer_transaction_master where (&quot;
+							+ trxDate
+							+ &quot;) and (transaction_type ='VS_REFUND_CANCEL'))ref&quot;);
+
+<span class="nc" id="L731">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L732" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L733">				vsTotTktCnt = rs.getInt(&quot;netSaleCnt&quot;);</span>
+			}
+
+			// total PWT count
+<span class="nc" id="L737">			pstmt = con</span>
+					.prepareStatement(&quot;select (ret.retPwt+agt.agtPwt+bo.boPwt) as pwtCnt from &quot;
+							+ &quot;((select ifnull(count(*),0) retPwt  from  st_lms_retailer_transaction_master where &quot;
+							+ trxDate
+							+ &quot; and  &quot;
+							+ &quot;transaction_type='VS_PWT'))ret,(select ifnull(count(*),0) agtPwt from st_vs_agent_direct_plr_pwt where &quot;
+							+ trxDate
+							+ &quot;)agt,(select ifnull(count(*),0) boPwt from st_vs_bo_direct_plr_pwt where &quot;
+							+ trxDate + &quot; )bo&quot;);
+<span class="nc" id="L746">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L747" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L748">				vsTotPwtCnt = rs.getInt(&quot;pwtCnt&quot;);</span>
+			}
+
+			// calculating avgSalePerRet
+<span class="nc bnc" id="L752" title="All 4 branches missed.">			if (vsTotalSale != 0.0 &amp;&amp; vsSaleRC != 0)</span>
+<span class="nc" id="L753">				vsAvgSalePerRet = vsTotalSale / vsSaleRC;</span>
+
+<span class="nc" id="L755">			logger.info(&quot;Scratch Service start&quot;);</span>
+
+			// Scratch Pwt
+
+<span class="nc" id="L759">			pstmt = con</span>
+					.prepareStatement(&quot;select ifnull(sum(pwt_amt),0.0) res from st_se_retailer_pwt rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where transaction_date&gt;'&quot;
+							+ fromDate
+							+ &quot;' and transaction_date&lt;'&quot;
+							+ toDate
+							+ &quot;'&quot;);
+<span class="nc" id="L765">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L766" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L767">				seTotalPwt = rs.getDouble(&quot;res&quot;);</span>
+			}
+
+<span class="nc" id="L770">			logger.info(&quot;Commercial Service start&quot;);</span>
+			// commercial service
+<span class="nc bnc" id="L772" title="All 2 branches missed.">			for (int i = 0; i &lt; catNumList.size(); i++) {</span>
+<span class="nc" id="L773">				catNum = catNumList.get(i);</span>
+<span class="nc" id="L774">				pstmt = con</span>
+						.prepareStatement(&quot;select sale,saleRef from((select ifnull(sum(mrp_amt),0.0) sale from st_cs_sale_? rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where transaction_date&gt;'&quot;
+								+ fromDate
+								+ &quot;' and transaction_date&lt;'&quot;
+								+ toDate
+								+ &quot;') sale inner join (select ifnull(sum(mrp_amt),0.0) saleRef from st_cs_refund_? rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where transaction_date&gt;'&quot;
+								+ fromDate
+								+ &quot;' and transaction_date&lt;'&quot;
+								+ toDate + &quot;')ref)&quot;);
+<span class="nc" id="L783">				pstmt.setInt(1, catNum);</span>
+<span class="nc" id="L784">				pstmt.setInt(2, catNum);</span>
+<span class="nc" id="L785">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L786" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L787">					csTotalSale = csTotalSale</span>
+							+ (rs.getDouble(&quot;sale&quot;) - rs.getDouble(&quot;saleRef&quot;));
+				}
+			}
+<span class="nc" id="L791">			logger.info(&quot;OLA service start&quot;);</span>
+
+			// Off line Affiliates(OLA)
+
+<span class="nc bnc" id="L795" title="All 2 branches missed.">			for (int i = 0; i &lt; walletNumList.size(); i++) {</span>
+<span class="nc" id="L796">				walletNumber = walletNumList.get(i);</span>
+<span class="nc" id="L797">				totAmt = new ArrayList&lt;Double&gt;();</span>
+<span class="nc" id="L798">				pstmt = con</span>
+						.prepareStatement(&quot;select ifnull(sum(deposit_amt),0.0) res from st_ola_ret_deposit rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where wallet_id=? and transaction_date&gt;'&quot;
+								+ fromDate
+								+ &quot;' and transaction_date&lt;'&quot;
+								+ toDate
+								+ &quot;' union all select ifnull(sum(deposit_amt),0.0) res from st_ola_ret_deposit_refund rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where wallet_id=? and transaction_date&gt;'&quot;
+								+ fromDate
+								+ &quot;' and transaction_date&lt;'&quot;
+								+ toDate
+								+ &quot;' union all select ifnull(sum(withdrawl_amt),0.0) res from st_ola_ret_withdrawl rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where wallet_id=? and transaction_date&gt;'&quot;
+								+ fromDate
+								+ &quot;' and transaction_date&lt;'&quot;
+								+ toDate
+								+ &quot;' union all select ifnull(sum(withdrawl_amt),0.0) res from st_ola_ret_withdrawl_refund rs inner join st_lms_retailer_transaction_master tm on rs.transaction_id=tm.transaction_id where wallet_id=? and transaction_date&gt;'&quot;
+								+ fromDate
+								+ &quot;' and transaction_date&lt;'&quot;
+								+ toDate + &quot;'&quot;);
+<span class="nc" id="L815">				pstmt.setInt(1, walletNumber);</span>
+<span class="nc" id="L816">				pstmt.setInt(2, walletNumber);</span>
+<span class="nc" id="L817">				pstmt.setInt(3, walletNumber);</span>
+<span class="nc" id="L818">				pstmt.setInt(4, walletNumber);</span>
+<span class="nc" id="L819">				rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L821" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L822">					totAmt.add(rs.getDouble(&quot;res&quot;));</span>
+				}
+<span class="nc" id="L824">				olaDepo += (totAmt.get(0) - totAmt.get(1));</span>
+<span class="nc" id="L825">				olaWdrl += (totAmt.get(2) - totAmt.get(3));</span>
+			}
+			
+			
+<span class="nc" id="L829">			logger</span>
+					.info(&quot;Insert data into st_lms_new_ret_activity_history table...&quot;);
+<span class="nc" id="L831">			DecimalFormat df = new DecimalFormat(&quot;#.##&quot;);</span>
+<span class="nc" id="L832">			pstmt = con</span>
+					.prepareStatement(&quot;insert into st_lms_new_ret_activity_history(date,dg_sale_RC, dg_pwt_RC,sl_Sale_RC,sl_Pwt_RC,iw_Sale_RC,iw_Pwt_RC,vs_Sale_RC,vs_Pwt_RC, se_sale_RC, se_pwt_RC, cs_sale_RC, ola_deposit_RC, ola_wd_RC, dg_RC,sl_RC,iw_RC,vs_RC, se_RC, cs_RC, ola_RC, total_RC, heartBeat_RC, login_RC, inactive_retailers, terminated_retailers, dg_total_sales, dg_total_pwt, dg_tkt_count, dg_pwt_count, dg_avg_sale_per_ret,sl_total_sales,sl_total_pwt,sl_tkt_count,sl_pwt_count,sl_avg_sale_per_ret, iw_total_sales,iw_total_pwt,iw_tkt_count,iw_pwt_count,iw_avg_sale_per_ret, vs_total_sales,vs_total_pwt,vs_tkt_count,vs_pwt_count,vs_avg_sale_per_ret,se_total_sales, se_total_pwt, ola_total_deposit, ola_total_wd, cs_total_sale) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L834">			pstmt.setString(1, fromDate);</span>
+<span class="nc" id="L835">			pstmt.setInt(2, dgSaleRC);</span>
+<span class="nc" id="L836">			pstmt.setInt(3, dgPwtRC);</span>
+<span class="nc" id="L837">			pstmt.setInt(4, slSaleRC);</span>
+<span class="nc" id="L838">			pstmt.setInt(5, slPwtRC);</span>
+<span class="nc" id="L839">			pstmt.setInt(6, iwSaleRC);</span>
+<span class="nc" id="L840">			pstmt.setInt(7, iwPwtRC);</span>
+<span class="nc" id="L841">			pstmt.setInt(8, vsSaleRC);</span>
+<span class="nc" id="L842">			pstmt.setInt(9, vsPwtRC);</span>
+<span class="nc" id="L843">			pstmt.setInt(10, seSaleRC);</span>
+<span class="nc" id="L844">			pstmt.setInt(11, sePwtRC);</span>
+<span class="nc" id="L845">			pstmt.setInt(12, csSaleRC);</span>
+<span class="nc" id="L846">			pstmt.setInt(13, olaDepoRC);</span>
+<span class="nc" id="L847">			pstmt.setInt(14, olaWdrlRC);</span>
+<span class="nc" id="L848">			pstmt.setInt(15, dgRC);</span>
+<span class="nc" id="L849">			pstmt.setInt(16, slRC);</span>
+<span class="nc" id="L850">			pstmt.setInt(17, iwRC);</span>
+<span class="nc" id="L851">			pstmt.setInt(18, vsRC);</span>
+<span class="nc" id="L852">			pstmt.setInt(19, seRC);</span>
+<span class="nc" id="L853">			pstmt.setInt(20, csRC);</span>
+<span class="nc" id="L854">			pstmt.setInt(21, olaRC);</span>
+<span class="nc" id="L855">			pstmt.setInt(22, totalRC);</span>
+<span class="nc" id="L856">			pstmt.setInt(23, heartBeatRC);</span>
+<span class="nc" id="L857">			pstmt.setInt(24, loginRC);</span>
+<span class="nc" id="L858">			pstmt.setInt(25, inActiveRet);</span>
+<span class="nc" id="L859">			pstmt.setInt(26, terminateRet);</span>
+<span class="nc" id="L860">			pstmt.setDouble(27, dgTotalSale);</span>
+<span class="nc" id="L861">			pstmt.setDouble(28, dgTotalPwt);</span>
+<span class="nc" id="L862">			pstmt.setInt(29, totTktCnt);</span>
+<span class="nc" id="L863">			pstmt.setInt(30, totPwtCnt);</span>
+<span class="nc" id="L864">			pstmt.setDouble(31,Double.parseDouble(df.format(avgSalePerRet)));</span>
+<span class="nc" id="L865">			pstmt.setDouble(32, slTotalSale);</span>
+<span class="nc" id="L866">			pstmt.setDouble(33, slTotalPwt);</span>
+<span class="nc" id="L867">			pstmt.setInt(34, slTotTktCnt);</span>
+<span class="nc" id="L868">			pstmt.setInt(35, slTotPwtCnt);</span>
+<span class="nc" id="L869">			pstmt.setDouble(36,Double.parseDouble(df.format(slAvgSalePerRet)));</span>
+<span class="nc" id="L870">			pstmt.setDouble(37, iwTotalSale);</span>
+<span class="nc" id="L871">			pstmt.setDouble(38, iwTotalPwt);</span>
+<span class="nc" id="L872">			pstmt.setInt(39, iwTotTktCnt);</span>
+<span class="nc" id="L873">			pstmt.setInt(40, iwTotPwtCnt);</span>
+<span class="nc" id="L874">			pstmt.setDouble(41,Double.parseDouble(df.format(iwAvgSalePerRet)));</span>
+<span class="nc" id="L875">			pstmt.setDouble(42, vsTotalSale);</span>
+<span class="nc" id="L876">			pstmt.setDouble(43, vsTotalPwt);</span>
+<span class="nc" id="L877">			pstmt.setInt(44, vsTotTktCnt);</span>
+<span class="nc" id="L878">			pstmt.setInt(45, vsTotPwtCnt);</span>
+<span class="nc" id="L879">			pstmt.setDouble(46, Double.parseDouble(df.format(vsAvgSalePerRet)));</span>
+<span class="nc" id="L880">			pstmt.setDouble(47, seTotalSale);</span>
+<span class="nc" id="L881">			pstmt.setDouble(48, seTotalPwt);</span>
+<span class="nc" id="L882">			pstmt.setDouble(49, olaDepo);</span>
+<span class="nc" id="L883">			pstmt.setDouble(50, olaWdrl);</span>
+<span class="nc" id="L884">			pstmt.setDouble(51, csTotalSale);</span>
+<span class="nc" id="L885">			pstmt.executeUpdate();</span>
+<span class="nc" id="L886">			con.commit();</span>
+<span class="nc" id="L887">		} catch (SQLException e) {</span>
+<span class="nc" id="L888">			con.rollback();</span>
+<span class="nc" id="L889">			e.printStackTrace();</span>
+<span class="nc" id="L890">			logger.error(e);</span>
+		} finally {
+<span class="nc bnc" id="L892" title="All 6 branches missed.">			if(stmt!=null){</span>
+<span class="nc" id="L893">				stmt.close();</span>
+			}
+<span class="nc bnc" id="L895" title="All 6 branches missed.">			if(rs!=null){</span>
+<span class="nc" id="L896">				rs.close();</span>
+			}
+<span class="nc bnc" id="L898" title="All 6 branches missed.">			if(pstmt!=null){</span>
+				
+<span class="nc" id="L900">				pstmt.close();</span>
+				
+			}
+			
+		}
+<span class="nc" id="L905">	}</span>
+
+	public void updateLocationWiseHistoryDetails(Date date,Connection con)
+			throws SQLException {
+<span class="nc" id="L909">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L910">		Statement stmt = null;</span>
+<span class="nc" id="L911">		ResultSet rs = null;</span>
+<span class="nc" id="L912">		String query=null;</span>
+<span class="nc" id="L913">		String fromDate = date + &quot; 00:00:00&quot;;</span>
+<span class="nc" id="L914">		String toDate = date + &quot; 23:59:59&quot;;</span>
+<span class="nc" id="L915">		int count = 0;</span>
+		try {
+			//con.setAutoCommit(false);
+<span class="nc" id="L918">			Map&lt;String, RetailersLocationHistoryBean&gt; map = new LinkedHashMap&lt;String, RetailersLocationHistoryBean&gt;();</span>
+			;
+<span class="nc" id="L920">			RetailersLocationHistoryBean locationBean = null;</span>
+<span class="nc" id="L921">			stmt = con.createStatement();</span>
+<span class="nc" id="L922">			query=&quot;select city_code,count(*) res from st_lms_ret_offline_master where dg_last_sale_time&gt;'&quot;</span>
+				+ fromDate
+				+ &quot;' and dg_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where dg_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and dg_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where sle_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where sle_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where vs_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and vs_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where vs_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and vs_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where iw_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where iw_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK'union all select city_code,count(*) res from st_lms_ret_offline_master where se_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null  group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where se_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where ola_last_deposit_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_deposit_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where ola_last_withdrawal_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_withdrawal_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where cs_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and cs_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where last_login_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and last_login_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where last_HBT_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and last_HBT_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where city_code is not null  and (dg_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and dg_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (dg_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and dg_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') group by city_code union all select 'GK','GK'union all select city_code,count(*) res from st_lms_ret_offline_master where city_code is not null  and (sle_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (sle_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and sle_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') group by city_code union all select 'GK','GK'union all select city_code,count(*) res from st_lms_ret_offline_master where city_code is not null  and (vs_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and vs_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (vs_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and vs_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') group by city_code union all select 'GK','GK'union all select city_code,count(*) res from st_lms_ret_offline_master where city_code is not null  and (iw_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (iw_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and iw_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where city_code is not null and (se_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or (se_last_pwt_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and se_last_pwt_time&lt;'&quot;
+				+ toDate
+				+ &quot;') group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where city_code is not null and (ola_last_deposit_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_deposit_time&lt;'&quot;
+				+ toDate
+				+ &quot;') or  (ola_last_withdrawal_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and ola_last_withdrawal_time&lt;'&quot;
+				+ toDate
+				+ &quot;') group by city_code union all select 'GK','GK' union all  select city_code,count(*) res from st_lms_ret_offline_master where cs_last_sale_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and cs_last_sale_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code union all select 'GK','GK' union all select city_code,count(*) res from st_lms_ret_offline_master where last_HBT_time&gt;'&quot;
+				+ fromDate
+				+ &quot;' and last_HBT_time&lt;'&quot;
+				+ toDate
+				+ &quot;' and city_code is not null group by city_code&quot;;
+<span class="nc" id="L1039">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L1040" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc bnc" id="L1041" title="All 2 branches missed.">				if(rs.getString(&quot;city_code&quot;)!=null){</span>
+<span class="nc bnc" id="L1042" title="All 2 branches missed.">				if (rs.getString(&quot;city_code&quot;).equals(&quot;GK&quot;)) {</span>
+<span class="nc" id="L1043">					count++;</span>
+<span class="nc" id="L1044">					continue;</span>
+				} else {
+<span class="nc" id="L1046">					locationBean = new RetailersLocationHistoryBean();</span>
+<span class="nc bnc" id="L1047" title="All 2 branches missed.">					if (!map.containsKey(rs.getString(&quot;city_code&quot;))) {</span>
+<span class="nc" id="L1048">						map.put(rs.getString(&quot;city_code&quot;), locationBean);</span>
+					}
+<span class="nc bnc" id="L1050" title="All 24 branches missed.">					switch (count) {</span>
+					case 0:
+<span class="nc" id="L1052">						map.get(rs.getString(&quot;city_code&quot;)).setDgSaleCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1054">						break;</span>
+					case 1:
+<span class="nc" id="L1056">						map.get(rs.getString(&quot;city_code&quot;)).setDgPwtCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1058">						break;</span>
+					case 2:
+<span class="nc" id="L1060">						map.get(rs.getString(&quot;city_code&quot;)).setSlSaleCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1062">						break;</span>
+					case 3:
+<span class="nc" id="L1064">						map.get(rs.getString(&quot;city_code&quot;)).setSlPwtCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1066">						break;</span>
+					case 4:
+<span class="nc" id="L1068">						map.get(rs.getString(&quot;city_code&quot;)).setVsSaleCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1070">						break;</span>
+					case 5:
+<span class="nc" id="L1072">						map.get(rs.getString(&quot;city_code&quot;)).setVsPwtCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1074">						break;</span>
+					case 6:
+<span class="nc" id="L1076">						map.get(rs.getString(&quot;city_code&quot;)).setIwSaleCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1078">						break;</span>
+					case 7:
+<span class="nc" id="L1080">						map.get(rs.getString(&quot;city_code&quot;)).setIwPwtCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1082">						break;</span>
+					case 8:
+<span class="nc" id="L1084">						map.get(rs.getString(&quot;city_code&quot;)).setSeSaleCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1086">						break;</span>
+					case 9:
+<span class="nc" id="L1088">						map.get(rs.getString(&quot;city_code&quot;)).setSePwtCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1090">						break;</span>
+					case 10:
+<span class="nc" id="L1092">						map.get(rs.getString(&quot;city_code&quot;)).setOlaDepoCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1094">						break;</span>
+					case 11:
+<span class="nc" id="L1096">						map.get(rs.getString(&quot;city_code&quot;)).setOlaWdlCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1098">						break;</span>
+					case 12:
+<span class="nc" id="L1100">						map.get(rs.getString(&quot;city_code&quot;)).setCsSaleCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1102">						break;</span>
+					case 13:
+<span class="nc" id="L1104">						map.get(rs.getString(&quot;city_code&quot;)).setLoginCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1106">						break;</span>
+					case 14:
+<span class="nc" id="L1108">						map.get(rs.getString(&quot;city_code&quot;)).setHeartBeatCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1110">						break;</span>
+					case 15:
+<span class="nc" id="L1112">						map.get(rs.getString(&quot;city_code&quot;)).setDgCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1114">						break;</span>
+					case 16:
+
+<span class="nc" id="L1117">						map.get(rs.getString(&quot;city_code&quot;)).setSlCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1119">						break;</span>
+					case 17:
+
+<span class="nc" id="L1122">						map.get(rs.getString(&quot;city_code&quot;)).setVsCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1124">						break;</span>
+
+					case 18:
+
+<span class="nc" id="L1128">						map.get(rs.getString(&quot;city_code&quot;)).setIwCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1130">						break;</span>
+					case 19:
+<span class="nc" id="L1132">						map.get(rs.getString(&quot;city_code&quot;)).setSeCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1134">						break;</span>
+					case 20:
+<span class="nc" id="L1136">						map.get(rs.getString(&quot;city_code&quot;)).setOlaCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1138">						break;</span>
+					case 21:
+<span class="nc" id="L1140">						map.get(rs.getString(&quot;city_code&quot;)).setCsCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1142">						break;</span>
+					case 22:
+<span class="nc" id="L1144">						map.get(rs.getString(&quot;city_code&quot;)).setTotalCount(</span>
+								rs.getInt(&quot;res&quot;));
+<span class="nc" id="L1146">						break;</span>
+					}
+				}
+			}
+			}
+
+<span class="nc" id="L1152">			Iterator&lt;Entry&lt;String, RetailersLocationHistoryBean&gt;&gt; itr = map</span>
+					.entrySet().iterator();
+<span class="nc bnc" id="L1154" title="All 2 branches missed.">			while (itr.hasNext()) {</span>
+<span class="nc" id="L1155">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_lms_location_wise_history(date,city_code, dg_sale_RC, dg_pwt_RC, se_sale_RC, se_pwt_RC, cs_sale_RC, ola_deposit_RC, ola_wd_RC, dg_RC, se_RC, cs_RC, ola_RC, total_RC, login_RC, heartbeat_RC,sl_sale_RC,sl_Pwt_RC,sl_RC,iw_sale_RC,iw_pwt_RC,iw_RC,vs_sale_RC,vs_pwt_RC,vs_RC) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L1157">				Map.Entry&lt;String, RetailersLocationHistoryBean&gt; me = itr.next();</span>
+<span class="nc" id="L1158">				pstmt.setDate(1, date);</span>
+<span class="nc" id="L1159">				pstmt.setString(2, me.getKey());</span>
+<span class="nc" id="L1160">				pstmt.setInt(3, me.getValue().getDgSaleCount());</span>
+<span class="nc" id="L1161">				pstmt.setInt(4, me.getValue().getDgPwtCount());</span>
+<span class="nc" id="L1162">				pstmt.setInt(5, me.getValue().getSeSaleCount());</span>
+<span class="nc" id="L1163">				pstmt.setInt(6, me.getValue().getSePwtCount());</span>
+<span class="nc" id="L1164">				pstmt.setInt(7, me.getValue().getCsSaleCount());</span>
+<span class="nc" id="L1165">				pstmt.setInt(8, me.getValue().getOlaDepoCount());</span>
+<span class="nc" id="L1166">				pstmt.setInt(9, me.getValue().getOlaWdlCount());</span>
+<span class="nc" id="L1167">				pstmt.setInt(10, me.getValue().getDgCount());</span>
+<span class="nc" id="L1168">				pstmt.setInt(11, me.getValue().getSeCount());</span>
+<span class="nc" id="L1169">				pstmt.setInt(12, me.getValue().getCsCount());</span>
+<span class="nc" id="L1170">				pstmt.setInt(13, me.getValue().getOlaCount());</span>
+<span class="nc" id="L1171">				pstmt.setInt(14, me.getValue().getTotalCount());</span>
+<span class="nc" id="L1172">				pstmt.setInt(15, me.getValue().getLoginCount());</span>
+<span class="nc" id="L1173">				pstmt.setInt(16, me.getValue().getHeartBeatCount());</span>
+<span class="nc" id="L1174">				pstmt.setInt(17, me.getValue().getSlSaleCount());</span>
+<span class="nc" id="L1175">				pstmt.setInt(18, me.getValue().getSlPwtCount());</span>
+<span class="nc" id="L1176">				pstmt.setInt(19, me.getValue().getSlCount());</span>
+<span class="nc" id="L1177">				pstmt.setInt(20, me.getValue().getIwSaleCount());</span>
+<span class="nc" id="L1178">				pstmt.setInt(21, me.getValue().getIwPwtCount());</span>
+<span class="nc" id="L1179">				pstmt.setInt(22, me.getValue().getIwCount());</span>
+<span class="nc" id="L1180">				pstmt.setInt(23, me.getValue().getVsSaleCount());</span>
+<span class="nc" id="L1181">				pstmt.setInt(24, me.getValue().getVsPwtCount());</span>
+<span class="nc" id="L1182">				pstmt.setInt(25, me.getValue().getVsCount());</span>
+
+<span class="nc" id="L1184">				pstmt.executeUpdate();</span>
+<span class="nc" id="L1185">			}</span>
+<span class="nc" id="L1186">			con.commit();</span>
+<span class="nc" id="L1187">		} catch (SQLException e) {</span>
+<span class="nc" id="L1188">			con.rollback();</span>
+<span class="nc" id="L1189">			e.printStackTrace();</span>
+<span class="nc" id="L1190">			logger.error(e);</span>
+		} finally {
+		
+<span class="nc bnc" id="L1193" title="All 6 branches missed.">			if(stmt!=null){</span>
+<span class="nc" id="L1194">				stmt.close();</span>
+			}
+<span class="nc bnc" id="L1196" title="All 6 branches missed.">			if(rs!=null){</span>
+<span class="nc" id="L1197">				rs.close();</span>
+			}
+<span class="nc bnc" id="L1199" title="All 6 branches missed.">			if(pstmt!=null){</span>
+				
+<span class="nc" id="L1201">				pstmt.close();</span>
+				
+			}
+		}
+<span class="nc" id="L1205">	}</span>
+
+	public void updateVersionHistoryDetails(Date date,Connection con)
+			throws SQLException {
+<span class="nc" id="L1209">		Statement stmt = null;</span>
+<span class="nc" id="L1210">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1211">		ResultSet rs = null;</span>
+<span class="nc" id="L1212">		String fromDate = date + &quot; 00:00:00&quot;;</span>
+<span class="nc" id="L1213">		String toDate = date + &quot; 23:59:59&quot;;</span>
+		try {
+			//con.setAutoCommit(false);
+<span class="nc" id="L1216">			stmt = con.createStatement();</span>
+<span class="nc" id="L1217">			rs = stmt</span>
+					.executeQuery(&quot;select device_type,current_version,count(*) retCount from st_lms_ret_offline_master where last_login_time&gt;='&quot;+fromDate+&quot;' and last_login_time&lt;'&quot;+toDate+&quot;' and device_type is not null group by device_type,current_version&quot;);
+<span class="nc bnc" id="L1219" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1220">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_lms_pos_version_history(date,device_type, current_version, ret_count) values (?,?,?,?)&quot;);
+<span class="nc" id="L1222">				pstmt.setDate(1, date);</span>
+<span class="nc" id="L1223">				pstmt.setString(2, rs.getString(&quot;device_type&quot;));</span>
+<span class="nc" id="L1224">				pstmt.setString(3, rs.getString(&quot;current_version&quot;));</span>
+<span class="nc" id="L1225">				pstmt.setInt(4, rs.getInt(&quot;retCount&quot;));</span>
+<span class="nc" id="L1226">				pstmt.executeUpdate();</span>
+			}
+<span class="nc" id="L1228">			con.commit();</span>
+<span class="nc" id="L1229">		} catch (SQLException e) {</span>
+<span class="nc" id="L1230">			con.rollback();</span>
+<span class="nc" id="L1231">			e.printStackTrace();</span>
+<span class="nc" id="L1232">			logger.error(e);</span>
+		} finally {
+<span class="nc bnc" id="L1234" title="All 6 branches missed.">			if(stmt!=null){</span>
+<span class="nc" id="L1235">				stmt.close();</span>
+			}
+<span class="nc bnc" id="L1237" title="All 6 branches missed.">			if(rs!=null){</span>
+<span class="nc" id="L1238">				rs.close();</span>
+			}
+<span class="nc bnc" id="L1240" title="All 6 branches missed.">			if(pstmt!=null){</span>
+				
+<span class="nc" id="L1242">				pstmt.close();</span>
+				
+			}
+		}
+<span class="nc" id="L1246">	}</span>
+
+	public void updateConnectivityHistoryDetails(Date date,Connection con)
+			throws SQLException {
+<span class="nc" id="L1250">		Statement stmt = null;</span>
+<span class="nc" id="L1251">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1252">		ResultSet rs = null;</span>
+<span class="nc" id="L1253">		String fromDate = date + &quot; 00:00:00&quot;;</span>
+<span class="nc" id="L1254">		String toDate = date + &quot; 23:59:59&quot;;</span>
+		try {
+			//con.setAutoCommit(false);
+<span class="nc" id="L1257">			stmt = con.createStatement();</span>
+<span class="nc" id="L1258">			rs = stmt</span>
+					.executeQuery(&quot;select sim_id,count(distinct(ret_organization_id)) retCount from st_lms_ret_wise_sim_history  where datetime&gt;'&quot;
+							+ fromDate
+							+ &quot;' and datetime&lt;'&quot;
+							+ toDate
+							+ &quot;' group by sim_id&quot;);
+<span class="nc bnc" id="L1264" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1265">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_lms_daily_connectivity_history(date, sim_id, ret_count) values (?,?,?)&quot;);
+<span class="nc" id="L1267">				pstmt.setDate(1, date);</span>
+<span class="nc" id="L1268">				pstmt.setInt(2, rs.getInt(&quot;sim_id&quot;));</span>
+<span class="nc" id="L1269">				pstmt.setInt(3, rs.getInt(&quot;retCount&quot;));</span>
+<span class="nc" id="L1270">				pstmt.executeUpdate();</span>
+			}
+<span class="nc" id="L1272">			con.commit();</span>
+<span class="nc" id="L1273">		} catch (SQLException e) {</span>
+<span class="nc" id="L1274">			con.rollback();</span>
+<span class="nc" id="L1275">			e.printStackTrace();</span>
+<span class="nc" id="L1276">			logger.error(e);</span>
+		} finally {
+<span class="nc bnc" id="L1278" title="All 6 branches missed.">			if(stmt!=null){</span>
+<span class="nc" id="L1279">				stmt.close();</span>
+			}
+<span class="nc bnc" id="L1281" title="All 6 branches missed.">			if(rs!=null){</span>
+<span class="nc" id="L1282">				rs.close();</span>
+			}
+<span class="nc bnc" id="L1284" title="All 6 branches missed.">			if(pstmt!=null){</span>
+				
+<span class="nc" id="L1286">				pstmt.close();</span>
+				
+			}
+		}
+<span class="nc" id="L1290">	}</span>
+
+public void updateRetActivityAgentWise(Date date,Connection con,boolean isCurrentDay) throws SQLException{
+<span class="nc" id="L1293">	PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1294">	String query =&quot; &quot;;</span>
+<span class="nc" id="L1295">	ResultSet rs =null;</span>
+	try{
+		
+		// create data table  
+<span class="nc" id="L1299">		query =&quot;create  temporary table orgData (primary key(organization_id )) as select distinct slom.organization_id,slom.organization_type ,pslom.organization_id parentId,pslom.name,pslom.organization_status,pslom.city from&quot;+ </span>
+				&quot; st_lms_organization_master slom inner join st_lms_organization_master pslom on pslom.organization_id=slom.parent_id inner join (select organization_id from st_lms_user_master where date(registration_date)&lt;=? and isrolehead='Y' AND organization_type='AGENT') slum  on pslom.organization_id=slum.organization_id&quot;+
+				&quot; where  slom.organization_type='RETAILER'&quot;;
+<span class="nc" id="L1302">		pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1303">		pstmt.setDate(1,date);</span>
+<span class="nc" id="L1304">		logger.info(&quot; create data table  &quot;+pstmt);</span>
+<span class="nc" id="L1305">		pstmt.executeUpdate();</span>
+	
+		
+		// live Retailers 
+<span class="nc" id="L1309">		query =&quot; insert into st_lms_ret_activityHistory_agentwise(active_Ret,date,agent_id,status)  select sum(if(retailer_org_id is not null,1,0)) live ,'&quot;+date+&quot;' date,parentId,organization_status from (select retailer_org_id from st_lms_retailer_transaction_master rtm inner join st_lms_transaction_master tm on tm.transaction_id=rtm.transaction_id where service_code='DG' and interface='TERMINAL' and date(transaction_date)=?  group by retailer_org_id)slrtm &quot;+</span>
+				&quot; right join orgData on orgData.organization_id=slrtm.retailer_org_id  group by parentId order by parentId &quot;;
+<span class="nc" id="L1311">		pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1312">		pstmt.setDate(1,date);</span>
+<span class="nc" id="L1313">		logger.info(&quot; live Retailers  &quot;+pstmt);</span>
+<span class="nc" id="L1314">		pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L1315" title="All 2 branches missed.">		if(isCurrentDay){</span>
+			
+			
+			// new Login
+<span class="nc" id="L1319">			query=&quot;	create temporary table  newLogin select sum(if(newLogin=1 and current_owner_id is not null,1,0)) newLogin ,parentId from (select if(slrtm.retailer_org_id is null,1,0) newLogin ,orgData.organization_id,parentId from&quot;+ </span>
+					&quot;(select retailer_org_id from st_lms_retailer_transaction_master rtm inner join st_lms_transaction_master tm on tm.transaction_id=rtm.transaction_id where service_code='DG' and interface='TERMINAL' and date(transaction_date)&lt;=?  union select distinct organization_id from st_rep_dg_retailer  where  sale_mrp!=0 and finaldate&lt;=? &quot;+   
+					&quot; group by organization_id)slrtm right join orgData on orgData.organization_id=slrtm.retailer_org_id  ) main left join (select current_owner_id from st_lms_inv_status    inner join st_lms_inv_model_master invModel on inv_model_id=model_id  inner join  st_lms_inv_master invMaster on invModel.inv_id=invMaster.inv_id  where invMaster.inv_id=? and invMaster.inv_name=?  and current_owner_type =?  )invStatus &quot;+ 
+					&quot;	on  invStatus.current_owner_id=main.organization_id group by parentId order by parentId &quot;;
+<span class="nc" id="L1323">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1324">			pstmt.setDate(1,date);</span>
+<span class="nc" id="L1325">			pstmt.setDate(2,date);</span>
+<span class="nc" id="L1326">			pstmt.setInt(3,1);</span>
+<span class="nc" id="L1327">			pstmt.setString(4,&quot;Terminal&quot;);</span>
+<span class="nc" id="L1328">			pstmt.setString(5,&quot;RETAILER&quot;);</span>
+<span class="nc" id="L1329">			logger.info(&quot; new Login current day  &quot;+pstmt);</span>
+<span class="nc" id="L1330">			pstmt.executeUpdate();</span>
+		
+<span class="nc" id="L1332">			query =&quot;update  st_lms_ret_activityHistory_agentwise  retAct ,newLogin  set newLogin_Ret=newLogin where retAct.agent_id=newLogin.parentId and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1333">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1334">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1335">			query=&quot;drop table newLogin&quot; ;</span>
+<span class="nc" id="L1336">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1337">			logger.info(&quot; update new Login current day  &quot;+pstmt);</span>
+<span class="nc" id="L1338">			pstmt.executeUpdate();</span>
+			// assigned 
+			
+<span class="nc" id="L1341">			query=&quot;create temporary table  assign   select sum(if(current_owner_id is not null,1,0)) assigned,parentId from (select current_owner_id from st_lms_inv_status    inner join st_lms_inv_model_master invModel on inv_model_id=model_id  inner join  st_lms_inv_master invMaster on invModel.inv_id=invMaster.inv_id  where invMaster.inv_id=? and invMaster.inv_name=?  and current_owner_type =? )invStatus&quot;+</span>
+					&quot; right  join  orgData on (orgData.organization_id=invStatus.current_owner_id) group by parentId  order by parentId  &quot;;
+<span class="nc" id="L1343">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1344">			pstmt.setInt(1,1);</span>
+<span class="nc" id="L1345">			pstmt.setString(2,&quot;Terminal&quot;);</span>
+<span class="nc" id="L1346">			pstmt.setString(3,&quot;RETAILER&quot;);</span>
+<span class="nc" id="L1347">			logger.info(&quot;assigned current day  &quot;+pstmt);</span>
+<span class="nc" id="L1348">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1349">			query =&quot;update  st_lms_ret_activityHistory_agentwise  retAct ,assign  set assigned_total=assigned where retAct.agent_id=assign.parentId and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1350">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1351">			logger.info(&quot;update assigned current day  &quot;+pstmt);</span>
+<span class="nc" id="L1352">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1353">			query=&quot;drop table assign&quot; ;</span>
+<span class="nc" id="L1354">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1355">			pstmt.executeUpdate();</span>
+		
+			// not assigned 
+<span class="nc" id="L1358">			query=&quot; create temporary table   notassign select sum(if(current_owner_id is not null,1,0))  notassigned,parentId from (select current_owner_id from st_lms_inv_status  inner join st_lms_inv_model_master invModel on inv_model_id=model_id  inner join  st_lms_inv_master invMaster on invModel.inv_id=invMaster.inv_id  where invMaster.inv_id=?  and invMaster.inv_name=?  and  current_owner_type =? )invStatus &quot;+</span>
+					&quot; right  join (select distinct parentId from orgData) orgData on (orgData.parentId=invStatus.current_owner_id) group by parentId  order by parentId&quot;;
+<span class="nc" id="L1360">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1361">			pstmt.setInt(1,1);</span>
+<span class="nc" id="L1362">			pstmt.setString(2,&quot;Terminal&quot;);</span>
+<span class="nc" id="L1363">			pstmt.setString(3,&quot;AGENT&quot;);</span>
+<span class="nc" id="L1364">			logger.info(&quot;not assigned current day  &quot;+pstmt);</span>
+<span class="nc" id="L1365">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1366">			query =&quot;update  st_lms_ret_activityHistory_agentwise  retAct , notassign  set notAssigned_total=notassigned where retAct.agent_id=notassign.parentId and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1367">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1368">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1369">			logger.info(&quot;update not assigned current day  &quot;+pstmt);</span>
+<span class="nc" id="L1370">			query=&quot;drop table notassign&quot; ;</span>
+<span class="nc" id="L1371">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1372">			pstmt.executeUpdate();</span>
+			
+<span class="nc" id="L1374">			query=&quot; select game_id  from   st_dg_game_master where (date(closing_time) &gt; ?  or closing_time is null) &quot; ;</span>
+<span class="nc" id="L1375">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1376">			pstmt.setDate(1,date);</span>
+<span class="nc" id="L1377">			logger.info(&quot; gameIds current day  &quot;+pstmt);</span>
+<span class="nc" id="L1378">			rs=pstmt.executeQuery();</span>
+			
+<span class="nc" id="L1380">			int gameId =0;</span>
+<span class="nc bnc" id="L1381" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L1382">				gameId =rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1383">				query=&quot; create temporary table   totalsale  select ifnull(sum(mrpAmt),0) sale,parentId,&quot;+gameId+&quot; gameId from ( select (ifnull(mrpAmt,0.0)-ifnull(mrpAmtRef,0.0))mrpAmt,sale.retailer_org_id from&quot;+ </span>
+					&quot; (select game_id,sum(mrp_amt)  mrpAmt,retailer_org_id from st_dg_ret_sale_&quot;+gameId+&quot;   where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_SALE','DG_SALE_OFFLINE')  &quot;+
+					&quot;	and date (transaction_date)=?)  group by retailer_org_id ) sale  left join (select sum(mrp_amt)  mrpAmtRef,retailer_org_id from st_dg_ret_sale_refund_&quot;+gameId+&quot;   where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_REFUND_CANCEL','DG_REFUND_FAILED')&quot;+
+					&quot; and date   (transaction_date)=?)  group by retailer_org_id  )saleRet on sale.retailer_org_id=saleRet.retailer_org_id )totalSale right     join orgData on totalSale.retailer_org_id = orgData.organization_id  group by parentId   &quot; ;
+<span class="nc" id="L1387">				pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1388">				pstmt.setDate(1,date);</span>
+<span class="nc" id="L1389">				pstmt.setDate(2,date);</span>
+<span class="nc" id="L1390">				logger.info(&quot; sale  current day  &quot;+pstmt);</span>
+<span class="nc" id="L1391">				pstmt.executeUpdate();</span>
+<span class="nc" id="L1392">				query =&quot;insert into   st_lms_ret_saleHistory_agentwise  select task_id,gameId,sale from totalsale, st_lms_ret_activityHistory_agentwise retAct  where retAct.agent_id=totalsale.parentId  and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1393">				pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1394">				pstmt.executeUpdate();</span>
+<span class="nc" id="L1395">				query=&quot;drop table totalsale&quot; ;</span>
+<span class="nc" id="L1396">				pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1397">				pstmt.executeUpdate();</span>
+				
+			}
+
+			
+			
+			
+			
+<span class="nc" id="L1405">		}else {</span>
+			
+			// temp for retailers id owning terminal for the date 
+			
+<span class="nc" id="L1409">			query =&quot; create temporary table terminalStatus (PRIMARY KEY(current_owner_id )) select count(distinct sts.serial_no) totalTerminal ,invDet.current_owner_id from st_lms_inv_status  sts left join (select det1.serial_no,det1.date,det1.user_org_type,det1.current_owner_type,det1.inv_model_id,det1.current_owner_id  from st_lms_inv_detail det1&quot;+ </span>
+					&quot; inner join (select max(date) date ,serial_no  from st_lms_inv_detail where date(date)&lt;=?  group by serial_no )  det2 on  det1.date =det2.date and det1.serial_no =det2.serial_no )  invDet&quot;+
+					&quot; on  invDet.serial_no =sts.serial_no   inner join st_lms_inv_model_master invModel on invDet.inv_model_id=model_id  inner join  st_lms_inv_master invMaster on invModel.inv_id=invMaster.inv_id  where invMaster.inv_id=1 and invMaster.inv_name='Terminal' and invDet.current_owner_type ='RETAILER'   group  by current_owner_id&quot;;
+<span class="nc" id="L1412">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1413">			pstmt.setDate(1,date);</span>
+<span class="nc" id="L1414">			logger.info(&quot;  temp for retailers id owning terminal for   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1415">			pstmt.executeUpdate();</span>
+			// new logined
+<span class="nc" id="L1417">			query=&quot; create temporary table  newLogin select sum(if(newLogin=1 and current_owner_id is not null,1,0)) newLogin ,parentId,name,organization_status,city from (select if(slrtm.retailer_org_id is null,1,0) newLogin ,orgData.organization_id,parentId,name,organization_status,city from&quot;+ </span>
+					&quot; (select retailer_org_id from st_lms_retailer_transaction_master rtm inner join st_lms_transaction_master tm on tm.transaction_id=rtm.transaction_id where service_code='DG' and interface='TERMINAL' and date(transaction_date)&lt;=?  union select distinct organization_id from st_rep_dg_retailer  where  sale_mrp!=0 and finaldate&lt;=? &quot;+   
+					&quot; group by organization_id)slrtm right join orgData on orgData.organization_id=slrtm.retailer_org_id ) main left join terminalStatus invStatus on  invStatus.current_owner_id=main.organization_id group by parentId order by parentId  &quot; ;	
+<span class="nc" id="L1420">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1421">			pstmt.setDate(1,date);</span>
+<span class="nc" id="L1422">			pstmt.setDate(2,date);</span>
+<span class="nc" id="L1423">			logger.info(&quot;  new logined for   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1424">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1425">			query =&quot;update  st_lms_ret_activityHistory_agentwise  retAct ,newLogin  set newLogin_Ret=newLogin where retAct.agent_id=newLogin.parentId and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1426">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1427">			logger.info(&quot;  update   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1428">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1429">			query=&quot;drop table newLogin&quot; ;</span>
+<span class="nc" id="L1430">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1431">			pstmt.executeUpdate();</span>
+			
+			
+			// assigned 
+<span class="nc" id="L1435">			query=&quot;	create temporary table   assign  select sum(ifnull(totalTerminal,0)) assigned,parentId from terminalStatus right join &quot; +</span>
+					&quot; orgData on current_owner_id =organization_id   group  by parentId   order by parentId&quot;;
+<span class="nc" id="L1437">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1438">			logger.info(&quot; assigned for   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1439">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1440">			query =&quot;update  st_lms_ret_activityHistory_agentwise  retAct ,assign  set assigned_total=assigned where retAct.agent_id=assign.parentId and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1441">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1442">			logger.info(&quot; update assigned for   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1443">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1444">			query=&quot;drop table assign&quot; ;</span>
+<span class="nc" id="L1445">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1446">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1447">			query=&quot;drop table terminalStatus&quot; ;</span>
+<span class="nc" id="L1448">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1449">			pstmt.executeUpdate();</span>
+			
+			
+			// not assigned 
+			
+<span class="nc" id="L1454">			query =&quot;create temporary table  notassign select sum(ifnull(assigned,0)) notassigned,parentId from ( SELECT count(distinct sts.serial_no) assigned ,invDet.current_owner_id   from st_lms_inv_status sts &quot;+</span>
+					&quot; left join (select det1.serial_no,det1.date,det1.user_org_type,det1.current_owner_type,det1.inv_model_id,det1.current_owner_id  from st_lms_inv_detail det1 &quot;+ 
+					&quot;	inner join (select max(date) date,serial_no from st_lms_inv_detail where date(date)&lt;=?  group by serial_no )  det2 on  det1.date =det2.date  and det1.serial_no =det2.serial_no  )  invDet &quot;+
+					&quot; on  invDet.serial_no =sts.serial_no inner join st_lms_inv_model_master invModel on invDet.inv_model_id=model_id inner join st_lms_inv_master invMaster on invModel.inv_id=invMaster.inv_id where invMaster.inv_id=? and invMaster.inv_name=?  and invDet.current_owner_type=? and sts.current_owner_type!='REMOVED' group  by current_owner_id  )main &quot;+ 
+					&quot;	right join  (select distinct  parentId from orgData) orgData on main.current_owner_id =parentId group  by parentId   order by parentId&quot;;
+<span class="nc" id="L1459">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1460">			pstmt.setDate(1,date);</span>
+<span class="nc" id="L1461">			pstmt.setInt(2,1);</span>
+<span class="nc" id="L1462">			pstmt.setString(3,&quot;Terminal&quot;);</span>
+<span class="nc" id="L1463">			pstmt.setString(4,&quot;AGENT&quot;);		</span>
+<span class="nc" id="L1464">			logger.info(&quot;  not assigned  for   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1465">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1466">			query =&quot;update  st_lms_ret_activityHistory_agentwise  retAct , notassign  set notAssigned_total=notassigned where retAct.agent_id=notassign.parentId and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1467">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1468">			logger.info(&quot;  update assigned  for   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1469">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1470">			query=&quot;drop table notassign&quot; ;</span>
+<span class="nc" id="L1471">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1472">			pstmt.executeUpdate();</span>
+			
+<span class="nc" id="L1474">			query=&quot; select game_id  from   st_dg_game_master where (date(closing_time) &gt; ?  or closing_time is null) &quot; ;</span>
+<span class="nc" id="L1475">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1476">			pstmt.setDate(1,date);</span>
+<span class="nc" id="L1477">			rs=pstmt.executeQuery();</span>
+			
+<span class="nc" id="L1479">			int gameId =0;</span>
+<span class="nc bnc" id="L1480" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L1481">				gameId =rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1482">				query=&quot; create temporary table   totalsale  select ifnull(sum(mrpAmt),0) sale,parentId,&quot;+gameId+&quot; gameId from ( select (ifnull(mrpAmt,0.0)-ifnull(mrpAmtRef,0.0))mrpAmt,sale.retailer_org_id from&quot;+ </span>
+					&quot; (select game_id,sum(mrp_amt)  mrpAmt,retailer_org_id from st_dg_ret_sale_&quot;+gameId+&quot;   where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_SALE','DG_SALE_OFFLINE')  &quot;+
+					&quot;	and date (transaction_date)=?)  group by retailer_org_id ) sale  left join (select sum(mrp_amt)  mrpAmtRef,retailer_org_id from st_dg_ret_sale_refund_&quot;+gameId+&quot;   where transaction_id in(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_REFUND_CANCEL','DG_REFUND_FAILED')&quot;+
+					&quot; and date   (transaction_date)=?)  group by retailer_org_id  )saleRet on sale.retailer_org_id=saleRet.retailer_org_id )totalSale right     join orgData on totalSale.retailer_org_id = orgData.organization_id  group by parentId   &quot; ;
+<span class="nc" id="L1486">				pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1487">				pstmt.setDate(1,date);</span>
+<span class="nc" id="L1488">				pstmt.setDate(2,date);</span>
+<span class="nc" id="L1489">				logger.info(&quot;  sale   for   previous day  &quot;+pstmt);</span>
+<span class="nc" id="L1490">				pstmt.executeUpdate();</span>
+<span class="nc" id="L1491">				query =&quot;insert into   st_lms_ret_saleHistory_agentwise  select task_id,gameId,sale from totalsale, st_lms_ret_activityHistory_agentwise retAct  where retAct.agent_id=totalsale.parentId  and date='&quot;+date+&quot;'&quot;;</span>
+<span class="nc" id="L1492">				pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1493">				pstmt.executeUpdate();</span>
+<span class="nc" id="L1494">				query=&quot;drop table totalsale&quot; ;</span>
+<span class="nc" id="L1495">				pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1496">				pstmt.executeUpdate();</span>
+				
+			}
+			
+			
+			
+			
+			
+			
+		}
+<span class="nc" id="L1506">		query=&quot;drop table orgData&quot; ;</span>
+<span class="nc" id="L1507">		pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1508">		pstmt.executeUpdate();</span>
+<span class="nc" id="L1509">		logger.info(&quot;  agt wise ret history updates successfully  &quot;+pstmt);</span>
+<span class="nc" id="L1510">		con.commit();</span>
+<span class="nc" id="L1511">	}catch(Exception e){</span>
+<span class="nc" id="L1512">		con.rollback();</span>
+<span class="nc" id="L1513">		e.printStackTrace();</span>
+	}finally{
+<span class="nc" id="L1515">		try{</span>
+			
+<span class="nc bnc" id="L1517" title="All 6 branches missed.">			if(pstmt!=null){</span>
+				
+<span class="nc" id="L1519">				pstmt.close();</span>
+				
+			}
+<span class="nc bnc" id="L1522" title="All 6 branches missed.">			if(rs!=null){</span>
+				
+<span class="nc" id="L1524">				rs.close();</span>
+				
+			}
+<span class="nc" id="L1527">		}catch(Exception e){</span>
+<span class="nc" id="L1528">			e.printStackTrace();</span>
+<span class="nc" id="L1529">		}</span>
+		
+<span class="nc" id="L1531">	}</span>
+	
+	
+<span class="nc" id="L1534">}	</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,729 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AgentOrderProcessAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.scratchService.inventoryMgmt.common</a> &gt; <span class="el_source">AgentOrderProcessAction.java</span></div><h1>AgentOrderProcessAction.java</h1><pre class="source lang-java linenums">/*
+ * © copyright 2007, SkilRock Technologies, A division of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * All Rights Reserved
+ * The contents of this file are the property of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * and are subject to a License agreement with Sugal &amp; Damani Lottery Agency Pvt. Ltd.; you may
+ * not use this file except in compliance with that License.  You may obtain a
+ * copy of that license from:
+ * Legal Department
+ * Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * 6/35,WEA, Karol Bagh,
+ * New Delhi
+ * India - 110005
+ * This software is distributed under the License and is provided on an AS IS
+ * basis, without warranty of any kind, either express or implied, unless
+ * otherwise provided in the License.  See the License for governing rights and
+ * limitations under the License.
+ */
+
+package com.skilrock.lms.web.scratchService.inventoryMgmt.common;
+
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.interceptor.ServletRequestAware;
+
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.GameContants;
+import com.skilrock.lms.beans.InvOrderBean;
+import com.skilrock.lms.beans.OrderBean;
+import com.skilrock.lms.beans.OrderedGameBean;
+import com.skilrock.lms.beans.OrgAddressBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common.AgentOrderProcessHelper;
+import com.skilrock.lms.coreEngine.scratchService.orderMgmt.common.GameDetailsHelper;
+
+/**
+ * This class provides methods for handling the order process at Agent end
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L52">public class AgentOrderProcessAction extends ActionSupport implements</span>
+		ServletRequestAware {
+	public static final String APPLICATION_ERROR = &quot;applicationError&quot;;
+
+<span class="nc" id="L56">	static Log logger = LogFactory.getLog(AgentOrderProcessAction.class);</span>
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
+	private static String roundTo2DecimalPlaces(double value) {
+
+<span class="nc" id="L65">		DecimalFormat df = new DecimalFormat(&quot;0.000&quot;);</span>
+<span class="nc" id="L66">		String doublevalue = df.format(value);</span>
+
+<span class="nc" id="L68">		System.out.println(&quot;------kfkdjd&quot; + doublevalue + &quot;--------&quot;);</span>
+<span class="nc" id="L69">		return doublevalue;</span>
+	}
+
+	private String date;
+<span class="nc" id="L73">	private String edit = null;</span>
+<span class="nc" id="L74">	private String end = null;</span>
+	private int gameId;
+<span class="nc" id="L76">	private String gameName = null;</span>
+	private String gameNumber;
+	private boolean isDispatch;
+
+	private java.sql.Date orderDate;
+	private int orderId;
+	private String orderNumber;
+	private String orderStatus;
+	private HttpServletRequest request;
+	private int retOrgId;
+	private String retOrgName;
+<span class="nc" id="L87">	private String searchCriteria = &quot;&quot;;</span>
+
+<span class="nc" id="L89">	private int start = 0;</span>
+
+	/**
+	 * This method displays the details of the selected order
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public String agentOrderDetail() throws Exception {
+
+<span class="nc" id="L99">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L100">		session.setAttribute(&quot;AGT_APP_ORDER_GAME_LIST&quot;, null);</span>
+<span class="nc" id="L101">		session.setAttribute(&quot;Total_Approve_books&quot;, null);</span>
+<span class="nc" id="L102">		double currentBalance = 0.0;</span>
+<span class="nc" id="L103">		double totalAmount = 0.0;</span>
+<span class="nc" id="L104">		double creditrLimit = 0.0;</span>
+<span class="nc" id="L105">		double current = 0.0;</span>
+<span class="nc" id="L106">		double availableCredit = 0.0;</span>
+<span class="nc" id="L107">		double claimable = 0.0;</span>
+<span class="nc" id="L108">		double balance = 0.0;</span>
+<span class="nc" id="L109">		int retOrgId = getRetOrgId();</span>
+		// try {
+<span class="nc" id="L111">		AgentOrderProcessHelper helper = new AgentOrderProcessHelper();</span>
+<span class="nc" id="L112">		List&lt;OrderedGameBean&gt; orderdGameList = helper.fetchOrderDetails(</span>
+				getOrderId(), retOrgId);
+<span class="nc" id="L114">		int total = helper.getTotalOrderedBooks();</span>
+<span class="nc" id="L115">		System.out.println(&quot;TOTAL APPROVED BOOKS FOR THIS ORDER&quot; + total);</span>
+<span class="nc" id="L116">		session.setAttribute(&quot;Total_Approve_books&quot;, total);</span>
+<span class="nc" id="L117">		session.setAttribute(&quot;AGT_APP_ORDER_GAME_LIST&quot;, orderdGameList);</span>
+<span class="nc" id="L118">		session.setAttribute(&quot;AGT_ORDER_ID&quot;, getOrderId());</span>
+
+		// int retOrgId = getRetOrgId();
+
+<span class="nc" id="L122">		OrgAddressBean addrBean = helper.fetchAddress(retOrgId);</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">		if (addrBean != null) {</span>
+<span class="nc" id="L125">			session.setAttribute(&quot;RET_ORG_ADDR&quot;, addrBean);</span>
+		}
+		/*
+		 * } catch (LMSException le) { return APPLICATION_ERROR; }
+		 */
+
+		// added by Hanu
+<span class="nc" id="L132">		session.setAttribute(&quot;RETAILER_ORG_ID&quot;, retOrgId);</span>
+<span class="nc" id="L133">		GameDetailsHelper gameHelper = new GameDetailsHelper();</span>
+<span class="nc bnc" id="L134" title="All 4 branches missed.">		if (session.getAttribute(&quot;BALANCE&quot;) == null</span>
+				|| session.getAttribute(&quot;CREDIT_LIMIT&quot;) == null) {
+<span class="nc" id="L136">			List&lt;Double&gt; accountList = gameHelper</span>
+					.fetchAgentRetailerAccDetail(getRetOrgName());
+<span class="nc bnc" id="L138" title="All 2 branches missed.">			if (accountList != null) {</span>
+<span class="nc" id="L139">				creditrLimit = (Double) accountList.get(0);</span>
+<span class="nc" id="L140">				current = (Double) accountList.get(1);</span>
+<span class="nc" id="L141">				availableCredit = (Double) accountList.get(2);</span>
+<span class="nc" id="L142">				claimable = (Double) accountList.get(3);</span>
+<span class="nc" id="L143">				balance = availableCredit - claimable;</span>
+<span class="nc" id="L144">				System.out</span>
+						.println(&quot;**********************************available credit is ::&quot;
+								+ availableCredit);
+			}
+<span class="nc" id="L148">			currentBalance = current;</span>
+			// System.out.println(&quot;Balance is not null and value
+			// is&quot;+((Double)session.getAttribute(&quot;BALANCE&quot;)).doubleValue());
+<span class="nc" id="L151">			session.setAttribute(&quot;CREDIT_LIMIT&quot;,</span>
+					roundTo2DecimalPlaces(creditrLimit));
+			// session.setAttribute(&quot;TOTAL&quot;, totalAmount);
+			// System.out.println(&quot;creditLimit&quot;+creditrLimit);
+			// System.out.println(&quot;BALANCE&quot;+currentBalance);
+<span class="nc" id="L156">			session.setAttribute(&quot;CREDIT_AMT&quot;,</span>
+					roundTo2DecimalPlaces(currentBalance));
+<span class="nc" id="L158">			session.setAttribute(&quot;AVAILABLE_CREDIT_AMT_AGT&quot;,</span>
+					roundTo2DecimalPlaces(availableCredit));
+<span class="nc" id="L160">			session.setAttribute(&quot;REMAINING_AVAILABLE_CREDIT_AMT_AGT&quot;,</span>
+					availableCredit);
+<span class="nc" id="L162">			session.setAttribute(&quot;AVAILABLE_BALANCE&quot;,</span>
+					roundTo2DecimalPlaces(balance));// added by amit
+<span class="nc" id="L164">			System.out</span>
+					.println(&quot;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@setttttttttt&quot;);
+
+			// session.setAttribute(&quot;BALANCE&quot;, 0.0);
+		}
+<span class="nc" id="L169">		System.out.println(&quot;Retailer  Org Id::&quot; + getRetOrgId());</span>
+
+<span class="nc" id="L171">		session.setAttribute(&quot;AGT_ORDER_DATE&quot;, getOrderDate());</span>
+
+<span class="nc" id="L173">		session.setAttribute(&quot;RET_ORG_NAME&quot;, getRetOrgName());</span>
+<span class="nc" id="L174">		session.setAttribute(&quot;RET_ORG_ID&quot;, getRetOrgId());</span>
+
+<span class="nc" id="L176">		List&lt;InvOrderBean&gt; invOrderList = new ArrayList&lt;InvOrderBean&gt;();</span>
+<span class="nc" id="L177">		session.setAttribute(&quot;AGT_INV_ORDER_LIST&quot;, invOrderList);</span>
+
+<span class="nc" id="L179">		return SUCCESS;</span>
+	}
+
+	/**
+	 * This method displays the games for the selected order
+	 * 
+	 * @return String
+	 */
+	public String agentOrderGameDetail() throws LMSException {
+<span class="nc" id="L188">		int countBooks = 0;</span>
+<span class="nc" id="L189">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L190">		List&lt;OrderedGameBean&gt; gameList = (List&lt;OrderedGameBean&gt;) session</span>
+				.getAttribute(&quot;AGT_APP_ORDER_GAME_LIST&quot;);
+<span class="nc" id="L192">		OrderedGameBean orderedGameBean = null;</span>
+<span class="nc" id="L193">		session.setAttribute(&quot;TOTAL_BOOKS&quot;, null);</span>
+<span class="nc" id="L194">		int gameId = getGameId();</span>
+<span class="nc" id="L195">		System.out.println(&quot;GameId:&quot; + gameId);</span>
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">		if (gameList != null) {</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">			for (int i = 0; i &lt; gameList.size(); i++) {</span>
+<span class="nc" id="L199">				orderedGameBean = gameList.get(i);</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">				if (gameId == orderedGameBean.getGameId()) {</span>
+<span class="nc" id="L201">					session.setAttribute(&quot;AGT_ORDERED_GAME&quot;, orderedGameBean);</span>
+<span class="nc" id="L202">					break;</span>
+				}
+			}
+		}
+<span class="nc" id="L206">		GameDetailsHelper gameHelper = new GameDetailsHelper();</span>
+<span class="nc" id="L207">		countBooks = gameHelper.fetchAgentBooksWithRetailer(gameId,</span>
+				(String) session.getAttribute(&quot;RET_ORG_NAME&quot;));
+<span class="nc" id="L209">		System.out.println(&quot;Retailer Books ::&quot; + countBooks);</span>
+<span class="nc" id="L210">		session.setAttribute(&quot;TOTAL_BOOKS&quot;, countBooks);</span>
+<span class="nc" id="L211">		return SUCCESS;</span>
+	}
+
+	/**
+	 * This method takes the user back to the order detail page
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public String backToAgentOrderDetail() throws Exception {
+
+<span class="nc" id="L222">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L223">		int orderId = (Integer) session.getAttribute(&quot;AGT_ORDER_ID&quot;);</span>
+<span class="nc" id="L224">		int retOrgId = (Integer) session.getAttribute(&quot;RET_ORG_ID&quot;);</span>
+		// try {
+<span class="nc" id="L226">		AgentOrderProcessHelper helper = new AgentOrderProcessHelper();</span>
+<span class="nc" id="L227">		List&lt;OrderedGameBean&gt; orderdGameList = helper.fetchOrderDetails(</span>
+				orderId, retOrgId);
+
+<span class="nc" id="L230">		List&lt;InvOrderBean&gt; invOrderList = (List&lt;InvOrderBean&gt;) session</span>
+				.getAttribute(&quot;AGT_INV_ORDER_LIST&quot;);
+<span class="nc" id="L232">		System.out</span>
+				.println(&quot;In the backToOrderDetail() method orderDetail List &quot;
+						+ orderdGameList);
+<span class="nc" id="L235">		System.out.println(&quot;INV_ORDER_LIST &quot; + invOrderList);</span>
+
+<span class="nc" id="L237">		InvOrderBean bean = null;</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">		if (invOrderList != null) {</span>
+
+<span class="nc" id="L240">			int orderSize = orderdGameList.size();</span>
+<span class="nc" id="L241">			int invOrderSize = invOrderList.size();</span>
+<span class="nc" id="L242">			System.out.println(&quot;Ordered game size&quot; + orderSize</span>
+					+ &quot;and INV_ORDER_LIST&quot; + invOrderSize);
+<span class="nc bnc" id="L244" title="All 2 branches missed.">			if (orderSize &gt;= invOrderSize) {</span>
+<span class="nc" id="L245">				boolean isDispatch = true;</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">				for (int i = 0; i &lt; invOrderList.size(); i++) {</span>
+<span class="nc" id="L247">					bean = invOrderList.get(i);</span>
+
+<span class="nc bnc" id="L249" title="All 4 branches missed.">					isDispatch = isDispatch</span>
+							&amp;&amp; bean.getOrderedGameBean()
+									.getIsReadyForDispatch();
+<span class="nc" id="L252">					System.out.println(&quot;isDispatch&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;?????????/&quot;</span>
+							+ isDispatch);
+					// // It checks wheather this order is completely dispatched
+					// or not.
+<span class="nc bnc" id="L256" title="All 2 branches missed.">					if (isDispatch) {</span>
+<span class="nc" id="L257">						setDispatch(true);</span>
+<span class="nc" id="L258">						System.out.println(&quot;isDispatch&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&quot;);</span>
+<span class="nc" id="L259">						break;</span>
+					}
+				}
+
+			}
+
+		}
+		/*
+		 * } catch (LMSException le) { return APPLICATION_ERROR; }
+		 */
+
+<span class="nc" id="L270">		return SUCCESS;</span>
+	}
+
+	/**
+	 * This method dispatches the order for the retailer
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public String assignAgentOrder() throws Exception {
+
+<span class="nc" id="L281">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L282">		List&lt;InvOrderBean&gt; invOrderList = (List&lt;InvOrderBean&gt;) session</span>
+				.getAttribute(&quot;AGT_INV_ORDER_LIST&quot;);
+
+<span class="nc" id="L285">		int orderId = (Integer) session.getAttribute(&quot;AGT_ORDER_ID&quot;);</span>
+<span class="nc" id="L286">		int retOrgId = (Integer) session.getAttribute(&quot;RETAILER_ORG_ID&quot;);</span>
+<span class="nc" id="L287">		int totalApproveBooksForOrder = (Integer) session</span>
+				.getAttribute(&quot;Total_Approve_books&quot;);
+		// *******************remove this************
+<span class="nc" id="L290">		UserInfoBean userInfoBean = (UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L292">		int agtId = userInfoBean.getUserId();</span>
+<span class="nc" id="L293">		String loggedInUserOrgName = userInfoBean.getOrgName();</span>
+<span class="nc" id="L294">		int userOrgID = userInfoBean.getUserOrgId();</span>
+		// int agtId = 111111;
+<span class="nc" id="L296">		String rootPath = (String) session.getAttribute(&quot;ROOT_PATH&quot;);</span>
+<span class="nc" id="L297">		System.out.println(&quot;----------------InvOrderList::&quot;</span>
+				+ invOrderList.size());
+<span class="nc bnc" id="L299" title="All 2 branches missed.">		if (invOrderList != null) {</span>
+			// try {
+<span class="nc" id="L301">			AgentOrderProcessHelper helper = new AgentOrderProcessHelper();</span>
+<span class="nc" id="L302">			int DCId = helper.assignOrder(invOrderList, totalApproveBooksForOrder, orderId, retOrgId, agtId, rootPath, loggedInUserOrgName, userOrgID);</span>
+<span class="nc" id="L303">			session.setAttribute(&quot;DEL_CHALLAN_ID&quot;, DCId);</span>
+			/*
+			 * } catch (LMSException le) { return APPLICATION_ERROR; }
+			 */
+		}
+<span class="nc" id="L308">		return SUCCESS;</span>
+	}
+
+	public String EditAgentOrdertatus() throws Exception {
+
+<span class="nc" id="L313">		System.out.println(&quot;inside method ---------  EditAgentOrdertatus()&quot;);</span>
+<span class="nc" id="L314">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L315">		session.setAttribute(&quot;AGT_APP_ORDER_GAME_LIST&quot;, null);</span>
+<span class="nc" id="L316">		session.setAttribute(&quot;Total_Approve_books&quot;, null);</span>
+<span class="nc" id="L317">		double currentBalance = 0.0;</span>
+<span class="nc" id="L318">		double totalAmount = 0.0;</span>
+<span class="nc" id="L319">		double creditrLimit = 0.0;</span>
+<span class="nc" id="L320">		double current = 0.0;</span>
+<span class="nc" id="L321">		int retOrgId = getRetOrgId();</span>
+		// try {
+<span class="nc" id="L323">		AgentOrderProcessHelper helper = new AgentOrderProcessHelper();</span>
+<span class="nc" id="L324">		List&lt;OrderedGameBean&gt; orderdGameList = helper.fetchOrderDetails(</span>
+				getOrderId(), retOrgId);
+<span class="nc" id="L326">		int total = helper.getTotalOrderedBooks();</span>
+<span class="nc" id="L327">		System.out.println(&quot;TOTAL APPROVED BOOKS FOR THIS ORDER : &quot; + total);</span>
+<span class="nc" id="L328">		session.setAttribute(&quot;Total_Approve_books&quot;, total);</span>
+<span class="nc" id="L329">		session.setAttribute(&quot;AGT_APP_ORDER_GAME_LIST&quot;, orderdGameList);</span>
+<span class="nc" id="L330">		session.setAttribute(&quot;AGT_ORDER_ID&quot;, getOrderId());</span>
+
+		// int retOrgId =getRetOrgId();
+
+<span class="nc" id="L334">		OrgAddressBean addrBean = helper.fetchAddress(retOrgId);</span>
+
+<span class="nc bnc" id="L336" title="All 2 branches missed.">		if (addrBean != null) {</span>
+<span class="nc" id="L337">			session.setAttribute(&quot;RET_ORG_ADDR&quot;, addrBean);</span>
+		}
+		/*
+		 * } catch (LMSException le) { return APPLICATION_ERROR; }
+		 */
+
+		// added by Hanu
+<span class="nc" id="L344">		session.setAttribute(&quot;RETAILER_ORG_ID&quot;, retOrgId);</span>
+<span class="nc" id="L345">		GameDetailsHelper gameHelper = new GameDetailsHelper();</span>
+<span class="nc bnc" id="L346" title="All 4 branches missed.">		if (session.getAttribute(&quot;BALANCE&quot;) == null</span>
+				|| session.getAttribute(&quot;CREDIT_LIMIT&quot;) == null)
+
+		{
+<span class="nc" id="L350">			List&lt;Double&gt; accountList = gameHelper</span>
+					.fetchAgentRetailerAccDetail(getRetOrgName());
+<span class="nc bnc" id="L352" title="All 2 branches missed.">			if (accountList != null) {</span>
+<span class="nc" id="L353">				creditrLimit = (Double) accountList.get(0);</span>
+<span class="nc" id="L354">				current = (Double) accountList.get(1);</span>
+			}
+<span class="nc" id="L356">			currentBalance = current;</span>
+			// System.out.println(&quot;Balance is not null and value
+			// is&quot;+((Double)session.getAttribute(&quot;BALANCE&quot;)).doubleValue());
+<span class="nc" id="L359">			session.setAttribute(&quot;CREDIT_LIMIT&quot;,</span>
+					roundTo2DecimalPlaces(creditrLimit));
+			// session.setAttribute(&quot;TOTAL&quot;, totalAmount);
+			// System.out.println(&quot;creditLimit&quot;+creditrLimit);
+			// System.out.println(&quot;BALANCE&quot;+currentBalance);
+<span class="nc" id="L364">			session.setAttribute(&quot;CREDIT_AMT&quot;,</span>
+					roundTo2DecimalPlaces(currentBalance));
+			// session.setAttribute(&quot;BALANCE&quot;, 0.0);
+		}
+<span class="nc" id="L368">		System.out.println(&quot;Retailer  Org Id::&quot; + getRetOrgId());</span>
+
+<span class="nc" id="L370">		session.setAttribute(&quot;AGT_ORDER_DATE&quot;, getDate());</span>
+<span class="nc" id="L371">		System.out</span>
+				.println(&quot;oder date : ------------------------------------------------&quot;
+						+ getDate());
+<span class="nc" id="L374">		session.setAttribute(&quot;date&quot;, getDate());</span>
+<span class="nc" id="L375">		session.setAttribute(&quot;RET_ORG_NAME&quot;, getRetOrgName());</span>
+<span class="nc" id="L376">		session.setAttribute(&quot;RET_ORG_ID&quot;, getRetOrgId());</span>
+
+<span class="nc" id="L378">		return SUCCESS;</span>
+	}
+
+	public String getDate() {
+<span class="nc" id="L382">		return date;</span>
+	}
+
+	public String getEdit() {
+<span class="nc" id="L386">		return edit;</span>
+	}
+
+	public String getEnd() {
+<span class="nc" id="L390">		return end;</span>
+	}
+
+	public int getGameId() {
+<span class="nc" id="L394">		return gameId;</span>
+	}
+
+	public String getGameName() {
+<span class="nc" id="L398">		return gameName;</span>
+	}
+
+	/**
+	 * This method is used for displaying approved orders
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	/*
+	 * public String displayAppAgentOrders() throws Exception { HttpSession
+	 * session = getRequest().getSession();
+	 * session.setAttribute(&quot;AGT_APP_ORDER_LIST&quot;, null);
+	 * 
+	 * UserInfoBean userInfoBean = (UserInfoBean) session
+	 * .getAttribute(&quot;USER_INFO&quot;); int agtOrgId = userInfoBean.getUserOrgId();
+	 * //session.setAttribute(&quot;TOTAL&quot;,null);
+	 * //session.setAttribute(&quot;BALANCE&quot;,null);
+	 * session.setAttribute(&quot;CREDIT_LIMIT&quot;,null);
+	 * session.setAttribute(&quot;CREDIT_AMT&quot;,null);
+	 * 
+	 * //try { AgentOrderProcessHelper helper = new AgentOrderProcessHelper();
+	 * List&lt;AgentOrderBean&gt; orderList = helper.getApprovedOrders(agtOrgId);
+	 * session.setAttribute(&quot;AGT_APP_ORDER_LIST&quot;, orderList); } catch
+	 * (LMSException le) { return APPLICATION_ERROR; }
+	 * 
+	 * return SUCCESS; }
+	 */
+
+	public String getGameNumber() {
+<span class="nc" id="L428">		return gameNumber;</span>
+	}
+
+	public boolean getIsDispatch() {
+<span class="nc" id="L432">		return isDispatch;</span>
+	}
+
+	public java.sql.Date getOrderDate() {
+<span class="nc" id="L436">		return orderDate;</span>
+	}
+
+	public int getOrderId() {
+
+<span class="nc" id="L441">		return orderId;</span>
+	}
+
+	public String getOrderNumber() {
+<span class="nc" id="L445">		return orderNumber;</span>
+	}
+
+	public String getOrderStatus() {
+<span class="nc" id="L449">		return orderStatus;</span>
+	}
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L453">		return request;</span>
+	}
+
+	public int getRetOrgId() {
+<span class="nc" id="L457">		return retOrgId;</span>
+	}
+
+	public String getRetOrgName() {
+<span class="nc" id="L461">		return retOrgName;</span>
+	}
+
+	public String getSearchCriteria() {
+<span class="nc" id="L465">		return searchCriteria;</span>
+	}
+
+	public int getStart() {
+<span class="nc" id="L469">		return start;</span>
+	}
+
+	private String getStatusCondition() {
+<span class="nc" id="L473">		String actualStatus = &quot;&quot;;</span>
+<span class="nc" id="L474">		boolean isPresent = false;</span>
+<span class="nc bnc" id="L475" title="All 4 branches missed.">		if (orderStatus != null &amp;&amp; !orderStatus.trim().equals(&quot;&quot;)) {</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">			if (orderStatus.equals(&quot;Semi Processed&quot;)) {</span>
+<span class="nc" id="L477">				actualStatus = new String(&quot;SEMI_PROCESSED&quot;);</span>
+<span class="nc bnc" id="L478" title="All 2 branches missed.">			} else if (orderStatus.equals(&quot;Approved&quot;)) {</span>
+<span class="nc" id="L479">				actualStatus = new String(&quot;APPROVED&quot;);</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">			} else if (orderStatus.equals(&quot;Processed&quot;)) {</span>
+<span class="nc" id="L481">				actualStatus = new String(&quot;PROCESSED&quot;);</span>
+			}
+		}
+
+<span class="nc" id="L485">		return actualStatus;</span>
+	}
+
+	/**
+	 * This method handles the first,next,previous and last click on the order
+	 * request page
+	 * 
+	 * @return String
+	 */
+	public String searchAjax() {
+<span class="nc" id="L495">		int endValue = 0;</span>
+<span class="nc" id="L496">		int startValue = 0;</span>
+		// PrintWriter out = getResponse().getWriter();
+<span class="nc" id="L498">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L499">		List ajaxList = (List) session.getAttribute(&quot;AGT_APP_ORDER_LIST1&quot;);</span>
+<span class="nc" id="L500">		List ajaxSearchList = new ArrayList();</span>
+		// System.out.println(&quot;end &quot;+getEnd());
+<span class="nc bnc" id="L502" title="All 2 branches missed.">		if (ajaxList != null) {</span>
+<span class="nc bnc" id="L503" title="All 2 branches missed.">			if (getEnd() != null) {</span>
+<span class="nc" id="L504">				end = getEnd();</span>
+			} else {
+<span class="nc" id="L506">				end = &quot;first&quot;;</span>
+			}
+<span class="nc" id="L508">			System.out.println(&quot;List Size &quot; + ajaxList.size());</span>
+<span class="nc" id="L509">			startValue = (Integer) session</span>
+					.getAttribute(&quot;startValueOrderSearch&quot;);
+<span class="nc bnc" id="L511" title="All 2 branches missed.">			if (end.equals(&quot;first&quot;)) {</span>
+<span class="nc" id="L512">				System.out.println(&quot;i m in first&quot;);</span>
+<span class="nc" id="L513">				startValue = 0;</span>
+<span class="nc" id="L514">				endValue = startValue + 5;</span>
+<span class="nc bnc" id="L515" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L516">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L518" title="All 2 branches missed.">			} else if (end.equals(&quot;Previous&quot;)) {</span>
+<span class="nc" id="L519">				System.out.println(&quot;i m in Previous&quot;);</span>
+<span class="nc" id="L520">				startValue = startValue - 5;</span>
+<span class="nc bnc" id="L521" title="All 2 branches missed.">				if (startValue &lt; 5) {</span>
+<span class="nc" id="L522">					startValue = 0;</span>
+				}
+<span class="nc" id="L524">				endValue = startValue + 5;</span>
+<span class="nc bnc" id="L525" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L526">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L528" title="All 2 branches missed.">			} else if (end.equals(&quot;Next&quot;)) {</span>
+<span class="nc" id="L529">				System.out.println(&quot;i m in Next&quot;);</span>
+<span class="nc" id="L530">				startValue = startValue + 5;</span>
+<span class="nc" id="L531">				endValue = startValue + 5;</span>
+<span class="nc bnc" id="L532" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L533">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L535" title="All 2 branches missed.">				if (startValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L536">					startValue = ajaxList.size() - ajaxList.size() % 5;</span>
+				}
+<span class="nc bnc" id="L538" title="All 2 branches missed.">			} else if (end.equals(&quot;last&quot;)) {</span>
+<span class="nc" id="L539">				endValue = ajaxList.size();</span>
+<span class="nc" id="L540">				startValue = endValue - endValue % 5;</span>
+
+			}
+<span class="nc bnc" id="L543" title="All 2 branches missed.">			if (startValue == endValue) {</span>
+<span class="nc" id="L544">				startValue = endValue - 5;</span>
+			}
+<span class="nc" id="L546">			System.out.println(&quot;End value&quot; + endValue);</span>
+<span class="nc" id="L547">			System.out.println(&quot;Start Value&quot; + startValue);</span>
+<span class="nc bnc" id="L548" title="All 2 branches missed.">			for (int i = startValue; i &lt; endValue; i++) {</span>
+<span class="nc" id="L549">				ajaxSearchList.add(ajaxList.get(i));</span>
+			}
+<span class="nc" id="L551">			session.setAttribute(&quot;AGT_APP_ORDER_LIST&quot;, ajaxSearchList);</span>
+<span class="nc" id="L552">			session.setAttribute(&quot;startValueOrderSearch&quot;, startValue);</span>
+
+		}
+<span class="nc" id="L555">		return SUCCESS;</span>
+
+	}
+
+	/**
+	 * This method provides the search order
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public String SearchOrder() throws Exception {
+
+<span class="nc" id="L567">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L568">		session.setAttribute(&quot;AGT_APP_ORDER_LIST1&quot;, null);</span>
+<span class="nc" id="L569">		session.setAttribute(&quot;AGT_APP_ORDER_LIST&quot;, null);</span>
+<span class="nc" id="L570">		session.setAttribute(&quot;SearchResultsAvailable&quot;, null);</span>
+<span class="nc" id="L571">		session.setAttribute(&quot;Total_Approve_books&quot;, null);</span>
+		// session.setAttribute(&quot;TOTAL&quot;,null);
+		// session.setAttribute(&quot;BALANCE&quot;,null);
+<span class="nc" id="L574">		session.setAttribute(&quot;CREDIT_LIMIT&quot;, null);</span>
+<span class="nc" id="L575">		session.setAttribute(&quot;CREDIT_AMT&quot;, null);</span>
+<span class="nc" id="L576">		session.setAttribute(&quot;REMAINING_AVAILABLE_CREDIT_AMT_AGT&quot;, null);</span>
+		// try {
+<span class="nc" id="L578">		UserInfoBean userInfoBean = (UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L580">		int agtOrgId = userInfoBean.getUserOrgId();</span>
+
+<span class="nc" id="L582">		String status = null;</span>
+
+<span class="nc" id="L584">		System.out.println(&quot;Game Name:&quot; + gameName);</span>
+<span class="nc" id="L585">		System.out.println(&quot;Game Nbr:&quot; + gameNumber);</span>
+
+<span class="nc" id="L587">		Map&lt;String, String&gt; searchMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L588">		searchMap.put(GameContants.GAME_NAME, gameName);</span>
+<span class="nc" id="L589">		searchMap.put(GameContants.GAME_NBR, gameNumber);</span>
+<span class="nc" id="L590">		searchMap.put(TableConstants.ORG_NAME, retOrgName);</span>
+<span class="nc" id="L591">		searchMap.put(GameContants.ORDER_ID, orderNumber);</span>
+<span class="nc" id="L592">		status = getStatusCondition();</span>
+<span class="nc" id="L593">		searchMap.put(TableConstants.SBO_ORDER_STATUS, status);</span>
+
+		// try {
+		// BOOrderProcessHelper helper = new BOOrderProcessHelper();
+<span class="nc" id="L597">		AgentOrderProcessHelper helper = new AgentOrderProcessHelper();</span>
+
+<span class="nc" id="L599">		List&lt;OrderBean&gt; searchResults = helper.SearchOrder(searchMap, agtOrgId);</span>
+<span class="nc bnc" id="L600" title="All 4 branches missed.">		if (searchResults != null &amp;&amp; searchResults.size() &gt; 0) {</span>
+<span class="nc" id="L601">			session.setAttribute(&quot;AGT_APP_ORDER_LIST1&quot;, searchResults);</span>
+
+<span class="nc" id="L603">			session.setAttribute(&quot;startValueOrderSearch&quot;, new Integer(0));</span>
+<span class="nc" id="L604">			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;Yes&quot;);</span>
+
+		} else {
+
+<span class="nc" id="L608">			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;No&quot;);</span>
+		}
+		/*
+		 * } catch (LMSException le) { return APPLICATION_ERROR; }
+		 */
+
+<span class="nc" id="L614">		searchAjax();</span>
+
+<span class="nc" id="L616">		return SUCCESS;</span>
+	}
+
+	public void setDate(String date) {
+<span class="nc" id="L620">		this.date = date;</span>
+<span class="nc" id="L621">	}</span>
+
+	public void setDispatch(boolean isDispatch) {
+<span class="nc" id="L624">		this.isDispatch = isDispatch;</span>
+<span class="nc" id="L625">	}</span>
+
+	public void setEdit(String edit) {
+<span class="nc" id="L628">		this.edit = edit;</span>
+<span class="nc" id="L629">	}</span>
+
+	public void setEnd(String end) {
+<span class="nc" id="L632">		this.end = end;</span>
+<span class="nc" id="L633">	}</span>
+
+	public void setGameId(int gameId) {
+<span class="nc" id="L636">		this.gameId = gameId;</span>
+<span class="nc" id="L637">	}</span>
+
+	public void setGameName(String gameName) {
+<span class="nc" id="L640">		this.gameName = gameName;</span>
+<span class="nc" id="L641">	}</span>
+
+	public void setGameNumber(String gameNumber) {
+<span class="nc" id="L644">		this.gameNumber = gameNumber;</span>
+<span class="nc" id="L645">	}</span>
+
+	public void setOrderDate(java.sql.Date orderDate) {
+<span class="nc" id="L648">		System.out.println(&quot;====order date &quot; + orderDate);</span>
+<span class="nc" id="L649">		this.orderDate = orderDate;</span>
+<span class="nc" id="L650">	}</span>
+
+	public void setOrderId(int orderId) {
+<span class="nc" id="L653">		System.out.println(&quot;==================== order id &quot; + orderId);</span>
+<span class="nc" id="L654">		this.orderId = orderId;</span>
+<span class="nc" id="L655">	}</span>
+
+	public void setOrderNumber(String orderNumber) {
+<span class="nc" id="L658">		this.orderNumber = orderNumber;</span>
+<span class="nc" id="L659">	}</span>
+
+	public void setOrderStatus(String orderStatus) {
+<span class="nc" id="L662">		this.orderStatus = orderStatus;</span>
+<span class="nc" id="L663">	}</span>
+
+	public void setRetOrgId(int retOrgId) {
+<span class="nc" id="L666">		System.out.println(&quot; retailer org id : &quot; + retOrgId);</span>
+<span class="nc" id="L667">		this.retOrgId = retOrgId;</span>
+<span class="nc" id="L668">	}</span>
+
+	public void setRetOrgName(String retOrgName) {
+<span class="nc" id="L671">		System.out.println(&quot; retailer org name : &quot; + retOrgName);</span>
+<span class="nc" id="L672">		this.retOrgName = retOrgName;</span>
+<span class="nc" id="L673">	}</span>
+
+	public void setSearchCriteria(String searchCriteria) {
+<span class="nc" id="L676">		this.searchCriteria = searchCriteria;</span>
+<span class="nc" id="L677">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L680">		this.request = request;</span>
+<span class="nc" id="L681">	}</span>
+
+	public void setStart(int start) {
+<span class="nc" id="L684">		this.start = start;</span>
+<span class="nc" id="L685">	}</span>
+
+	/**
+	 * This method is used to initialize Dispatch order process ,it used to make
+	 * all session attributes null.
+	 * 
+	 * @return
+	 * @throws Exception
+	 */
+
+	public String start() throws Exception {
+<span class="nc" id="L696">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L697">		session.setAttribute(&quot;AGT_APP_ORDER_LIST&quot;, null);</span>
+<span class="nc" id="L698">		session.setAttribute(&quot;AGT_APP_ORDER_LIST1&quot;, null);</span>
+<span class="nc" id="L699">		session.setAttribute(&quot;SearchResultsAvailable&quot;, null);</span>
+
+		// session.setAttribute(&quot;TOTAL&quot;,null);
+		// session.setAttribute(&quot;BALANCE&quot;,null);
+		// //credit limit and the current credit amount
+<span class="nc" id="L704">		session.setAttribute(&quot;CREDIT_LIMIT&quot;, null);</span>
+<span class="nc" id="L705">		session.setAttribute(&quot;CREDIT_AMT&quot;, null);</span>
+<span class="nc" id="L706">		return SUCCESS;</span>
+
+	}
+
+	public String SuccessStatusUpdate() throws Exception {
+<span class="nc" id="L711">		AgentOrderProcessHelper helper = new AgentOrderProcessHelper();</span>
+<span class="nc bnc" id="L712" title="All 2 branches missed.">		if (orderStatus.equals(&quot;Close&quot;)) {</span>
+<span class="nc" id="L713">			orderStatus = &quot;CLOSED&quot;;</span>
+
+		}
+<span class="nc bnc" id="L716" title="All 2 branches missed.">		if (helper.SuccessStatusUpdate(orderId, orderStatus)) {</span>
+
+<span class="nc" id="L718">			return SUCCESS;</span>
+
+		} else {
+
+<span class="nc" id="L722">			addActionError(&quot;There is some error to update the status&quot;);</span>
+<span class="nc" id="L723">			return ERROR;</span>
+		}
+
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

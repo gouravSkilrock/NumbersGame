@@ -1,0 +1,1606 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BODispatchGameAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.scratchService.inventoryMgmt.common</a> &gt; <span class="el_source">BODispatchGameAction.java</span></div><h1>BODispatchGameAction.java</h1><pre class="source lang-java linenums">/*
+ * ï¿½ copyright 2007, SkilRock Technologies, A division of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * All Rights Reserved
+ * The contents of this file are the property of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * and are subject to a License agreement with Sugal &amp; Damani Lottery Agency Pvt. Ltd.; you may
+ * not use this file except in compliance with that License.  You may obtain a
+ * copy of that license from:
+ * Legal Department
+ * Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * 6/35,WEA, Karol Bagh,
+ * New Delhi
+ * India - 110005
+ * This software is distributed under the License and is provided on an ï¿½AS ISï¿½
+ * basis, without warranty of any kind, either express or implied, unless
+ * otherwise provided in the License.  See the License for governing rights and
+ * limitations under the License.
+ */
+
+package com.skilrock.lms.web.scratchService.inventoryMgmt.common;
+
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.StringTokenizer;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.GameContants;
+import com.skilrock.lms.beans.BookBean;
+import com.skilrock.lms.beans.BookSeriesBean;
+import com.skilrock.lms.beans.DispatchOrderResponse;
+import com.skilrock.lms.beans.InvOrderBean;
+import com.skilrock.lms.beans.OrderBean;
+import com.skilrock.lms.beans.OrderedGameBean;
+import com.skilrock.lms.beans.OrgAddressBean;
+import com.skilrock.lms.beans.PackBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common.BODispatchGameHelper;
+import com.skilrock.lms.coreEngine.scratchService.orderMgmt.common.BOOrderProcessHelper;
+
+/**
+ * This class provides methods for handling the order dispatch at BO's end
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L60">public class BODispatchGameAction extends ActionSupport implements</span>
+		ServletRequestAware, ServletResponseAware {
+	public static final String APPLICATION_ERROR = &quot;applicationError&quot;;
+
+<span class="nc" id="L64">	static Log logger = LogFactory.getLog(BODispatchGameAction.class);</span>
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private int bookCountId;
+
+	private List&lt;BookBean&gt; bookList;
+	private String[] bookNbr;
+
+<span class="nc" id="L75">	String[] bookNbrFrmStr = null;</span>
+	private String bookNbrFrom;
+	private Object bookNbrFromArr;
+
+	private String bookNbrTo;
+
+	private Object bookNbrToArr;
+<span class="nc" id="L82">	String[] bookNbrToStr = null;</span>
+	private String bookNbrToVerify;
+	private double bookPrice;
+	private List bookSeriesAll;
+	private List&lt;BookBean&gt; bookSeriesList;
+
+<span class="nc" id="L88">	private int defaultNbrOfBooks = 5;</span>
+
+	private int gameId;
+	private boolean isAddBookEnabled;
+
+	private boolean isInValidEntry;
+	private boolean isProceedNext;
+
+	private int noOfBooksToDispatch;
+
+	private OrderedGameBean orderdedGame;
+	private int packCountId;
+
+	private List&lt;PackBean&gt; packList;
+
+	private String[] packNbr;
+
+	private String packNbrToVerify;
+
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+
+	/**
+	 * This method is called when the Add Book button is pressed
+	 * 
+	 * @return String
+	 */
+	public String addBook() {
+
+<span class="nc" id="L117">		System.out.println(&quot;---------I am in ADD Book--------------&quot;);</span>
+
+		// reInitialize();
+
+<span class="nc" id="L121">		HttpServletResponse response = getResponse();</span>
+<span class="nc" id="L122">		response.setHeader(&quot;Pragma&quot;, &quot;no-cache&quot;); // HTTP 1.0</span>
+<span class="nc" id="L123">		response.setHeader(&quot;Cache-Control&quot;, &quot;no-cache&quot;); // HTTP 1.1</span>
+<span class="nc" id="L124">		response.setDateHeader(&quot;Expires&quot;, 0); // prevents caching at the proxy</span>
+		// server
+<span class="nc" id="L126">		response.setHeader(&quot;Cache-Control&quot;, &quot;private&quot;); // HTTP 1.1</span>
+<span class="nc" id="L127">		response.setHeader(&quot;Cache-Control&quot;, &quot;no-store&quot;); // HTTP 1.1</span>
+<span class="nc" id="L128">		response.setHeader(&quot;Cache-Control&quot;, &quot;max-stale=0&quot;); // HTTP 1.1</span>
+
+		// System.out.println(&quot;add bookkkkkkkkkkkkk::&quot; +
+		// request.getParameter(&quot;hidBookNbr&quot;));
+
+		// System.out.println(&quot;add bookkkkkkkkkkkkk::&quot; + getHidBookNbr());
+
+<span class="nc" id="L135">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L136">		List&lt;BookBean&gt; bookList = (List&lt;BookBean&gt;) session</span>
+				.getAttribute(&quot;BOOK_LIST&quot;);
+<span class="nc" id="L138">		List&lt;PackBean&gt; packList = (List&lt;PackBean&gt;) session</span>
+				.getAttribute(&quot;PACK_LIST&quot;);
+
+<span class="nc" id="L141">		BookBean bookBean = null;</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">		if (bookList != null) {</span>
+
+<span class="nc" id="L144">			copyBookValues(bookList);</span>
+<span class="nc" id="L145">			bookBean = new BookBean();</span>
+<span class="nc" id="L146">			bookBean.setValid(true);</span>
+<span class="nc" id="L147">			bookList.add(bookBean);</span>
+<span class="nc" id="L148">			setBookList(bookList);</span>
+		}
+
+		/*
+		 * try { PrintWriter out = getResponse().getWriter(); out.write(&quot;This is
+		 * Aman Chawla&quot;); } catch (IOException e) { // TODO Auto-generated catch
+		 * block e.printStackTrace(); }
+		 */
+
+<span class="nc" id="L157">		return SUCCESS;</span>
+
+	}
+
+	private void changeDispatchBooks() {
+
+<span class="nc" id="L163">		HttpSession session = getRequest().getSession();</span>
+
+<span class="nc" id="L165">		List&lt;PackBean&gt; packList = (List&lt;PackBean&gt;) session</span>
+				.getAttribute(&quot;PACK_LIST&quot;);
+
+<span class="nc" id="L168">		List&lt;BookBean&gt; bookList = (List&lt;BookBean&gt;) session</span>
+				.getAttribute(&quot;BOOK_LIST&quot;);
+
+<span class="nc" id="L171">		List&lt;BookBean&gt; bookSeriesList = (List&lt;BookBean&gt;) session</span>
+				.getAttribute(&quot;BOOK_SERIES_LIST&quot;);
+
+		// for books
+<span class="nc" id="L175">		String bookNbr = null;</span>
+
+<span class="nc" id="L177">		System.out</span>
+				.println(&quot;-----:::::::::::::::::::::::::::::::::::::::::::::::::::::::&quot;
+						+ getNoOfBooksToDispatch());
+
+<span class="nc bnc" id="L181" title="All 2 branches missed.">		if (bookList != null) {</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">			for (BookBean bean : bookList) {</span>
+<span class="nc" id="L183">				bookNbr = bean.getBookNumber();</span>
+
+<span class="nc bnc" id="L185" title="All 4 branches missed.">				if (bookNbr != null &amp;&amp; !bookNbr.trim().equals(&quot;&quot;)) {</span>
+
+<span class="nc bnc" id="L187" title="All 2 branches missed.">					if (bean.getIsValid()) {</span>
+<span class="nc" id="L188">						setNoOfBooksToDispatch(getNoOfBooksToDispatch() + 1);</span>
+					}
+				}
+
+<span class="nc" id="L192">			}</span>
+		}
+
+		// for book Series List
+<span class="nc bnc" id="L196" title="All 2 branches missed.">		if (bookSeriesList != null) {</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">			for (BookBean bean : bookSeriesList) {</span>
+<span class="nc" id="L198">				bookNbr = bean.getBookNumber();</span>
+
+<span class="nc bnc" id="L200" title="All 4 branches missed.">				if (bookNbr != null &amp;&amp; !bookNbr.trim().equals(&quot;&quot;)) {</span>
+
+<span class="nc bnc" id="L202" title="All 2 branches missed.">					if (bean.getIsValid()) {</span>
+<span class="nc" id="L203">						setNoOfBooksToDispatch(getNoOfBooksToDispatch() + 1);</span>
+					}
+
+				}
+
+<span class="nc" id="L208">			}</span>
+		}
+		// for packs
+<span class="nc" id="L211">		String packNbr = null;</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">		if (packList != null) {</span>
+
+<span class="nc" id="L214">			OrderedGameBean gameBean = (OrderedGameBean) session</span>
+					.getAttribute(&quot;ORDERED_GAME&quot;);
+
+<span class="nc" id="L217">			int booksPerPack = gameBean.getNbrOfBooksPerPack();</span>
+
+<span class="nc bnc" id="L219" title="All 2 branches missed.">			for (PackBean bean : packList) {</span>
+<span class="nc" id="L220">				packNbr = bean.getPackNumber();</span>
+
+<span class="nc bnc" id="L222" title="All 4 branches missed.">				if (packNbr != null &amp;&amp; !packNbr.trim().equals(&quot;&quot;)) {</span>
+
+<span class="nc bnc" id="L224" title="All 2 branches missed.">					if (bean.getIsValid()) {</span>
+
+<span class="nc" id="L226">						setNoOfBooksToDispatch(getNoOfBooksToDispatch()</span>
+								+ booksPerPack);
+					}
+				}
+
+<span class="nc" id="L231">			}</span>
+		}
+
+<span class="nc" id="L234">	}</span>
+
+	public void checkValidBookInseries(List&lt;BookBean&gt; bookSeriesList) {
+<span class="nc" id="L237">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L238">		List bookSeriesAll = (ArrayList) session</span>
+				.getAttribute(&quot;BOOK_SERIES_ALL&quot;);
+<span class="nc" id="L240">		String bookNbr = null;</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">		if (bookSeriesList != null) {</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">			for (BookBean bean : bookSeriesList) {</span>
+<span class="nc" id="L243">				bookNbr = bean.getBookNumber();</span>
+
+<span class="nc bnc" id="L245" title="All 4 branches missed.">				if (bookNbr != null &amp;&amp; !bookNbr.trim().equals(&quot;&quot;)) {</span>
+					// System.out.println(&quot;--in
+					// book=series---&quot;+bean.getIsValid());
+
+<span class="nc bnc" id="L249" title="All 2 branches missed.">					if (!bean.getIsValid()) {</span>
+<span class="nc" id="L250">						int bookNum = Integer.parseInt(bookNbr.replaceAll(&quot;-&quot;,</span>
+								&quot;&quot;));
+						BookSeriesBean bookSeBean;
+<span class="nc bnc" id="L253" title="All 2 branches missed.">						for (int i = 0; i &lt; bookSeriesAll.size(); i++) {</span>
+<span class="nc" id="L254">							bookSeBean = (BookSeriesBean) bookSeriesAll.get(i);</span>
+<span class="nc" id="L255">							System.out.println(bookSeBean.getBookNbrFrom()</span>
+									+ &quot;--in bookserieslist---&quot; + bookNum
+									+ &quot;--------&quot; + bookSeBean.getBookNbrTo());
+
+<span class="nc bnc" id="L259" title="All 4 branches missed.">							if (Integer.parseInt(bookSeBean.getBookNbrFrom()</span>
+									.replaceAll(&quot;-&quot;, &quot;&quot;)) &lt;= bookNum
+									&amp;&amp; Integer
+											.parseInt(bookSeBean.getBookNbrTo()
+													.replaceAll(&quot;-&quot;, &quot;&quot;)) &gt;= bookNum) {
+								// System.out.println(bookSeBean.getBookNbrFrom()+&quot;--in
+								// bookserieslist---&quot;+bookNum);
+<span class="nc" id="L266">								bookSeBean</span>
+										.setStatus(&quot;Tickets in Series are Already in Pack&quot;);
+<span class="nc" id="L268">								setBookSeriesAll(bookSeriesAll);</span>
+							}
+						}
+					}
+				}
+
+<span class="nc" id="L274">			}</span>
+		}
+
+<span class="nc" id="L277">		session.setAttribute(&quot;BOOK_SERIES_ALL&quot;, bookSeriesAll);</span>
+		// System.out.println(&quot;--in bookserieslist-after
+		// sett--&quot;+((BookSeriesBean)bookSeriesAll.get(0)).getStatus());
+<span class="nc" id="L280">	}</span>
+
+	private void copyBookValues(List&lt;BookBean&gt; bookList) {
+<span class="nc" id="L283">		BookBean bookBean = null;</span>
+
+<span class="nc" id="L285">		System.out.println(&quot;BookNbr Array::&quot; + getBookNbr());</span>
+
+<span class="nc" id="L287">		System.out</span>
+				.println(&quot;Nbr of boks to dispatch&quot; + getNoOfBooksToDispatch());
+
+<span class="nc" id="L290">		String[] bookNbr = getBookNbr();</span>
+<span class="nc" id="L291">		System.out.println(&quot;BookNbr.length:&quot; + bookNbr.length);</span>
+
+<span class="nc" id="L293">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L294">		OrderedGameBean orderedGameBean = (OrderedGameBean) session</span>
+				.getAttribute(&quot;ORDERED_GAME&quot;);
+
+<span class="nc bnc" id="L297" title="All 2 branches missed.">		if (bookNbr != null) {</span>
+
+<span class="nc bnc" id="L299" title="All 2 branches missed.">			if (bookNbr.length == 1) {</span>
+
+<span class="nc" id="L301">				String bookVal = null;</span>
+<span class="nc" id="L302">				StringTokenizer bookTokens = new StringTokenizer(bookNbr[0],</span>
+						&quot;,&quot;);
+
+<span class="nc" id="L305">				System.out.println(&quot;Value Passed::&quot; + bookNbr[0]);</span>
+<span class="nc" id="L306">				System.out.println(&quot;BookTokens::&quot; + bookTokens.countTokens());</span>
+
+<span class="nc" id="L308">				int i = 0;</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">				while (bookTokens.hasMoreTokens()) {</span>
+
+<span class="nc" id="L311">					bookVal = bookTokens.nextToken();</span>
+<span class="nc" id="L312">					System.out.println(bookVal);</span>
+
+<span class="nc" id="L314">					bookVal = bookVal.trim();</span>
+
+<span class="nc bnc" id="L316" title="All 4 branches missed.">					if (bookVal.indexOf(&quot;-&quot;) == -1</span>
+							&amp;&amp; bookVal.length() &gt; orderedGameBean
+									.getGameNbrDigits()) {
+<span class="nc" id="L319">						bookVal = bookVal.substring(0, orderedGameBean</span>
+								.getGameNbrDigits())
+								+ &quot;-&quot;
+								+ bookVal.substring(orderedGameBean
+										.getGameNbrDigits());
+<span class="nc" id="L324">						bookBean = new BookBean();</span>
+<span class="nc" id="L325">						bookBean.setValid(true);</span>
+<span class="nc" id="L326">						bookBean.setBookNumber(bookVal);</span>
+<span class="nc" id="L327">						bookList.add(bookBean);</span>
+
+					}
+<span class="nc" id="L330">					i = i + 1;</span>
+				}
+<span class="nc" id="L332">				setBookList(bookList);</span>
+<span class="nc" id="L333">				System.out.println(&quot;After Setting BookList in copyBookValues::&quot;</span>
+						+ bookList);
+			}
+		}
+
+		/*
+		 * for(String b : bookNbr) { System.out.println(&quot;Book:::&quot; + b); }
+		 * 
+		 * 
+		 * 
+		 * if (bookNbr != null) { System.out.println(&quot;Inside NOt Null ---BookNbr
+		 * Array::&quot; + getBookNbr()); for (int i = 0; i &lt; bookNbr.length; i++) {
+		 * if (!bookNbr[i].trim().equals(&quot;&quot;)) { bookBean = new BookBean();
+		 * bookBean.setBookNumber(bookNbr[i]); bookList.add(bookBean); } } }
+		 */
+
+<span class="nc" id="L349">	}</span>
+
+	private void copyPackValues(List&lt;PackBean&gt; packList) {
+<span class="nc" id="L352">		PackBean packBean = null;</span>
+
+<span class="nc" id="L354">		System.out.println(&quot;PackNbr Array::&quot; + getPackNbr());</span>
+
+<span class="nc" id="L356">		String[] packNbr = getPackNbr();</span>
+<span class="nc" id="L357">		System.out.println(&quot;PackNbr.length:&quot; + packNbr.length);</span>
+
+<span class="nc" id="L359">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L360">		OrderedGameBean orderedGameBean = (OrderedGameBean) session</span>
+				.getAttribute(&quot;ORDERED_GAME&quot;);
+
+<span class="nc bnc" id="L363" title="All 2 branches missed.">		if (packNbr != null) {</span>
+
+<span class="nc bnc" id="L365" title="All 2 branches missed.">			if (packNbr.length == 1) {</span>
+
+<span class="nc" id="L367">				String packVal = null;</span>
+<span class="nc" id="L368">				StringTokenizer packTokens = new StringTokenizer(packNbr[0],</span>
+						&quot;,&quot;);
+
+<span class="nc" id="L371">				System.out.println(&quot;Value Passed::&quot; + packNbr[0]);</span>
+<span class="nc" id="L372">				System.out.println(&quot;PackTokens::&quot; + packTokens.countTokens());</span>
+
+<span class="nc" id="L374">				int i = 0;</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">				while (packTokens.hasMoreTokens()) {</span>
+
+<span class="nc" id="L377">					packVal = packTokens.nextToken();</span>
+
+<span class="nc" id="L379">					packVal = packVal.trim();</span>
+
+<span class="nc bnc" id="L381" title="All 4 branches missed.">					if (packVal.indexOf(&quot;-&quot;) == -1</span>
+							&amp;&amp; packVal.length() &gt; orderedGameBean
+									.getGameNbrDigits()) {
+<span class="nc" id="L384">						packVal = packVal.substring(0, orderedGameBean</span>
+								.getGameNbrDigits())
+								+ &quot;-&quot;
+								+ packVal.substring(orderedGameBean
+										.getGameNbrDigits());
+					}
+
+<span class="nc" id="L391">					System.out.println(packVal);</span>
+<span class="nc" id="L392">					packBean = packList.get(i++);</span>
+<span class="nc" id="L393">					packBean.setPackNumber(packVal);</span>
+				}
+			}
+		}
+<span class="nc" id="L397">	}</span>
+
+	/**
+	 * This method is used to display the dispatch game page
+	 * 
+	 * @return String
+	 */
+	public String dispatchGame() {
+
+<span class="nc" id="L406">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L407">		OrderedGameBean bean = (OrderedGameBean) session</span>
+				.getAttribute(&quot;ORDERED_GAME&quot;);
+<span class="nc" id="L409">		double remainingAvailableCreditLimit = ((Double) session</span>
+				.getAttribute(&quot;REMAINING_AVAILABLE_CREDIT_AMT&quot;)).doubleValue();
+<span class="nc" id="L411">		remainingAvailableCreditLimit = remainingAvailableCreditLimit</span>
+				- getBookPrice() * getNoOfBooksToDispatch();
+<span class="nc" id="L413">		session.setAttribute(&quot;REMAINING_AVAILABLE_CREDIT_AMT&quot;,</span>
+				remainingAvailableCreditLimit);
+<span class="nc" id="L415">		System.out.println(&quot;ramaining amount is &amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp;   &quot;</span>
+				+ remainingAvailableCreditLimit);
+
+<span class="nc" id="L418">		System.out</span>
+				.println(&quot;-----No of already dispatched books in the ordred bean&quot;
+						+ bean.getNbrOfBooksDlvrd() + &quot;----------&quot;);
+
+<span class="nc" id="L422">		List&lt;PackBean&gt; packList = null;</span>
+<span class="nc" id="L423">		List&lt;BookBean&gt; bookList = null;</span>
+<span class="nc" id="L424">		List&lt;BookBean&gt; bookSeriesList = new ArrayList&lt;BookBean&gt;();</span>
+<span class="nc" id="L425">		List bookSeriesAll = new ArrayList();</span>
+
+		int nbrOfAppBooks;
+		int nbrOfBooksPerPack;
+		int nbrOfAppBooksRemain;
+<span class="nc bnc" id="L430" title="All 2 branches missed.">		if (bean != null) {</span>
+<span class="nc" id="L431">			setOrderdedGame(bean);</span>
+
+<span class="nc" id="L433">			nbrOfAppBooks = bean.getNbrOfBooksApp();</span>
+<span class="nc" id="L434">			nbrOfAppBooksRemain = bean.getRemainingBooksToDispatch();</span>
+<span class="nc" id="L435">			nbrOfBooksPerPack = bean.getNbrOfBooksPerPack();</span>
+
+<span class="nc bnc" id="L437" title="All 2 branches missed.">			if (nbrOfAppBooksRemain &gt;= nbrOfBooksPerPack) {</span>
+<span class="nc" id="L438">				int nbrOfPacks = nbrOfAppBooksRemain / nbrOfBooksPerPack;</span>
+
+<span class="nc bnc" id="L440" title="All 2 branches missed.">				if (nbrOfPacks &gt; 0) {</span>
+
+<span class="nc" id="L442">					packList = new ArrayList&lt;PackBean&gt;();</span>
+
+					/*
+					 * if (nbrOfPacks &gt; defaultNbrOfPacks) { nbrOfPacks =
+					 * defaultNbrOfPacks; }
+					 */
+
+<span class="nc" id="L449">					PackBean packBean = null;</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">					for (int i = 0; i &lt; nbrOfPacks; i++) {</span>
+<span class="nc" id="L451">						packBean = new PackBean();</span>
+<span class="nc" id="L452">						packBean.setValid(true);</span>
+<span class="nc" id="L453">						packList.add(packBean);</span>
+
+					}
+
+<span class="nc" id="L457">					setPackList(packList);</span>
+					// session.setAttribute(&quot;PACK_LIST&quot;, packList);
+				}
+			}
+
+<span class="nc" id="L462">			System.out.println(&quot;About to set default books&quot;);</span>
+<span class="nc" id="L463">			bookList = new ArrayList&lt;BookBean&gt;();</span>
+<span class="nc" id="L464">			BookBean bookBean = null;</span>
+
+<span class="nc" id="L466">			int nbrOfBooksToAdd = 0;</span>
+<span class="nc bnc" id="L467" title="All 2 branches missed.">			if (nbrOfAppBooksRemain &gt; defaultNbrOfBooks) {</span>
+<span class="nc" id="L468">				nbrOfBooksToAdd = defaultNbrOfBooks;</span>
+<span class="nc" id="L469">				setAddBookEnabled(true);</span>
+
+			} else {
+<span class="nc" id="L472">				nbrOfBooksToAdd = nbrOfAppBooksRemain;</span>
+			}
+
+<span class="nc bnc" id="L475" title="All 2 branches missed.">			for (int i = 0; i &lt; nbrOfBooksToAdd; i++) {</span>
+<span class="nc" id="L476">				bookBean = new BookBean();</span>
+<span class="nc" id="L477">				bookBean.setValid(true);</span>
+
+<span class="nc" id="L479">				bookList.add(bookBean);</span>
+			}
+
+<span class="nc" id="L482">			setBookList(bookList);</span>
+			// session.setAttribute(&quot;BOOK_LIST&quot;, bookList);
+
+		}
+
+<span class="nc" id="L487">		setNoOfBooksToDispatch(0);</span>
+<span class="nc" id="L488">		session.setAttribute(&quot;PACK_LIST&quot;, packList);</span>
+<span class="nc" id="L489">		session.setAttribute(&quot;BOOK_LIST&quot;, bookList);</span>
+<span class="nc" id="L490">		session.setAttribute(&quot;BOOK_SERIES_LIST&quot;, bookSeriesList);</span>
+<span class="nc" id="L491">		session.setAttribute(&quot;BOOK_SERIES_ALL&quot;, bookSeriesAll);</span>
+<span class="nc" id="L492">		return SUCCESS;</span>
+
+	}
+
+	public String dispatchOrder() throws Exception {
+
+<span class="nc" id="L498">		System.out</span>
+				.println(&quot;-------------------------------------------------dispatchOrder------------------------------------&quot;);
+
+<span class="nc" id="L501">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L502">		List&lt;InvOrderBean&gt; invOrderList = (List&lt;InvOrderBean&gt;) session</span>
+				.getAttribute(&quot;INV_ORDER_LIST&quot;);
+<span class="nc" id="L504">		int totalApproveBooksForOrder = (Integer) session</span>
+				.getAttribute(&quot;Total_Approve_books&quot;);
+
+<span class="nc" id="L507">		System.out.println(invOrderList.size()</span>
+				+ &quot;size of invOrderList------------------------------------&quot;);
+<span class="nc" id="L509">		UserInfoBean userInfoBean = (UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L511">		String boOrgName = userInfoBean.getOrgName();</span>
+<span class="nc" id="L512">		int userOrgID = userInfoBean.getUserOrgId();</span>
+
+<span class="nc" id="L514">		int orderId = (Integer) session.getAttribute(&quot;ORDER_ID&quot;);</span>
+<span class="nc" id="L515">		int agentOrgId = (Integer) session.getAttribute(&quot;AGENT_ORG_ID&quot;);</span>
+<span class="nc" id="L516">		String rootPath = (String) session.getAttribute(&quot;ROOT_PATH&quot;);</span>
+<span class="nc" id="L517">		System.out.println(&quot;----------------InvOrderList::&quot;</span>
+				+ invOrderList.size());
+<span class="nc bnc" id="L519" title="All 2 branches missed.">		if (invOrderList != null) {</span>
+			// try {
+<span class="nc" id="L521">			BOOrderProcessHelper helper = new BOOrderProcessHelper();</span>
+<span class="nc" id="L522">			int DCId = helper.assignOrder(invOrderList, totalApproveBooksForOrder,</span>
+					orderId, boOrgName, userOrgID, agentOrgId, rootPath,
+					 userInfoBean.getUserId());
+<span class="nc" id="L525">			session.setAttribute(&quot;DEL_CHALLAN_ID&quot;, DCId);</span>
+			/*
+			 * } catch (LMSException le) { return APPLICATION_ERROR; }
+			 */
+		}
+
+<span class="nc" id="L531">		return SUCCESS;</span>
+	}
+
+	public int getBookCountId() {
+<span class="nc" id="L535">		return bookCountId;</span>
+	}
+
+	public List&lt;BookBean&gt; getBookList() {
+<span class="nc" id="L539">		return bookList;</span>
+	}
+
+	public String[] getBookNbr() {
+<span class="nc" id="L543">		return bookNbr;</span>
+	}
+
+	public String[] getBookNbrFrmStr() {
+<span class="nc" id="L547">		return bookNbrFrmStr;</span>
+	}
+
+	public String getBookNbrFrom() {
+<span class="nc" id="L551">		return bookNbrFrom;</span>
+	}
+
+	/*
+	 * public String addPack() {
+	 * 
+	 * reInitialize(); System.out.println(&quot;add bookkkkkkkkkkkkk&quot;); HttpSession
+	 * session = getRequest().getSession(); List&lt;PackBean&gt; packList = (List&lt;PackBean&gt;)
+	 * session .getAttribute(&quot;PACK_LIST&quot;); List&lt;BookBean&gt; bookList = (List&lt;BookBean&gt;)
+	 * session .getAttribute(&quot;BOOK_LIST&quot;);
+	 * 
+	 * if (packList != null) {
+	 * 
+	 * copyPackValues(packList); packList.add(new PackBean());
+	 * setPackList(packList); }
+	 * 
+	 * if (bookList != null) { copyBookValues(bookList); setBookList(bookList); }
+	 * 
+	 * return SUCCESS; }
+	 */
+
+	public Object getBookNbrFromArr() {
+<span class="nc" id="L573">		return bookNbrFromArr;</span>
+	}
+
+	public String getBookNbrTo() {
+<span class="nc" id="L577">		return bookNbrTo;</span>
+	}
+
+	public Object getBookNbrToArr() {
+<span class="nc" id="L581">		return bookNbrToArr;</span>
+	}
+
+	public String[] getBookNbrToStr() {
+<span class="nc" id="L585">		return bookNbrToStr;</span>
+	}
+
+	public String getBookNbrToVerify() {
+<span class="nc" id="L589">		return bookNbrToVerify;</span>
+	}
+
+	public double getBookPrice() {
+<span class="nc" id="L593">		return bookPrice;</span>
+	}
+
+	public List getBookSeriesAll() {
+<span class="nc" id="L597">		return bookSeriesAll;</span>
+	}
+
+	/*
+	 * private void copyPackValues(List&lt;PackBean&gt; packList) { PackBean packBean =
+	 * null; System.out.println(&quot;---&quot; + getPackNbr()); for (int i = 0; i &lt;
+	 * packList.size(); i++) { packBean = packList.get(i);
+	 * System.out.println(&quot;PackBean::&quot; + packBean);
+	 * packBean.setPackNumber(getPackNbr()[i]);
+	 * System.out.println(&quot;PackBean11::&quot; + packBean); } }
+	 */
+
+	public List&lt;BookBean&gt; getBookSeriesList() {
+<span class="nc" id="L610">		return bookSeriesList;</span>
+	}
+
+	public int getGameId() {
+<span class="nc" id="L614">		return gameId;</span>
+	}
+
+	public boolean getIsAddBookEnabled() {
+<span class="nc" id="L618">		return isAddBookEnabled;</span>
+	}
+
+	public boolean getIsInValidEntry() {
+<span class="nc" id="L622">		return isInValidEntry;</span>
+	}
+
+	public boolean getIsProceedNext() {
+<span class="nc" id="L626">		return isProceedNext;</span>
+	}
+
+	public int getNoOfBooksToDispatch() {
+<span class="nc" id="L630">		return noOfBooksToDispatch;</span>
+	}
+
+	public OrderedGameBean getOrderdedGame() {
+<span class="nc" id="L634">		return orderdedGame;</span>
+	}
+
+	public int getPackCountId() {
+<span class="nc" id="L638">		return packCountId;</span>
+	}
+
+	public List&lt;PackBean&gt; getPackList() {
+<span class="nc" id="L642">		return packList;</span>
+	}
+
+	public String[] getPackNbr() {
+<span class="nc" id="L646">		return packNbr;</span>
+	}
+
+	public String getPackNbrToVerify() {
+<span class="nc" id="L650">		return packNbrToVerify;</span>
+	}
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L654">		return request;</span>
+	}
+
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L658">		return response;</span>
+	}
+
+	private void reInitialize() {
+<span class="nc" id="L662">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L663">		OrderedGameBean bean = (OrderedGameBean) session</span>
+				.getAttribute(&quot;ORDERED_GAME&quot;);
+<span class="nc bnc" id="L665" title="All 2 branches missed.">		if (bean != null) {</span>
+<span class="nc" id="L666">			setOrderdedGame(bean);</span>
+		}
+
+<span class="nc" id="L669">		List&lt;PackBean&gt; packList = (List&lt;PackBean&gt;) session</span>
+				.getAttribute(&quot;PACK_LIST&quot;);
+<span class="nc" id="L671">		List&lt;BookBean&gt; bookList = (List&lt;BookBean&gt;) session</span>
+				.getAttribute(&quot;BOOK_LIST&quot;);
+
+<span class="nc" id="L674">		System.out.println(&quot;-----booklist---&quot; + bookList);</span>
+
+<span class="nc bnc" id="L676" title="All 2 branches missed.">		if (packList != null) {</span>
+<span class="nc" id="L677">			setPackList(packList);</span>
+		}
+<span class="nc bnc" id="L679" title="All 2 branches missed.">		if (bookList != null) {</span>
+
+<span class="nc bnc" id="L681" title="All 2 branches missed.">			if (bookList.size() == 0) {</span>
+<span class="nc" id="L682">				OrderedGameBean orderedGameBean = (OrderedGameBean) session</span>
+						.getAttribute(&quot;ORDERED_GAME&quot;);
+
+<span class="nc" id="L685">				int nbrOfAppBooks = orderedGameBean.getNbrOfBooksApp();</span>
+
+<span class="nc" id="L687">				int nbrOfBooksToAdd = 0;</span>
+<span class="nc bnc" id="L688" title="All 2 branches missed.">				if (nbrOfAppBooks &gt; defaultNbrOfBooks) {</span>
+<span class="nc" id="L689">					nbrOfBooksToAdd = defaultNbrOfBooks;</span>
+<span class="nc" id="L690">					setAddBookEnabled(true);</span>
+
+				} else {
+<span class="nc" id="L693">					nbrOfBooksToAdd = nbrOfAppBooks;</span>
+				}
+<span class="nc" id="L695">				BookBean bookBean = null;</span>
+<span class="nc bnc" id="L696" title="All 2 branches missed.">				for (int i = 0; i &lt; nbrOfBooksToAdd; i++) {</span>
+<span class="nc" id="L697">					bookBean = new BookBean();</span>
+<span class="nc" id="L698">					bookBean.setValid(true);</span>
+
+<span class="nc" id="L700">					bookList.add(bookBean);</span>
+				}
+			}
+
+<span class="nc" id="L704">			setBookList(bookList);</span>
+		}
+<span class="nc" id="L706">	}</span>
+
+	private void saveInvData(OrderedGameBean orderedGameBean,
+			List&lt;BookBean&gt; bookList, List&lt;PackBean&gt; packList) {
+<span class="nc" id="L710">		System.out.println(&quot;???????????// saveInvData&quot;);</span>
+<span class="nc" id="L711">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L712">		List&lt;InvOrderBean&gt; invOrderList = (List&lt;InvOrderBean&gt;) session</span>
+				.getAttribute(&quot;INV_ORDER_LIST&quot;);
+
+<span class="nc" id="L715">		InvOrderBean invOrderBean = null;</span>
+<span class="nc bnc" id="L716" title="All 2 branches missed.">		if (invOrderList != null) {</span>
+<span class="nc" id="L717">			invOrderBean = new InvOrderBean();</span>
+<span class="nc" id="L718">			invOrderBean.setOrderedGameBean(orderedGameBean);</span>
+<span class="nc bnc" id="L719" title="All 2 branches missed.">			if (bookList != null) {</span>
+<span class="nc" id="L720">				invOrderBean.setBookList(bookList);</span>
+			}
+<span class="nc bnc" id="L722" title="All 2 branches missed.">			if (packList != null) {</span>
+<span class="nc" id="L723">				invOrderBean.setPackList(packList);</span>
+			}
+
+<span class="nc" id="L726">			orderedGameBean.setReadyForDispatch(true);</span>
+<span class="nc" id="L727">			invOrderList.add(invOrderBean);</span>
+
+		}
+
+<span class="nc" id="L731">	}</span>
+
+	public void setAddBookEnabled(boolean isAddBookEnabled) {
+<span class="nc" id="L734">		this.isAddBookEnabled = isAddBookEnabled;</span>
+<span class="nc" id="L735">	}</span>
+
+	public void setBookCountId(int bookCountId) {
+<span class="nc" id="L738">		this.bookCountId = bookCountId;</span>
+<span class="nc" id="L739">	}</span>
+
+	public void setBookList(List&lt;BookBean&gt; bookList) {
+<span class="nc" id="L742">		this.bookList = bookList;</span>
+<span class="nc" id="L743">	}</span>
+
+	public void setBookNbr(String[] bookNbr) {
+<span class="nc" id="L746">		this.bookNbr = bookNbr;</span>
+<span class="nc" id="L747">	}</span>
+
+	public void setBookNbrFrmStr(String[] bookNbrFrmStr) {
+<span class="nc" id="L750">		this.bookNbrFrmStr = bookNbrFrmStr;</span>
+<span class="nc" id="L751">	}</span>
+
+	public void setBookNbrFrom(String bookNbrFrom) {
+<span class="nc" id="L754">		this.bookNbrFrom = bookNbrFrom;</span>
+<span class="nc" id="L755">	}</span>
+
+	public void setBookNbrFromArr(Object bookNbrFromArr) {
+<span class="nc" id="L758">		this.bookNbrFromArr = bookNbrFromArr;</span>
+<span class="nc" id="L759">	}</span>
+
+	public void setBookNbrTo(String bookNbrTo) {
+<span class="nc" id="L762">		this.bookNbrTo = bookNbrTo;</span>
+<span class="nc" id="L763">	}</span>
+
+	public void setBookNbrToArr(Object bookNbrToArr) {
+<span class="nc" id="L766">		this.bookNbrToArr = bookNbrToArr;</span>
+<span class="nc" id="L767">	}</span>
+
+	public void setBookNbrToStr(String[] bookNbrToStr) {
+<span class="nc" id="L770">		this.bookNbrToStr = bookNbrToStr;</span>
+<span class="nc" id="L771">	}</span>
+
+	public void setBookNbrToVerify(String bookNbrToVerify) {
+<span class="nc" id="L774">		this.bookNbrToVerify = bookNbrToVerify;</span>
+<span class="nc" id="L775">	}</span>
+
+	public void setBookPrice(double bookPrice) {
+<span class="nc" id="L778">		this.bookPrice = bookPrice;</span>
+<span class="nc" id="L779">	}</span>
+
+	public void setBookSeriesAll(List bookSeriesAll) {
+<span class="nc" id="L782">		this.bookSeriesAll = bookSeriesAll;</span>
+<span class="nc" id="L783">	}</span>
+
+	public void setBookSeriesList(List&lt;BookBean&gt; bookSeriesList) {
+<span class="nc" id="L786">		this.bookSeriesList = bookSeriesList;</span>
+<span class="nc" id="L787">	}</span>
+
+	public void setGameId(int gameId) {
+<span class="nc" id="L790">		this.gameId = gameId;</span>
+<span class="nc" id="L791">	}</span>
+
+	public void setInValidEntry(boolean isInValidEntry) {
+<span class="nc" id="L794">		this.isInValidEntry = isInValidEntry;</span>
+<span class="nc" id="L795">	}</span>
+
+	public void setNoOfBooksToDispatch(int noOfBooksToDispatch) {
+<span class="nc" id="L798">		this.noOfBooksToDispatch = noOfBooksToDispatch;</span>
+<span class="nc" id="L799">	}</span>
+
+	public void setOrderdedGame(OrderedGameBean orderdedGame) {
+<span class="nc" id="L802">		this.orderdedGame = orderdedGame;</span>
+<span class="nc" id="L803">	}</span>
+
+	public void setPackCountId(int packCountId) {
+<span class="nc" id="L806">		this.packCountId = packCountId;</span>
+<span class="nc" id="L807">	}</span>
+
+	public void setPackList(List&lt;PackBean&gt; packList) {
+<span class="nc" id="L810">		this.packList = packList;</span>
+<span class="nc" id="L811">	}</span>
+
+	public void setPackNbr(String[] packNbr) {
+<span class="nc" id="L814">		this.packNbr = packNbr;</span>
+<span class="nc" id="L815">	}</span>
+
+	public void setPackNbrToVerify(String packNbrToVerify) {
+<span class="nc" id="L818">		this.packNbrToVerify = packNbrToVerify;</span>
+<span class="nc" id="L819">	}</span>
+
+	public void setProceedNext(boolean isProceedNext) {
+<span class="nc" id="L822">		this.isProceedNext = isProceedNext;</span>
+<span class="nc" id="L823">	}</span>
+
+	public void setResponse(HttpServletResponse response) {
+<span class="nc" id="L826">		this.response = response;</span>
+<span class="nc" id="L827">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L830">		this.request = request;</span>
+
+<span class="nc" id="L832">	}</span>
+
+	public void setServletResponse(HttpServletResponse response) {
+<span class="nc" id="L835">		this.response = response;</span>
+
+<span class="nc" id="L837">	}</span>
+
+	/**
+	 * This method verifies the book entered by the user
+	 * 
+	 * @param bookList
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public void verifyBook(String bookNbr, List&lt;BookBean&gt; bookList,
+			Connection connection, int roleId) throws Exception {
+
+<span class="nc" id="L850">		boolean isValid = false;</span>
+<span class="nc" id="L851">		int gameId = getGameId();</span>
+<span class="nc" id="L852">		boolean isBlank = false;</span>
+<span class="nc" id="L853">		boolean isDuplicate = false;</span>
+
+<span class="nc" id="L855">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L856">		List&lt;BookBean&gt; bookSeriesList = (List&lt;BookBean&gt;) session</span>
+				.getAttribute(&quot;BOOK_SERIES_LIST&quot;);
+
+		// System.out.println(&quot;Bokkkkkkkk To
+		// verify::::::::::::::::::::::::::::::::&quot; + bookNbr);
+
+		// try {
+<span class="nc bnc" id="L863" title="All 4 branches missed.">		if (bookNbr != null &amp;&amp; !bookNbr.trim().equals(&quot;&quot;)) {</span>
+
+			// add hyphens if necessary
+
+			// System.out.println(&quot;:::::::::&quot; + bookNbr.indexOf(&quot;-&quot;));
+
+<span class="nc bnc" id="L869" title="All 2 branches missed.">			if (bookNbr.indexOf(&quot;-&quot;) == -1) {</span>
+<span class="nc" id="L870">				OrderedGameBean orderedGameBean = (OrderedGameBean) session</span>
+						.getAttribute(&quot;ORDERED_GAME&quot;);
+
+<span class="nc" id="L873">				bookNbr = bookNbr.substring(0, orderedGameBean</span>
+						.getGameNbrDigits())
+						+ &quot;-&quot;
+						+ bookNbr.substring(orderedGameBean.getGameNbrDigits());
+
+<span class="nc" id="L878">				System.out.println(&quot;New book nbr:::&quot; + bookNbr);</span>
+
+			}
+
+			// System.out.println(&quot;---------------vvvvvvvvvvvvv----------&quot; +
+			// bookNbr);
+<span class="nc" id="L884">			BODispatchGameHelper helper = new BODispatchGameHelper();</span>
+<span class="nc" id="L885">			isValid = helper.verifyBook(gameId, bookNbr, connection, roleId);</span>
+<span class="nc" id="L886">		}</span>
+
+		else {
+			// System.out.println(&quot;---------------vvvvvvvvvvvvv----------&quot;);
+<span class="nc" id="L890">			isValid = true;</span>
+		}
+
+		// when the user changes the bookNbr to blanks
+		/*
+		 * if (bookNbr != null &amp;&amp; bookNbr.trim().equals(&quot;&quot;)) {
+		 * System.out.println(&quot;--For Blank--------&quot;); isBlank = true; BookBean
+		 * blankBean = bookList.get(bookCountId - 1);
+		 * blankBean.setBookNumber(&quot;&quot;); blankBean.setValid(true);
+		 * blankBean.setStatus(null); }
+		 */
+
+		/*
+		 * } catch (LMSException le) { return APPLICATION_ERROR; }
+		 */
+
+<span class="nc bnc" id="L906" title="All 2 branches missed.">		if (!isBlank) {</span>
+
+<span class="nc" id="L908">			System.out.println(&quot;--If Not Blank--------&quot;);</span>
+<span class="nc bnc" id="L909" title="All 2 branches missed.">			if (bookList != null) {</span>
+				// copyBookValues(bookList);
+
+				// for duplicate check
+
+<span class="nc" id="L914">				int dupCount = 0;</span>
+
+<span class="nc" id="L916">				int bookCountId = getBookCountId();</span>
+<span class="nc" id="L917">				System.out.println(&quot;BookCountId:::::::::::&quot; + bookCountId);</span>
+
+<span class="nc bnc" id="L919" title="All 2 branches missed.">				for (BookBean bean : bookList) {</span>
+<span class="nc bnc" id="L920" title="All 2 branches missed.">					if (bookNbr.equals(bean.getBookNumber())) {</span>
+<span class="nc" id="L921">						dupCount++;</span>
+						// System.out.println(&quot;----in dup
+						// counter----&quot;+dupCount);
+					}
+
+<span class="nc bnc" id="L926" title="All 2 branches missed.">					if (dupCount &gt; 1) {</span>
+<span class="nc" id="L927">						isDuplicate = true;</span>
+<span class="nc" id="L928">						bean.setValid(false);</span>
+<span class="nc" id="L929">						bean.setStatus(&quot;Duplicate Book&quot;);</span>
+						// System.out.println(&quot;----in dup counter-if
+						// block---&quot;+dupCount);
+<span class="nc" id="L932">						break;</span>
+					}
+<span class="nc" id="L934">				}</span>
+
+				/*
+				 * if (dupCount &lt;= 1) { BookBean dupBean =
+				 * bookList.get(bookCountId - 1); dupBean.setValid(true);
+				 * dupBean.setStatus(null); }
+				 */
+
+<span class="nc bnc" id="L942" title="All 2 branches missed.">				if (!isDuplicate) {</span>
+<span class="nc bnc" id="L943" title="All 2 branches missed.">					for (BookBean bean : bookList) {</span>
+<span class="nc bnc" id="L944" title="All 2 branches missed.">						if (bookNbr.equals(bean.getBookNumber())) {</span>
+<span class="nc bnc" id="L945" title="All 2 branches missed.">							if (!isValid) {</span>
+<span class="nc" id="L946">								bean.setValid(false);</span>
+<span class="nc" id="L947">								bean.setStatus(&quot;Wrong Book Number&quot;);</span>
+<span class="nc" id="L948">								break;</span>
+							} else {
+<span class="nc" id="L950">								bean.setValid(true);</span>
+<span class="nc" id="L951">								bean.setStatus(null);</span>
+<span class="nc" id="L952">								break;</span>
+							}
+						}
+
+<span class="nc" id="L956">					}</span>
+
+				}
+
+			}
+		}
+
+<span class="nc" id="L963">		setBookList(bookList);</span>
+		// changeDispatchBooks();
+<span class="nc" id="L965">	}</span>
+
+	public String verifyBookSeries() throws LMSException {
+
+		// global connection to be used everywhere
+<span class="nc" id="L970">		Connection connection = null;</span>
+		 
+<span class="nc" id="L972">		connection = DBConnect.getConnection();</span>
+
+<span class="nc" id="L974">		boolean isValid = false;</span>
+<span class="nc" id="L975">		boolean isSeriesValid = true;</span>
+<span class="nc" id="L976">		int gameId = getGameId();</span>
+<span class="nc" id="L977">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L978">		int roleId=((UserInfoBean)session.getAttribute(&quot;USER_INFO&quot;)).getRoleId();</span>
+<span class="nc" id="L979">		List&lt;BookBean&gt; bookList = new ArrayList();</span>
+<span class="nc" id="L980">		List&lt;BookBean&gt; bookSeriesList = new ArrayList();</span>
+<span class="nc" id="L981">		List bookSeriesAll = new ArrayList();</span>
+<span class="nc" id="L982">		session.setAttribute(&quot;BOOK_SERIES_ALL&quot;, bookSeriesAll);</span>
+<span class="nc" id="L983">		session.setAttribute(&quot;BOOK_LIST&quot;, bookList);</span>
+<span class="nc" id="L984">		session.setAttribute(&quot;BOOK_SERIES_LIST&quot;, bookSeriesList);</span>
+<span class="nc" id="L985">		StringTokenizer bookNbrFrmTok = new StringTokenizer(</span>
+				((String[]) bookNbrFromArr)[0], &quot;,&quot;);
+<span class="nc" id="L987">		StringTokenizer bookNbrToTok = new StringTokenizer(</span>
+				((String[]) bookNbrToArr)[0], &quot;,&quot;);
+<span class="nc" id="L989">		bookNbrFrmStr = new String[bookNbrFrmTok.countTokens()];</span>
+<span class="nc" id="L990">		bookNbrToStr = new String[bookNbrToTok.countTokens()];</span>
+<span class="nc" id="L991">		int frmTok = 0;</span>
+<span class="nc bnc" id="L992" title="All 2 branches missed.">		while (bookNbrFrmTok.hasMoreTokens()) {</span>
+<span class="nc" id="L993">			bookNbrFrmStr[frmTok] = bookNbrFrmTok.nextToken();</span>
+<span class="nc" id="L994">			bookNbrToStr[frmTok] = bookNbrToTok.nextToken();</span>
+<span class="nc" id="L995">			frmTok = frmTok + 1;</span>
+		}
+<span class="nc" id="L997">		System.out.println(&quot;---Series length&quot; + bookNbrFrmStr);</span>
+
+<span class="nc bnc" id="L999" title="All 2 branches missed.">		if (bookNbrFrmStr != null) {</span>
+<span class="nc bnc" id="L1000" title="All 2 branches missed.">			for (int seriesNo = 0; seriesNo &lt; bookNbrFrmStr.length; seriesNo++) {</span>
+<span class="nc bnc" id="L1001" title="All 2 branches missed.">				if (bookNbrFrmStr[seriesNo] != &quot;&quot;) {</span>
+
+<span class="nc" id="L1003">					String bookNbrFrom = bookNbrFrmStr[seriesNo];</span>
+<span class="nc" id="L1004">					String bookNbrTo = bookNbrToStr[seriesNo];</span>
+
+<span class="nc" id="L1006">					int bookNbrFrmInt = Integer.parseInt(bookNbrFrom</span>
+							.replaceAll(&quot;-&quot;, &quot;&quot;));
+<span class="nc" id="L1008">					int bookNbrToInt = Integer.parseInt(bookNbrTo.replaceAll(</span>
+							&quot;-&quot;, &quot;&quot;));
+<span class="nc" id="L1010">					int noOfbooks = bookNbrToInt - bookNbrFrmInt;</span>
+<span class="nc" id="L1011">					BookSeriesBean bookSeBean = new BookSeriesBean();</span>
+<span class="nc" id="L1012">					bookSeBean.setBookNbrFrom(bookNbrFrom);</span>
+<span class="nc" id="L1013">					bookSeBean.setBookNbrTo(bookNbrTo);</span>
+<span class="nc" id="L1014">					bookSeBean.setStatus(&quot;&quot;);</span>
+<span class="nc" id="L1015">					bookSeBean.setValid(isValid);</span>
+<span class="nc bnc" id="L1016" title="All 2 branches missed.">					for (int i = 0; i &lt; noOfbooks + 1; i++) {</span>
+<span class="nc" id="L1017">						String bookNbr = String.valueOf(bookNbrFrmInt);</span>
+
+<span class="nc bnc" id="L1019" title="All 4 branches missed.">						if (bookNbr != null &amp;&amp; !bookNbr.trim().equals(&quot;&quot;)) {</span>
+							// add hyphens if necessary
+
+<span class="nc" id="L1022">							System.out.println(&quot;:::::::::&quot;</span>
+									+ bookNbr.indexOf(&quot;-&quot;));
+
+<span class="nc bnc" id="L1025" title="All 2 branches missed.">							if (bookNbr.indexOf(&quot;-&quot;) == -1) {</span>
+<span class="nc" id="L1026">								OrderedGameBean orderedGameBean = (OrderedGameBean) session</span>
+										.getAttribute(&quot;ORDERED_GAME&quot;);
+
+<span class="nc" id="L1029">								bookNbr = bookNbr.substring(0, orderedGameBean</span>
+										.getGameNbrDigits())
+										+ &quot;-&quot;
+										+ bookNbr.substring(orderedGameBean
+												.getGameNbrDigits());
+
+<span class="nc" id="L1035">								System.out.println(&quot;New book nbr:::&quot; + bookNbr);</span>
+
+							}
+
+<span class="nc" id="L1039">							System.out</span>
+									.println(&quot;---------------vvvvvvvvvvvvv----------&quot;
+											+ bookNbr);
+<span class="nc" id="L1042">							BODispatchGameHelper helper = new BODispatchGameHelper();</span>
+<span class="nc" id="L1043">							isValid = helper.verifyBook(gameId, bookNbr,</span>
+									connection, roleId);
+
+<span class="nc bnc" id="L1046" title="All 2 branches missed.">							if (isValid) {</span>
+<span class="nc" id="L1047">								BookBean bookBean = new BookBean();</span>
+<span class="nc" id="L1048">								bookBean.setValid(true);</span>
+<span class="nc" id="L1049">								bookBean.setBookNumber(bookNbr);</span>
+<span class="nc bnc" id="L1050" title="All 2 branches missed.">								for (BookBean bean : bookSeriesList) {</span>
+<span class="nc bnc" id="L1051" title="All 2 branches missed.">									if (bookNbr.equals(bean.getBookNumber())) {</span>
+<span class="nc" id="L1052">										isSeriesValid = false;</span>
+<span class="nc" id="L1053">										bookSeBean</span>
+												.setStatus(&quot;Series Contains Tickets of Another Series&quot;);
+<span class="nc" id="L1055">										break;// New series contains ticket of</span>
+										// old series
+									}
+<span class="nc" id="L1058">								}</span>
+<span class="nc bnc" id="L1059" title="All 2 branches missed.">								if (isSeriesValid) {</span>
+<span class="nc" id="L1060">									bookSeriesList.add(bookBean);</span>
+								}
+
+<span class="nc" id="L1063">							} else {</span>
+<span class="nc" id="L1064">								isSeriesValid = false;</span>
+<span class="nc" id="L1065">								bookSeBean.setStatus(&quot;Series Not Valid&quot;);</span>
+<span class="nc" id="L1066">								break;// Series not valid</span>
+							}
+						}
+<span class="nc" id="L1069">						System.out.println(&quot;inside for of verifyBookSeries&quot;);</span>
+
+<span class="nc" id="L1071">						bookNbrFrmInt++;</span>
+
+					}
+<span class="nc bnc" id="L1074" title="All 2 branches missed.">					if (isSeriesValid) {</span>
+<span class="nc" id="L1075">						bookSeBean.setValid(true);</span>
+<span class="nc" id="L1076">						session</span>
+								.setAttribute(&quot;BOOK_SERIES_LIST&quot;,
+										bookSeriesList);
+					}
+<span class="nc" id="L1080">					bookSeriesAll.add(bookSeBean);</span>
+<span class="nc" id="L1081">					session.setAttribute(&quot;BOOK_SERIES_ALL&quot;, bookSeriesAll);</span>
+					// changeDispatchBooks();
+<span class="nc" id="L1083">					System.out</span>
+							.println(&quot;@@@@@@@@@@@@@################$$$$$$$$$$$$$%%%%%%%%%%%%%%%%&quot;);
+				}
+			}
+		}
+<span class="nc" id="L1088">		verifyIndividualBooks(bookList, connection, roleId);</span>
+
+<span class="nc bnc" id="L1090" title="All 2 branches missed.">		for (int i = 0; i &lt; bookSeriesList.size(); i++) {</span>
+<span class="nc bnc" id="L1091" title="All 2 branches missed.">			for (int j = 0; j &lt; bookList.size(); j++) {</span>
+				// System.out.println(bookSeriesList.size()+&quot;-Gaura
+				// Test--&quot;+bookList.size());
+<span class="nc bnc" id="L1094" title="All 2 branches missed.">				if (((BookBean) bookList.get(j)).getBookNumber().equals(</span>
+						((BookBean) bookSeriesList.get(i)).getBookNumber())) {
+<span class="nc" id="L1096">					BookBean bean = (BookBean) bookList.get(j);</span>
+<span class="nc" id="L1097">					bean.setValid(false);</span>
+<span class="nc" id="L1098">					bean.setStatus(&quot;Book Number already in Book Series&quot;);</span>
+				}
+			}
+		}
+<span class="nc" id="L1102">		setBookList(bookList);</span>
+<span class="nc" id="L1103">		session.setAttribute(&quot;BOOK_LIST&quot;, bookList);</span>
+<span class="nc" id="L1104">		changeDispatchBooks();</span>
+<span class="nc" id="L1105">		System.out.println(&quot;---------Trying to prevent caching------&quot;</span>
+				+ bookList);
+<span class="nc" id="L1107">		HttpServletResponse response = getResponse();</span>
+<span class="nc" id="L1108">		response.setHeader(&quot;Pragma&quot;, &quot;no-cache&quot;); // HTTP 1.0</span>
+<span class="nc" id="L1109">		response.setHeader(&quot;Cache-Control&quot;, &quot;no-cache&quot;); // HTTP 1.1</span>
+<span class="nc" id="L1110">		response.setDateHeader(&quot;Expires&quot;, 0); // prevents caching at the proxy</span>
+		// server
+<span class="nc" id="L1112">		response.setHeader(&quot;Cache-Control&quot;, &quot;private&quot;); // HTTP 1.1</span>
+<span class="nc" id="L1113">		response.setHeader(&quot;Cache-Control&quot;, &quot;no-store&quot;); // HTTP 1.1</span>
+<span class="nc" id="L1114">		response.setHeader(&quot;Cache-Control&quot;, &quot;max-stale=0&quot;); // HTTP 1.1</span>
+
+<span class="nc" id="L1116">		return SUCCESS;</span>
+
+	}
+
+	/**
+	 * This method is used for verifying the book and pack entries and
+	 * dispatching the game if entries are correct
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public String verifyDispatchEntry() throws Exception {
+
+<span class="nc" id="L1129">		boolean isVerified = false;</span>
+
+<span class="nc" id="L1131">		System.out.println(&quot;In Verify Dispatch--------------------@@@&quot;);</span>
+<span class="nc" id="L1132">		HttpSession session = getRequest().getSession();</span>
+
+<span class="nc" id="L1134">		List&lt;PackBean&gt; packList = (List&lt;PackBean&gt;) session</span>
+				.getAttribute(&quot;PACK_LIST&quot;);
+
+<span class="nc" id="L1137">		List&lt;BookBean&gt; bookList = (List&lt;BookBean&gt;) session</span>
+				.getAttribute(&quot;BOOK_LIST&quot;);
+<span class="nc" id="L1139">		List&lt;BookBean&gt; bookSeriesList = (List&lt;BookBean&gt;) session</span>
+				.getAttribute(&quot;BOOK_SERIES_LIST&quot;);
+
+		// List&lt;PackBean&gt; packList = new ArrayList&lt;PackBean&gt;();
+		// List&lt;BookBean&gt; bookList = new ArrayList&lt;BookBean&gt;();
+
+<span class="nc bnc" id="L1145" title="All 2 branches missed.">		if (packList != null) {</span>
+			// copyPackValues(packList);
+<span class="nc" id="L1147">			setPackList(packList);</span>
+
+		}
+
+<span class="nc bnc" id="L1151" title="All 2 branches missed.">		if (bookList != null) {</span>
+			// copyBookValues(bookList);
+<span class="nc" id="L1153">			setBookList(bookList);</span>
+
+		}
+<span class="nc bnc" id="L1156" title="All 2 branches missed.">		if (bookSeriesList != null) {</span>
+<span class="nc" id="L1157">			setBookSeriesList(bookSeriesList);</span>
+			/*
+			 * if(!bookList.containsAll(bookSeriesList)){
+			 * bookList.addAll(bookSeriesList); }
+			 * setBookSeriesList(bookSeriesList);
+			 */
+		}
+
+<span class="nc" id="L1165">		System.out.println(&quot;Nbr of Books to dispatch::&quot; + noOfBooksToDispatch);</span>
+
+<span class="nc" id="L1167">		OrderedGameBean orderedGameBean = (OrderedGameBean) session</span>
+				.getAttribute(&quot;ORDERED_GAME&quot;);
+<span class="nc" id="L1169">		System.out.println(&quot;OrderedGameBean::&quot; + orderedGameBean);</span>
+
+<span class="nc bnc" id="L1171" title="All 2 branches missed.">		if (orderedGameBean != null) {</span>
+<span class="nc" id="L1172">			orderedGameBean.setNbrOfBooksToDispatch(getNoOfBooksToDispatch());</span>
+		}
+
+<span class="nc" id="L1175">		BODispatchGameHelper helper = new BODispatchGameHelper();</span>
+
+		try {
+<span class="nc bnc" id="L1178" title="All 4 branches missed.">			if (orderedGameBean != null &amp;&amp; bookList != null) {</span>
+
+<span class="nc" id="L1180">				isVerified = helper.isBookAndPackValid(packList, bookList,</span>
+						bookSeriesList);
+<span class="nc" id="L1182">				System.out.println(&quot;First IsVerified::&quot; + isVerified);</span>
+<span class="nc bnc" id="L1183" title="All 2 branches missed.">				if (isVerified) {</span>
+<span class="nc" id="L1184">					isVerified = helper.verifyDispatchEntry(orderedGameBean,</span>
+							packList, bookList, bookSeriesList);
+<span class="nc" id="L1186">					System.out.println(&quot;2nd IsVerified::&quot; + isVerified);</span>
+				}
+
+<span class="nc" id="L1189">				System.out.println(&quot;IsVerified::&quot; + isVerified);</span>
+			}
+<span class="nc" id="L1191">		} catch (Exception le) {</span>
+<span class="nc" id="L1192">			le.printStackTrace();</span>
+<span class="nc" id="L1193">			System.out.println(&quot;Helllllllllllo&quot;);</span>
+<span class="nc" id="L1194">		}</span>
+
+<span class="nc bnc" id="L1196" title="All 2 branches missed.">		if (isVerified) {</span>
+<span class="nc" id="L1197">			setProceedNext(true);</span>
+<span class="nc" id="L1198">			bookList.addAll(bookSeriesList);</span>
+<span class="nc" id="L1199">			setBookList(bookList);</span>
+<span class="nc" id="L1200">			saveInvData(orderedGameBean, bookList, packList);</span>
+<span class="nc" id="L1201">			System.out.println(&quot;properly success from verifyDispatchEntry&quot;);</span>
+<span class="nc" id="L1202">			return SUCCESS;</span>
+
+		} else {
+<span class="nc" id="L1205">			reInitialize();</span>
+<span class="nc" id="L1206">			checkValidBookInseries(bookSeriesList);</span>
+<span class="nc" id="L1207">			int validBookCount = helper.recalculateDispatchBooks(packList,</span>
+					bookList, bookSeriesList, orderedGameBean
+							.getNbrOfBooksPerPack());
+<span class="nc" id="L1210">			setNoOfBooksToDispatch(validBookCount);</span>
+
+<span class="nc bnc" id="L1212" title="All 2 branches missed.">			if (orderedGameBean != null) {</span>
+<span class="nc bnc" id="L1213" title="All 2 branches missed.">				if (validBookCount &lt; orderedGameBean.getNbrOfBooksApp()) {</span>
+<span class="nc" id="L1214">					setAddBookEnabled(true);</span>
+
+				}
+			}
+
+<span class="nc" id="L1219">			setInValidEntry(true);</span>
+<span class="nc" id="L1220">			return ERROR;</span>
+		}
+
+		/*
+		 * if(packList != null &amp;&amp; packList.size() &gt; 0){ for(int i=0;i&lt;packList.size();i++){
+		 * PackBean b = packList.get(i); System.out.println(&quot;Packnum:&quot; +
+		 * b.getPackNbr()); System.out.println(&quot;Packnum Valid:&quot; +
+		 * b.getIsValid()); } }
+		 * 
+		 * if(bookList != null &amp;&amp; bookList.size() &gt; 0){ for(int i=0;i&lt;bookList.size();i++){
+		 * BookBean b = bookList.get(i); System.out.println(&quot;Booknum:&quot; +
+		 * b.getBookNbr()); System.out.println(&quot;Booknum Valid:&quot; +
+		 * b.getIsValid()); } }
+		 */
+
+	}
+
+	public void verifyIndividualBooks(List&lt;BookBean&gt; bookList,
+			Connection connection, int roleId) throws LMSException {
+
+<span class="nc" id="L1240">		copyBookValues(bookList);</span>
+<span class="nc bnc" id="L1241" title="All 2 branches missed.">		for (BookBean bean : bookList) {</span>
+			try {
+<span class="nc" id="L1243">				verifyBook(bean.getBookNumber(), bookList, connection, roleId);</span>
+<span class="nc" id="L1244">			} catch (Exception e) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L1246">				e.printStackTrace();</span>
+<span class="nc" id="L1247">				throw new LMSException(&quot;sqlException&quot;, e);</span>
+<span class="nc" id="L1248">			}</span>
+<span class="nc" id="L1249">		}</span>
+<span class="nc" id="L1250">	}</span>
+
+	/**
+	 * This method verifies the pack entered by the user
+	 * 
+	 * @return String
+	 * @throws Exception
+	 */
+	public String verifyPack() throws Exception {
+
+<span class="nc" id="L1260">		boolean isValid = false;</span>
+<span class="nc" id="L1261">		int gameId = getGameId();</span>
+<span class="nc" id="L1262">		boolean isBlank = false;</span>
+<span class="nc" id="L1263">		boolean isDuplicate = false;</span>
+
+<span class="nc" id="L1265">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L1266">		List&lt;PackBean&gt; packList = (List&lt;PackBean&gt;) session</span>
+				.getAttribute(&quot;PACK_LIST&quot;);
+<span class="nc" id="L1268">		String packNbr = getPackNbrToVerify();</span>
+
+		try {
+<span class="nc bnc" id="L1271" title="All 4 branches missed.">			if (packNbr != null &amp;&amp; !packNbr.trim().equals(&quot;&quot;)) {</span>
+
+<span class="nc bnc" id="L1273" title="All 2 branches missed.">				if (packNbr.indexOf(&quot;-&quot;) == -1) {</span>
+<span class="nc" id="L1274">					OrderedGameBean orderedGameBean = (OrderedGameBean) session</span>
+							.getAttribute(&quot;ORDERED_GAME&quot;);
+
+<span class="nc" id="L1277">					packNbr = packNbr.substring(0, orderedGameBean</span>
+							.getGameNbrDigits())
+							+ &quot;-&quot;
+							+ packNbr.substring(orderedGameBean
+									.getGameNbrDigits());
+
+<span class="nc" id="L1283">					System.out.println(&quot;New pack nbr:::&quot; + packNbr);</span>
+
+				}
+
+<span class="nc" id="L1287">				BODispatchGameHelper helper = new BODispatchGameHelper();</span>
+<span class="nc" id="L1288">				isValid = helper.verifyPack(gameId, packNbr);</span>
+<span class="nc" id="L1289">			} else {</span>
+<span class="nc" id="L1290">				isValid = true;</span>
+			}
+
+			// when the user changes the packNbr to blanks
+<span class="nc bnc" id="L1294" title="All 4 branches missed.">			if (packNbr != null &amp;&amp; packNbr.trim().equals(&quot;&quot;)) {</span>
+<span class="nc" id="L1295">				System.out.println(&quot;--For Blank--------&quot;);</span>
+<span class="nc" id="L1296">				isBlank = true;</span>
+<span class="nc" id="L1297">				PackBean blankBean = packList.get(packCountId - 1);</span>
+<span class="nc" id="L1298">				blankBean.setPackNumber(&quot;&quot;);</span>
+<span class="nc" id="L1299">				blankBean.setValid(true);</span>
+<span class="nc" id="L1300">				blankBean.setStatus(null);</span>
+			}
+
+<span class="nc" id="L1303">		} catch (Exception le) {</span>
+<span class="nc" id="L1304">			le.printStackTrace();</span>
+<span class="nc" id="L1305">		}</span>
+
+		/*
+		 * try { PrintWriter out = getResponse().getWriter(); if (isValid) {
+		 * out.write(&quot;valid&quot;); } } catch (IOException e) { // TODO
+		 * Auto-generated catch block e.printStackTrace(); }
+		 */
+
+<span class="nc bnc" id="L1313" title="All 2 branches missed.">		if (!isBlank) {</span>
+
+<span class="nc" id="L1315">			System.out.println(&quot;--If Not Blank--------&quot;);</span>
+<span class="nc bnc" id="L1316" title="All 2 branches missed.">			if (packList != null) {</span>
+<span class="nc" id="L1317">				copyPackValues(packList);</span>
+
+				// for duplicate check
+
+<span class="nc" id="L1321">				int dupCount = 0;</span>
+
+<span class="nc" id="L1323">				int packCountId = getPackCountId();</span>
+<span class="nc" id="L1324">				System.out.println(&quot;PackCountId:::::::::::&quot; + packCountId);</span>
+
+<span class="nc bnc" id="L1326" title="All 2 branches missed.">				for (PackBean bean : packList) {</span>
+<span class="nc bnc" id="L1327" title="All 2 branches missed.">					if (packNbr.equals(bean.getPackNumber())) {</span>
+<span class="nc" id="L1328">						dupCount++;</span>
+					}
+
+<span class="nc bnc" id="L1331" title="All 2 branches missed.">					if (dupCount &gt; 1) {</span>
+<span class="nc" id="L1332">						isDuplicate = true;</span>
+<span class="nc" id="L1333">						PackBean dupBean = packList.get(packCountId - 1);</span>
+<span class="nc" id="L1334">						dupBean.setValid(false);</span>
+<span class="nc" id="L1335">						dupBean.setStatus(&quot;Duplicate Pack&quot;);</span>
+<span class="nc" id="L1336">						break;</span>
+					}
+<span class="nc" id="L1338">				}</span>
+
+<span class="nc bnc" id="L1340" title="All 2 branches missed.">				if (dupCount &lt;= 1) {</span>
+<span class="nc" id="L1341">					PackBean dupBean = packList.get(packCountId - 1);</span>
+<span class="nc" id="L1342">					dupBean.setValid(true);</span>
+<span class="nc" id="L1343">					dupBean.setStatus(null);</span>
+				}
+
+<span class="nc bnc" id="L1346" title="All 2 branches missed.">				if (!isDuplicate) {</span>
+<span class="nc bnc" id="L1347" title="All 2 branches missed.">					for (PackBean bean : packList) {</span>
+<span class="nc bnc" id="L1348" title="All 2 branches missed.">						if (packNbr.equals(bean.getPackNumber())) {</span>
+<span class="nc bnc" id="L1349" title="All 2 branches missed.">							if (!isValid) {</span>
+<span class="nc" id="L1350">								bean.setValid(false);</span>
+<span class="nc" id="L1351">								bean.setStatus(&quot;Wrong Pack Number&quot;);</span>
+<span class="nc" id="L1352">								break;</span>
+							} else {
+<span class="nc" id="L1354">								bean.setValid(true);</span>
+<span class="nc" id="L1355">								bean.setStatus(null);</span>
+<span class="nc" id="L1356">								break;</span>
+							}
+						}
+<span class="nc" id="L1359">					}</span>
+				}
+
+			}
+		}
+
+<span class="nc" id="L1365">		setPackList(packList);</span>
+<span class="nc" id="L1366">		changeDispatchBooks();</span>
+
+<span class="nc" id="L1368">		System.out.println(&quot;---------Trying to prevent caching------&quot;);</span>
+<span class="nc" id="L1369">		HttpServletResponse response = getResponse();</span>
+<span class="nc" id="L1370">		response.setHeader(&quot;Pragma&quot;, &quot;no-cache&quot;); // HTTP 1.0</span>
+<span class="nc" id="L1371">		response.setHeader(&quot;Cache-Control&quot;, &quot;no-cache&quot;); // HTTP 1.1</span>
+<span class="nc" id="L1372">		response.setDateHeader(&quot;Expires&quot;, 0); // prevents caching at the proxy</span>
+		// server
+<span class="nc" id="L1374">		response.setHeader(&quot;Cache-Control&quot;, &quot;private&quot;); // HTTP 1.1</span>
+<span class="nc" id="L1375">		response.setHeader(&quot;Cache-Control&quot;, &quot;no-store&quot;); // HTTP 1.1</span>
+<span class="nc" id="L1376">		response.setHeader(&quot;Cache-Control&quot;, &quot;max-stale=0&quot;); // HTTP 1.1</span>
+
+<span class="nc" id="L1378">		return SUCCESS;</span>
+	}
+
+	/*		BO Dispatch Order Starts	*/
+	private String gameNumber;
+	private String gameName;
+	private String challanId;
+	private int agentOrgId;
+	private String agtOrgName;
+	private int orderId;
+	private String orderNumber;
+	private String orderDate;
+	private String end;
+	private String searchResultsAvailable;
+
+	public String getGameNumber() {
+<span class="nc" id="L1394">		return gameNumber;</span>
+	}
+
+	public void setGameNumber(String gameNumber) {
+<span class="nc" id="L1398">		this.gameNumber = gameNumber;</span>
+<span class="nc" id="L1399">	}</span>
+
+	public String getGameName() {
+<span class="nc" id="L1402">		return gameName;</span>
+	}
+
+	public void setGameName(String gameName) {
+<span class="nc" id="L1406">		this.gameName = gameName;</span>
+<span class="nc" id="L1407">	}</span>
+	
+	public String getChallanId() {
+<span class="nc" id="L1410">		return challanId;</span>
+	}
+
+	public void setChallanId(String challanId) {
+<span class="nc" id="L1414">		this.challanId = challanId;</span>
+<span class="nc" id="L1415">	}</span>
+
+	public int getAgentOrgId() {
+<span class="nc" id="L1418">		return agentOrgId;</span>
+	}
+
+	public void setAgentOrgId(int agentOrgId) {
+<span class="nc" id="L1422">		this.agentOrgId = agentOrgId;</span>
+<span class="nc" id="L1423">	}</span>
+
+	public String getAgtOrgName() {
+<span class="nc" id="L1426">		return agtOrgName;</span>
+	}
+
+	public void setAgtOrgName(String agtOrgName) {
+<span class="nc" id="L1430">		this.agtOrgName = agtOrgName;</span>
+<span class="nc" id="L1431">	}</span>
+
+	public int getOrderId() {
+<span class="nc" id="L1434">		return orderId;</span>
+	}
+
+	public void setOrderId(int orderId) {
+<span class="nc" id="L1438">		this.orderId = orderId;</span>
+<span class="nc" id="L1439">	}</span>
+
+	public String getOrderNumber() {
+<span class="nc" id="L1442">		return orderNumber;</span>
+	}
+
+	public void setOrderNumber(String orderNumber) {
+<span class="nc" id="L1446">		this.orderNumber = orderNumber;</span>
+<span class="nc" id="L1447">	}</span>
+
+	public String getOrderDate() {
+<span class="nc" id="L1450">		return orderDate;</span>
+	}
+
+	public void setOrderDate(String orderDate) {
+<span class="nc" id="L1454">		this.orderDate = orderDate;</span>
+<span class="nc" id="L1455">	}</span>
+
+	public String getEnd() {
+<span class="nc" id="L1458">		return end;</span>
+	}
+
+	public void setEnd(String end) {
+<span class="nc" id="L1462">		this.end = end;</span>
+<span class="nc" id="L1463">	}</span>
+
+	public String getSearchResultsAvailable() {
+<span class="nc" id="L1466">		return searchResultsAvailable;</span>
+	}
+
+	public void setSearchResultsAvailable(String searchResultsAvailable) {
+<span class="nc" id="L1470">		this.searchResultsAvailable = searchResultsAvailable;</span>
+<span class="nc" id="L1471">	}</span>
+
+	public String dispatchOrderMenu() throws LMSException {
+<span class="nc" id="L1474">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L1475">		session.setAttribute(&quot;APP_ORDER_LIST1&quot;, null);</span>
+<span class="nc" id="L1476">		session.setAttribute(&quot;APP_ORDER_LIST&quot;, null);</span>
+<span class="nc" id="L1477">		session.setAttribute(&quot;SearchResultsAvailable&quot;, null);</span>
+<span class="nc" id="L1478">		session.setAttribute(&quot;CREDIT_LIMIT&quot;, null);</span>
+<span class="nc" id="L1479">		session.setAttribute(&quot;CREDIT_AMT&quot;, null);</span>
+
+<span class="nc" id="L1481">		return SUCCESS;</span>
+	}
+
+	public String dispatchOrderSearch() throws LMSException {
+<span class="nc" id="L1485">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L1486">		session.setAttribute(&quot;APP_ORDER_LIST1&quot;, null);</span>
+<span class="nc" id="L1487">		session.setAttribute(&quot;APP_ORDER_LIST&quot;, null);</span>
+<span class="nc" id="L1488">		session.setAttribute(&quot;SearchResultsAvailable&quot;, null);</span>
+<span class="nc" id="L1489">		session.setAttribute(&quot;Total_Approve_books&quot;, null);</span>
+<span class="nc" id="L1490">		session.setAttribute(&quot;CREDIT_LIMIT&quot;, null);</span>
+<span class="nc" id="L1491">		session.setAttribute(&quot;CREDIT_AMT&quot;, null);</span>
+<span class="nc" id="L1492">		session.setAttribute(&quot;REMAINING_AVAILABLE_CREDIT_AMT&quot;, null);</span>
+
+<span class="nc" id="L1494">		Map&lt;String, String&gt; searchMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L1495">		searchMap.put(GameContants.GAME_NAME, gameName);</span>
+<span class="nc" id="L1496">		searchMap.put(GameContants.GAME_NBR, gameNumber);</span>
+<span class="nc" id="L1497">		searchMap.put(TableConstants.ORG_NAME, agtOrgName);</span>
+<span class="nc" id="L1498">		searchMap.put(GameContants.ORDER_ID, orderNumber);</span>
+
+<span class="nc" id="L1500">		BODispatchGameHelper helper = new BODispatchGameHelper();</span>
+<span class="nc" id="L1501">		List&lt;OrderBean&gt; searchResults = helper.dispatchOrderSearch(gameName, gameNumber, agtOrgName, orderNumber,challanId,((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;)).getRoleId());</span>
+
+<span class="nc bnc" id="L1503" title="All 4 branches missed.">		if (searchResults != null &amp;&amp; searchResults.size() &gt; 0) {</span>
+<span class="nc" id="L1504">			session.setAttribute(&quot;APP_ORDER_LIST1&quot;, searchResults);</span>
+<span class="nc" id="L1505">			session.setAttribute(&quot;startValueOrderSearch&quot;, new Integer(0));</span>
+<span class="nc" id="L1506">			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;Yes&quot;);</span>
+		} else {
+<span class="nc" id="L1508">			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;No&quot;);</span>
+		}
+<span class="nc" id="L1510">		searchAjax();</span>
+
+<span class="nc" id="L1512">		return SUCCESS;</span>
+	}
+
+	public String searchAjax() {
+<span class="nc" id="L1516">		int startValue = 0;</span>
+<span class="nc" id="L1517">		int endValue = 0;</span>
+<span class="nc" id="L1518">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L1519">		List ajaxList = (List) session.getAttribute(&quot;APP_ORDER_LIST1&quot;);</span>
+<span class="nc" id="L1520">		List ajaxSearchList = new ArrayList();</span>
+<span class="nc bnc" id="L1521" title="All 2 branches missed.">		if (ajaxList != null) {</span>
+<span class="nc bnc" id="L1522" title="All 2 branches missed.">			if (getEnd() != null)</span>
+<span class="nc" id="L1523">				end = getEnd();</span>
+			else
+<span class="nc" id="L1525">				end = &quot;first&quot;;</span>
+
+<span class="nc" id="L1527">			startValue = (Integer) session.getAttribute(&quot;startValueOrderSearch&quot;);</span>
+<span class="nc bnc" id="L1528" title="All 2 branches missed.">			if (end.equals(&quot;first&quot;)) {</span>
+<span class="nc" id="L1529">				startValue = 0;</span>
+<span class="nc" id="L1530">				endValue = startValue + 5;</span>
+<span class="nc bnc" id="L1531" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L1532">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L1534" title="All 2 branches missed.">			} else if (end.equals(&quot;Previous&quot;)) {</span>
+<span class="nc" id="L1535">				startValue = startValue - 5;</span>
+<span class="nc bnc" id="L1536" title="All 2 branches missed.">				if (startValue &lt; 5) {</span>
+<span class="nc" id="L1537">					startValue = 0;</span>
+				}
+<span class="nc" id="L1539">				endValue = startValue + 5;</span>
+<span class="nc bnc" id="L1540" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L1541">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L1543" title="All 2 branches missed.">			} else if (end.equals(&quot;Next&quot;)) {</span>
+<span class="nc" id="L1544">				startValue = startValue + 5;</span>
+<span class="nc" id="L1545">				endValue = startValue + 5;</span>
+<span class="nc bnc" id="L1546" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L1547">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L1549" title="All 2 branches missed.">				if (startValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L1550">					startValue = ajaxList.size() - ajaxList.size() % 5;</span>
+				}
+<span class="nc bnc" id="L1552" title="All 2 branches missed.">			} else if (end.equals(&quot;last&quot;)) {</span>
+<span class="nc" id="L1553">				endValue = ajaxList.size();</span>
+<span class="nc" id="L1554">				startValue = endValue - endValue % 5;</span>
+			}
+<span class="nc bnc" id="L1556" title="All 2 branches missed.">			if (startValue == endValue) {</span>
+<span class="nc" id="L1557">				startValue = endValue - 5;</span>
+			}
+<span class="nc bnc" id="L1559" title="All 2 branches missed.">			for (int i = startValue; i &lt; endValue; i++) {</span>
+<span class="nc" id="L1560">				ajaxSearchList.add(ajaxList.get(i));</span>
+			}
+<span class="nc" id="L1562">			session.setAttribute(&quot;APP_ORDER_LIST&quot;, ajaxSearchList);</span>
+<span class="nc" id="L1563">			session.setAttribute(&quot;startValueOrderSearch&quot;, startValue);</span>
+<span class="nc" id="L1564">			setSearchResultsAvailable(&quot;Yes&quot;);</span>
+		}
+
+<span class="nc" id="L1567">		return SUCCESS;</span>
+	}
+
+	public String dispatchOrderDetails() throws LMSException {
+<span class="nc" id="L1571">		HttpSession session = getRequest().getSession();</span>
+
+<span class="nc" id="L1573">		OrgAddressBean addrBean = new BOOrderProcessHelper().fetchAddress(agentOrgId);</span>
+<span class="nc bnc" id="L1574" title="All 2 branches missed.">		if (addrBean != null)</span>
+<span class="nc" id="L1575">			session.setAttribute(&quot;ORG_ADDR&quot;, addrBean);</span>
+
+<span class="nc" id="L1577">		DispatchOrderResponse dispatchOrderResponse = new BODispatchGameHelper().getBookListFromOrderId(orderId);</span>
+<span class="nc" id="L1578">		session.setAttribute(&quot;ORDER_ID&quot;, getOrderId());</span>
+<span class="nc" id="L1579">		session.setAttribute(&quot;ORDER_DATE&quot;, getOrderDate());</span>
+<span class="nc" id="L1580">		session.setAttribute(&quot;AGT_ORG_NAME&quot;, getAgtOrgName());</span>
+<span class="nc" id="L1581">		session.setAttribute(&quot;AGENT_ORG_ID&quot;, agentOrgId);</span>
+<span class="nc" id="L1582">		session.setAttribute(&quot;CHALLAN_ID&quot;, getChallanId());</span>
+<span class="nc" id="L1583">		session.setAttribute(&quot;BOOK_LIST&quot;, dispatchOrderResponse);</span>
+
+<span class="nc" id="L1585">		return SUCCESS;</span>
+	}
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public String dispatchOrderSave() throws Exception {
+<span class="nc" id="L1590">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L1591">		UserInfoBean userInfoBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L1592">		int orderId = (Integer) session.getAttribute(&quot;ORDER_ID&quot;);</span>
+<span class="nc" id="L1593">		Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt; gameMap = ((DispatchOrderResponse) session.getAttribute(&quot;BOOK_LIST&quot;)).getOrderData();</span>
+<span class="nc" id="L1594">		new BODispatchGameHelper().dispatchOrder(orderId, userInfoBean.getUserOrgId(), userInfoBean.getUserType(),userInfoBean.getUserId(), gameMap);</span>
+
+<span class="nc" id="L1596">		return SUCCESS;</span>
+	}
+
+	/*private static String roundTo2DecimalPlaces(double value) {
+		DecimalFormat df = new DecimalFormat(&quot;0.000&quot;);
+		String doublevalue = df.format(value);
+		return doublevalue;
+	}*/
+	/*		BO Dispatch Order End		*/
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

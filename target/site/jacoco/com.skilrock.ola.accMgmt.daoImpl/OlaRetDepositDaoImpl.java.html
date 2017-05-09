@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaRetDepositDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.ola.accMgmt.daoImpl</a> &gt; <span class="el_source">OlaRetDepositDaoImpl.java</span></div><h1>OlaRetDepositDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.ola.accMgmt.daoImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Date;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.ola.accMgmt.javaBeans.OLADepositRefundBean;
+
+
+
+<span class="nc" id="L21">public class OlaRetDepositDaoImpl {</span>
+	
+<span class="nc" id="L23">		static Log logger = LogFactory.getLog(OlaRetDepositDaoImpl.class);	</span>
+		
+		public static boolean depositeRefund(long depositTxnId, UserInfoBean userBean, Connection con) throws SQLException, LMSException {
+<span class="nc" id="L26">			OLADepositRefundBean refundBean = new OLADepositRefundBean();</span>
+<span class="nc" id="L27">			PreparedStatement pstmt = null;</span>
+<span class="nc" id="L28">			ResultSet rs = null;</span>
+<span class="nc" id="L29">			boolean isValid=false;</span>
+<span class="nc" id="L30">			long transactionId = 0;</span>
+<span class="nc" id="L31">			String fetchRefundDataQuery = &quot;select wallet_id,ims_ref_transaction_id, deposit_amt, net_amt, agent_net_amt, retailer_comm, agent_comm,  party_id from st_ola_ret_deposit where transaction_id = ?&quot;;</span>
+<span class="nc" id="L32">			pstmt = con.prepareStatement(fetchRefundDataQuery);</span>
+<span class="nc" id="L33">			pstmt.setLong(1, depositTxnId);</span>
+<span class="nc" id="L34">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L35" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L36">				refundBean.setWalletId(rs.getInt(&quot;wallet_id&quot;));</span>
+<span class="nc" id="L37">				refundBean.setRefTxnId(Long.parseLong(rs.getString(&quot;ims_ref_transaction_id&quot;)));</span>
+<span class="nc" id="L38">				refundBean.setDepositAmt(rs.getDouble(&quot;deposit_amt&quot;));</span>
+<span class="nc" id="L39">				refundBean.setRetNetAmt(rs.getDouble(&quot;net_amt&quot;));</span>
+<span class="nc" id="L40">				refundBean.setAgtNetAmt(rs.getDouble(&quot;agent_net_amt&quot;));</span>
+<span class="nc" id="L41">				refundBean.setRetComm(rs.getDouble(&quot;retailer_comm&quot;));</span>
+<span class="nc" id="L42">				refundBean.setAgtComm(rs.getDouble(&quot;agent_comm&quot;));</span>
+<span class="nc" id="L43">				refundBean.setPlrId(rs.getInt(&quot;party_id&quot;));		</span>
+			}
+<span class="nc" id="L45">			pstmt.clearParameters();</span>
+<span class="nc" id="L46">			String insertInLMS = QueryManager.insertInLMSTransactionMaster();</span>
+<span class="nc" id="L47">			PreparedStatement pstmt1 = con.prepareStatement(insertInLMS);</span>
+<span class="nc" id="L48">			pstmt1.setString(1, &quot;RETAILER&quot;);</span>
+			
+<span class="nc" id="L50">			pstmt1.executeUpdate();</span>
+			
+<span class="nc" id="L52">			ResultSet rs1 = pstmt1.getGeneratedKeys();</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">			if (rs1.next()) {</span>
+<span class="nc" id="L54">				transactionId = rs1.getLong(1);</span>
+				// insert into retailer transaction master
+<span class="nc" id="L56">				pstmt = con.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L57">				pstmt.setLong(1, transactionId);</span>
+<span class="nc" id="L58">				pstmt.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L59">				pstmt.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L60">				pstmt.setInt(4, refundBean.getWalletId());</span>
+<span class="nc" id="L61">				pstmt.setTimestamp(5, new java.sql.Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L62">				pstmt.setString(6, &quot;OLA_DEPOSIT_REFUND&quot;);</span>
+<span class="nc" id="L63">				pstmt.executeUpdate();</span>
+<span class="nc" id="L64">				pstmt.clearParameters();</span>
+<span class="nc" id="L65">				pstmt = con.prepareStatement(&quot;insert into st_ola_ret_deposit_refund(transaction_id, wallet_id, retailer_org_id, ims_ref_transaction_id, ola_ref_transaction_id, claim_status, cancel_reason, deposit_amt, net_amt, agent_net_amt, retailer_comm, agent_comm, agent_ref_transaction_id, party_id) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L66">				pstmt.setLong(1, transactionId);</span>
+<span class="nc" id="L67">				pstmt.setInt(2, refundBean.getWalletId());</span>
+<span class="nc" id="L68">				pstmt.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L69">				pstmt.setLong(4, refundBean.getRefTxnId());</span>
+<span class="nc" id="L70">				pstmt.setLong(5, depositTxnId);</span>
+<span class="nc" id="L71">				pstmt.setString(6, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L72">				pstmt.setString(7, &quot;CANCEL_SERVER&quot;);</span>
+<span class="nc" id="L73">				pstmt.setDouble(8, refundBean.getDepositAmt());</span>
+<span class="nc" id="L74">				pstmt.setDouble(9, refundBean.getRetNetAmt());</span>
+<span class="nc" id="L75">				pstmt.setDouble(10, refundBean.getAgtNetAmt());</span>
+<span class="nc" id="L76">				pstmt.setDouble(11, refundBean.getRetComm());</span>
+<span class="nc" id="L77">				pstmt.setDouble(12, refundBean.getAgtComm());</span>
+<span class="nc" id="L78">				pstmt.setInt(13, 0);</span>
+<span class="nc" id="L79">				pstmt.setInt(14, refundBean.getPlrId());</span>
+<span class="nc" id="L80">				pstmt.executeUpdate();</span>
+				
+<span class="nc" id="L82">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(refundBean.getRetNetAmt(), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userBean</span>
+						.getUserOrgId(), userBean
+						.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+<span class="nc bnc" id="L85" title="All 2 branches missed.">				if(!isValid){</span>
+<span class="nc" id="L86">					throw new LMSException(LMSErrors.INVALID_RETAILER_ERROR_CODE);</span>
+				}
+<span class="nc" id="L88">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(refundBean.getAgtNetAmt(), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userBean</span>
+						.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+<span class="nc bnc" id="L90" title="All 2 branches missed.">				if(!isValid){</span>
+<span class="nc" id="L91">					throw new LMSException(LMSErrors.INVALID_RETAILER_ERROR_CODE);</span>
+				}
+
+			} else {
+<span class="nc" id="L95">				return false;</span>
+			}
+<span class="nc" id="L97">			return true;</span>
+		}		
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

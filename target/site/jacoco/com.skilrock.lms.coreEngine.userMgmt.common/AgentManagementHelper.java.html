@@ -1,0 +1,720 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AgentManagementHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.userMgmt.common</a> &gt; <span class="el_source">AgentManagementHelper.java</span></div><h1>AgentManagementHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.userMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Calendar;
+import java.util.Date;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.HistoryBean;
+import com.skilrock.lms.beans.OrganizationBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.web.drawGames.common.Util;
+/**
+ * This class provides methods to get organization details and to edit
+ * organization details
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L33">public class AgentManagementHelper {</span>
+	
+<span class="nc" id="L35">	static Log logger = LogFactory.getLog(AgentManagementHelper.class);</span>
+	public static void editEextendedCreditLimit() {
+<span class="nc" id="L37">		Connection con = null;</span>
+
+		try {
+
+			 
+<span class="nc" id="L42">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L43">			con.setAutoCommit(false);</span>
+<span class="nc" id="L44">			Statement stmt4 = con.createStatement();</span>
+<span class="nc" id="L45">			stmt4</span>
+					.executeUpdate(&quot;update st_lms_organization_master set extended_credit_limit=0.0 where  extends_credit_limit_upto='&quot;
+							+ new java.sql.Timestamp(new Date().getTime())
+							+ &quot;'&quot;);
+<span class="nc" id="L49">			con.commit();</span>
+<span class="nc" id="L50">		} catch (SQLException exception) {</span>
+
+<span class="nc" id="L52">		}</span>
+<span class="nc" id="L53">	}</span>
+
+	private int calculateExtendsCreditLimitUpto(java.sql.Date date) {
+<span class="nc bnc" id="L56" title="All 2 branches missed.">		if (date == null) {</span>
+<span class="nc" id="L57">			return 0;</span>
+		}
+<span class="nc" id="L59">		long days = 0;</span>
+
+<span class="nc" id="L61">		Calendar today = Calendar.getInstance();</span>
+<span class="nc" id="L62">		today.set(today.get(Calendar.YEAR), today.get(Calendar.MONTH), today</span>
+				.get(Calendar.DAY_OF_MONTH), 0, 0, 0);
+
+<span class="nc" id="L65">		Calendar extendedDate = Calendar.getInstance();</span>
+<span class="nc" id="L66">		extendedDate.setTimeInMillis(date.getTime());</span>
+<span class="nc" id="L67">		extendedDate.set(extendedDate.get(Calendar.YEAR), extendedDate</span>
+				.get(Calendar.MONTH), extendedDate.get(Calendar.DAY_OF_MONTH),
+				0, 0, 1);
+
+<span class="nc" id="L71">		long timeDiff = extendedDate.getTimeInMillis()</span>
+				- today.getTimeInMillis();
+<span class="nc bnc" id="L73" title="All 2 branches missed.">		if (timeDiff &gt; 0) {</span>
+<span class="nc" id="L74">			days = timeDiff / (1000 * 60 * 60 * 24);</span>
+		}
+		// System.out.println(&quot; dd days : &quot;+days +&quot; hours = &quot;+hours);
+		// System.out.println(date +&quot;, extendedDate = &quot;+extendedDate.getTime()
+		// +&quot; ,today : &quot;+today.getTime());
+
+<span class="nc" id="L80">		return (int) days;</span>
+	}
+
+	public void editOrgCreditLimitDetails(OrganizationBean orgBean,double amount,UserInfoBean userbean,Connection con) throws LMSException {
+
+<span class="nc" id="L85">		PreparedStatement insertHistoryPstmt=null;</span>
+		
+		try {
+			
+<span class="nc bnc" id="L89" title="All 2 branches missed.">			String  transactionType=amount&gt;0?&quot;CREDIT&quot;:&quot;DEBIT&quot;;</span>
+			
+<span class="nc" id="L91">			OrgCreditUpdation.updateOrganizationBalWithValidate(Math.abs(amount), &quot;CL&quot;, transactionType, orgBean.getOrgId(), orgBean.getParentOrgId(), orgBean.getOrgType(), 0, con);</span>
+			
+	
+         // insert in cl_xcl_update history
+<span class="nc" id="L95">			insertHistoryPstmt=con.prepareStatement(&quot;insert into st_lms_cl_xcl_update_history(organization_id,done_by_user_id,date_time,type,amount,updated_value,total_bal_before_update) values(?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L96">			insertHistoryPstmt.setInt(1, orgBean.getOrgId());</span>
+<span class="nc" id="L97">			insertHistoryPstmt.setInt(2, userbean.getUserId());</span>
+<span class="nc" id="L98">			insertHistoryPstmt.setTimestamp(3, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L99">			insertHistoryPstmt.setString(4, &quot;CL&quot;);</span>
+<span class="nc" id="L100">			insertHistoryPstmt.setDouble(5, amount);</span>
+<span class="nc" id="L101">			insertHistoryPstmt.setDouble(6, orgBean.getAvailableCredit()-orgBean.getClaimableBal()+amount);</span>
+<span class="nc" id="L102">			insertHistoryPstmt.setDouble(7, orgBean.getAvailableCredit()-orgBean.getClaimableBal());</span>
+<span class="nc" id="L103">			insertHistoryPstmt.executeUpdate();</span>
+			
+<span class="nc" id="L105">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L107">			e.printStackTrace();</span>
+
+			try {
+<span class="nc" id="L110">				con.rollback();</span>
+<span class="nc" id="L111">			} catch (SQLException se) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L113">				se.printStackTrace();</span>
+<span class="nc" id="L114">			}</span>
+
+<span class="nc" id="L116">		} </span>
+
+<span class="nc" id="L118">	}</span>
+	
+	
+	/*public double editOrgCreditLimitDetails(int orgid, double creditLimit,
+			double securityDeposit, double currentCreditAmt,
+			double exCreditAmt, String userType, int loggedInOrgId,
+			int loggedinUserId) throws LMSException {
+
+		int orgId = orgid;
+		creditLimit = CommonMethods.fmtToTwoDecimal(creditLimit);
+		Connection con = null;
+		double availableCredit = 0.0;
+		try {
+			 
+			Statement stmt1 = null;
+			Statement stmt2 = null;
+			con = DBConnect.getConnection();
+			con.setAutoCommit(false);
+			stmt1 = con.createStatement();
+			stmt2 = con.createStatement();
+			System.out.println(&quot;org id here  &quot; + orgId);
+			String orgStatus = null;
+			String reasonToUpd = &quot;ACTIVE_MANUAL_BO&quot;;
+			String comment = &quot;credit &quot;+creditLimit;
+			System.out.println(&quot;reason= &quot;+reasonToUpd+&quot; comment= &quot;+comment);
+			availableCredit = CalculateAvailable.calculateAvlCredit(
+					creditLimit, exCreditAmt, currentCreditAmt);
+			// System.out.println(&quot;1111111 &quot; + availableCredit);
+			availableCredit = CommonMethods.fmtToTwoDecimal(availableCredit);
+			// System.out.println(&quot;22222222 &quot; + availableCredit);
+
+			EmailBean emailBean = null;
+			Map&lt;String, Object&gt; map = OrgCreditUpdation
+					.fetchOrgStatusWithMailMsg(orgId, con, availableCredit);
+			if (map != null &amp;&amp; map.size() == 2) {
+				orgStatus = (String) map.get(&quot;ORG_STATUS&quot;);
+				emailBean = (EmailBean) map.get(&quot;EMAIL_BEAN&quot;);
+				
+			} else { // if fetchOrgStatusWithMailMsg would'nt work
+				if (availableCredit &gt; 0) {
+					orgStatus = &quot;ACTIVE&quot;;
+					reasonToUpd = &quot;ACTIVE_AUTO_ACT&quot;;
+					comment = &quot;credit &quot;+creditLimit;
+				} else {
+					orgStatus = &quot;INACTIVE&quot;;
+					reasonToUpd = &quot;INACTIVE_AUTO_ACT&quot;;
+					comment = &quot;credit &quot;+creditLimit;
+				}
+			}
+         // insert in cl_xcl_update history
+			
+			String updtCreditXtendedLimitHistory=&quot;insert into st_lms_cl_xcl_update_history(organization_id,date_time,type,amount,updated_value,total_bal_before_update) select organization_id,'&quot;+ new java.sql.Timestamp(new java.util.Date().getTime()).toString() +&quot;','CL',&quot;+availableCredit+&quot;-available_credit,&quot;+availableCredit+&quot;-claimable_bal,available_credit-claimable_bal from st_lms_organization_master where organization_id=&quot;+orgId;
+			System.out.println(&quot;inset Query for st_lms_cl_xcl_update history:&quot;+updtCreditXtendedLimitHistory);
+			stmt2.executeUpdate(updtCreditXtendedLimitHistory);
+			
+			
+			String updateQuery = &quot;update st_lms_organization_master set credit_limit='&quot;
+					+ creditLimit
+					+ &quot;',available_credit=&quot;
+					+ availableCredit
+					+ &quot;, security_deposit = &quot;
+					+ securityDeposit
+					+ &quot;,organization_status='&quot;
+					+ orgStatus
+					+ &quot;' where organization_id=&quot; + orgId + &quot;&quot;;
+			System.out.println(&quot;**updateQuery**&quot; + updateQuery);
+			stmt1.executeUpdate(updateQuery);
+			String updateHistoryQuery = null;
+
+			updateHistoryQuery = &quot;insert into st_lms_organization_master_history select '&quot;+ loggedinUserId +&quot;', organization_id, addr_line1, addr_line2, city, pin_code,security_deposit,credit_limit, '&quot;+ reasonToUpd +&quot;','&quot;+ comment +&quot;','&quot;+ orgStatus +&quot;','&quot;+ new java.sql.Timestamp(new java.util.Date().getTime()).toString() +&quot;',pwt_scrap, recon_report_type from st_lms_organization_master where organization_id = &quot;+orgId;
+			System.out.println(&quot;**updateHistoryQuery**&quot; + updateHistoryQuery);
+			stmt2.executeUpdate(updateHistoryQuery);
+			
+			reasonToUpd = &quot;CREDIT_CHANGED_BO&quot;;
+			comment = &quot;Credit &quot;+creditLimit;
+			
+			
+				
+			
+				.addBatch(&quot;insert into st_lms_organization_master_history select &quot;
+						+ userbean.getUserId()
+						+ &quot;, organization_id, addr_line1, addr_line2, city, pin_code, security_deposit, credit_limit,'CREDIT_CHANGED_&quot;+ userbean.getRoleName().split(&quot; &quot;)[0] +&quot;','&quot;+ msg +&quot;', organization_status,'&quot;+ new java.sql.Timestamp(new java.util.Date().getTime()).toString() +&quot;',pwt_scrap,recon_report_type from st_lms_organization_master slom where organization_id=&quot;
+						+ retOrgId[i]);
+				System.out.println(&quot;insert into st_lms_organization_master_history select &quot; + userbean.getUserId() + &quot;, organization_id, addr_line1, addr_line2, city, pin_code, security_deposit, credit_limit,'CREDIT_CHANGED_&quot;+ userbean.getRoleName().split(&quot; &quot;)[0] +&quot;','&quot;+ msg +&quot;', organization_status,'&quot;+ new java.sql.Timestamp(new java.util.Date().getTime()).toString() +&quot;',pwt_scrap,recon_report_type from st_lms_organization_master slom where organization_id=&quot; + retOrgId[i]);
+			
+			
+			String updtForCreditLimitInHist = &quot;insert into st_lms_organization_master_history select '&quot;+ loggedinUserId +&quot;', organization_id, addr_line1, addr_line2, city, pin_code,security_deposit,credit_limit, '&quot;+ reasonToUpd +&quot;','&quot;+ comment +&quot;','&quot;+ orgStatus +&quot;','&quot;+ new java.sql.Timestamp(new java.util.Date().getTime()).toString() +&quot;',pwt_scrap, recon_report_type from st_lms_organization_master where organization_id = &quot;+orgId;
+			System.out.println(&quot;insert Query for Organisation Master history&quot;+updtForCreditLimitInHist);
+			stmt2.executeUpdate(updtForCreditLimitInHist);
+			
+			
+			con.commit();
+
+			// sending mail if
+			if (emailBean != null &amp;&amp; emailBean.getIsEmailSendControlFlag()) {
+				MailSend mailSend = new MailSend(emailBean.getTo(), emailBean
+						.getEmailMsg());
+				mailSend.setDaemon(true);
+				mailSend.start();
+			}
+
+		} catch (SQLException e) {
+
+			e.printStackTrace();
+
+			try {
+				con.rollback();
+			} catch (SQLException se) {
+				// TODO Auto-generated catch block
+				se.printStackTrace();
+			}
+
+		} finally {
+			if (con != null) {
+				try {
+					con.close();
+				} catch (SQLException e) {
+
+					e.printStackTrace();
+				}
+			}
+
+		}
+
+		return availableCredit;
+	}*/
+
+	
+	
+	public double editCreditLimit(double amount, double securityDeposit,
+			UserInfoBean userBean, OrganizationBean orgBean, String requestIp)
+			throws LMSException {
+<span class="nc" id="L250">		Connection con=null;</span>
+<span class="nc" id="L251">		PreparedStatement pstmt=null;</span>
+<span class="nc" id="L252">		int updatedRow=0;</span>
+		
+		try{
+<span class="nc" id="L255">		con=DBConnect.getConnection();</span>
+
+<span class="nc" id="L257">		HistoryBean historyBean = new HistoryBean(orgBean.getOrgId(), userBean.getUserId(), &quot;&quot;, requestIp);</span>
+
+<span class="nc bnc" id="L259" title="All 2 branches missed.">		if(amount-orgBean.getOrgCreditLimit() != 0)</span>
+<span class="nc" id="L260">			editOrgCreditLimitDetails(orgBean,amount-orgBean.getOrgCreditLimit(), userBean, con);</span>
+
+<span class="nc bnc" id="L262" title="All 2 branches missed.">		if(securityDeposit-orgBean.getSecurityDeposit() != 0) {</span>
+			//OrgCreditUpdation.updateOrgSecurityDeposit(orgBean.getOrgId(), securityDeposit, con);
+<span class="nc" id="L264">			historyBean.setChangeType(&quot;SECURITY_DEPOSIT&quot;);</span>
+<span class="nc" id="L265">			historyBean.setChangeValue(String.valueOf(orgBean.getSecurityDeposit()));</span>
+<span class="nc" id="L266">			historyBean.setUpdatedValue(String.valueOf(securityDeposit));</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">			if(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L268">				pstmt=con.prepareStatement(&quot;UPDATE st_lms_organization_security_levy_master SET collected_security_deposit=? WHERE organization_id=?&quot;);</span>
+<span class="nc" id="L269">				pstmt.setDouble(1,securityDeposit);</span>
+<span class="nc" id="L270">				pstmt.setInt(2, orgBean.getOrgId());</span>
+<span class="nc" id="L271">				logger.info(&quot;update Sec Deposit Query&quot;+pstmt);</span>
+<span class="nc" id="L272">				updatedRow=pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">				if(updatedRow==0)</span>
+<span class="nc" id="L274">					throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+			}else{
+<span class="nc" id="L276">				CommonMethods.insertUpdateOrganizationHistory(historyBean, con);</span>
+			}
+		}
+
+<span class="nc" id="L280">		}catch (Exception e) {</span>
+			// TODO: handle exception
+		}finally{
+<span class="nc" id="L283">			DBConnect.closeConnection(con, pstmt);</span>
+<span class="nc" id="L284">		}</span>
+<span class="nc" id="L285">		return orgBean.getAvailableCredit()+amount-orgBean.getOrgCreditLimit();</span>
+		
+	}
+
+	
+	public double editExtendedLimit(double amount, int noOfDays,
+			UserInfoBean userBean, OrganizationBean orgBean)
+			throws LMSException {
+<span class="nc" id="L293">		Connection con=null;</span>
+		try{
+<span class="nc" id="L295">		con=DBConnect.getConnection();</span>
+<span class="nc" id="L296">		editOrgDetails( amount,  noOfDays,</span>
+				 userBean,  orgBean,con);
+		
+<span class="nc" id="L299">		}catch (Exception e) {</span>
+			// TODO: handle exception
+		}finally{
+<span class="nc" id="L302">			try{</span>
+<span class="nc" id="L303">				con.close();</span>
+<span class="nc" id="L304">			}catch (SQLException se) {</span>
+<span class="nc" id="L305">				se.printStackTrace();			</span>
+<span class="nc" id="L306">				}</span>
+<span class="nc" id="L307">		}</span>
+<span class="nc" id="L308">		return orgBean.getAvailableCredit()+amount-orgBean.getExtendedCredit();</span>
+		
+	}
+
+	
+	
+	
+	public void editOrgDetails(double amount,int noOfDays,UserInfoBean userBean,OrganizationBean orgBean,Connection con)
+			throws LMSException {
+<span class="nc" id="L317">		PreparedStatement insertHistoryPstmt=null;</span>
+		
+		try {
+			
+<span class="nc" id="L321">			boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(amount-orgBean.getExtendedCredit(), &quot;XCL&quot;, &quot;CREDIT&quot;, orgBean.getOrgId(), orgBean.getParentOrgId(), orgBean.getOrgType(), noOfDays, con);</span>
+			
+	
+         // insert in cl_xcl_update history
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			if(isValid){</span>
+<span class="nc" id="L326">			insertHistoryPstmt=con.prepareStatement(&quot;insert into st_lms_cl_xcl_update_history(organization_id,done_by_user_id,date_time,type,amount,updated_value,total_bal_before_update) values(?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L327">			insertHistoryPstmt.setInt(1, orgBean.getOrgId());</span>
+<span class="nc" id="L328">			insertHistoryPstmt.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L329">			insertHistoryPstmt.setTimestamp(3, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L330">			insertHistoryPstmt.setString(4, &quot;XCL&quot;);</span>
+<span class="nc" id="L331">			insertHistoryPstmt.setDouble(5,amount-orgBean.getExtendedCredit());</span>
+<span class="nc" id="L332">			insertHistoryPstmt.setDouble(6, orgBean.getAvailableCredit()-orgBean.getClaimableBal()-orgBean.getExtendedCredit() + amount);</span>
+<span class="nc" id="L333">			insertHistoryPstmt.setDouble(7, orgBean.getAvailableCredit()-orgBean.getClaimableBal());</span>
+<span class="nc" id="L334">			insertHistoryPstmt.executeUpdate();</span>
+			}else{
+<span class="nc" id="L336">				throw new LMSException();</span>
+			}
+<span class="nc" id="L338">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L340">			e.printStackTrace();</span>
+
+			try {
+<span class="nc" id="L343">				con.rollback();</span>
+<span class="nc" id="L344">			} catch (SQLException se) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L346">				se.printStackTrace();</span>
+<span class="nc" id="L347">			}</span>
+
+<span class="nc" id="L349">		} </span>
+
+	
+			
+<span class="nc" id="L353">	}</span>
+	
+	
+	
+	/**
+	 * This method is used to edit organization details
+	 * 
+	 * @param orgid
+	 *            organization Id
+	 * @param addr1
+	 *            address line 1
+	 * @param addr2
+	 *            address line 2
+	 * @param city
+	 *            organization city
+	 * @param pin
+	 *            city pin
+	 * @param orgstatus
+	 *            organization status to set
+	 * @param limit
+	 *            organization limit to set
+	 */
+	/*public double editOrgDetails(int orgid, double extendedLimit,
+			double currentCreditAmt, double creditLimit, int daysAfter,
+			String userType, int loggedInOrgId, int loggedinUserId)
+			throws LMSException {
+
+		int orgId = orgid;
+		extendedLimit = CommonMethods.fmtToTwoDecimal(extendedLimit);
+		// System.out.println(&quot;after format &quot; + extendedLimit);
+		Connection con = null;
+		
+		double availableCredit = 0.0;
+		try {
+			
+			con = DBConnect.getConnection();
+			con.setAutoCommit(false);
+			Statement stmt1 = null;
+			Statement stmt2 = null;
+			Statement updHistPstmt = con.createStatement();
+			boolean updHist = false;
+			stmt1 = con.createStatement();
+			stmt2 = con.createStatement();
+
+			HttpSession session = ServletActionContext.getRequest().getSession();
+			int parentUserId = ((UserInfoBean)session.getAttribute(&quot;USER_INFO&quot;)).getUserId();
+			
+			System.out.println(&quot;org id here  &quot; + orgId);
+			// String updateOrg=QueryManager.updateST3OrgDetails() + &quot;
+			// addr_line1='&quot;+orgAddr1+&quot;', addr_line2='&quot;+orgAddr2+&quot;',
+			// city='&quot;+orgCity+&quot;',pin_code='&quot;+orgPin+&quot;',credit_limit='&quot;+orgCreditLimit+&quot;',organization_status='&quot;+statusNew+&quot;'
+			// where organization_id='&quot;+orgId+&quot;' &quot; ;
+
+			// String str=&quot;update st_lms_organization_master set
+			// addr_line1='&quot;+orgAddr1+&quot;', addr_line2='&quot;+orgAddr2+&quot;',
+			// city='&quot;+orgCity+&quot;',pin_code='&quot;+orgPin+&quot;',credit_limit='&quot;+orgCreditLimit+&quot;',organization_status='&quot;+statusNew+&quot;'
+			// where organization_id='&quot;+orgId+&quot;' &quot;;
+
+			DateFormat dtfmt = new SimpleDateFormat(&quot;yyyy/MM/dd&quot;);
+			Date d = null;
+
+			try {
+				d = dtfmt.parse(dtfmt.format(new Date()));
+
+			} catch (ParseException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+			long ms = d.getTime();
+			ms = ms + daysAfter * 24 * 60 * 60 * 1000l;
+			d.setTime(ms);
+			System.out.println(&quot;date to extend  &quot; + d);
+
+			// double
+			// availableCredit=(creditLimit+extendedLimit)-currentCreditAmt;
+			availableCredit = CalculateAvailable.calculateAvlCredit(
+					creditLimit, extendedLimit, currentCreditAmt);
+			// System.out.println(&quot;1111111 &quot; + availableCredit);
+			availableCredit = CommonMethods.fmtToTwoDecimal(availableCredit);
+			// System.out.println(&quot;22222222 &quot; + availableCredit);
+
+			String orgStatus = &quot;&quot;;
+			EmailBean emailBean = null;
+			Map&lt;String, Object&gt; map = OrgCreditUpdation
+					.fetchOrgStatusWithMailMsg(orgId, con, availableCredit);
+			if (map != null &amp;&amp; map.size() == 2) {
+				orgStatus = (String) map.get(&quot;ORG_STATUS&quot;);
+				emailBean = (EmailBean) map.get(&quot;EMAIL_BEAN&quot;);
+			} else { // if fetchOrgStatusWithMailMsg would'nt work
+				String msg = &quot;&quot;;
+				if (availableCredit &gt; 0) {
+					if(orgStatus.equalsIgnoreCase(&quot;INACTIVE&quot;)){
+						msg = &quot;Organization becomes ACTIVE because Available Credit goes Positive&quot;;
+						updHistPstmt = con.prepareStatement(&quot;insert into st_lms_organization_master_history select '&quot;+ parentUserId +&quot;',organization_id, addr_line1, addr_line2, city, pin_code, security_deposit,'&quot;+ (creditLimit + extendedLimit) +&quot;','ACTIVE_AUTO_ACT', '&quot;+ msg +&quot;',  from st_lms_organization_master where organization_id = &quot;+orgId);
+						updHist = true;
+					}
+					orgStatus = &quot;ACTIVE&quot;;
+				} else {
+					if(orgStatus.equalsIgnoreCase(&quot;ACTIVE&quot;)){
+						msg = &quot;Organization becomes INACTIVE because Available Credit goes Negative&quot;;
+						updHistPstmt = con.prepareStatement(&quot;insert into st_lms_organization_master_history select '&quot;+ parentUserId +&quot;',organization_id, addr_line1, addr_line2, city, pin_code, security_deposit,'&quot;+ (creditLimit + extendedLimit) +&quot;','INACTIVE_AUTO_ACT', '&quot;+ msg +&quot;',  from st_lms_organization_master where organization_id = &quot;+orgId);
+						updHist = true;
+					}
+					orgStatus = &quot;INACTIVE&quot;;
+				}
+			}
+
+			
+ // insert in cl_xcl_update history
+			
+			String updtCreditXtendedLimitHistory=&quot;insert into st_lms_cl_xcl_update_history(organization_id,date_time,type,amount,updated_value,total_bal_before_update) select organization_id,'&quot;+ new java.sql.Timestamp(new java.util.Date().getTime()).toString() +&quot;','XCL',&quot;+availableCredit+&quot;-available_credit,&quot;+availableCredit+&quot;-claimable_bal,available_credit-claimable_bal from st_lms_organization_master where organization_id=&quot;+orgId;
+			System.out.println(&quot;inset Query for st_lms_cl_xcl_update history:&quot;+updtCreditXtendedLimitHistory);
+			stmt2.executeUpdate(updtCreditXtendedLimitHistory);
+			
+			
+			// System.out.println(&quot;update st_lms_organization_master set
+			// extended_credit_limit=&quot;+extendedLimit+&quot;,available_credit=&quot;+availableCredit+&quot;,extends_credit_limit_upto='&quot;+new
+			// java.sql.Timestamp(d.getTime())+&quot;',organization_status='&quot;+orgStatus+&quot;'
+			// where organization_id=&quot;+orgId+&quot;&quot;);
+			stmt1
+					.executeUpdate(&quot;update st_lms_organization_master set extended_credit_limit=&quot;
+							+ extendedLimit
+							+ &quot;,available_credit=&quot;
+							+ availableCredit
+							+ &quot;,extends_credit_limit_upto='&quot;
+							+ new java.sql.Timestamp(d.getTime())
+							+ &quot;',organization_status='&quot;
+							+ orgStatus
+							+ &quot;' where organization_id=&quot; + orgId + &quot;&quot;);
+			String updateHistoryQuery = null;
+			if (userType.equals(&quot;BO&quot;)) {
+				updateHistoryQuery = &quot;insert into st_lms_bo_extended_limit_history(bo_user_id,agent_org_id,extended_credit_limit,date_changed,extends_credit_limit_upto) values(&quot;
+						+ loggedinUserId
+						+ &quot;,&quot;
+						+ orgId
+						+ &quot;,&quot;
+						+ extendedLimit
+						+ &quot;,'&quot;
+						+ new java.sql.Timestamp(new java.util.Date().getTime())
+						+ &quot;','&quot; + new java.sql.Timestamp(d.getTime()) + &quot;')&quot;;
+				stmt2.executeUpdate(updateHistoryQuery);
+			} else if (userType.equals(&quot;AGENT&quot;)) {
+
+				updateHistoryQuery = &quot;insert into st_lms_agent_extended_limit_history(agent_org_id,agent_user_id,retailer_org_id,extended_credit_limit,date_changed,extends_credit_limit_upto) values(&quot;
+						+ loggedInOrgId
+						+ &quot;,&quot;
+						+ loggedinUserId
+						+ &quot;,&quot;
+						+ orgId
+						+ &quot;,&quot;
+						+ extendedLimit
+						+ &quot;,'&quot;
+						+ new java.sql.Timestamp(new java.util.Date().getTime())
+						+ &quot;','&quot; + new java.sql.Timestamp(d.getTime()) + &quot;')&quot;;
+				System.out.println(&quot;agent history &quot; + updateHistoryQuery);
+				stmt2.executeUpdate(updateHistoryQuery);
+
+			}
+
+			con.commit();
+
+			// sending mail if
+			if (emailBean != null &amp;&amp; emailBean.getIsEmailSendControlFlag()) {
+				MailSend mailSend = new MailSend(emailBean.getTo(), emailBean
+						.getEmailMsg());
+				mailSend.setDaemon(true);
+				mailSend.start();
+			}
+
+		} catch (SQLException e) {
+
+			e.printStackTrace();
+
+			try {
+				con.rollback();
+			} catch (SQLException se) {
+				// TODO Auto-generated catch block
+				se.printStackTrace();
+			}
+
+		} finally {
+			if (con != null) {
+				try {
+					con.close();
+				} catch (SQLException e) {
+
+					e.printStackTrace();
+				}
+			}
+
+		}
+
+		return availableCredit;
+	}*/
+
+	/**
+	 * This method is used to get the organization details
+	 * 
+	 * @param orgid
+	 *            organization Id (integer type)
+	 * @return OrganizationBean
+	 */
+	public OrganizationBean orgDetails(int orgid) {
+
+<span class="nc" id="L558">		int orgId = orgid;</span>
+<span class="nc" id="L559">		String countryCode = null;</span>
+<span class="nc" id="L560">		String stateCode = null;</span>
+
+<span class="nc" id="L562">		Connection con = null;</span>
+
+		try {
+
+<span class="nc" id="L566">			OrganizationBean orgBean = null;</span>
+
+<span class="nc" id="L568">			orgBean = new OrganizationBean();</span>
+
+<span class="nc" id="L570">			System.out.println(&quot;heeeeeee&quot;);</span>
+			 
+
+<span class="nc" id="L573">			Statement stmt2 = null;</span>
+<span class="nc" id="L574">			Statement stmt3 = null;</span>
+
+<span class="nc" id="L576">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L577">			stmt2 = con.createStatement();</span>
+<span class="nc" id="L578">			stmt3 = con.createStatement();</span>
+			ResultSet rs2;
+<span class="nc" id="L580">			System.out.println(&quot;org id is &quot; + orgId);</span>
+<span class="nc" id="L581">			orgBean.setOrgId(orgId);</span>
+
+<span class="nc" id="L583">			String getOrgDetails = QueryManager.getST3OrgDetails()</span>
+					+ &quot; where organization_id='&quot; + orgId + &quot;' &quot;;
+<span class="nc" id="L585">			rs2 = stmt2.executeQuery(getOrgDetails);</span>
+			// rs2=stmt2.executeQuery(&quot;select * from st_lms_organization_master
+			// where organization_id='&quot;+orgId+&quot;'&quot;);
+<span class="nc bnc" id="L588" title="All 2 branches missed.">			while (rs2.next()) {</span>
+
+<span class="nc" id="L590">				orgBean.setOrgName(rs2.getString(TableConstants.ORG_NAME));</span>
+<span class="nc" id="L591">				orgBean.setOrgType(rs2.getString(TableConstants.ORG_TYPE));</span>
+<span class="nc" id="L592">				orgBean.setOrgAddr1(rs2.getString(TableConstants.ORG_ADDR1));</span>
+<span class="nc" id="L593">				orgBean.setOrgAddr2(rs2.getString(TableConstants.ORG_ADDR2));</span>
+<span class="nc" id="L594">				orgBean.setOrgCity(rs2.getString(TableConstants.ORG_CITY));</span>
+<span class="nc" id="L595">				orgBean.setOrgPin(rs2.getLong(TableConstants.ORG_PIN));</span>
+<span class="nc" id="L596">				orgBean.setSecDeposit(rs2.getDouble(&quot;security_deposit&quot;));</span>
+<span class="nc" id="L597">				orgBean.setParentOrgId(rs2.getInt(&quot;parent_id&quot;));</span>
+<span class="nc" id="L598">				orgBean.setOrgCreditLimit(rs2</span>
+						.getDouble(TableConstants.CREDIT_LIMIT));
+<span class="nc" id="L600">				orgBean.setOrgStatus(rs2.getString(TableConstants.ORG_STATUS));</span>
+<span class="nc" id="L601">				orgBean.setCurrentCreditAmt(rs2</span>
+						.getDouble(TableConstants.SOM_CURR_CREDIT_AMT));
+<span class="nc" id="L603">				orgBean.setExtendedCredit(rs2</span>
+						.getDouble(TableConstants.EXTENDED_CREDIT_LIMIT));
+<span class="nc" id="L605">				orgBean.setAvailableCredit(rs2</span>
+						.getDouble(TableConstants.SOM_AVAILABLE_CREDIT));
+<span class="nc" id="L607">				orgBean.setPwtScrapStatus(rs2.getString(&quot;pwt_scrap&quot;));</span>
+<span class="nc" id="L608">				orgBean.setClaimableBal(rs2.getDouble(&quot;claimable_bal&quot;));// added</span>
+				// by
+				// amit
+<span class="nc" id="L611">				countryCode = rs2.getString(TableConstants.ORG_COUNTRY);</span>
+<span class="nc" id="L612">				stateCode = rs2.getString(TableConstants.ORG_STATE);</span>
+<span class="nc" id="L613">				int extendedCreditLimitUpto = calculateExtendsCreditLimitUpto(rs2</span>
+						.getDate(&quot;extends_credit_limit_upto&quot;));
+<span class="nc" id="L615">				orgBean.setExtendsCreditLimitUpto(extendedCreditLimitUpto);</span>
+
+<span class="nc" id="L617">				String countryName = QueryManager.getCountryAndStateName()</span>
+						+ &quot; cont.country_code='&quot; + countryCode
+						+ &quot;' and stat.state_code='&quot; + stateCode + &quot;'&quot;;
+<span class="nc" id="L620">				ResultSet countryList = stmt3.executeQuery(countryName);</span>
+<span class="nc bnc" id="L621" title="All 2 branches missed.">				while (countryList.next()) {</span>
+<span class="nc" id="L622">					orgBean.setOrgCountry(countryList.getString(&quot;country&quot;));</span>
+<span class="nc" id="L623">					orgBean.setOrgState(countryList.getString(&quot;state&quot;));</span>
+				}
+
+				/*
+				 * String countryName=QueryManager.selectST3Country() + &quot; where
+				 * country_code='&quot;+countryCode+&quot;' &quot; ; ResultSet
+				 * countryList=stmt3.executeQuery(countryName);
+				 * 
+				 * //ResultSet countryList=stmt3.executeQuery(&quot;select name from
+				 * st_lms_country_master where country_code='&quot;+countryCode+&quot;'&quot;);
+				 * while(countryList.next()) {
+				 * orgBean.setOrgCountry(countryList.getString(TableConstants.NAME)); }
+				 * 
+				 * String stateName=QueryManager.selectST3State() + &quot; where
+				 * state_code='&quot;+stateCode+&quot;' &quot; ; ResultSet
+				 * stateList=stmt3.executeQuery(stateName); //ResultSet
+				 * stateList=stmt3.executeQuery(&quot;select name from
+				 * st_lms_state_master where state_code='&quot;+stateCode+&quot;'&quot;);
+				 * 
+				 * while(stateList.next()) {
+				 * orgBean.setOrgState(stateList.getString(TableConstants.NAME));
+				 * System.out.println(&quot;state is &quot;
+				 * +stateList.getString(TableConstants.NAME)); }
+				 * 
+				 * //orgBean.setOrgCountry(rs2.getString(TableConstants.ORG_COUNTRY));
+				 * //orgBean.setOrgState(rs2.getString(TableConstants.ORG_STATE));
+				 */
+
+<span class="nc" id="L651">			}</span>
+<span class="nc" id="L652">			System.out.println(orgBean.getParentOrgId()</span>
+					+ &quot;******************test*******************&quot;);
+<span class="nc" id="L654">			return orgBean;</span>
+
+<span class="nc" id="L656">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L658">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L660">			try {</span>
+<span class="nc bnc" id="L661" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L662">					con.close();</span>
+				}
+<span class="nc" id="L664">			} catch (SQLException se) {</span>
+<span class="nc" id="L665">				se.printStackTrace();</span>
+<span class="nc" id="L666">			}</span>
+<span class="nc" id="L667">		}</span>
+
+<span class="nc" id="L669">		return null;</span>
+
+	}
+
+	public void updateOrgScrapStatus(int orgid, String scrapStatus)
+			throws LMSException {
+
+<span class="nc" id="L676">		int orgId = orgid;</span>
+<span class="nc" id="L677">		Connection con = null;</span>
+		try {
+
+			 
+<span class="nc" id="L681">			Statement stmt1 = null;</span>
+<span class="nc" id="L682">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L683">			con.setAutoCommit(false);</span>
+<span class="nc" id="L684">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L685">			stmt1</span>
+					.executeUpdate(&quot;update st_lms_organization_master set pwt_scrap='&quot;
+							+ scrapStatus
+							+ &quot;' where organization_id=&quot;
+							+ orgId
+							+ &quot;&quot;);
+<span class="nc" id="L691">			con.commit();</span>
+
+<span class="nc" id="L693">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L695">			e.printStackTrace();</span>
+
+			try {
+<span class="nc bnc" id="L698" title="All 2 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L699">					con.rollback();</span>
+				}
+<span class="nc" id="L701">			} catch (SQLException se) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L703">				se.printStackTrace();</span>
+<span class="nc" id="L704">			}</span>
+
+		} finally {
+<span class="nc" id="L707">			try {</span>
+<span class="nc bnc" id="L708" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L709">					con.close();</span>
+				}
+<span class="nc" id="L711">			} catch (SQLException see) {</span>
+<span class="nc" id="L712">				see.printStackTrace();</span>
+<span class="nc" id="L713">				throw new LMSException(&quot;Error During closing connection&quot;, see);</span>
+<span class="nc" id="L714">			}</span>
+		}
+
+<span class="nc" id="L717">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

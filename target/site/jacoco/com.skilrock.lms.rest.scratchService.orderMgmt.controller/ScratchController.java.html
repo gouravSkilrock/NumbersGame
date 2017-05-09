@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScratchController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.rest.scratchService.orderMgmt.controller</a> &gt; <span class="el_source">ScratchController.java</span></div><h1>ScratchController.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.rest.scratchService.orderMgmt.controller;
+
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Iterator;
+import java.util.List;
+
+import javax.ws.rs.Consumes;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.ext.Provider;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.skilrock.lms.beans.GameBean;
+import com.skilrock.lms.beans.OrderRequestBean;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.scratchService.common.ScratchErrors;
+import com.skilrock.lms.coreEngine.scratchService.common.ScratchException;
+import com.skilrock.lms.coreEngine.scratchService.orderMgmt.common.GenerateRetailerOrderHelper;
+import com.skilrock.lms.coreEngine.scratchService.orderMgmt.common.ProcessRetailerRequestHelper;
+import com.skilrock.lms.rest.scratchService.BaseController.BaseController;
+import com.skilrock.lms.rest.scratchService.daoImpl.ScratchDaoImpl;
+import com.skilrock.lms.rest.scratchService.orderMgmt.service.ScratchService;
+import com.skilrock.lms.rest.scratchService.orderMgmt.serviceImpl.ScratchServiceImpl;
+import com.skilrock.lms.rest.services.bean.DaoBean;
+import com.skilrock.lms.rest.services.bean.ScracthMgmtBean;
+import com.skilrock.lms.scratch.orderBeans.OrderCartBean;
+import com.skilrock.lms.scratch.orderBeans.OrderListBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONException;
+import net.sf.json.JSONObject;
+
+
+
+@Provider
+@Path(&quot;orderMgmt&quot;)
+public class ScratchController extends BaseController{
+
+<span class="fc" id="L51">	private static Logger logger = LoggerFactory.getLogger(ScratchController.class);</span>
+	
+	private ScratchService scracthService;
+	private GenerateRetailerOrderHelper orderHelper;
+<span class="fc" id="L55">	private JsonObject requestObj = null;</span>
+<span class="fc" id="L56">	private OrderCartBean orderCartBean = null;</span>
+<span class="fc" id="L57">	private JsonObject responseDataOfOrder = null;</span>
+<span class="fc" id="L58">	private int orderId = 0;</span>
+
+<span class="fc" id="L60">	public ScratchController() {</span>
+<span class="fc" id="L61">		this.scracthService = new ScratchServiceImpl();</span>
+<span class="fc" id="L62">		this.orderHelper =  new GenerateRetailerOrderHelper();</span>
+<span class="fc" id="L63">	}</span>
+
+<span class="fc" id="L65">	public ScratchController(ScratchService scracthService){</span>
+<span class="fc" id="L66">		this.scracthService = scracthService;</span>
+<span class="fc" id="L67">	}</span>
+	
+<span class="fc" id="L69">	public ScratchController(GenerateRetailerOrderHelper orderHelper, ScratchService scracthService){</span>
+<span class="fc" id="L70">		this.orderHelper = orderHelper;</span>
+<span class="fc" id="L71">		this.scracthService = scracthService;</span>
+<span class="fc" id="L72">	}</span>
+	
+	@Path(&quot;/itemReceive&quot;)
+	@POST
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String getUpdateRecievedBookNbrStatus(String requestData) {
+		try {
+<span class="fc" id="L80">			ScracthMgmtBean bean = getScracthManagementBean(requestData);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">			if (isValidRequest(bean)) {</span>
+<span class="fc" id="L82">				return getResponseForValidBookNumbers(bean);</span>
+			} else {
+<span class="fc" id="L84">				return new Gson().toJson(getFailureJsonResponse(101, &quot;Mandatory parameteres are not provided&quot;));</span>
+			}
+<span class="fc" id="L86">		} catch (Exception e) {</span>
+<span class="fc" id="L87">			logger.error(&quot;Some Internal Error Occured&quot;);</span>
+<span class="fc" id="L88">			return new Gson().toJson(getFailureJsonResponse(102, &quot;Some Internal Error Occured&quot;));</span>
+		}
+	}
+	
+	@Path(&quot;/getGameList&quot;)
+	@POST
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	public String getGameList (String requestData) throws JSONException{
+<span class="nc" id="L97">		JSONObject resObj = new JSONObject();</span>
+<span class="nc" id="L98">	    int requestId=0;</span>
+		try{
+<span class="nc" id="L100">			requestId = makeGameListPanel(requestData, resObj);</span>
+<span class="nc" id="L101">		}catch(ScratchException e ){</span>
+<span class="nc" id="L102">			resObj.put(&quot;requestId&quot;, requestId);</span>
+<span class="nc" id="L103">			resObj.put(&quot;responseCode&quot;, e.getErrorCode());</span>
+<span class="nc" id="L104">			resObj.put(&quot;responseData&quot;,e.getErrorMessage());</span>
+<span class="nc" id="L105">		}catch(Exception e){</span>
+<span class="nc" id="L106">			getErrorWhileGetGameList(resObj, requestId, e);</span>
+<span class="nc" id="L107">		}</span>
+<span class="nc" id="L108">		return resObj.toString();</span>
+	}
+
+	private void getErrorWhileGetGameList(JSONObject resObj, int requestId, Exception e) throws JSONException {
+<span class="nc" id="L112">		resObj.put(&quot;requestId&quot;, requestId);</span>
+<span class="nc" id="L113">		resObj.put(&quot;responseCode&quot;, ScratchErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="nc" id="L114">		resObj.put(&quot;responseData&quot;,ScratchErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L115">		e.printStackTrace();</span>
+<span class="nc" id="L116">	}</span>
+
+	private int makeGameListPanel(String requestData, JSONObject resObj)
+			throws ScratchException, JSONException, Exception {
+		JsonObject reqObj;
+		int requestId;
+		String tpUserId;
+<span class="nc" id="L123">		reqObj = new JsonObject();</span>
+<span class="nc bnc" id="L124" title="All 4 branches missed.">		if(requestData == null || requestData.trim().length() &lt; 1 ){</span>
+<span class="nc" id="L125">			throw new ScratchException(ScratchErrors.NO_REQUEST_DATA_PROVIDED_ERROR_CODE, ScratchErrors.NO_REQUEST_DATA_PROVIDED_ERROR_MESSAGE);</span>
+		}
+<span class="nc" id="L127">		reqObj=new JsonParser().parse(requestData).getAsJsonObject();</span>
+		try{
+<span class="nc" id="L129">			requestId=reqObj.get(&quot;requestId&quot;).getAsInt();</span>
+<span class="nc" id="L130">			tpUserId=reqObj.get(&quot;tpUserId&quot;).getAsString();</span>
+		}
+<span class="nc" id="L132">		catch(NullPointerException e){</span>
+<span class="nc" id="L133">			throw new ScratchException(ScratchErrors.INVALID_REQUEST_DATA_ERROR_CODE, ScratchErrors.INVALID_REQUEST_DATA_ERROR_MESSAGE);</span>
+<span class="nc" id="L134">		}</span>
+		
+<span class="nc bnc" id="L136" title="All 4 branches missed.">		if(tpUserId==null ||requestId==0){</span>
+<span class="nc" id="L137">			throw new ScratchException(ScratchErrors.NO_REQUEST_ID_PROVIDED_ERROR_CODE, ScratchErrors.NO_REQUEST_ID_PROVIDED_ERROR_MESSAGE);</span>
+		}
+		
+<span class="nc" id="L140">		resObj.put(&quot;requestId&quot;,requestId);</span>
+<span class="nc" id="L141">		resObj.put(&quot;responseCode&quot;, ScratchErrors.SUCCESS_CODE);</span>
+<span class="nc" id="L142">		resObj.put(&quot;responseData&quot;,getScracthService().getGameList());</span>
+<span class="nc" id="L143">		return requestId;</span>
+	}
+
+	private String getResponseForValidBookNumbers(ScracthMgmtBean orderMgmtBean) throws JSONException {
+<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (scracthService.isBookNumberListValid(orderMgmtBean)) {</span>
+<span class="fc" id="L148">			return markBookNumbersReceived(orderMgmtBean);</span>
+		} else {
+<span class="fc" id="L150">			return new Gson().toJson(getFailureJsonResponse(103, &quot;Book nBrs are incorrect.&quot;));</span>
+		}
+	}
+
+	private boolean isValidRequest(ScracthMgmtBean orderMgmtBean) {
+<span class="pc bpc" id="L155" title="2 of 6 branches missed.">		return orderMgmtBean.getBookList() != null &amp;&amp; orderMgmtBean.getDlNumber() != null</span>
+				&amp;&amp; !orderMgmtBean.getDlNumber().equals(&quot;&quot;);
+	}
+
+	private String markBookNumbersReceived(ScracthMgmtBean orderMgmtBean) throws JSONException {
+<span class="fc" id="L160">		String getStatus = scracthService.updateBookListStatus(orderMgmtBean);</span>
+<span class="fc" id="L161">		String response = &quot;&quot;;</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">		if (&quot;SUCCESS&quot;.equals(getStatus)) {</span>
+<span class="fc" id="L163">			response = generateResponseForSuccess(orderMgmtBean);</span>
+<span class="fc" id="L164">			return response.toString();</span>
+		}
+<span class="fc" id="L166">		return new Gson().toJson(getFailureJsonResponse(102,&quot;Some Internal Error Occured&quot;));</span>
+	}
+
+	private String generateResponseForSuccess(ScracthMgmtBean orderMgmtBean) throws JSONException {
+<span class="fc" id="L170">		JSONObject responseObject = new JSONObject();</span>
+<span class="fc" id="L171">		responseObject.put(&quot;requestId&quot;, orderMgmtBean.getRequestId());</span>
+<span class="fc" id="L172">		responseObject.put(&quot;responseCode&quot;, 100);</span>
+<span class="fc" id="L173">		JSONArray reponseDataArray = new JSONArray();</span>
+<span class="fc" id="L174">		createJsonArrayForResposeData(orderMgmtBean, reponseDataArray);</span>
+<span class="fc" id="L175">		responseObject.put(&quot;responseData&quot;, reponseDataArray);</span>
+<span class="fc" id="L176">		return responseObject.toString();</span>
+	}
+
+	private void createJsonArrayForResposeData(ScracthMgmtBean orderMgmtBean, JSONArray reponseDataArray)
+			throws JSONException {
+<span class="fc bfc" id="L181" title="All 2 branches covered.">		for (String bookNbr : orderMgmtBean.getBookList()) {</span>
+<span class="fc" id="L182">			JSONObject responseDataObject = new JSONObject();</span>
+<span class="fc" id="L183">			responseDataObject.put(&quot;bookNumber&quot;, bookNbr);</span>
+<span class="fc" id="L184">			responseDataObject.put(&quot;status&quot;, &quot;MARKED_AS_RECEIVED&quot;);</span>
+<span class="fc" id="L185">			reponseDataArray.add(responseDataObject);</span>
+<span class="fc" id="L186">		}</span>
+<span class="fc" id="L187">	}</span>
+	
+	public ScratchService getScracthService() {
+<span class="fc" id="L190">		return scracthService;</span>
+	}
+	
+	@Path(&quot;/orderHistory&quot;)
+	@POST
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String getOrderHistory(String requestData) throws Exception {
+<span class="nc" id="L198">		JSONObject resObj = new JSONObject();</span>
+<span class="nc" id="L199">		int requestId = 0;</span>
+		try{
+<span class="nc" id="L201">			requestId = buildOrderHistory(requestData, resObj);</span>
+<span class="nc" id="L202">		}catch(ScratchException e){</span>
+<span class="nc" id="L203">			resObj.put(&quot;requestId&quot;, requestId);</span>
+<span class="nc" id="L204">			resObj.put(&quot;responseCode&quot;, e.getErrorCode());</span>
+<span class="nc" id="L205">			resObj.put(&quot;responseData&quot;,e.getErrorMessage());</span>
+<span class="nc" id="L206">		}catch(Exception e){</span>
+<span class="nc" id="L207">			buildErrorResponse(resObj, requestId, e);</span>
+<span class="nc" id="L208">		}</span>
+<span class="nc" id="L209">		return  resObj.toString();</span>
+	}
+
+	private void buildErrorResponse(JSONObject resObj, int requestId, Exception e) throws JSONException {
+<span class="nc" id="L213">		e.printStackTrace();</span>
+<span class="nc" id="L214">		resObj.put(&quot;requestId&quot;, requestId);</span>
+<span class="nc" id="L215">		resObj.put(&quot;responseCode&quot;, ScratchErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="nc" id="L216">		resObj.put(&quot;responseData&quot;,ScratchErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L217">	}</span>
+
+	private int buildOrderHistory(String requestData, JSONObject resObj)
+			throws ScratchException, SQLException, Exception, JSONException {
+		JsonObject reqObj;
+		String tpUserId;
+		int requestId;
+<span class="nc" id="L224">		String orderReferenceId = null;</span>
+<span class="nc" id="L225">		String orderStatus = null;</span>
+		ProcessRetailerRequestHelper processRetailerRequestHelper;
+<span class="nc" id="L227">		reqObj = new JsonObject();</span>
+		
+		try{
+<span class="nc" id="L230">			reqObj=new JsonParser().parse(requestData).getAsJsonObject();</span>
+<span class="nc" id="L231">			tpUserId=reqObj.get(&quot;tpUserId&quot;).getAsString();</span>
+<span class="nc" id="L232">			requestId=reqObj.get(&quot;requestId&quot;).getAsInt();</span>
+			
+<span class="nc" id="L234">		}catch(NullPointerException e){</span>
+<span class="nc" id="L235">			throw new ScratchException(ScratchErrors.INVALID_REQUEST_DATA_ERROR_CODE, ScratchErrors.INVALID_REQUEST_DATA_ERROR_MESSAGE);</span>
+<span class="nc" id="L236">		}</span>
+<span class="nc bnc" id="L237" title="All 4 branches missed.">		if(reqObj.get(&quot;orderReferenceId&quot;)==null || reqObj.get(&quot;orderReferenceId&quot;).getAsString().trim().isEmpty()){</span>
+<span class="nc" id="L238">			orderReferenceId=null;</span>
+		}
+		else{
+<span class="nc" id="L241">			orderReferenceId=reqObj.get(&quot;orderReferenceId&quot;).getAsString();</span>
+		}
+<span class="nc bnc" id="L243" title="All 4 branches missed.">		if(reqObj.get(&quot;orderStatus&quot;)==null || reqObj.get(&quot;orderStatus&quot;).getAsString().trim().isEmpty()){</span>
+<span class="nc" id="L244">			orderStatus=null;</span>
+		}else{
+<span class="nc" id="L246">			orderStatus=reqObj.get(&quot;orderStatus&quot;).getAsString();</span>
+		}
+		
+<span class="nc bnc" id="L249" title="All 4 branches missed.">		if(orderReferenceId==null &amp;&amp; orderStatus==null){</span>
+<span class="nc" id="L250">			throw new ScratchException(ScratchErrors.INVALID_REQUEST_DATA_ERROR_CODE, ScratchErrors.INVALID_REQUEST_DATA_ERROR_MESSAGE);</span>
+		}
+<span class="nc" id="L252">		validateRequestData(requestData, tpUserId, requestId, orderReferenceId, orderStatus);</span>
+<span class="nc" id="L253">		processRetailerRequestHelper=new ProcessRetailerRequestHelper();</span>
+<span class="nc" id="L254">		ScratchDaoImpl scratchDaoImpl=new ScratchDaoImpl();</span>
+<span class="nc" id="L255">		DaoBean daoBean=scratchDaoImpl.getUserOrgIdAndUserIdFromTpUserId(tpUserId);</span>
+<span class="nc" id="L256">		invokeScratchCoreEngineForOrderHistory(resObj, requestId, orderReferenceId, orderStatus,</span>
+				processRetailerRequestHelper, daoBean);
+<span class="nc" id="L258">		return requestId;</span>
+	}
+
+	private void invokeScratchCoreEngineForOrderHistory(JSONObject resObj, int requestId, String orderReferenceId,
+			String orderStatus, ProcessRetailerRequestHelper processRetailerRequestHelper,DaoBean daoBean)
+			throws Exception, JSONException {
+		List&lt;OrderRequestBean&gt; listOfOrder;
+<span class="nc" id="L265">		int retOrgId = 0;</span>
+<span class="nc" id="L266">		String endDate=Util.getCurrentTimeString();</span>
+<span class="nc" id="L267">		Calendar calendar= Calendar.getInstance();</span>
+<span class="nc" id="L268">		calendar.add(Calendar.MONTH, -2);</span>
+<span class="nc" id="L269">		String startDate= new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;).format(calendar.getTime());</span>
+		try{
+<span class="nc" id="L271">			retOrgId=daoBean.getUserOrgId();</span>
+		}
+<span class="nc" id="L273">		catch(NullPointerException e){</span>
+<span class="nc" id="L274">			throw new ScratchException(ScratchErrors.INVALID_USER_NAME_CODE,ScratchErrors.INVALID_USER_NAME_MESSAGE);</span>
+<span class="nc" id="L275">		}</span>
+<span class="nc" id="L276">		listOfOrder=processRetailerRequestHelper.getRetailerRequestedOrders(retOrgId, null, null, orderReferenceId, orderStatus, startDate, endDate);</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">		if(listOfOrder.size()!=0){</span>
+<span class="nc" id="L278">			List&lt;OrderHistory&gt; list=new ArrayList&lt;OrderHistory&gt;();</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">			for(OrderRequestBean order : listOfOrder){</span>
+<span class="nc" id="L280">				OrderHistory orderHistory = new OrderHistory();</span>
+<span class="nc" id="L281">				orderHistory.setNoOfBookApproved(order.getNbrAppBooks());</span>
+<span class="nc" id="L282">				orderHistory.setNoOfBookDispatched(order.getNbrOfBooksDlvrd());</span>
+<span class="nc" id="L283">				orderHistory.setNoOfBookOrdered(order.getNbrOfBooksReq());</span>
+<span class="nc" id="L284">				orderHistory.setOrderReferenceId(order.getOrderId());</span>
+<span class="nc" id="L285">				orderHistory.setGameName(order.getGameName());</span>
+<span class="nc" id="L286">				orderHistory.setOrderStatus(order.getName());</span>
+<span class="nc" id="L287">				list.add(orderHistory);</span>
+<span class="nc" id="L288">			} </span>
+<span class="nc" id="L289">			String json=new Gson().toJson(listOfOrder);</span>
+<span class="nc" id="L290">			resObj.put(&quot;requestId&quot;, requestId);</span>
+<span class="nc" id="L291">			resObj.put(&quot;responseCode&quot;, ScratchErrors.SUCCESS_CODE);</span>
+<span class="nc" id="L292">			resObj.put(&quot;responseData&quot;,list);</span>
+<span class="nc" id="L293">		}</span>
+		else{
+<span class="nc" id="L295">			resObj.put(&quot;requestId&quot;, requestId);</span>
+<span class="nc" id="L296">			resObj.put(&quot;responseCode&quot;, ScratchErrors.SUCCESS_CODE);</span>
+<span class="nc" id="L297">			resObj.put(&quot;responseData&quot;,&quot;Ordered detail not found ! &quot;);</span>
+		}
+		
+<span class="nc" id="L300">	}</span>
+
+	private void validateRequestData(String requestData, String tpUserId, int requestId, String orderReferenceId,
+			String orderStatus) throws ScratchException {
+<span class="nc bnc" id="L304" title="All 4 branches missed.">		if(requestData == null || requestData.trim().length() &lt; 1 ){</span>
+<span class="nc" id="L305">			throw new ScratchException(ScratchErrors.NO_REQUEST_DATA_PROVIDED_ERROR_CODE, ScratchErrors.NO_REQUEST_DATA_PROVIDED_ERROR_MESSAGE);</span>
+		}
+<span class="nc bnc" id="L307" title="All 4 branches missed.">		else if(requestId==0 || tpUserId==null){</span>
+<span class="nc" id="L308">			throw new ScratchException(ScratchErrors.INVALID_REQUEST_DATA_ERROR_CODE, ScratchErrors.INVALID_REQUEST_DATA_ERROR_MESSAGE);</span>
+		}
+<span class="nc" id="L310">	}</span>
+	
+	
+	@Path(&quot;/orderInventory&quot;)
+	@POST
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	public String orderInventory(String reqData) {
+<span class="fc" id="L318">		responseDataOfOrder = new JsonObject();</span>
+		try {
+<span class="fc" id="L320">			isRequestedDataExisting(reqData);</span>
+<span class="fc" id="L321">			requestObj = new JsonParser().parse(reqData).getAsJsonObject();</span>
+<span class="fc" id="L322">			orderCartBean = new Gson().fromJson(requestObj, OrderCartBean.class);</span>
+<span class="fc" id="L323">			validateMandatoryParamsOfRequest();</span>
+<span class="fc" id="L324">			generateOrderOfRequest();</span>
+<span class="fc" id="L325">		} catch (LMSException e) {</span>
+<span class="fc" id="L326">			setRespCodeOfLMSExceptionForOrderCart(e);</span>
+<span class="nc" id="L327">		} catch (Exception e) {</span>
+<span class="nc" id="L328">			setRespCodeOfGeneralExceptionForOrderCart();</span>
+<span class="fc" id="L329">		}</span>
+<span class="fc" id="L330">		return new Gson().toJson(responseDataOfOrder);</span>
+	}
+
+	private void isRequestedDataExisting(String reqData) throws LMSException {
+<span class="pc bpc" id="L334" title="1 of 4 branches missed.">		if (reqData == null || reqData.trim().length() &lt; 1) {</span>
+<span class="fc" id="L335">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE, LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+		}
+<span class="fc" id="L337">	}</span>
+
+	private void generateOrderOfRequest() throws LMSException, JSONException {
+<span class="fc" id="L340">		DaoBean daoBean = getRetailerIdAndOrgId();</span>
+<span class="fc" id="L341">		int agentOrgID = scracthService.getAgentOrganizationId(orderCartBean.getTpUserId());</span>
+<span class="fc" id="L342">		List&lt;GameBean&gt; cartList= createCartOfOrder(orderCartBean.getOrderList());</span>
+<span class="fc" id="L343">		orderId = orderHelper.generateOrder(agentOrgID, daoBean.getUserId(), daoBean.getUserOrgId(), cartList);</span>
+<span class="pc bpc" id="L344" title="1 of 2 branches missed.">		if(orderId!=-1){</span>
+<span class="fc" id="L345">			setSuccessResponseData();</span>
+		}else{
+<span class="nc" id="L347">			setFailureResponseData();</span>
+		}
+<span class="fc" id="L349">	}</span>
+
+	private DaoBean getRetailerIdAndOrgId() throws JSONException, LMSException {
+<span class="fc" id="L352">		DaoBean daoBean = scracthService.getRetailerData(orderCartBean.getTpUserId());</span>
+<span class="pc bpc" id="L353" title="1 of 2 branches missed.">		if(daoBean ==null){</span>
+<span class="nc" id="L354">		  setFailureResponseData();</span>
+		}
+<span class="fc" id="L356">		return daoBean;</span>
+	}
+	
+	public List&lt;GameBean&gt; createCartOfOrder(List&lt;OrderListBean&gt; orderListBean) {
+<span class="fc" id="L360">		List&lt;GameBean&gt; gameCart = new ArrayList&lt;GameBean&gt;();</span>
+<span class="fc" id="L361">		GameBean cartBean = null;</span>
+<span class="fc bfc" id="L362" title="All 2 branches covered.">		for (Iterator&lt;OrderListBean&gt; iterator = orderListBean.iterator(); iterator.hasNext();) {</span>
+<span class="fc" id="L363">			OrderListBean orderList = (OrderListBean) iterator.next();</span>
+<span class="fc" id="L364">			cartBean = new GameBean();</span>
+<span class="fc" id="L365">			cartBean.setGameId(orderList.getGameId());</span>
+<span class="fc" id="L366">			cartBean.setOrderedQty(orderList.getNoOfItems());</span>
+<span class="fc" id="L367">			gameCart.add(cartBean);</span>
+<span class="fc" id="L368">		}		</span>
+<span class="fc" id="L369">		System.out.println(&quot;size of gameCart = &quot; + gameCart.size());</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">		if (gameCart.isEmpty()) {</span>
+<span class="nc" id="L371">			return null;</span>
+		} else {
+<span class="fc" id="L373">			return gameCart;</span>
+		}
+	}
+
+	private void validateMandatoryParamsOfRequest() throws LMSException {
+<span class="fc" id="L378">		orderCartBean.validateRequestId();</span>
+<span class="fc" id="L379">		orderCartBean.validateTpUserId();</span>
+<span class="fc" id="L380">		orderCartBean.validateOrderList();</span>
+<span class="fc" id="L381">	}</span>
+
+	private void setRespCodeOfLMSExceptionForOrderCart(LMSException e) {
+<span class="fc" id="L384">		responseDataOfOrder.addProperty(&quot;responseCode&quot;, e.getErrorCode());</span>
+<span class="fc" id="L385">		responseDataOfOrder.addProperty(&quot;responseMsj&quot;, e.getErrorMessage());</span>
+<span class="fc" id="L386">	}</span>
+
+	private void setRespCodeOfGeneralExceptionForOrderCart() {
+<span class="nc" id="L389">		responseDataOfOrder.addProperty(&quot;responseCode&quot;, LMSErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="nc" id="L390">		responseDataOfOrder.addProperty(&quot;responseMsj&quot;, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L391">	}</span>
+	
+	private void setSuccessResponseData() throws JSONException{
+<span class="fc" id="L394">		JsonObject responseData = new JsonObject();</span>
+<span class="fc" id="L395">		responseData.addProperty(&quot;orderReferenceId&quot;, orderId);</span>
+<span class="fc" id="L396">		responseDataOfOrder.addProperty(&quot;requestId&quot;, orderCartBean.getRequestId());</span>
+<span class="fc" id="L397">		responseDataOfOrder.addProperty(&quot;responseCode&quot;, 200);</span>
+<span class="fc" id="L398">		responseDataOfOrder.addProperty(&quot;responseMsj&quot;, &quot;Order Created Successfully&quot;);</span>
+<span class="fc" id="L399">		responseDataOfOrder.add(&quot;responseData&quot;, responseData);</span>
+<span class="fc" id="L400">	}</span>
+	
+    private void setFailureResponseData() throws JSONException{
+<span class="nc" id="L403">    	responseDataOfOrder.addProperty(&quot;requestId&quot;, orderCartBean.getRequestId());</span>
+<span class="nc" id="L404">		responseDataOfOrder.addProperty(&quot;responseCode&quot;, LMSErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="nc" id="L405">		responseDataOfOrder.addProperty(&quot;responseMsj&quot;, &quot;Requested data is not existing&quot;);</span>
+<span class="nc" id="L406">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RolesInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.loginMgmt</a> &gt; <span class="el_source">RolesInterceptor.java</span></div><h1>RolesInterceptor.java</h1><pre class="source lang-java linenums">/*
+ * $Id: RolesInterceptor.java,v 1.2 2016/10/31 09:45:57 neeraj Exp $
+ *
+ * Copyright 2006 The Apache Software Foundation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.skilrock.lms.web.loginMgmt;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.AbstractInterceptor;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.ConfigurationVariables;
+
+/**
+ * &lt;!-- START SNIPPET: description --&gt; This interceptor ensures that the action
+ * will only be executed if the user has the correct role. &lt;!-- END SNIPPET:
+ * description --&gt;
+ * 
+ * &lt;p/&gt; &lt;u&gt;Interceptor parameters:&lt;/u&gt;
+ * 
+ * &lt;!-- START SNIPPET: parameters --&gt;
+ * 
+ * &lt;ul&gt;
+ * 
+ * &lt;li&gt;allowedRoles - a comma-separated list of roles to allow&lt;/li&gt;
+ * 
+ * &lt;li&gt;disallowedRoles - a comma-separated list of roles to disallow&lt;/li&gt;
+ * 
+ * &lt;/ul&gt;
+ * 
+ * &lt;!-- END SNIPPET: parameters --&gt;
+ * 
+ * &lt;!-- START SNIPPET: extending --&gt; There are two extensions to the existing
+ * interceptor:
+ * &lt;ul&gt;
+ * &lt;li&gt;isAllowed(HttpServletRequest,Object) - whether or not to allow the
+ * passed action execution with this request&lt;/li&gt;
+ * &lt;li&gt;handleRejection(ActionInvocation) - handles an unauthorized request.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;!-- END SNIPPET: extending --&gt;
+ * 
+ * &lt;pre&gt;
+ *  &amp;lt;!-- START SNIPPET: example --&amp;gt;
+ *  &amp;lt;!-- only allows the admin and member roles --&amp;gt;
+ *  &amp;lt;action name=&amp;quot;someAction&amp;quot; class=&amp;quot;com.examples.SomeAction&amp;quot;&amp;gt;
+ *      &amp;lt;interceptor-ref name=&amp;quot;completeStack&amp;quot;/&amp;gt;
+ *      &amp;lt;interceptor-ref name=&amp;quot;roles&amp;quot;&amp;gt;
+ *        &amp;lt;param name=&amp;quot;allowedRoles&amp;quot;&amp;gt;admin,member&amp;lt;/param&amp;gt;
+ *      &amp;lt;/interceptor-ref&amp;gt;
+ *      &amp;lt;result name=&amp;quot;success&amp;quot;&amp;gt;good_result.ftl&amp;lt;/result&amp;gt;
+ *  &amp;lt;/action&amp;gt;
+ *  &amp;lt;!-- END SNIPPET: example --&amp;gt;
+ * &lt;/pre&gt;
+ */
+<span class="nc" id="L82">public class RolesInterceptor extends AbstractInterceptor {</span>
+<span class="nc" id="L83">	static Log logger = LogFactory.getLog(RolesInterceptor.class);</span>
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+<span class="nc" id="L88">	private List&lt;String&gt; allowedRoles = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L89">	private List&lt;String&gt; disallowedRoles = new ArrayList&lt;String&gt;();</span>
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+
+	public void createCookie() {
+<span class="nc" id="L94">		boolean found = false;</span>
+<span class="nc" id="L95">		Cookie userSessionId = null;</span>
+<span class="nc" id="L96">		Cookie[] cookies = request.getCookies();</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">		for (Cookie element : cookies) {</span>
+<span class="nc" id="L98">			userSessionId = element;</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">			if (userSessionId.getName().equals(&quot;LMSCookie&quot;)) {</span>
+<span class="nc" id="L100">				found = true;</span>
+<span class="nc" id="L101">				break;</span>
+			}
+<span class="nc bnc" id="L103" title="All 2 branches missed.">			if (!found) {</span>
+<span class="nc" id="L104">				userSessionId = new Cookie(&quot;LMSCookie&quot;, &quot;&quot;);</span>
+<span class="nc" id="L105">				userSessionId.setMaxAge(24 * 60 * 60);</span>
+<span class="nc" id="L106">				userSessionId.setPath(&quot;/&quot;);</span>
+<span class="nc" id="L107">				response.addCookie(userSessionId);</span>
+			} else {
+<span class="nc" id="L109">				userSessionId.setMaxAge(24 * 60 * 60);</span>
+<span class="nc" id="L110">				userSessionId.setPath(&quot;/&quot;);</span>
+<span class="nc" id="L111">				response.addCookie(userSessionId);</span>
+			}
+
+		}
+
+<span class="nc" id="L116">	}</span>
+
+	/**
+	 * Handles a rejection by sending a 403 HTTP error
+	 * 
+	 * @param invocation
+	 *            The invocation
+	 * @return The result code
+	 * @throws Exception
+	 */
+	protected String handleRejection(ActionInvocation invocation,
+			HttpServletResponse response) throws Exception {
+		// logger.debug(&quot;I am in Allowed roles444444444444444444444&quot;);
+<span class="nc" id="L129">		response.sendError(HttpServletResponse.SC_FORBIDDEN);</span>
+<span class="nc" id="L130">		return null;</span>
+	}
+
+	@Override
+	public String intercept(ActionInvocation invocation) throws Exception {
+
+		// logger.debug(&quot;1&quot;);
+<span class="nc" id="L137">		HttpServletRequest request = ServletActionContext.getRequest();</span>
+<span class="nc" id="L138">		HttpServletResponse response = ServletActionContext.getResponse();</span>
+
+		if (ConfigurationVariables.USER_RELOGIN_SESSION_TERMINATE) {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">			if (isSessionTimeOut(request.getSession())) {</span>
+
+<span class="nc" id="L143">				return &quot;SESSION_TIME_OUT&quot;;</span>
+			}
+<span class="nc bnc" id="L145" title="All 2 branches missed.">			if (!isSessionValid(request.getSession())) {</span>
+<span class="nc" id="L146">				request.getSession().setAttribute(&quot;isSessionValid&quot;, &quot;NO&quot;);</span>
+<span class="nc" id="L147">				return &quot;ALREADY_LOGGED_IN&quot;;</span>
+			}
+
+		}
+<span class="nc" id="L151">		String result = null;</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">		if (!isAllowed(request, invocation.getAction())) {</span>
+<span class="nc" id="L153">			result = handleRejection(invocation, response);</span>
+		} else {
+<span class="nc" id="L155">			result = invocation.invoke();</span>
+
+		}
+<span class="nc" id="L158">		request.getSession().setAttribute(&quot;isSessionValid&quot;, &quot;YES&quot;);</span>
+<span class="nc" id="L159">		return result;</span>
+	}
+
+	/**
+	 * Determines if the request should be allowed for the action
+	 * 
+	 * @param request
+	 *            The request
+	 * @param action
+	 *            The action object
+	 * @return True if allowed, false otherwise
+	 */
+	protected boolean isAllowed(HttpServletRequest request, Object action) {
+<span class="nc" id="L172">		HttpSession session = request.getSession();</span>
+		// logger.debug(&quot;allowedRoles::&quot; + allowedRoles);
+		// allowedRoles.add(&quot;AGT_MAS&quot;);
+		// logger.debug(&quot;allowedRoles::&quot; + allowedRoles);
+
+<span class="nc bnc" id="L177" title="All 2 branches missed.">		if (allowedRoles.size() &gt; 0) {</span>
+<span class="nc" id="L178">			boolean result = false;</span>
+
+<span class="nc" id="L180">			UserInfoBean userBean = (UserInfoBean) session</span>
+					.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L182">			String userRole = userBean.getRoleName();</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">			for (String role : allowedRoles) {</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">				if (role.equals(userRole)) {</span>
+<span class="nc" id="L185">					result = true;</span>
+				}// logger.debug(&quot;I am in Allowed roles&quot;+role);
+<span class="nc" id="L187">			}</span>
+
+			// logger.debug(&quot;I am in Allowed roles&quot;+result);
+<span class="nc" id="L190">			return result;</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">		} else if (disallowedRoles.size() &gt; 0) {</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">			for (String role : disallowedRoles) {</span>
+<span class="nc" id="L193">				UserInfoBean userBean = (UserInfoBean) session</span>
+						.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L195">				String userRole = userBean.getRoleName();</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">				if (role.equals(userRole)) {</span>
+<span class="nc" id="L197">					return false;</span>
+				}// logger.debug(&quot;I am in disAllowed
+				// roles222222222222222&quot;+disallowedRoles);
+<span class="nc" id="L200">			}</span>
+		}
+		// logger.debug(&quot;I am in Allowed roles33333333333333333333&quot;);
+<span class="nc" id="L203">		return true;</span>
+	}
+
+	public boolean isSessionTimeOut(HttpSession session) {
+<span class="nc" id="L207">		HttpSession sessionNew = null;</span>
+<span class="nc" id="L208">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L209">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L210">		UserInfoBean userBean = (UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc bnc" id="L212" title="All 2 branches missed.">		if (userBean == null) {</span>
+<span class="nc" id="L213">			return true;</span>
+		}
+<span class="nc bnc" id="L215" title="All 4 branches missed.">		if (currentUserSessionMap != null &amp;&amp; userBean != null) {</span>
+<span class="nc" id="L216">			sessionNew = (HttpSession) currentUserSessionMap.get(userBean</span>
+					.getUserName());
+		}
+		// logger.debug(&quot;In Else If New is --&quot;+sessionNew+&quot; Session Current
+		// --&quot;+session);
+		// logger.debug(&quot;The User in Map are&quot;+currentUserSessionMap );
+<span class="nc bnc" id="L222" title="All 2 branches missed.">		if (sessionNew == null) {</span>
+<span class="nc" id="L223">			return true;</span>
+		}
+<span class="nc" id="L225">		return false;</span>
+
+	}
+
+	public boolean isSessionValid(HttpSession session) {
+<span class="nc" id="L230">		HttpSession sessionNew = null;</span>
+<span class="nc" id="L231">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L232">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L233">		UserInfoBean userBean = (UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc bnc" id="L235" title="All 2 branches missed.">		if (userBean == null) {</span>
+
+<span class="nc" id="L237">			return false;</span>
+		}
+<span class="nc bnc" id="L239" title="All 4 branches missed.">		if (currentUserSessionMap != null &amp;&amp; userBean != null) {</span>
+<span class="nc" id="L240">			sessionNew = (HttpSession) currentUserSessionMap.get(userBean</span>
+					.getUserName());
+		}
+		// logger.debug(&quot;In Else If New is --&quot;+sessionNew+&quot; Session Current
+		// --&quot;+session);
+		// logger.debug(&quot;The User in Map are&quot;+currentUserSessionMap );
+<span class="nc bnc" id="L246" title="All 2 branches missed.">		if (sessionNew != null) {</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">			if (!sessionNew.equals(session)) {</span>
+<span class="nc" id="L248">				session.removeAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L249">				session.invalidate();</span>
+<span class="nc" id="L250">				session = null;</span>
+<span class="nc" id="L251">				return false;</span>
+			}
+		}
+<span class="nc" id="L254">		return true;</span>
+
+	}
+
+	public void setAllowedRoles(String roles) {
+<span class="nc" id="L259">		this.allowedRoles = stringToList(roles);</span>
+		// logger.debug(&quot;I am in Allowed roles111111111&quot;);
+<span class="nc" id="L261">	}</span>
+
+	public void setDisallowedRoles(String roles) {
+<span class="nc" id="L264">		this.disallowedRoles = stringToList(roles);</span>
+		// logger.debug(&quot;I am in disAllowed roles&quot;);
+<span class="nc" id="L266">	}</span>
+
+	/**
+	 * Splits a string into a List
+	 */
+	protected List&lt;String&gt; stringToList(String val) {
+<span class="nc bnc" id="L272" title="All 2 branches missed.">		if (val != null) {</span>
+<span class="nc" id="L273">			String[] list = val.split(&quot;[ ]*,[ ]*&quot;);</span>
+			// logger.debug(&quot;I am in Allowed roles&quot;+val);
+<span class="nc" id="L275">			return Arrays.asList(list);</span>
+		} else {
+<span class="nc" id="L277">			return Collections.EMPTY_LIST;</span>
+		}
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

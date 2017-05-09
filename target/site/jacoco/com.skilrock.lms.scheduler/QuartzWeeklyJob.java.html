@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QuartzWeeklyJob.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.scheduler</a> &gt; <span class="el_source">QuartzWeeklyJob.java</span></div><h1>QuartzWeeklyJob.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.scheduler;
+
+import java.util.Calendar;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.quartz.Job;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
+
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.SchedulerDetailsBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.GetDate;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.common.utility.SendReportMailerMain;
+import com.skilrock.lms.coreEngine.accMgmt.common.TrainingExpAgentHelper;
+import com.skilrock.lms.coreEngine.drawGames.drawMgmt.controllerImpl.TrackFullTicketControllerImpl;
+
+public class QuartzWeeklyJob implements Job {
+
+<span class="nc" id="L25">	private static Log logger = LogFactory.getLog(QuartzWeeklyJob.class);</span>
+
+	/**
+	 * Quartz requires a public empty constructor so that the scheduler can
+	 * instantiate the class whenever it needs.
+	 */
+<span class="nc" id="L31">	public QuartzWeeklyJob() {</span>
+<span class="nc" id="L32">	}</span>
+
+	/**
+	 * &lt;p&gt;
+	 * Called by the &lt;code&gt;{@link org.quartz.Scheduler}&lt;/code&gt; when a
+	 * &lt;code&gt;{@link org.quartz.Trigger}&lt;/code&gt; fires that is associated with
+	 * the &lt;code&gt;Job&lt;/code&gt;.
+	 * &lt;/p&gt;
+	 * 
+	 * @throws JobExecutionException
+	 *             if there is an exception while executing the job.
+	 */
+	public void execute(JobExecutionContext context)
+			throws JobExecutionException {
+		
+		try {
+
+<span class="nc" id="L49">			String jobName = context.getJobDetail().getFullName();</span>
+<span class="nc" id="L50">			logger.info(&quot;Weekly Job says: &quot; + jobName + &quot; executing at &quot;+ new java.util.Date());</span>
+			
+<span class="nc" id="L52">			Map&lt;String,SchedulerDetailsBean&gt; scheBeanMap =SchedulerCommonFuntionsHelper.getSchedulerBeanMap(context.getJobDetail().getGroup());</span>
+			
+<span class="nc" id="L54">			SchedulerCommonFuntionsHelper.insertSchedulerGroupHistory(context.getJobDetail().getGroup());</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">			if(scheBeanMap.size()&gt;0){</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">				if(scheBeanMap.get(&quot;Agent_TrngExp_Weekly_SCHEDULER&quot;).isActive()){</span>
+<span class="nc" id="L57">					Calendar calendar = Calendar.getInstance();</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">					if(calendar.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY) {</span>
+<span class="nc" id="L59">						String errorMsg = null;</span>
+						try{
+<span class="nc" id="L61">							SchedulerCommonFuntionsHelper.updateSchedulerStart( scheBeanMap.get(&quot;Agent_TrngExp_Weekly_SCHEDULER&quot;).getJobId());</span>
+							//give credit note to agents on weekly basis as training expenses
+<span class="nc" id="L63">							logger.info(&quot;issuing credit note to agents on weekly basis as training expenses.... &quot;);</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">							if(&quot;YES&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;IS_WEEKLY_DG_TRAINING_EXPENSE_ENABLED&quot;))){</span>
+<span class="nc" id="L65">								new TrainingExpAgentHelper().submitWeeklyTrngExpForAgents();</span>
+							}
+<span class="nc bnc" id="L67" title="All 2 branches missed.">							if(&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsIW())){</span>
+<span class="nc bnc" id="L68" title="All 4 branches missed.">								if(&quot;YES&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;IS_WEEKLY_IW_TRAINING_EXPENSE_ENABLED&quot;)) || &quot;YES&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;IS_WEEKLY_IW_INCENTIVE_EXPENSE_ENABLED&quot;))){</span>
+<span class="nc" id="L69">									new TrainingExpAgentHelper().submitWeeklyTrngExpInstantWinForAgents();</span>
+								}
+							}
+<span class="nc" id="L72">							logger.info(&quot;successfully done.....&quot;);</span>
+<span class="nc" id="L73">							SchedulerCommonFuntionsHelper.updateSchedulerEnd( scheBeanMap.get(&quot;Agent_TrngExp_Weekly_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L74">						}catch (Exception e) {</span>
+<span class="nc" id="L75">							logger.error(&quot;Exception in Agent_TrngExp_Weekly_SCHEDULER &quot;, e);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">							if(e.getMessage()!=null){</span>
+<span class="nc" id="L77">								errorMsg =e.getMessage();</span>
+							}else{
+<span class="nc" id="L79">								errorMsg=&quot;Error Occurred Msg Is Null &quot;;</span>
+							}
+<span class="nc" id="L81">						}</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">						if(errorMsg!=null){</span>
+<span class="nc" id="L83">							SchedulerCommonFuntionsHelper.updateSchedulerError( scheBeanMap.get(&quot;Agent_TrngExp_Weekly_SCHEDULER&quot;).getJobId(), errorMsg);</span>
+						}
+<span class="nc" id="L85">					} else {</span>
+<span class="nc" id="L86">						logger.info(&quot;Today is Not Monday, Cannot Perform Action.&quot;);</span>
+					}
+				}
+<span class="nc bnc" id="L89" title="All 2 branches missed.">				if(scheBeanMap.get(&quot;Send_Mail_Weekly_SCHEDULER&quot;).isActive()){</span>
+<span class="nc" id="L90">					String errorMsg = null;</span>
+					try{
+<span class="nc" id="L92">						SchedulerCommonFuntionsHelper.updateSchedulerStart( scheBeanMap.get(&quot;Send_Mail_Weekly_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L93">						String str = &quot;Current Week&quot;;</span>
+<span class="nc" id="L94">						DateBeans datebean = new GetDate().getDateForSchedular(str);</span>
+						
+<span class="nc" id="L96">						SendReportMailerMain sendmail = new SendReportMailerMain(datebean);</span>
+<span class="nc" id="L97">						sendmail.sendMailToBO(str);</span>
+
+						// sleep thread to 5 minute
+<span class="nc" id="L100">						Thread.sleep(1000 * 60 * 1);</span>
+						
+
+						// send mail to agents
+<span class="nc" id="L104">						sendmail.sendMailToAgent(str);</span>
+						//logger.info(&quot;Weekly Job says: &quot; + jobName + &quot; executing at &quot;+ new java.util.Date());
+<span class="nc" id="L106">						SchedulerCommonFuntionsHelper.updateSchedulerEnd( scheBeanMap.get(&quot;Send_Mail_Weekly_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L107">					}catch (Exception e) {</span>
+<span class="nc" id="L108">						logger.error(&quot;Exception in Send_Mail_Weekly_SCHEDULER &quot;, e);</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">						if(e.getMessage()!=null){</span>
+<span class="nc" id="L110">							errorMsg =e.getMessage();</span>
+						}else{
+							
+<span class="nc" id="L113">							errorMsg=&quot;Error Occurred Msg Is Null &quot;;</span>
+						}
+<span class="nc" id="L115">					}</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">					if(errorMsg!=null){</span>
+<span class="nc" id="L117">						SchedulerCommonFuntionsHelper.updateSchedulerError( scheBeanMap.get(&quot;Send_Mail_Weekly_SCHEDULER&quot;).getJobId(), errorMsg);</span>
+					}
+					
+				}
+<span class="nc bnc" id="L121" title="All 2 branches missed.">				if(scheBeanMap.get(&quot;Responsible_Gaming_Weekly_SCHEDULER&quot;).isActive()){</span>
+<span class="nc" id="L122">					String errorMsg = null;</span>
+					try{
+<span class="nc" id="L124">						SchedulerCommonFuntionsHelper.updateSchedulerStart( scheBeanMap.get(&quot;Responsible_Gaming_Weekly_SCHEDULER&quot;).getJobId());</span>
+						//give credit note to agents on weekly basis as training expenses
+<span class="nc" id="L126">						logger.info(&quot;issuing credit note to agents on weekly basis as training expenses.... &quot;);</span>
+						// call responsible gaming
+<span class="nc" id="L128">							ResponsibleGaming.insertWeeklyHistory();</span>
+<span class="nc" id="L129">						logger.info(&quot;successfully done.....&quot;);</span>
+<span class="nc" id="L130">						SchedulerCommonFuntionsHelper.updateSchedulerEnd( scheBeanMap.get(&quot;Responsible_Gaming_Weekly_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L131">					}catch (Exception e) {</span>
+<span class="nc" id="L132">						logger.error(&quot;Exception in Responsible_Gaming_Weekly_SCHEDULER &quot;, e);</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">						if(e.getMessage()!=null){</span>
+<span class="nc" id="L134">							errorMsg =e.getMessage();</span>
+						}else{
+							
+<span class="nc" id="L137">							errorMsg=&quot;Error Occurred Msg Is Null &quot;;</span>
+						}
+<span class="nc" id="L139">					}</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">					if(errorMsg!=null){</span>
+<span class="nc" id="L141">						SchedulerCommonFuntionsHelper.updateSchedulerError( scheBeanMap.get(&quot;Responsible_Gaming_Weekly_SCHEDULER&quot;).getJobId(), errorMsg);</span>
+					}
+					
+				}
+
+				/*	Weekly Scheduler for Track Full Ticket Data Start	*/
+<span class="nc" id="L147">				logger.info(&quot;Active status of Track_Full_Ticket_Weekly_SCHEDULER is - &quot;+scheBeanMap.get(&quot;Track_Full_Ticket_Weekly_SCHEDULER&quot;).isActive());</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">				if(scheBeanMap.get(&quot;Track_Full_Ticket_Weekly_SCHEDULER&quot;).isActive()) {</span>
+<span class="nc" id="L149">					String errorMsg = null;</span>
+					try {
+<span class="nc" id="L151">						SchedulerCommonFuntionsHelper.updateSchedulerStart(scheBeanMap.get(&quot;Track_Full_Ticket_Weekly_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L152">						logger.info(&quot;Reset Track Full Ticket User Attemps Starts.&quot;);</span>
+<span class="nc" id="L153">						TrackFullTicketControllerImpl.resetUsersAttemptLimits();</span>
+<span class="nc" id="L154">						logger.info(&quot;Successfully Reset Track Full Ticket User Attemps.&quot;);</span>
+<span class="nc" id="L155">						SchedulerCommonFuntionsHelper.updateSchedulerEnd(scheBeanMap.get(&quot;Track_Full_Ticket_Weekly_SCHEDULER&quot;).getJobId());</span>
+<span class="nc" id="L156">					} catch (Exception e) {</span>
+<span class="nc" id="L157">						logger.error(&quot;Exception in Track_Full_Ticket_Weekly_SCHEDULER - &quot;, e);</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">						if(e.getMessage() != null) {</span>
+<span class="nc" id="L159">							errorMsg = e.getMessage();</span>
+						} else {
+<span class="nc" id="L161">							errorMsg = &quot;Error Occurred Msg Is Null.&quot;;</span>
+						}
+<span class="nc" id="L163">					}</span>
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">					if(errorMsg != null) {</span>
+<span class="nc" id="L166">						SchedulerCommonFuntionsHelper.updateSchedulerError(scheBeanMap.get(&quot;Track_Full_Ticket_Weekly_SCHEDULER&quot;).getJobId(), errorMsg);</span>
+					}
+				}
+				/*	Weekly Scheduler for Track Full Ticket Data End	*/
+			}
+		
+<span class="nc" id="L172">		} catch (LMSException e) {</span>
+<span class="nc" id="L173">			logger.error(&quot;LMSException in Weekly Job Scheduler  &quot;, e);</span>
+<span class="nc" id="L174">		}catch (Exception e) {</span>
+<span class="nc" id="L175">			logger.error(&quot;Exception in Weekly Job Scheduler  &quot;, e);</span>
+<span class="nc" id="L176">		}</span>
+
+<span class="nc" id="L178">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpdateGovCommRateHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.accMgmt.common</a> &gt; <span class="el_source">UpdateGovCommRateHelper.java</span></div><h1>UpdateGovCommRateHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.accMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L18">public class UpdateGovCommRateHelper {</span>
+<span class="nc" id="L19">	static Log logger = LogFactory.getLog(UpdateGovCommRateHelper.class);</span>
+
+	public Map&lt;String, String&gt; getGameMap() {
+<span class="nc" id="L22">		Map&lt;String, String&gt; gameMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L23">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L24">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L26">			pstmt = con</span>
+					.prepareStatement(&quot;select game_id, concat(game_nbr, concat('-',game_name)) 'game_name', govt_comm_rate  from st_se_game_master where game_status !='TERMINATE'&quot;);
+<span class="nc" id="L28">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L29">			logger.debug(&quot;getgameList&quot;);</span>
+<span class="nc bnc" id="L30" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L31">				String gameIdAmt = rs.getInt(&quot;game_id&quot;) + &quot;:&quot;</span>
+						+ rs.getDouble(&quot;govt_comm_rate&quot;);
+<span class="nc" id="L33">				String gameName = rs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L34">				gameMap.put(gameIdAmt, gameName);</span>
+<span class="nc" id="L35">			}</span>
+<span class="nc" id="L36">			rs.close();</span>
+<span class="nc" id="L37">		} catch (SQLException e) {</span>
+<span class="nc" id="L38">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L40">			try {</span>
+<span class="nc bnc" id="L41" title="All 6 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L42">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L44" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L45">					con.close();</span>
+				}
+<span class="nc" id="L47">			} catch (SQLException e) {</span>
+<span class="nc" id="L48">				e.printStackTrace();</span>
+<span class="nc" id="L49">			}</span>
+<span class="nc" id="L50">		}</span>
+<span class="nc" id="L51">		return gameMap;</span>
+	}
+
+	public boolean updateGovCommRateDG(String type, Integer id, Double govtCommRate) {
+<span class="nc" id="L55">		boolean flag = true;</span>
+<span class="nc" id="L56">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L57">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L59">			con.setAutoCommit(false);</span>
+
+<span class="nc bnc" id="L61" title="All 2 branches missed.">			String field = &quot;SALE&quot;.equals(type) ? &quot;govt_comm&quot; : &quot;govt_comm_pwt&quot;;</span>
+<span class="nc" id="L62">			pstmt = con</span>
+					.prepareStatement(&quot;update st_dg_game_master set &quot;+field+&quot;=?  where game_id =?&quot;);
+<span class="nc" id="L64">			pstmt.setDouble(1, govtCommRate);</span>
+<span class="nc" id="L65">			pstmt.setInt(2, id);</span>
+<span class="nc" id="L66">			int updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L67">			logger.debug(&quot;update row &quot; + updateRow</span>
+					+ &quot;\nst_dg_game_master query == &quot; + pstmt);
+<span class="nc" id="L69">			pstmt.close();</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L71">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+
+			// putting the entry into gov_comm_rate_history table
+<span class="nc" id="L75">			pstmt = con</span>
+					.prepareStatement(&quot;insert into st_dg_game_govt_comm_history (game_id, govt_comm_rate, govt_comm_type, date_changed) values (?, ?, ?, ?);&quot;);
+<span class="nc" id="L77">			pstmt.setInt(1, id);</span>
+<span class="nc" id="L78">			pstmt.setDouble(2, govtCommRate);</span>
+<span class="nc" id="L79">			pstmt.setString(3, type);</span>
+<span class="nc" id="L80">			pstmt.setTimestamp(4, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L81">			updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L82">			logger.debug(&quot;update row &quot; + updateRow</span>
+					+ &quot;\nst_dg_game_master query == &quot; + pstmt);
+<span class="nc" id="L84">			pstmt.close();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L86">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+
+<span class="nc" id="L89">			con.commit();</span>
+
+<span class="nc" id="L91">		} catch (SQLException e) {</span>
+<span class="nc" id="L92">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L94">				con.rollback();</span>
+<span class="nc" id="L95">			} catch (SQLException e1) {</span>
+<span class="nc" id="L96">				e1.printStackTrace();</span>
+<span class="nc" id="L97">			}</span>
+<span class="nc" id="L98">			flag = false;</span>
+<span class="nc" id="L99">		} catch (LMSException e) {</span>
+<span class="nc" id="L100">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L102">				con.rollback();</span>
+<span class="nc" id="L103">			} catch (SQLException e1) {</span>
+<span class="nc" id="L104">				e1.printStackTrace();</span>
+<span class="nc" id="L105">			}</span>
+<span class="nc" id="L106">			flag = false;</span>
+		} finally {
+<span class="nc" id="L108">			try {</span>
+<span class="nc bnc" id="L109" title="All 8 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L110">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L112" title="All 16 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L113">					con.close();</span>
+				}
+<span class="nc" id="L115">			} catch (SQLException e) {</span>
+<span class="nc" id="L116">				e.printStackTrace();</span>
+<span class="nc" id="L117">			}</span>
+<span class="nc" id="L118">		}</span>
+
+<span class="nc" id="L120">		return flag;</span>
+	}
+
+	public boolean updateGovCommRateSLE(String type, Integer id, Double govtCommRate) {
+<span class="nc" id="L124">		boolean flag = true;</span>
+<span class="nc" id="L125">		Connection connection = null;</span>
+<span class="nc" id="L126">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L128">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L129">			connection.setAutoCommit(false);</span>
+
+<span class="nc bnc" id="L131" title="All 2 branches missed.">			String field = &quot;SALE&quot;.equals(type) ? &quot;gov_comm_rate&quot; : &quot;govt_pwt_comm_rate&quot;;</span>
+<span class="nc" id="L132">			pstmt = connection.prepareStatement(&quot;UPDATE st_sle_game_type_master SET &quot;+field+&quot;=? WHERE game_type_id=?;&quot;);</span>
+<span class="nc" id="L133">			pstmt.setDouble(1, govtCommRate);</span>
+<span class="nc" id="L134">			pstmt.setInt(2, id);</span>
+<span class="nc" id="L135">			int updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L136">			pstmt.close();</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">			if (updateRow &lt; 1)</span>
+<span class="nc" id="L138">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+
+			/*pstmt = connection.prepareStatement(&quot;INSERT INTO st_dg_game_govt_comm_history (game_id, govt_comm_rate, govt_comm_type, date_changed) VALUES (?,?,?,?);&quot;);
+			pstmt.setInt(1, id);
+			pstmt.setDouble(2, govtCommRate);
+			pstmt.setString(3, type);
+			pstmt.setTimestamp(4, Util.getCurrentTimeStamp());
+			updateRow = pstmt.executeUpdate();
+			pstmt.close();
+			if (updateRow &lt; 1)
+				throw new LMSException(&quot;rows not Updated&quot;);*/
+
+<span class="nc" id="L150">			connection.commit();</span>
+<span class="nc" id="L151">		} catch (SQLException e) {</span>
+<span class="nc" id="L152">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L154">				connection.rollback();</span>
+<span class="nc" id="L155">			} catch (SQLException e1) {</span>
+<span class="nc" id="L156">				e1.printStackTrace();</span>
+<span class="nc" id="L157">			}</span>
+<span class="nc" id="L158">			flag = false;</span>
+<span class="nc" id="L159">		} catch (LMSException e) {</span>
+<span class="nc" id="L160">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L162">				connection.rollback();</span>
+<span class="nc" id="L163">			} catch (SQLException e1) {</span>
+<span class="nc" id="L164">				e1.printStackTrace();</span>
+<span class="nc" id="L165">			}</span>
+<span class="nc" id="L166">			flag = false;</span>
+		} finally {
+<span class="nc" id="L168">			DBConnect.closeConnection(connection, pstmt);</span>
+<span class="nc" id="L169">		}</span>
+
+<span class="nc" id="L171">		return flag;</span>
+	}
+
+	public boolean updateGovCommRateIW(Integer id, Double govtCommRate) {
+<span class="nc" id="L175">		boolean flag = true;</span>
+<span class="nc" id="L176">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L177">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L179">			con.setAutoCommit(false);</span>
+<span class="nc" id="L180">			pstmt = con.prepareStatement(&quot;update st_iw_game_master set gov_comm_rate=?  where game_id =?&quot;);</span>
+<span class="nc" id="L181">			pstmt.setDouble(1, govtCommRate);</span>
+<span class="nc" id="L182">			pstmt.setInt(2, id);</span>
+<span class="nc" id="L183">			int updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L184">			logger.debug(&quot;update row &quot; + updateRow + &quot;\n st_iw_game_master query == &quot; + pstmt);</span>
+<span class="nc" id="L185">			pstmt.close();</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L187">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+			// putting the entry into gov_comm_rate_history table
+<span class="nc" id="L190">			pstmt = con.prepareStatement(&quot;insert into st_iw_game_govt_comm_history values (?, ?, ?)&quot;);</span>
+<span class="nc" id="L191">			pstmt.setInt(1, id);</span>
+<span class="nc" id="L192">			pstmt.setDouble(2, govtCommRate);</span>
+<span class="nc" id="L193">			pstmt.setTimestamp(3, new Timestamp(new java.util.Date().getTime()));</span>
+<span class="nc" id="L194">			updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L195">			logger.debug(&quot;update row &quot; + updateRow + &quot;\n st_iw_game_govt_comm_history query == &quot; + pstmt);</span>
+<span class="nc" id="L196">			pstmt.close();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L198">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+<span class="nc" id="L200">			con.commit();</span>
+<span class="nc" id="L201">		} catch (SQLException e) {</span>
+<span class="nc" id="L202">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L204">				con.rollback();</span>
+<span class="nc" id="L205">			} catch (SQLException e1) {</span>
+<span class="nc" id="L206">				e1.printStackTrace();</span>
+<span class="nc" id="L207">			}</span>
+<span class="nc" id="L208">			flag = false;</span>
+<span class="nc" id="L209">		} catch (LMSException e) {</span>
+<span class="nc" id="L210">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L212">				con.rollback();</span>
+<span class="nc" id="L213">			} catch (SQLException e1) {</span>
+<span class="nc" id="L214">				e1.printStackTrace();</span>
+<span class="nc" id="L215">			}</span>
+<span class="nc" id="L216">			flag = false;</span>
+		} finally {
+<span class="nc" id="L218">			try {</span>
+<span class="nc bnc" id="L219" title="All 8 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L220">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L222" title="All 16 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L223">					con.close();</span>
+				}
+<span class="nc" id="L225">			} catch (SQLException e) {</span>
+<span class="nc" id="L226">				e.printStackTrace();</span>
+<span class="nc" id="L227">			}</span>
+<span class="nc" id="L228">		}</span>
+<span class="nc" id="L229">		return flag;</span>
+	}
+
+	public boolean updateGovCommRateSE(Integer id, Double govtCommRate) {
+<span class="nc" id="L233">		boolean flag = true;</span>
+<span class="nc" id="L234">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L235">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L237">			con.setAutoCommit(false);</span>
+
+<span class="nc" id="L239">			pstmt = con</span>
+					.prepareStatement(&quot;update st_se_game_master set govt_comm_rate=?  where game_id =?&quot;);
+<span class="nc" id="L241">			pstmt.setDouble(1, govtCommRate);</span>
+<span class="nc" id="L242">			pstmt.setInt(2, id);</span>
+<span class="nc" id="L243">			int updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L244">			logger.debug(&quot;update row &quot; + updateRow</span>
+					+ &quot;\nst_se_game_master query == &quot; + pstmt);
+<span class="nc" id="L246">			pstmt.close();</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L248">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+
+			// putting the entry into gov_comm_rate_history table
+<span class="nc" id="L252">			pstmt = con</span>
+					.prepareStatement(&quot;insert into st_se_game_govt_comm_history values (?, ?, ?)&quot;);
+<span class="nc" id="L254">			pstmt.setInt(1, id);</span>
+<span class="nc" id="L255">			pstmt.setDouble(2, govtCommRate);</span>
+<span class="nc" id="L256">			pstmt</span>
+					.setTimestamp(3, new Timestamp(new java.util.Date()
+							.getTime()));
+<span class="nc" id="L259">			updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L260">			logger.debug(&quot;update row &quot; + updateRow</span>
+					+ &quot;\nst_se_game_master query == &quot; + pstmt);
+<span class="nc" id="L262">			pstmt.close();</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L264">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+
+<span class="nc" id="L267">			con.commit();</span>
+
+<span class="nc" id="L269">		} catch (SQLException e) {</span>
+<span class="nc" id="L270">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L272">				con.rollback();</span>
+<span class="nc" id="L273">			} catch (SQLException e1) {</span>
+<span class="nc" id="L274">				e1.printStackTrace();</span>
+<span class="nc" id="L275">			}</span>
+<span class="nc" id="L276">			flag = false;</span>
+<span class="nc" id="L277">		} catch (LMSException e) {</span>
+<span class="nc" id="L278">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L280">				con.rollback();</span>
+<span class="nc" id="L281">			} catch (SQLException e1) {</span>
+<span class="nc" id="L282">				e1.printStackTrace();</span>
+<span class="nc" id="L283">			}</span>
+<span class="nc" id="L284">			flag = false;</span>
+		} finally {
+<span class="nc" id="L286">			try {</span>
+<span class="nc bnc" id="L287" title="All 8 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L288">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L290" title="All 16 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L291">					con.close();</span>
+				}
+<span class="nc" id="L293">			} catch (SQLException e) {</span>
+<span class="nc" id="L294">				e.printStackTrace();</span>
+<span class="nc" id="L295">			}</span>
+<span class="nc" id="L296">		}</span>
+
+<span class="nc" id="L298">		return flag;</span>
+	}
+	
+	
+	public boolean updateGovCommRateVS(Integer id, Double govtCommRate) {
+<span class="nc" id="L303">		boolean flag = true;</span>
+<span class="nc" id="L304">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L305">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L307">			con.setAutoCommit(false);</span>
+<span class="nc" id="L308">			pstmt = con.prepareStatement(&quot;update st_vs_game_master set gov_comm_rate=?  where game_id =?&quot;);</span>
+<span class="nc" id="L309">			pstmt.setDouble(1, govtCommRate);</span>
+<span class="nc" id="L310">			pstmt.setInt(2, id);</span>
+<span class="nc" id="L311">			int updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L312">			logger.debug(&quot;update row &quot; + updateRow + &quot;\n st_vs_game_master query == &quot; + pstmt);</span>
+<span class="nc" id="L313">			pstmt.close();</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L315">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+			// putting the entry into gov_comm_rate_history table
+<span class="nc" id="L318">			pstmt = con.prepareStatement(&quot;insert into st_vs_game_govt_comm_history values (?, ?, ?)&quot;);</span>
+<span class="nc" id="L319">			pstmt.setInt(1, id);</span>
+<span class="nc" id="L320">			pstmt.setDouble(2, govtCommRate);</span>
+<span class="nc" id="L321">			pstmt.setTimestamp(3, new Timestamp(new java.util.Date().getTime()));</span>
+<span class="nc" id="L322">			updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L323">			logger.debug(&quot;update row &quot; + updateRow + &quot;\n st_vs_game_govt_comm_history query == &quot; + pstmt);</span>
+<span class="nc" id="L324">			pstmt.close();</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			if (updateRow &lt; 1) {</span>
+<span class="nc" id="L326">				throw new LMSException(&quot;rows not Updated&quot;);</span>
+			}
+<span class="nc" id="L328">			con.commit();</span>
+<span class="nc" id="L329">		} catch (SQLException e) {</span>
+<span class="nc" id="L330">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L332">				con.rollback();</span>
+<span class="nc" id="L333">			} catch (SQLException e1) {</span>
+<span class="nc" id="L334">				e1.printStackTrace();</span>
+<span class="nc" id="L335">			}</span>
+<span class="nc" id="L336">			flag = false;</span>
+<span class="nc" id="L337">		} catch (LMSException e) {</span>
+<span class="nc" id="L338">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L340">				con.rollback();</span>
+<span class="nc" id="L341">			} catch (SQLException e1) {</span>
+<span class="nc" id="L342">				e1.printStackTrace();</span>
+<span class="nc" id="L343">			}</span>
+<span class="nc" id="L344">			flag = false;</span>
+		} finally {
+<span class="nc" id="L346">			try {</span>
+<span class="nc bnc" id="L347" title="All 8 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L348">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L350" title="All 16 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L351">					con.close();</span>
+				}
+<span class="nc" id="L353">			} catch (SQLException e) {</span>
+<span class="nc" id="L354">				e.printStackTrace();</span>
+<span class="nc" id="L355">			}</span>
+<span class="nc" id="L356">		}</span>
+<span class="nc" id="L357">		return flag;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

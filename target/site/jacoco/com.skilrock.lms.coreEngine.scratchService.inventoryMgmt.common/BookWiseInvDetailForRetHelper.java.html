@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BookWiseInvDetailForRetHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common</a> &gt; <span class="el_source">BookWiseInvDetailForRetHelper.java</span></div><h1>BookWiseInvDetailForRetHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.scratchService.common.ScratchException;
+import com.skilrock.lms.coreEngine.scratchService.common.beans.OrderGameBookBeanMaster;
+import com.skilrock.lms.coreEngine.scratchService.invoiceMgmt.daoImpl.ScratchInvoiceDaoImpl;
+import com.skilrock.lms.coreEngine.scratchService.pwtMgmt.common.CommonFunctionsHelper;
+import com.skilrock.lms.coreEngine.userMgmt.daoImpl.MessageInboxDaoImpl;
+import com.skilrock.lms.coreEngine.userMgmt.javaBeans.MessageInboxBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="fc" id="L29">public class BookWiseInvDetailForRetHelper {</span>
+<span class="fc" id="L30">	static Log logger = LogFactory.getLog(BookWiseInvDetailForRetHelper.class);</span>
+
+	public Map&lt;String,List&lt;String&gt;&gt; activateBooks(int retOrgId) {
+<span class="nc" id="L33">		Map&lt;String,List&lt;String&gt;&gt; gameBookMap = new HashMap&lt;String,List&lt;String&gt;&gt;();</span>
+<span class="nc" id="L34">		List&lt;String&gt; booksList = null;</span>
+<span class="nc" id="L35">		logger.info(&quot;---retOrgId::&quot; + retOrgId);</span>
+
+<span class="nc" id="L37">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L38">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L39">		String seperator = &quot;-&quot;;</span>
+		try {
+<span class="nc" id="L41">			String selQuery = &quot;select gis.game_id,gm.game_nbr,gm.game_name,gis.book_nbr from st_se_game_inv_status gis,st_se_game_master gm where gis.current_owner_id=? and gis.current_owner='RETAILER' and gis.game_id=gm.game_id and gis.book_status='RECEIVED_BY_RET'&quot;;</span>
+<span class="nc" id="L42">			pstmt = con.prepareStatement(selQuery);</span>
+<span class="nc" id="L43">			pstmt.setInt(1, retOrgId);</span>
+<span class="nc" id="L44">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L45">			String gameDel = null;</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L47">				gameDel = rs.getInt(&quot;game_id&quot;) + seperator</span>
+						+ rs.getInt(&quot;game_nbr&quot;) + seperator
+						+ rs.getString(&quot;game_name&quot;);
+<span class="nc bnc" id="L50" title="All 2 branches missed.">				if (gameBookMap.containsKey(gameDel)) {</span>
+<span class="nc" id="L51">					booksList.add(rs.getString(&quot;book_nbr&quot;));</span>
+				} else {
+<span class="nc" id="L53">					booksList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L54">					gameBookMap.put(gameDel, booksList);</span>
+<span class="nc" id="L55">					booksList.add(rs.getString(&quot;book_nbr&quot;));</span>
+				}
+
+			}
+<span class="nc" id="L59">			logger.info(&quot;***gameBookMap**&quot; + gameBookMap);</span>
+<span class="nc" id="L60">		} catch (SQLException e) {</span>
+<span class="nc" id="L61">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L63">			try {</span>
+<span class="nc" id="L64">				con.close();</span>
+<span class="nc" id="L65">			} catch (SQLException e) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L67">				e.printStackTrace();</span>
+<span class="nc" id="L68">			}</span>
+<span class="nc" id="L69">		}</span>
+
+<span class="nc" id="L71">		return gameBookMap;</span>
+	}
+
+	private Map&lt;String, List&lt;String&gt;&gt; createSeriesOfBooks(
+			Map&lt;String, List&lt;String&gt;&gt; map, int booksPerPack) {
+<span class="nc" id="L76">		Map&lt;String, List&lt;String&gt;&gt; seriesPackWiseMap = new TreeMap&lt;String, List&lt;String&gt;&gt;();</span>
+<span class="nc" id="L77">		String firstBook = &quot;&quot;;</span>
+<span class="nc" id="L78">		String lastBook = &quot;&quot;;</span>
+<span class="nc" id="L79">		List&lt;String&gt; bookSeriesList = null;</span>
+<span class="nc" id="L80">		List&lt;String&gt; bookList = null;</span>
+<span class="nc" id="L81">		int totalbooks = 0;</span>
+<span class="nc" id="L82">		Set&lt;String&gt; packSet = map.keySet();</span>
+
+<span class="nc bnc" id="L84" title="All 2 branches missed.">		for (String pack : packSet) {</span>
+<span class="nc" id="L85">			bookList = map.get(pack);</span>
+<span class="nc" id="L86">			firstBook = bookList.get(0);</span>
+<span class="nc" id="L87">			bookSeriesList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L88">			int compTicket = Integer.parseInt(firstBook.substring(firstBook</span>
+					.indexOf(&quot;-&quot;) + 1)) + 1;
+<span class="nc" id="L90">			int length = bookList.size();</span>
+<span class="nc" id="L91">			totalbooks = totalbooks + length;</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">			if (length == 1) {</span>
+<span class="nc" id="L93">				bookSeriesList.add(firstBook + &quot;TO&quot; + bookList.get(length - 1));</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">			} else if (length == booksPerPack) {</span>
+<span class="nc" id="L95">				bookSeriesList.add(firstBook + &quot;TO&quot; + bookList.get(length - 1));</span>
+			} else {
+<span class="nc bnc" id="L97" title="All 2 branches missed.">				for (int i = 0; i &lt; length - 1; i++) {</span>
+<span class="nc" id="L98">					int newTicket = Integer.parseInt(bookList.get(i + 1)</span>
+							.substring(firstBook.indexOf(&quot;-&quot;) + 1));
+<span class="nc bnc" id="L100" title="All 2 branches missed.">					if (newTicket != compTicket) {</span>
+<span class="nc" id="L101">						lastBook = bookList.get(i);</span>
+<span class="nc" id="L102">						bookSeriesList.add(firstBook + &quot;TO&quot; + lastBook);</span>
+
+<span class="nc" id="L104">						firstBook = bookList.get(i + 1);</span>
+<span class="nc" id="L105">						compTicket = Integer.parseInt(firstBook</span>
+								.substring(firstBook.indexOf(&quot;-&quot;) + 1));
+					}
+<span class="nc" id="L108">					compTicket += 1;</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">					if (!(i + 1 &lt; length - 1)) {</span>
+<span class="nc" id="L110">						lastBook = bookList.get(i + 1);</span>
+<span class="nc" id="L111">						bookSeriesList.add(firstBook + &quot;TO&quot; + lastBook);</span>
+					}
+				}
+			}
+<span class="nc" id="L115">			seriesPackWiseMap.put(pack, bookSeriesList);</span>
+<span class="nc" id="L116">		}</span>
+		// System.out.println(&quot;Total no of books === &quot;+totalbooks);
+<span class="nc" id="L118">		return seriesPackWiseMap;</span>
+	}
+
+	public Map&lt;String, String&gt; getGameMap() throws LMSException {
+<span class="nc" id="L122">		Map&lt;String, String&gt; gameMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L123">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L124">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L126">			pstmt = con</span>
+					.prepareStatement(&quot;select game_id, game_nbr, concat(game_nbr, concat('-',game_name)) 'game_name'  from st_se_game_master order by game_nbr&quot;);
+<span class="nc" id="L128">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L129">			System.out.println(&quot;getgameList&quot;);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L131">				String gameId = rs.getInt(&quot;game_id&quot;) + &quot;&quot;;</span>
+<span class="nc" id="L132">				String gameName = rs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L133">				gameMap.put(gameId, gameName);</span>
+<span class="nc" id="L134">			}</span>
+<span class="nc" id="L135">			rs.close();</span>
+<span class="nc" id="L136">		} catch (SQLException e) {</span>
+<span class="nc" id="L137">			e.printStackTrace();</span>
+<span class="nc" id="L138">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L140">			try {</span>
+<span class="nc bnc" id="L141" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L142">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L144" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L145">					con.close();</span>
+				}
+<span class="nc" id="L147">			} catch (SQLException e) {</span>
+<span class="nc" id="L148">				e.printStackTrace();</span>
+<span class="nc" id="L149">			}</span>
+<span class="nc" id="L150">		}</span>
+<span class="nc" id="L151">		return gameMap;</span>
+	}
+
+	public String getTotalBooksWithOrg(int gameid, int orgId, String orgType)
+			throws LMSException {
+<span class="nc" id="L156">		StringBuilder resString = new StringBuilder(&quot;NONE&quot;);</span>
+<span class="nc" id="L157">		Map&lt;String, List&lt;String&gt;&gt; packWiseBookSeriesMap = null;</span>
+<span class="nc" id="L158">		Map&lt;String, List&lt;String&gt;&gt; packBooksMap = new TreeMap&lt;String, List&lt;String&gt;&gt;();</span>
+<span class="nc" id="L159">		List&lt;String&gt; list = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L160">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L161">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L163">			String agentBooksDet = &quot;select gm.nbr_of_books_per_pack, gis.pack_nbr, gis.book_nbr, om.name 'agent_name' from  st_se_game_inv_status gis, st_se_game_master gm, st_lms_organization_master om where  gis.current_owner_id=om.organization_id  and gm.game_id=gis.game_id and gis.current_owner = ? and om.organization_id=? and gis.game_id  = ? order by gis.book_nbr&quot;;</span>
+			// String agentBooksDet = &quot;select gm.nbr_of_books_per_pack,
+			// gis.pack_nbr, gis.book_nbr, om.name 'agent_name' from
+			// st_se_game_inv_status gis, st_se_game_master gm,
+			// st_lms_organization_master om where
+			// gis.current_owner_id=om.organization_id and
+			// gm.game_id=gis.game_id and gis.current_owner = ? and
+			// (gis.book_status = 'ACTIVE' or gis.book_status = 'INACTIVE' ) and
+			// om.organization_id=? and gis.game_id = ? order by gis.book_nbr&quot;;
+<span class="nc" id="L172">			pstmt = con.prepareStatement(agentBooksDet);</span>
+<span class="nc" id="L173">			pstmt.setString(1, orgType);</span>
+<span class="nc" id="L174">			pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L175">			pstmt.setInt(3, gameid);</span>
+<span class="nc" id="L176">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L177">			System.out.println(&quot;QUERY IS ===&quot; + pstmt + &quot;\n\n\n&quot;);</span>
+<span class="nc" id="L178">			String bookNbr = &quot;&quot;;</span>
+<span class="nc" id="L179">			boolean first = true;</span>
+<span class="nc" id="L180">			String packNbr = &quot;&quot;;</span>
+<span class="nc" id="L181">			String newPackNbr = &quot;&quot;;</span>
+<span class="nc" id="L182">			int booksPerPack = -1;</span>
+
+<span class="nc bnc" id="L184" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L185">				booksPerPack = rs.getInt(&quot;nbr_of_books_per_pack&quot;);</span>
+<span class="nc" id="L186">				newPackNbr = rs.getString(&quot;pack_nbr&quot;);</span>
+<span class="nc" id="L187">				bookNbr = rs.getString(&quot;book_nbr&quot;);</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">				if (packNbr.equals(newPackNbr)) {</span>
+<span class="nc" id="L189">					list.add(bookNbr);</span>
+				} else {
+<span class="nc bnc" id="L191" title="All 2 branches missed.">					if (!first) {</span>
+<span class="nc" id="L192">						packBooksMap.put(packNbr, list);</span>
+					}
+<span class="nc" id="L194">					list = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L195">					packNbr = newPackNbr;</span>
+<span class="nc" id="L196">					list.add(bookNbr);</span>
+				}
+<span class="nc" id="L198">				first = false;</span>
+			}
+<span class="nc" id="L200">			packBooksMap.put(packNbr, list);</span>
+<span class="nc" id="L201">			rs.close();</span>
+
+<span class="nc" id="L203">			packBooksMap.remove(&quot;&quot;);</span>
+
+			// this method return the series of books on based of packs
+<span class="nc" id="L206">			packWiseBookSeriesMap = createSeriesOfBooks(packBooksMap,</span>
+					booksPerPack);
+
+<span class="nc" id="L209">			first = true;</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">			if (packWiseBookSeriesMap.size() &gt; 0) {</span>
+<span class="nc" id="L211">				resString = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L212">				Set&lt;String&gt; packs = packWiseBookSeriesMap.keySet();</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">				for (String pack : packs) {</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">					if (first) {</span>
+<span class="nc" id="L215">						first = false;</span>
+					} else {
+<span class="nc" id="L217">						resString.append(&quot;pack&quot;);</span>
+					}
+<span class="nc" id="L219">					resString.append(pack);</span>
+<span class="nc" id="L220">					resString.append(&quot;book&quot;);</span>
+					// System.out.println(pack+&quot;, No of books
+					// =&quot;+(packBooksMap.get(pack)).size());
+<span class="nc" id="L223">					List&lt;String&gt; bookSeriesList = packWiseBookSeriesMap</span>
+							.get(pack);
+<span class="nc" id="L225">					String books = bookSeriesList.toString().replace(&quot;[&quot;, &quot;&quot;)</span>
+							.replace(&quot;]&quot;, &quot;&quot;);
+					// System.out.println(&quot;books === &quot;+books);
+<span class="nc" id="L228">					resString.append(books);</span>
+
+<span class="nc" id="L230">				}</span>
+				// System.out.println(&quot;========================================&quot;);
+
+			}
+<span class="nc" id="L234">			System.out.println(&quot; response  String  === &quot; + resString);</span>
+			// generate the book_nbr from series
+			// generateSeries(packWiseBookSeriesMap);
+
+<span class="nc" id="L238">		} catch (SQLException e) {</span>
+<span class="nc" id="L239">			e.printStackTrace();</span>
+<span class="nc" id="L240">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L242">			try {</span>
+<span class="nc bnc" id="L243" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L244">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L246" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L247">					con.close();</span>
+				}
+<span class="nc" id="L249">			} catch (SQLException e) {</span>
+<span class="nc" id="L250">				e.printStackTrace();</span>
+<span class="nc" id="L251">			}</span>
+<span class="nc" id="L252">		}</span>
+
+<span class="nc" id="L254">		return resString.toString();</span>
+	}
+
+	public String[] updateBooks(int userOrgId,int userId, List&lt;String&gt; bookNumberList) throws LMSException {
+<span class="nc" id="L258">		logger.info(&quot;---retOrgId::&quot; + userOrgId);</span>
+
+<span class="nc" id="L260">		Connection con = null;</span>
+<span class="nc" id="L261">		PreparedStatement pStmt = null;</span>
+<span class="nc" id="L262">		Statement stmt = null;</span>
+<span class="nc" id="L263">		ResultSet rs = null;</span>
+<span class="nc" id="L264">		String invoiceReceipt = null;</span>
+<span class="nc" id="L265">		String[] response = new String[3];</span>
+		try {
+<span class="nc" id="L267">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L268">			con.setAutoCommit(false);</span>
+
+<span class="nc" id="L270">			String bookNumberStr = bookNumberList.toString().replace(&quot;[&quot;, &quot;'&quot;).replace(&quot;]&quot;, &quot;'&quot;).replace(&quot;, &quot;, &quot;','&quot;);</span>
+<span class="nc" id="L271">			logger.info(&quot;***bookNumberStr**&quot; + bookNumberStr);</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">			if(!bookNumberStr.contains(&quot;-&quot;))</span>
+<span class="nc" id="L273">				bookNumberStr = bookNumberStr.substring(0,4) + &quot;-&quot; + bookNumberStr.substring(4);</span>
+<span class="nc" id="L274">			pStmt = con.prepareStatement(&quot;insert into st_se_game_inv_detail(game_id, pack_nbr, book_nbr, current_owner, current_owner_id, changed_by_user_id, book_status, warehouse_id, agent_invoice_id, ret_invoice_id, transaction_at, transaction_date) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)&quot;);</span>
+
+<span class="nc" id="L276">			Map&lt;Integer, List&lt;String&gt;&gt; gameBookMap = new HashMap&lt;Integer, List&lt;String&gt;&gt;();</span>
+<span class="nc" id="L277">			List&lt;String&gt; bookList = null;</span>
+
+<span class="nc" id="L279">			stmt = con.createStatement();</span>
+<span class="nc" id="L280">			rs = stmt.executeQuery(&quot;select game_id, pack_nbr, book_nbr, current_owner, current_owner_id, book_status, warehouse_id, agent_invoice_id, ret_invoice_id from st_se_game_inv_status where book_nbr in(&quot; + bookNumberStr + &quot;);&quot;);</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L282">				int gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L283">				bookList = gameBookMap.get(gameId);</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">				if(bookList == null) {</span>
+<span class="nc" id="L285">					bookList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L286">					gameBookMap.put(gameId, bookList);</span>
+				}
+<span class="nc" id="L288">				bookList.add(rs.getString(&quot;book_nbr&quot;));</span>
+
+<span class="nc" id="L290">				pStmt.setInt(1, gameId);</span>
+<span class="nc" id="L291">				pStmt.setString(2, rs.getString(&quot;pack_nbr&quot;));</span>
+<span class="nc" id="L292">				pStmt.setString(3, rs.getString(&quot;book_nbr&quot;));</span>
+<span class="nc" id="L293">				pStmt.setString(4, rs.getString(&quot;current_owner&quot;));</span>
+<span class="nc" id="L294">				pStmt.setInt(5, rs.getInt(&quot;current_owner_id&quot;));</span>
+<span class="nc" id="L295">				pStmt.setInt(6, userId);</span>
+<span class="nc" id="L296">				pStmt.setString(7, rs.getString(&quot;book_status&quot;));</span>
+<span class="nc" id="L297">				pStmt.setInt(8, rs.getInt(&quot;warehouse_id&quot;));</span>
+<span class="nc" id="L298">				pStmt.setInt(9, rs.getInt(&quot;agent_invoice_id&quot;));</span>
+<span class="nc" id="L299">				pStmt.setInt(10, rs.getInt(&quot;ret_invoice_id&quot;));</span>
+<span class="nc" id="L300">				pStmt.setString(11, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L301">				pStmt.setString(12, Util.getCurrentTimeString());</span>
+<span class="nc" id="L302">				pStmt.executeUpdate();</span>
+<span class="nc" id="L303">			}</span>
+
+<span class="nc" id="L305">			Map&lt;Integer, OrderGameBookBeanMaster&gt; invoiceMap = new HashMap&lt;Integer, OrderGameBookBeanMaster&gt;();</span>
+<span class="nc" id="L306">			String query = null;</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">			for(Map.Entry&lt;Integer, List&lt;String&gt;&gt; entry : gameBookMap.entrySet()) {</span>
+<span class="nc" id="L308">				int gameId = entry.getKey();</span>
+<span class="nc" id="L309">				bookList = entry.getValue();</span>
+
+<span class="nc" id="L311">				OrderGameBookBeanMaster masterBean = null;</span>
+<span class="nc" id="L312">				query = &quot;SELECT scheme_type, invoice_method_value FROM st_se_invoicing_methods im INNER JOIN st_se_org_game_invoice_methods gim ON im.invoice_method_id=gim.invoice_method_id WHERE gim.organization_id=&quot;+userOrgId+&quot; AND gim.game_id=&quot;+gameId+&quot;;&quot;;</span>
+<span class="nc" id="L313">				logger.info(&quot;Query - &quot;+query);</span>
+<span class="nc" id="L314">				rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">				if(rs.next()) {</span>
+<span class="nc bnc" id="L316" title="All 4 branches missed.">					if(&quot;ON_BOOK_ACTIVATION_RET&quot;.equals(rs.getString(&quot;scheme_type&quot;)) &amp;&amp; &quot;YES&quot;.equals(rs.getString(&quot;invoice_method_value&quot;))) {</span>
+<span class="nc" id="L317">						masterBean = new OrderGameBookBeanMaster();</span>
+<span class="nc" id="L318">						masterBean.setBookList(bookList);</span>
+<span class="nc" id="L319">						invoiceMap.put(gameId, masterBean);</span>
+					}
+				}
+<span class="nc" id="L322">			}</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">			if(invoiceMap.size() &gt; 0) {</span>
+<span class="nc" id="L324">				int invoiceId = 0;</span>
+				
+<span class="nc" id="L326">				ScratchInvoiceDaoImpl daoImpl = new ScratchInvoiceDaoImpl();</span>
+
+<span class="nc" id="L328">				daoImpl.checkAndUpdateForInvoice(invoiceMap, con);</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">				if(invoiceMap.size() &gt; 0) {</span>
+<span class="nc" id="L330">					daoImpl.generateInvoiceForAgent(userOrgId, invoiceMap, null, con);</span>
+<span class="nc" id="L331">					invoiceId = daoImpl.generateInvoiceForRetailer(userOrgId, invoiceMap, null, con);</span>
+				}
+
+<span class="nc bnc" id="L334" title="All 2 branches missed.">				if(invoiceId &gt; 0) {</span>
+<span class="nc" id="L335">					invoiceReceipt = daoImpl.getInvoiceReceiptFromInvoiceId(&quot;AGENT&quot;, invoiceId, con);</span>
+<span class="nc" id="L336">					response[0] = String.valueOf(invoiceId);</span>
+<span class="nc" id="L337">					response[1] = invoiceReceipt;</span>
+				}
+			}
+
+<span class="nc" id="L341">			String updateBookStatus = &quot;update st_se_game_inv_status set book_status = ?, book_activation_date_ret = ? where current_owner_id = ? and book_nbr in(&quot; + bookNumberStr + &quot;)&quot;;</span>
+<span class="nc" id="L342">			PreparedStatement updateBookStatusPstmt = con.prepareStatement(updateBookStatus);</span>
+<span class="nc" id="L343">			updateBookStatusPstmt.setString(1, &quot;ACTIVE&quot;);</span>
+<span class="nc" id="L344">			updateBookStatusPstmt.setTimestamp(2, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L345">			updateBookStatusPstmt.setInt(3, userOrgId);</span>
+<span class="nc" id="L346">			int retBalRow = updateBookStatusPstmt.executeUpdate();</span>
+<span class="nc" id="L347">			logger.info(retBalRow + &quot; row updated,  updateBookStatus = &quot; + updateBookStatusPstmt);</span>
+<span class="nc" id="L348">			con.commit();</span>
+<span class="nc" id="L349">			response[2]=&quot;SUCCESS&quot;;</span>
+<span class="nc bnc" id="L350" title="All 4 branches missed.">			if(invoiceReceipt!=null &amp;&amp; invoiceReceipt.length()&gt;0) {</span>
+<span class="nc" id="L351">				con.setAutoCommit(true);</span>
+<span class="nc" id="L352">				String firstName=null;</span>
+<span class="nc" id="L353">				String lastName=null;</span>
+<span class="nc" id="L354">				String emailId=null;</span>
+<span class="nc" id="L355">				query=&quot;select first_name,last_name,email_id from st_lms_user_contact_details where user_id=&quot;+userId+&quot;;&quot;;</span>
+<span class="nc" id="L356">				rs=stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">				if(rs.next()){</span>
+<span class="nc" id="L358">					firstName = rs.getString(&quot;first_name&quot;);</span>
+<span class="nc" id="L359">					lastName=rs.getString(&quot;last_name&quot;);</span>
+<span class="nc" id="L360">					emailId=rs.getString(&quot;email_id&quot;);</span>
+				}
+
+<span class="nc" id="L363">				String books = null;</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">				for (String bookNbr : bookNumberList) </span>
+<span class="nc" id="L365">					 books = bookNbr+&quot;,&quot;;</span>
+<span class="nc" id="L366">				books = books.substring(0, books.length()-1);</span>
+
+<span class="nc" id="L368">				String content = &quot;Your invoice raised.&lt;br /&gt;&lt;br /&gt; Book Number : &lt;b&gt;&quot;+books+&quot;&lt;/b&gt;&lt;br /&gt;Invoice Receipt Id : &lt;b&gt;&quot;+invoiceReceipt+&quot;&lt;/b&gt;&quot;;</span>
+<span class="nc" id="L369">				MessageInboxBean messageBean = new MessageInboxBean();</span>
+<span class="nc" id="L370">				messageBean.setMessageTypeId(8);</span>
+<span class="nc" id="L371">				messageBean.setMessageSubject(&quot;Invoice Raised - &quot;+invoiceReceipt);</span>
+<span class="nc" id="L372">				messageBean.setMessageContent(content);</span>
+<span class="nc" id="L373">				messageBean.setExpiryPeriod(null);</span>
+<span class="nc" id="L374">				messageBean.setIsPopup(true);</span>
+<span class="nc" id="L375">				messageBean.setIsMandatory(true);</span>
+<span class="nc" id="L376">				messageBean.setUserId(userId);</span>
+<span class="nc" id="L377">				String[] organizationList = new String[]{String.valueOf(userId)};</span>
+<span class="nc" id="L378">				MessageInboxDaoImpl.getSingleInstance().addNewMessage(messageBean, organizationList, con);</span>
+
+<span class="nc" id="L380">				new CommonFunctionsHelper().sendMail(bookNumberList,firstName,lastName,emailId,invoiceReceipt);</span>
+			}
+			
+<span class="nc" id="L383">		}catch (ScratchException se) {</span>
+<span class="nc" id="L384">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L385">		}  catch (SQLException se) {</span>
+<span class="nc" id="L386">			se.printStackTrace();</span>
+<span class="nc" id="L387">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L388">		} catch (Exception e){</span>
+<span class="nc" id="L389">			e.printStackTrace();</span>
+<span class="nc" id="L390">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally {
+<span class="nc" id="L392">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L393">		}</span>
+
+<span class="nc" id="L395">		return response;</span>
+	}
+
+	public String validateBookAndStatus(int userId, String bookNumber) throws SQLException {
+<span class="nc" id="L399">		String returnValue = null;</span>
+
+<span class="nc" id="L401">		Connection connection = DBConnect.getConnection();</span>
+<span class="nc" id="L402">		Statement stmt = connection.createStatement();</span>
+<span class="nc" id="L403">		ResultSet rs = stmt.executeQuery(&quot;SELECT book_nbr, book_status FROM st_se_game_inv_status WHERE current_owner_id=&quot;+userId+&quot; AND REPLACE(book_nbr,'-','')='&quot;+bookNumber+&quot;';&quot;);</span>
+<span class="nc bnc" id="L404" title="All 2 branches missed.">		if(rs.next()) {</span>
+<span class="nc bnc" id="L405" title="All 4 branches missed.">			if(!(&quot;INACTIVE&quot;.equals(rs.getString(&quot;book_status&quot;)) || &quot;RECEIVED_BY_RET&quot;.equals(rs.getString(&quot;book_status&quot;)))) {</span>
+<span class="nc" id="L406">				returnValue = rs.getString(&quot;book_status&quot;).toUpperCase();</span>
+			} else {
+<span class="nc" id="L408">				returnValue = rs.getString(&quot;book_nbr&quot;);</span>
+			}
+		} else {
+<span class="nc" id="L411">			returnValue = &quot;NO_BOOK_FOUND&quot;;</span>
+		}
+
+<span class="nc" id="L414">		return returnValue;</span>
+	}
+	public String checkAndReturnBookNumberFromTicketNumber(String ticketNumber) throws SQLException {
+<span class="nc" id="L417">		String bookNumber = null;</span>
+<span class="nc" id="L418">		Connection connection = null;</span>
+<span class="nc" id="L419">		Statement stmt = null;</span>
+<span class="nc" id="L420">		ResultSet rs = null;</span>
+<span class="nc" id="L421">		int ticketNumberDigits = 0;</span>
+<span class="nc" id="L422">		int packNumberDigits = 0;</span>
+<span class="nc" id="L423">		int bookNumberDigits = 0;</span>
+<span class="nc" id="L424">		int gameNumberDigits = 0;</span>
+		try{
+<span class="nc" id="L426">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L427">			stmt = connection.createStatement();</span>
+<span class="nc" id="L428">			String bookNumberAfterRemovalOfGameNumber = ticketNumber.substring(0,3);</span>
+<span class="nc" id="L429">			String fetchTicketNumberDigitQuery = &quot;select pack_nbr_digits,book_nbr_digits,ticket_nbr_digits,game_nbr_digits from st_se_game_ticket_nbr_format a inner join st_se_game_master b on a.game_id = b.game_id where b.game_nbr = &quot;+bookNumberAfterRemovalOfGameNumber;</span>
+<span class="nc" id="L430">			logger.info(&quot;inside checkAndReturnBookNumberFromTicketNumber with ticketNumber&quot;+ &quot;fetchTicketNumberDigitQuery :-&quot;+fetchTicketNumberDigitQuery);</span>
+<span class="nc" id="L431">			rs = stmt.executeQuery(fetchTicketNumberDigitQuery);</span>
+<span class="nc bnc" id="L432" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L433">				ticketNumberDigits = rs.getInt(&quot;ticket_nbr_digits&quot;);</span>
+<span class="nc" id="L434">				packNumberDigits = rs.getInt(&quot;pack_nbr_digits&quot;);</span>
+<span class="nc" id="L435">				bookNumberDigits = rs.getInt(&quot;book_nbr_digits&quot;);</span>
+<span class="nc" id="L436">				gameNumberDigits = rs.getInt(&quot;game_nbr_digits&quot;);</span>
+			}
+<span class="nc bnc" id="L438" title="All 2 branches missed.">			if(ticketNumber.length() == (ticketNumberDigits +packNumberDigits+bookNumberDigits+gameNumberDigits)){</span>
+<span class="nc" id="L439">				bookNumber =  ticketNumber.substring(0,(ticketNumber.length()-ticketNumberDigits));</span>
+<span class="nc bnc" id="L440" title="All 2 branches missed.">			}else if(ticketNumber.length() == (packNumberDigits+bookNumberDigits+gameNumberDigits)){</span>
+<span class="nc" id="L441">				bookNumber =  ticketNumber;</span>
+			}
+<span class="nc" id="L443">		}catch (Exception e) {</span>
+<span class="nc" id="L444">			logger.error(e);</span>
+		}finally {
+<span class="nc" id="L446">			DBConnect.closeResource(connection,stmt,rs);</span>
+<span class="nc" id="L447">		}</span>
+		
+<span class="nc" id="L449">		return bookNumber;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

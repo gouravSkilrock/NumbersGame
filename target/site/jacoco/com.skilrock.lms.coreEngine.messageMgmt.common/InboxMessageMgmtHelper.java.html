@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InboxMessageMgmtHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.messageMgmt.common</a> &gt; <span class="el_source">InboxMessageMgmtHelper.java</span></div><h1>InboxMessageMgmtHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.messageMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.InboxMessageBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L23">public class InboxMessageMgmtHelper {</span>
+<span class="nc" id="L24">	private static final Log logger = LogFactory.getLog(InboxMessageMgmtHelper.class);</span>
+
+	public InboxMessageBean getNewMessagesStatus(int msgId, int userId, String userType, String interfaceType, Connection connection) throws LMSException {
+<span class="nc" id="L27">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L28">		ResultSet rs = null;</span>
+<span class="nc" id="L29">		InboxMessageBean messageBean = null;</span>
+		try {
+<span class="nc" id="L31">			pstmt = connection.prepareStatement(&quot;SELECT COUNT(*) new_messages, IF(SUM(a)&gt;0,'Y','N') is_popup, IF(SUM(b)&gt;0,'Y','N') is_mandatory FROM (&quot; +</span>
+					&quot;SELECT IF(is_popup='YES',1,0) a, IF(is_mandatory='YES',1,0) b FROM &quot; +
+					&quot;st_lms_user_message_detail umd INNER JOIN st_lms_user_inbox_message_mapping imm ON umd.message_id=imm.message_id &quot; +
+					&quot;AND (imm.user_id=? OR imm.user_id=-1) AND umd.message_id&gt;? AND imm.status='ACTIVE' AND umd.status='ACTIVE' &quot; +
+					&quot;AND user_type=? AND interface_type=? AND message_type='INBOX' AND expiry_period&gt;?)aa;&quot;);
+<span class="nc" id="L36">			pstmt.setInt(1, userId);</span>
+<span class="nc" id="L37">			pstmt.setInt(2, msgId);</span>
+<span class="nc" id="L38">			pstmt.setString(3, userType);</span>
+<span class="nc" id="L39">			pstmt.setString(4,interfaceType );</span>
+<span class="nc" id="L40">			pstmt.setTimestamp(5, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L41">			logger.info(&quot;New Messages Detail - &quot;+pstmt);</span>
+<span class="nc" id="L42">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L44">				messageBean = new InboxMessageBean();</span>
+<span class="nc" id="L45">				messageBean.setMessageId(rs.getInt(&quot;new_messages&quot;));</span>
+<span class="nc" id="L46">				messageBean.setIsPopup(rs.getString(&quot;is_popup&quot;));</span>
+<span class="nc" id="L47">				messageBean.setIsMandatory(rs.getString(&quot;is_mandatory&quot;));</span>
+			}
+<span class="nc" id="L49">		} catch (SQLException se) {</span>
+<span class="nc" id="L50">			logger.error(&quot;Exception&quot;,se);</span>
+<span class="nc" id="L51">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L52">		} catch (Exception e) {</span>
+<span class="nc" id="L53">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L54">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L55">		}</span>
+
+<span class="nc" id="L57">		return messageBean;</span>
+	}
+
+	public List&lt;InboxMessageBean&gt; fetchUserWiseMessage(int msgId, int userId, String userType, String interfaceType, String messageType) throws LMSException {
+<span class="nc" id="L61">		List&lt;InboxMessageBean&gt; messageBeanList = null;</span>
+<span class="nc" id="L62">		Connection connection = null;</span>
+		try {
+<span class="nc" id="L64">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L65">			messageBeanList = fetchUserWiseMessage(msgId, userId, userType, interfaceType, messageType, connection);</span>
+<span class="nc" id="L66">		} catch (Exception e) {</span>
+<span class="nc" id="L67">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L68">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L70">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L71">		}</span>
+
+<span class="nc" id="L73">		return messageBeanList;</span>
+	}
+
+	public List&lt;InboxMessageBean&gt; fetchUserWiseMessage(int msgId, int userId, String userType, String interfaceType, String messageType, Connection connection) throws LMSException {
+<span class="nc" id="L77">		int messageLimit = 0;</span>
+<span class="nc" id="L78">		String limitAppender = &quot;&quot;;</span>
+<span class="nc" id="L79">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L80">		ResultSet rs = null;</span>
+<span class="nc" id="L81">		SimpleDateFormat simpleDateFormat = null;</span>
+<span class="nc" id="L82">		List&lt;InboxMessageBean&gt; messageBeanList = new ArrayList&lt;InboxMessageBean&gt;();</span>
+<span class="nc" id="L83">		InboxMessageBean messageBean = null;</span>
+		try {
+<span class="nc bnc" id="L85" title="All 2 branches missed.">			if(&quot;FLASH&quot;.equals(messageType)) {</span>
+<span class="nc" id="L86">				msgId = 0;</span>
+			}
+	
+<span class="nc bnc" id="L89" title="All 2 branches missed.">			if(&quot;TERMINAL&quot;.equals(interfaceType)) {</span>
+<span class="nc" id="L90">				messageLimit = Integer.parseInt(Utility.getPropertyValue(&quot;TERMINAL_INBOX_MESSAGE_LIMIT&quot;));</span>
+<span class="nc" id="L91">				limitAppender = &quot; ORDER BY message_date DESC LIMIT &quot;+messageLimit;</span>
+			}
+<span class="nc" id="L93">			simpleDateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L94">			pstmt = connection.prepareStatement(&quot;SELECT message_id, message_subject, message_body, message_date, expiry_period expiry_date, TIMESTAMPDIFF(SECOND, message_date, expiry_period) expiry_period, is_popup, is_mandatory, creator_user_id, user_name, user_type, STATUS FROM (&quot; +</span>
+					&quot;SELECT umd.message_id, message_subject, message_body, message_date, expiry_period, IF(is_popup='YES','Y','N') is_popup, IF(is_mandatory='YES','Y','N') is_mandatory, creator_user_id, user_type, umd.status &quot; +
+					&quot;FROM st_lms_user_message_detail umd INNER JOIN st_lms_user_inbox_message_mapping imm ON umd.message_id=imm.message_id &quot; +
+					&quot;AND (imm.user_id=? OR imm.user_id=-1) AND umd.message_id&gt;? AND imm.status='ACTIVE' AND umd.status='ACTIVE' AND user_type=? &quot; +
+					&quot;AND interface_type=? AND expiry_period&gt;? AND message_type=?&quot;+limitAppender+&quot;)aa INNER JOIN (&quot; +
+					&quot;SELECT user_id, user_name FROM st_lms_user_master um)bb ON aa.creator_user_id=bb.user_id ORDER BY message_id;&quot;);
+<span class="nc" id="L100">			pstmt.setInt(1, userId);</span>
+<span class="nc" id="L101">			pstmt.setInt(2, msgId);</span>
+<span class="nc" id="L102">			pstmt.setString(3, userType);</span>
+<span class="nc" id="L103">			pstmt.setString(4,interfaceType );</span>
+<span class="nc" id="L104">			pstmt.setTimestamp(5, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L105">			pstmt.setString(6, messageType);</span>
+<span class="nc" id="L106">			logger.info(&quot;fetch Messages Detail - &quot;+pstmt);</span>
+<span class="nc" id="L107">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L109">				messageBean = new InboxMessageBean();</span>
+<span class="nc" id="L110">				messageBean.setMessageId(rs.getInt(&quot;message_id&quot;));</span>
+<span class="nc" id="L111">				messageBean.setMessageSubject(rs.getString(&quot;message_subject&quot;));</span>
+<span class="nc" id="L112">				messageBean.setMessageBody(rs.getString(&quot;message_body&quot;));</span>
+<span class="nc" id="L113">				messageBean.setMessageDate(simpleDateFormat.format(rs.getTimestamp(&quot;message_date&quot;)));</span>
+<span class="nc" id="L114">				messageBean.setExpiryDate(simpleDateFormat.format(rs.getTimestamp(&quot;expiry_date&quot;)));</span>
+<span class="nc" id="L115">				messageBean.setExpiryPeriod(rs.getInt(&quot;expiry_period&quot;));</span>
+<span class="nc" id="L116">				messageBean.setIsPopup(rs.getString(&quot;is_popup&quot;));</span>
+<span class="nc" id="L117">				messageBean.setIsMandatory(rs.getString(&quot;is_mandatory&quot;));</span>
+<span class="nc" id="L118">				messageBean.setCreatorUserId(rs.getInt(&quot;creator_user_id&quot;));</span>
+<span class="nc" id="L119">				messageBean.setCreatorUserName(rs.getString(&quot;user_name&quot;));</span>
+<span class="nc" id="L120">				messageBean.setUserType(rs.getString(&quot;user_type&quot;));</span>
+<span class="nc" id="L121">				messageBean.setStatus(rs.getString(&quot;STATUS&quot;));</span>
+<span class="nc" id="L122">				messageBeanList.add(messageBean);</span>
+			}
+<span class="nc" id="L124">		} catch (SQLException se) {</span>
+<span class="nc" id="L125">			logger.error(&quot;Exception&quot;,se);</span>
+<span class="nc" id="L126">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L127">		} catch (Exception e) {</span>
+<span class="nc" id="L128">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L129">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L130">		}</span>
+
+<span class="nc" id="L132">		return messageBeanList;</span>
+	}
+
+	public void addFlashInboxMessages(String subject, String content, Timestamp expiryPeriod, String messageType,
+			String isPopup, String isMandatory, int userId, String userType, String interfaceType, String[] retName) throws LMSException {
+<span class="nc" id="L137">		Connection connection = null;</span>
+<span class="nc" id="L138">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L139">		ResultSet rs = null;</span>
+<span class="nc" id="L140">		int messageId = 0;</span>
+<span class="nc" id="L141">		int messageTypeId = 0;</span>
+		try {
+<span class="nc" id="L143">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L144">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L146">			pstmt = connection.prepareStatement(&quot;SELECT message_type_id FROM st_lms_user_message_type_master WHERE type_dev_name=? AND user_type=? AND interface_type=? AND status='ACTIVE';&quot;);</span>
+<span class="nc" id="L147">			pstmt.setString(1, messageType);</span>
+<span class="nc" id="L148">			pstmt.setString(2, userType);</span>
+<span class="nc" id="L149">			pstmt.setString(3, interfaceType);</span>
+<span class="nc" id="L150">			logger.info(&quot;Select messageTypeId From st_lms_user_message_type_master - &quot;+pstmt);</span>
+<span class="nc" id="L151">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L153">				messageTypeId = rs.getInt(&quot;message_type_id&quot;);</span>
+			} else {
+<span class="nc" id="L155">				throw new LMSException(&quot;Messaging Not Allowed.&quot;);</span>
+			}
+
+<span class="nc" id="L158">			pstmt = connection.prepareStatement(&quot;INSERT INTO st_lms_user_message_detail (message_type_id, message_subject, message_body, message_date, expiry_period, is_popup, is_mandatory, creator_user_id, status) VALUES (?,?,?,?,?,?,?,?,?);&quot;, PreparedStatement.RETURN_GENERATED_KEYS);</span>
+<span class="nc" id="L159">			pstmt.setInt(1, messageTypeId);</span>
+<span class="nc" id="L160">			pstmt.setString(2, subject);</span>
+<span class="nc" id="L161">			pstmt.setString(3, content);</span>
+<span class="nc" id="L162">			pstmt.setTimestamp(4, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L163">			pstmt.setTimestamp(5, expiryPeriod);</span>
+<span class="nc" id="L164">			pstmt.setString(6, isPopup);</span>
+<span class="nc" id="L165">			pstmt.setString(7, isMandatory);</span>
+<span class="nc" id="L166">			pstmt.setInt(8, userId);</span>
+<span class="nc" id="L167">			pstmt.setString(9, &quot;ACTIVE&quot;);</span>
+<span class="nc" id="L168">			logger.info(&quot;INSERT IN st_lms_user_message_detail - &quot;+pstmt);</span>
+<span class="nc" id="L169">			pstmt.executeUpdate();</span>
+
+<span class="nc bnc" id="L171" title="All 2 branches missed.">			if(!&quot;REGISTRATION&quot;.equals(messageType)) {</span>
+<span class="nc" id="L172">				rs = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">				if(rs.next()) {</span>
+<span class="nc" id="L174">					messageId = rs.getInt(1);</span>
+				}
+
+<span class="nc" id="L177">				addInboxMessageMapping(messageId, retName, connection);</span>
+				/*pstmt = connection.prepareStatement(&quot;INSERT INTO st_lms_user_inbox_message_mapping (message_id, user_id, send_date, status) VALUES (?,?,?,?,?,?,?);&quot;);
+				for(String retailer : retName) {
+					int retUserId = Integer.parseInt(retailer.split(&quot;~&quot;)[0]);
+					pstmt.setInt(1, messageId);
+					pstmt.setInt(2, retUserId);
+					pstmt.setTimestamp(3, Util.getCurrentTimeStamp());
+					pstmt.setString(4, &quot;UNREAD&quot;);
+					pstmt.addBatch();
+				}
+				pstmt.executeBatch();*/
+			}
+
+<span class="nc" id="L190">			connection.commit();</span>
+<span class="nc" id="L191">		} catch (SQLException se) {</span>
+<span class="nc" id="L192">			logger.error(&quot;Exception&quot;,se);</span>
+<span class="nc" id="L193">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L194">		} catch (Exception e) {</span>
+<span class="nc" id="L195">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L196">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L198">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L199">		}</span>
+<span class="nc" id="L200">	}</span>
+
+	public void addInboxMessageMapping (int messageId, String[] retName, Connection connection) throws LMSException {
+<span class="nc" id="L203">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L205">			pstmt = connection.prepareStatement(&quot;INSERT INTO st_lms_user_inbox_message_mapping (message_id, user_id, send_date, status) VALUES (?,?,?,?);&quot;);</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">			for(String retailer : retName) {</span>
+<span class="nc" id="L207">				int retUserId = Integer.parseInt(retailer.split(&quot;~&quot;)[0]);</span>
+<span class="nc" id="L208">				pstmt.setInt(1, messageId);</span>
+<span class="nc" id="L209">				pstmt.setInt(2, retUserId);</span>
+<span class="nc" id="L210">				pstmt.setTimestamp(3, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L211">				pstmt.setString(4, &quot;UNREAD&quot;);</span>
+<span class="nc" id="L212">				pstmt.addBatch();</span>
+			}
+<span class="nc" id="L214">			pstmt.executeBatch();</span>
+<span class="nc" id="L215">		} catch (SQLException se) {</span>
+<span class="nc" id="L216">			logger.error(&quot;Exception&quot;,se);</span>
+<span class="nc" id="L217">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L218">		} catch (Exception e) {</span>
+<span class="nc" id="L219">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L220">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L221">		}</span>
+<span class="nc" id="L222">	}</span>
+
+	public void insertRegistrationMessages(int retailerId) throws LMSException {
+<span class="nc" id="L225">		Connection connection = null;</span>
+<span class="nc" id="L226">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L228">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L229">			pstmt = connection.prepareStatement(&quot;INSERT INTO st_lms_user_inbox_message_mapping (message_id, user_id, message_date, status) VALUES (?,?,?,?);&quot;);</span>
+<span class="nc" id="L230">			pstmt.setInt(2, retailerId);</span>
+<span class="nc" id="L231">			pstmt.setTimestamp(3, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L232">			pstmt.setString(4, &quot;UNREAD&quot;);</span>
+<span class="nc" id="L233">			pstmt.executeUpdate();</span>
+<span class="nc" id="L234">		} catch (SQLException se) {</span>
+<span class="nc" id="L235">			logger.error(&quot;Exception&quot;,se);</span>
+<span class="nc" id="L236">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L237">		} catch (Exception e) {</span>
+<span class="nc" id="L238">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L239">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L241">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L242">		}</span>
+<span class="nc" id="L243">	}</span>
+
+	public List&lt;InboxMessageBean&gt; getAllMessagesByStatus(String status) throws Exception {
+<span class="nc" id="L246">		Connection connection = null;</span>
+<span class="nc" id="L247">		Statement stmt = null;</span>
+<span class="nc" id="L248">		ResultSet rs = null;</span>
+<span class="nc" id="L249">		SimpleDateFormat dateFormat = null;</span>
+<span class="nc" id="L250">		List&lt;InboxMessageBean&gt; messageList = new ArrayList&lt;InboxMessageBean&gt;();</span>
+<span class="nc" id="L251">		InboxMessageBean messageBean = null;</span>
+		try {
+<span class="nc" id="L253">			dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L254">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L255">			stmt = connection.createStatement();</span>
+<span class="nc" id="L256">			String appender = null;</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">			if(status == null) {</span>
+<span class="nc" id="L258">				appender = &quot;&quot;;</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">			} else if(&quot;ACTIVE&quot;.equals(status)) {</span>
+<span class="nc" id="L260">				appender = &quot; WHERE status='ACTIVE'&quot;;</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">			} else if(&quot;INACTIVE&quot;.equals(status)) {</span>
+<span class="nc" id="L262">				appender = &quot; WHERE status='INACTIVE'&quot;;</span>
+			} else {
+<span class="nc" id="L264">				throw new LMSException(&quot;Enter Valid Status.&quot;);</span>
+			}
+<span class="nc" id="L266">			String query = &quot;SELECT message_id, message_subject, message_body, message_date, expiry_period, type_dev_name, is_popup, is_mandatory, creator_user_id, user_type, interface_type, md.status FROM st_lms_user_message_detail md INNER JOIN st_lms_user_message_type_master imm ON md.message_type_id=imm.message_type_id&quot;+appender+&quot;;&quot;;</span>
+<span class="nc" id="L267">			logger.info(&quot;getAllMessagesByStatus - &quot;+query);</span>
+<span class="nc" id="L268">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L270">				messageBean = new InboxMessageBean();</span>
+<span class="nc" id="L271">				messageBean.setMessageId(rs.getInt(&quot;message_id&quot;));</span>
+<span class="nc" id="L272">				messageBean.setMessageSubject(rs.getString(&quot;message_subject&quot;));</span>
+<span class="nc" id="L273">				messageBean.setMessageBody(rs.getString(&quot;message_body&quot;));</span>
+<span class="nc" id="L274">				messageBean.setMessageDate(dateFormat.format(rs.getTimestamp(&quot;message_date&quot;)));</span>
+<span class="nc" id="L275">				Timestamp expiryDate = rs.getTimestamp(&quot;expiry_period&quot;);</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">				if(expiryDate != null) {</span>
+<span class="nc" id="L277">					messageBean.setExpiryDate(dateFormat.format(expiryDate));</span>
+				} else {
+<span class="nc" id="L279">					messageBean.setExpiryDate(&quot;&quot;);</span>
+				}
+<span class="nc" id="L281">				messageBean.setMessageType(rs.getString(&quot;type_dev_name&quot;));</span>
+<span class="nc" id="L282">				messageBean.setIsPopup(rs.getString(&quot;is_popup&quot;));</span>
+<span class="nc" id="L283">				messageBean.setIsMandatory(rs.getString(&quot;is_mandatory&quot;));</span>
+<span class="nc" id="L284">				messageBean.setCreatorUserId(rs.getInt(&quot;creator_user_id&quot;));</span>
+<span class="nc" id="L285">				messageBean.setUserType(rs.getString(&quot;user_type&quot;));</span>
+<span class="nc" id="L286">				messageBean.setInterfaceType(rs.getString(&quot;interface_type&quot;));</span>
+<span class="nc" id="L287">				messageBean.setStatus(rs.getString(&quot;status&quot;));</span>
+<span class="nc" id="L288">				messageList.add(messageBean);</span>
+<span class="nc" id="L289">			}</span>
+<span class="nc" id="L290">		} catch (SQLException se) {</span>
+<span class="nc" id="L291">			logger.error(&quot;Exception&quot;,se);</span>
+<span class="nc" id="L292">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L293">		} catch (Exception e) {</span>
+<span class="nc" id="L294">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L295">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L297">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L298">		}</span>
+
+<span class="nc" id="L300">		return messageList;</span>
+	}
+
+	public void editInboxMessage(InboxMessageBean messageBean) throws LMSException {
+<span class="nc" id="L304">		Connection connection = null;</span>
+<span class="nc" id="L305">		Statement stmt = null;</span>
+		try {
+<span class="nc" id="L307">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L308">			connection.setAutoCommit(false);</span>
+<span class="nc" id="L309">			stmt = connection.createStatement();</span>
+<span class="nc" id="L310">			String query = &quot;INSERT INTO st_lms_user_message_detail_history &quot; +</span>
+					&quot;(message_id, message_subject, message_body, message_date, expiry_period, message_type, is_popup, is_mandatory, creator_user_id, user_type, interface_type, STATUS, update_on) &quot; +
+					&quot;SELECT message_id, message_subject, message_body, message_date, expiry_period, message_type, is_popup, is_mandatory, creator_user_id, user_type, interface_type, STATUS, '&quot;+Util.getCurrentTimeStamp()+&quot;' &quot; +
+					&quot;FROM st_lms_user_message_detail WHERE message_id=&quot;+messageBean.getMessageId()+&quot;;&quot;;
+<span class="nc" id="L314">			logger.info(&quot;Insert in History Table - &quot;+query);</span>
+<span class="nc" id="L315">			stmt.executeUpdate(query);</span>
+
+<span class="nc" id="L317">			query = &quot;UPDATE st_lms_user_message_detail SET expiry_period='&quot;+messageBean.getExpiryDate()+&quot;', &quot; +</span>
+					&quot;is_popup='&quot;+messageBean.getIsPopup()+&quot;', is_mandatory='&quot;+messageBean.getIsMandatory()+&quot;', &quot; +
+					&quot;STATUS='&quot;+messageBean.getStatus()+&quot;' WHERE message_id=&quot;+messageBean.getMessageId()+&quot;;&quot;;
+<span class="nc" id="L320">			logger.info(&quot;editInboxMessage - &quot;+query);</span>
+<span class="nc" id="L321">			stmt.executeUpdate(query);</span>
+<span class="nc" id="L322">			connection.commit();</span>
+<span class="nc" id="L323">		} catch (SQLException se) {</span>
+<span class="nc" id="L324">			logger.error(&quot;Exception&quot;,se);</span>
+<span class="nc" id="L325">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L326">		} catch (Exception e) {</span>
+<span class="nc" id="L327">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L328">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L330">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L331">		}</span>
+<span class="nc" id="L332">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

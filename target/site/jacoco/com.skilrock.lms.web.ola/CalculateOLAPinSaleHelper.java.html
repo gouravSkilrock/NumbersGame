@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CalculateOLAPinSaleHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.ola</a> &gt; <span class="el_source">CalculateOLAPinSaleHelper.java</span></div><h1>CalculateOLAPinSaleHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.ola;
+
+import java.sql.Blob;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.HashSet;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import com.skilrock.lms.beans.OlaPinSalePaymentBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+/**
+ * This class provide methods to fetch and approve pin sale payment data 
+ * @author Neeraj Jain
+ *
+ */
+<span class="nc" id="L25">public class CalculateOLAPinSaleHelper {</span>
+	
+<span class="nc" id="L27">	static Log logger =LogFactory.getLog(CalculateOLAPinSaleHelper.class);</span>
+/**
+ * This method search various denomination tables to find redeemed pins sale amount between selected end date and start date(which can deployment date of last approved record end data for particular wallet) 
+ * sale payment records grouped by walletId and sale_comm_rate
+ * @param distributorType Pin Distributor
+ * @param enDate    Up to which sale payment should be calculated 
+ * @param deployDate project deployment date
+ * @return ArrayList of OlaPinSalePaymentBean 
+ */	
+	
+	public ArrayList&lt;OlaPinSalePaymentBean&gt; pinSaleData(String distributorType,String enDate,String deployDate){
+<span class="nc" id="L38">		SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L39">		SimpleDateFormat formatDeploy = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L40">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L41">		PreparedStatement ps =null;</span>
+<span class="nc" id="L42">		PreparedStatement psMain =null;</span>
+<span class="nc" id="L43">		PreparedStatement psInner =null;</span>
+<span class="nc" id="L44">		String query = null;</span>
+<span class="nc" id="L45">		String queryMain = null;</span>
+<span class="nc" id="L46">		String queryInner=null;</span>
+<span class="nc" id="L47">		ResultSet rs=null;</span>
+<span class="nc" id="L48">		ResultSet rsMain=null;</span>
+<span class="nc" id="L49">		ResultSet rsInner=null;</span>
+<span class="nc" id="L50">		ArrayList&lt;OlaPinSalePaymentBean&gt; olaPinSalePaymentList = new ArrayList();</span>
+		try {
+<span class="nc" id="L52">			java.sql.Date taskEndDate = new java.sql.Date(format.parse(enDate).getTime());</span>
+<span class="nc" id="L53">			java.sql.Date taskStartDate = new java.sql.Date(formatDeploy.parse(deployDate).getTime());</span>
+<span class="nc" id="L54">			java.sql.Date startDate = new java.sql.Date(formatDeploy.parse(deployDate).getTime());</span>
+<span class="nc" id="L55">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L56">			cal.setTime(taskEndDate);</span>
+<span class="nc" id="L57">			cal.add(Calendar.DAY_OF_YEAR, 1);</span>
+<span class="nc" id="L58">			java.sql.Date endDate =  new java.sql.Date(cal.getTime().getTime() );</span>
+			
+			// select amount ,walletId,walletName from st_ola_pin_status(pin generation record table)
+<span class="nc" id="L61">			queryMain=&quot;	select amount,ps.wallet_id,generated_for,wm.wallet_display_name from (&quot;+</span>
+						&quot;(select group_concat(distinct(amount)) amount,wallet_id,generated_for  from st_ola_pin_status &quot; +
+						&quot; where generated_for=? and generation_time&lt;? group by wallet_id )ps inner join st_ola_wallet_master wm  on wm.wallet_id=ps.wallet_id  and wallet_status='ACTIVE')&quot;;
+<span class="nc" id="L64">			psMain = con.prepareStatement(queryMain);</span>
+<span class="nc" id="L65">			psMain.setString(1,distributorType );</span>
+<span class="nc" id="L66">			psMain.setDate(2,endDate);</span>
+<span class="nc" id="L67">			logger.info(psMain);</span>
+<span class="nc" id="L68">			rsMain=psMain.executeQuery();</span>
+<span class="nc" id="L69">			int recordId =0;</span>
+<span class="nc" id="L70">			int walletId=0;</span>
+<span class="nc" id="L71">			String walletName=null;</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">			while(rsMain.next()){</span>
+<span class="nc" id="L73">				String querySub=&quot; &quot;;</span>
+<span class="nc" id="L74">				walletId=rsMain.getInt(&quot;wallet_id&quot;);</span>
+<span class="nc" id="L75">				walletName=rsMain.getString(&quot;wallet_display_name&quot;);</span>
+				// Last date of approved/done task for particular wallet and distributor 
+<span class="nc" id="L77">				query =&quot;select end_date,wallet_id from (select end_date,wallet_id from st_ola_pin_sale_task  where distributor=? and wallet_id=? order by end_date desc )as st group by wallet_id &quot;;</span>
+<span class="nc" id="L78">				ps =con.prepareStatement(query);</span>
+<span class="nc" id="L79">				ps.setString(1,distributorType);</span>
+<span class="nc" id="L80">				ps.setInt(2,walletId);</span>
+<span class="nc" id="L81">				rs = ps.executeQuery();</span>
+<span class="nc" id="L82">				logger.info(&quot;ps: &quot;+ps);</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">				if(rs.next()){</span>
+<span class="nc" id="L84">					cal.setTime(rs.getDate(&quot;end_date&quot;));</span>
+<span class="nc" id="L85">					cal.add(Calendar.DAY_OF_YEAR, 1);</span>
+<span class="nc" id="L86">					taskStartDate =  new java.sql.Date(cal.getTime().getTime() );</span>
+<span class="nc" id="L87">					querySub=&quot; and verification_date&gt;='&quot;+taskStartDate+&quot;'&quot;;</span>
+				}
+				else{
+<span class="nc" id="L90">					taskStartDate=startDate;</span>
+<span class="nc" id="L91">					querySub=&quot; and verification_date&gt;='&quot;+startDate+&quot;' &quot;;</span>
+				}
+				// get all amount for which pin has been generated
+<span class="nc" id="L94">				Blob blob =rsMain.getBlob(&quot;amount&quot;);</span>
+<span class="nc" id="L95">				byte[]data =blob.getBytes(1,(int)blob.length() );</span>
+<span class="nc" id="L96">				String [] denoType=new String(data).split(&quot;,&quot;);</span>
+<span class="nc" id="L97">				logger.info(&quot;walletId: &quot;+walletId+&quot; denominations &quot;+new String(data));</span>
+<span class="nc" id="L98">				HashMap&lt;Double,Double&gt; totalAmountMap =new HashMap&lt;Double, Double&gt;();</span>
+<span class="nc" id="L99">				HashMap&lt;Double,Double&gt; netAmountMap =new HashMap&lt;Double, Double&gt;();</span>
+<span class="nc" id="L100">				HashSet&lt;Double&gt; commRateList= new HashSet&lt;Double&gt;();</span>
+<span class="nc" id="L101">				double totalAmount=0.0;	</span>
+<span class="nc" id="L102">				double netAmount=0.0;</span>
+<span class="nc" id="L103">				double commRate=0.0;</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">				for(int i=0;i&lt;denoType.length;i++){</span>
+<span class="nc" id="L105">					String tableName =&quot;st_ola_cashcard_rm_&quot;+walletId+&quot;_&quot;+denoType[i];// denomination table</span>
+					// calculate sale payment amount grouped by wallet and commission rate
+<span class="nc" id="L107">					queryInner = &quot; select sum(aa.amount) totalamount,sum(aa.amount-((aa.amount*sale_comm_rate)/100)) netamount,bb.wallet_id,sale_comm_rate  from(&quot;</span>
+						+ &quot; (select sum(amount) amount,generation_id from &quot;
+						+tableName
+						+ &quot; where  verification_status=? and distributor=? and verification_date&lt;?&quot;				
+						+ querySub
+						+ &quot; group by generation_id)aa &quot;
+						+ &quot; inner join (select sale_comm_rate,generation_id,generated_for,wallet_id  from st_ola_pin_status)bb on aa.generation_id =bb.generation_id )group by bb.generated_for,sale_comm_rate &quot; ;
+<span class="nc" id="L114">					psInner =con.prepareStatement(queryInner);</span>
+<span class="nc" id="L115">					psInner.setString(1,&quot;DONE&quot;);</span>
+<span class="nc" id="L116">					psInner.setString(2,distributorType);</span>
+<span class="nc" id="L117">					psInner.setDate(3,endDate);</span>
+<span class="nc" id="L118">					rsInner =psInner.executeQuery();</span>
+<span class="nc" id="L119">					logger.info(psInner);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">					while(rsInner.next()){</span>
+						// make map of total amount and net amount taking commission rate as key object 
+<span class="nc" id="L122">						totalAmount=rsInner.getDouble(&quot;totalamount&quot;);</span>
+<span class="nc" id="L123">						netAmount=rsInner.getDouble(&quot;netamount&quot;);</span>
+<span class="nc" id="L124">						commRate=rsInner.getDouble(&quot;sale_comm_rate&quot;);</span>
+<span class="nc" id="L125">						commRateList.add(commRate);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">							if(totalAmountMap.size()&gt;0){</span>
+								
+<span class="nc bnc" id="L128" title="All 2 branches missed.">								if(totalAmountMap.get(rsInner.getDouble(&quot;sale_comm_rate&quot;))!=null){</span>
+									
+<span class="nc" id="L130">									totalAmountMap.put(commRate,totalAmount+totalAmountMap.get(commRate));</span>
+<span class="nc" id="L131">									netAmountMap.put(commRate,netAmount+netAmountMap.get(commRate));</span>
+								}
+								else{
+<span class="nc" id="L134">									totalAmountMap.put(commRate,totalAmount);</span>
+<span class="nc" id="L135">									netAmountMap.put(commRate,netAmount);</span>
+								}
+								
+							}
+							else{
+<span class="nc" id="L140">								totalAmountMap.put(commRate,totalAmount);</span>
+<span class="nc" id="L141">								netAmountMap.put(commRate,netAmount);</span>
+							}
+					
+					}
+				}
+				//prepare pinsalepaymentBean list
+<span class="nc bnc" id="L147" title="All 4 branches missed.">				if(commRateList.size()&gt;0&amp;&amp; (totalAmountMap.size()==netAmountMap.size())){</span>
+<span class="nc" id="L148">					ArrayList&lt;Double&gt; commRateArray=new ArrayList&lt;Double&gt;(commRateList);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">					for(int i=0;i&lt;commRateArray.size();i++){</span>
+<span class="nc" id="L150">						recordId++;</span>
+<span class="nc" id="L151">						OlaPinSalePaymentBean pinSalePaymentBean= new OlaPinSalePaymentBean();	</span>
+<span class="nc" id="L152">						pinSalePaymentBean.setWalletId(rsMain.getInt(&quot;wallet_id&quot;));</span>
+<span class="nc" id="L153">						pinSalePaymentBean.setDistributor(distributorType);</span>
+<span class="nc" id="L154">						pinSalePaymentBean.setTaskId(recordId);</span>
+<span class="nc" id="L155">						pinSalePaymentBean.setStartDate(taskStartDate);</span>
+<span class="nc" id="L156">						pinSalePaymentBean.setEndDate(taskEndDate);</span>
+<span class="nc" id="L157">						pinSalePaymentBean.setTotalAmount(totalAmountMap.get(commRateArray.get(i)));</span>
+<span class="nc" id="L158">						pinSalePaymentBean.setNetAmount(netAmountMap.get(commRateArray.get(i)));</span>
+<span class="nc" id="L159">						pinSalePaymentBean.setCommRate(commRateArray.get(i));</span>
+<span class="nc" id="L160">						pinSalePaymentBean.setWalletName(walletName);</span>
+<span class="nc" id="L161">						olaPinSalePaymentList.add(pinSalePaymentBean);</span>
+						
+					}
+					
+				}
+				else{
+					continue;
+				}
+				
+<span class="nc" id="L170">			}</span>
+				
+<span class="nc" id="L172">		}catch(Exception e){</span>
+<span class="nc" id="L173">			e.printStackTrace();</span>
+		}finally {
+<span class="nc" id="L175">			try {</span>
+<span class="nc" id="L176">				con.close();</span>
+<span class="nc" id="L177">				logger.info(&quot;Connection Closed&quot;);</span>
+<span class="nc" id="L178">			} catch (SQLException e) {</span>
+<span class="nc" id="L179">				e.printStackTrace();</span>
+
+<span class="nc" id="L181">			}</span>
+<span class="nc" id="L182">		}</span>
+		
+<span class="nc" id="L184">		return olaPinSalePaymentList;</span>
+		
+	}
+/**
+ * this method save approved pin sale payment
+ * this method also validate that all pin sale payment of particular wallet should approved together
+ * @param olaPinSalePaymentBeanList
+ * @param check
+ * @return boolean 
+ * @throws LMSException 
+ */	
+	public boolean saveApprovedData(
+			ArrayList&lt;OlaPinSalePaymentBean&gt; olaPinSalePaymentBeanList,
+			int[] check) throws LMSException {
+
+<span class="nc" id="L199">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L200">		HashSet&lt;String &gt; checkedWalletMap= new HashSet&lt;String&gt;();//walletName which are approved</span>
+<span class="nc" id="L201">		HashSet&lt;String &gt; uncheckedWalletMap= new HashSet&lt;String&gt;();// walletName which are not approved</span>
+		try {
+<span class="nc" id="L203">			 			con.setAutoCommit(false);</span>
+			 // Insert approve payment			
+<span class="nc" id="L205">			String queryInsert = &quot;insert into st_ola_pin_sale_task(wallet_id,distributor,start_date,end_date,total_amount,sale_comm_rate,net_amount,approve_status) values(?,?,?,?,?,?,?,?)&quot;;</span>
+			
+		
+<span class="nc bnc" id="L208" title="All 2 branches missed.">			for (int n = 0; n &lt; olaPinSalePaymentBeanList.size(); n++) {</span>
+<span class="nc" id="L209">				OlaPinSalePaymentBean pinSalePaymentBean = olaPinSalePaymentBeanList</span>
+				.get(n);
+				
+<span class="nc" id="L212">			boolean isChecked =false;	// to check that pinSalePaymentBean is approved or not</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">				for (int i = 0; i &lt; check.length; i++) {</span>
+<span class="nc" id="L214">					System.out.println(check[i]);</span>
+								
+<span class="nc bnc" id="L216" title="All 2 branches missed.">					if (pinSalePaymentBean.getTaskId() == check[i]) {</span>
+						
+<span class="nc" id="L218">						PreparedStatement ps1 = con.prepareStatement(queryInsert);</span>
+<span class="nc" id="L219">						ps1.setInt(1, pinSalePaymentBean.getWalletId());</span>
+<span class="nc" id="L220">						ps1.setString(2, pinSalePaymentBean.getDistributor());</span>
+<span class="nc" id="L221">						ps1.setDate(3, pinSalePaymentBean.getStartDate());</span>
+<span class="nc" id="L222">						ps1.setDate(4, pinSalePaymentBean.getEndDate());</span>
+<span class="nc" id="L223">						ps1.setDouble(5, pinSalePaymentBean.getTotalAmount());</span>
+<span class="nc" id="L224">						ps1.setDouble(6, pinSalePaymentBean.getCommRate());</span>
+<span class="nc" id="L225">						ps1.setDouble(7, pinSalePaymentBean.getNetAmount());</span>
+<span class="nc" id="L226">						ps1.setString(8, &quot;APPROVED&quot;);</span>
+<span class="nc" id="L227">						ps1.executeUpdate();</span>
+<span class="nc" id="L228">						logger.info(&quot;checkID:&quot;+check[i]+&quot;ps1&quot;+ps1);</span>
+<span class="nc" id="L229">						isChecked=true;</span>
+
+					}
+					
+					
+				}
+				
+<span class="nc bnc" id="L236" title="All 2 branches missed.">				if(isChecked){</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">					if(uncheckedWalletMap.size()&gt;0){</span>
+<span class="nc" id="L238">						ArrayList&lt;String&gt; walletArr = new ArrayList&lt;String&gt;(uncheckedWalletMap) ;</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">						for(int k=0;k&lt;walletArr.size();k++){</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">							if(walletArr.get(k).equalsIgnoreCase(pinSalePaymentBean.getWalletName())){</span>
+<span class="nc" id="L241">								throw new LMSException(0,&quot;all pin sale payment of particular wallet should approved together&quot;);</span>
+							}
+						}
+					}
+<span class="nc" id="L245">					checkedWalletMap.add(pinSalePaymentBean.getWalletName());</span>
+				}
+				else{
+<span class="nc bnc" id="L248" title="All 2 branches missed.">					if(checkedWalletMap.size()&gt;0){</span>
+<span class="nc" id="L249">						ArrayList&lt;String&gt; walletArr = new ArrayList&lt;String&gt;(checkedWalletMap) ;</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">						for(int k=0;k&lt;walletArr.size();k++){</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">							if(walletArr.get(k).equalsIgnoreCase(pinSalePaymentBean.getWalletName())){</span>
+<span class="nc" id="L252">								throw new LMSException(0,&quot;all pin sale payment of particular wallet should approved together&quot;);</span>
+							}
+						}
+					}	
+<span class="nc" id="L256">					uncheckedWalletMap.add(pinSalePaymentBean.getWalletName());</span>
+				}
+				
+			
+
+			}
+		
+<span class="nc" id="L263">			con.commit();</span>
+<span class="nc" id="L264">			return true;</span>
+
+<span class="nc" id="L266">		} catch (LMSException e) {</span>
+<span class="nc" id="L267">			throw e;</span>
+<span class="nc" id="L268">		}catch (Exception e) {</span>
+<span class="nc" id="L269">			e.printStackTrace();</span>
+<span class="nc" id="L270">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L272">			try {</span>
+<span class="nc bnc" id="L273" title="All 4 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L274">					con.close();</span>
+<span class="nc" id="L275">					logger.info(&quot;connection closed&quot;);</span>
+				}
+<span class="nc" id="L277">			} catch (Exception e) {</span>
+
+<span class="nc" id="L279">			}</span>
+		}
+
+	}
+
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

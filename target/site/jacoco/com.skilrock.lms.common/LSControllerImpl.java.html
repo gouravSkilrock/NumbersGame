@@ -1,0 +1,508 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LSControllerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.common</a> &gt; <span class="el_source">LSControllerImpl.java</span></div><h1>LSControllerImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.common;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.InetAddress;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLEncoder;
+import java.net.UnknownHostException;
+import java.security.PrivateKey;
+import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedInputStream;
+
+import javax.crypto.BadPaddingException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import sun.misc.BASE64Decoder;
+
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.common.utility.MailSend;
+import com.skilrock.lms.coreEngine.drawGames.drawMgmt.LSDaoImpl;
+
+public class LSControllerImpl {
+<span class="nc" id="L40">	private static Log logger = LogFactory.getLog(LSControllerImpl.class);</span>
+
+<span class="nc" id="L42">	private static LSControllerImpl instance = null;</span>
+<span class="nc" id="L43">	private LSControllerImpl() {</span>
+<span class="nc" id="L44">	}</span>
+
+	public static LSControllerImpl getInstance() {
+<span class="nc bnc" id="L47" title="All 2 branches missed.">		if (instance == null) {</span>
+<span class="nc" id="L48">			instance = new LSControllerImpl();</span>
+		}
+<span class="nc" id="L50">		return instance;</span>
+	}
+
+<span class="nc" id="L53">	private FileOutputStream fout = null;</span>
+<span class="nc" id="L54">	private final String SEPARATOR = System.getProperty(&quot;file.separator&quot;);</span>
+<span class="nc" id="L55">	private final String PRIVATE_KEY_PATH = LMSUtility.sc.getRealPath(&quot;/com/skilrock/lms/&quot;) + SEPARATOR + &quot;private.key&quot;;</span>
+
+<span class="nc" id="L57">	private class Constants {</span>
+		private static final String CLASSES_PATH = &quot;/WEB-INF/classes&quot;;
+		private static final String IP = &quot;http://192.168.124.207:80&quot;;
+		private static final String NAME_SPACE = &quot;/LicensingServer/com/skilrock/ls/common/&quot;; 
+		private static final String FILE_NAME = &quot;checksum.txt&quot;;
+		private static final String WAR_NAME = &quot;LMS&quot;;
+
+<span class="nc" id="L64">		private class Action {</span>
+			private static final String CHECK_SUM_ACTION = &quot;chkSum.action&quot;;
+			private static final String INVALID_KEY_ACTION = &quot;invalidKey.action&quot;;
+			private static final String MONITOR_PARAM = &quot;monitorParam.action&quot;;
+		}
+
+<span class="nc" id="L70">		private class Params {</span>
+			private static final String DATA = &quot;data:&quot;;
+			private static final String CLIENT_TIME = &quot;|clientTime:&quot;;
+		}
+
+<span class="nc" id="L75">		private class MailingMessages {</span>
+			private static final String SUBSCRIPTION_EXPIRED = &quot;Dear Team, &lt;br/&gt;&lt;br/&gt;Your Subscription Period is Expired.&lt;br/&gt; Please take appropriate action.&quot;;
+			private static final String UNAUTHORIZED_ACCESS = &quot;Dear Team, &lt;br/&gt;&lt;br/&gt;Unauthorized User Access is Found.&lt;br/&gt; Please take appropriate action.&quot;;
+			private static final String BAD_PADDING_ERROR = &quot;Dear Team, &lt;br/&gt;&lt;br/&gt;Some Unwanted Error Occured.&lt;br/&gt; Please take appropriate action.&quot;;
+			private static final String CHECKSUM_VALIDATION_FAILED = &quot;Dear Team, &lt;br/&gt;&lt;br/&gt;Checksum Validation is Failed.&lt;br/&gt; Please take appropriate action.&quot;;
+			private static final String SYSTEM_ID_NOT_MATCH = &quot;Dear Team, &lt;br/&gt;&lt;br/&gt;System ID calculated on LMS at {0} is - {1}&lt;br/&gt; Please take appropriate action.&quot;;
+			private static final String IP_MISSMATCH = &quot;Dear Team, &lt;br/&gt;&lt;br/&gt;IP Not Match. calculated IP on LMS is {0}&lt;br/&gt; Please take appropriate action.&quot;;
+			private static final String ILLEGAL_COUNTER_EXCEED = &quot;Dear Team, &lt;br/&gt;&lt;br/&gt;Illegal Expiry Counter Exceeds the Specified Limit.&lt;br/&gt; Please take appropriate action.&quot;;
+		}
+	}
+
+	public void clientValidation() {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">		boolean isLSEnable = &quot;YES&quot;.equals(Utility.getPropertyValue(&quot;IS_LS_ENABLE&quot;)) ? true : false;</span>
+<span class="nc" id="L88">		logger.info(&quot;Is LS Enable - &quot;+isLSEnable);</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">		if (isLSEnable) {</span>
+			try {
+<span class="nc" id="L92">				boolean flag = LSDaoImpl.getInstance().validateGracePeriod(Constants.WAR_NAME);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">				if(!flag)</span>
+<span class="nc" id="L94">					stopServer(Constants.MailingMessages.SUBSCRIPTION_EXPIRED);</span>
+
+				//	1. Check Sum Validation
+<span class="nc" id="L97">				checksumValidation();</span>
+
+				//	2. Encoded Key Validation
+<span class="nc" id="L100">				String key = LSDaoImpl.getInstance().fetchKey(Constants.WAR_NAME);</span>
+<span class="nc" id="L101">				decodeKey(key);</span>
+
+				//	3. Send Data to LS
+<span class="nc" id="L104">				sendParamToLS();</span>
+<span class="nc" id="L105">			} catch (Exception e) {</span>
+<span class="nc" id="L106">				e.printStackTrace();</span>
+<span class="nc" id="L107">			}</span>
+		}
+<span class="nc" id="L109">	}</span>
+
+	private void checksumValidation() {
+		try {
+<span class="nc" id="L113">			String finalCheckSumEncoded = getFinalChecksum();</span>
+
+<span class="nc" id="L115">			String result = callServer(Constants.Action.CHECK_SUM_ACTION, Constants.Params.DATA + finalCheckSumEncoded);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">			if (result == null) {</span>
+<span class="nc" id="L117">				logger.info(&quot;No Response from LS&quot;);</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">			} else if(&quot;CONNECTION_ERROR&quot;.equals(result)) {</span>
+<span class="nc" id="L119">				logger.info(&quot;Connection Break from LS&quot;);</span>
+<span class="nc" id="L120">				boolean flag = LSDaoImpl.getInstance().validateGracePeriod(Constants.WAR_NAME);</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">				if(!flag)</span>
+<span class="nc" id="L122">					stopServer(Constants.MailingMessages.SUBSCRIPTION_EXPIRED);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">			} else if(&quot;UNAUTHORIZED_ACCESS&quot;.equals(result)) {</span>
+<span class="nc" id="L124">				logger.info(&quot;UnAuthorized Access&quot;);</span>
+<span class="nc" id="L125">				stopServer(Constants.MailingMessages.UNAUTHORIZED_ACCESS);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">			} else if(&quot;DATA_MATCH&quot;.equals(result)) {</span>
+<span class="nc" id="L127">				logger.info(&quot;Data Match from LS&quot;);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">			} else if(&quot;EXIT_SYSTEM&quot;.equals(result)) {</span>
+<span class="nc" id="L129">				logger.info(&quot;CheckSum Validation Fails - EXIT_SYSTEM from LS&quot;);</span>
+<span class="nc" id="L130">				stopServer(Constants.MailingMessages.CHECKSUM_VALIDATION_FAILED);</span>
+			}
+<span class="nc" id="L132">		} catch (Exception e) {</span>
+<span class="nc" id="L133">			e.printStackTrace();</span>
+<span class="nc" id="L134">		}</span>
+<span class="nc" id="L135">	}</span>
+
+	private void decodeKey(String key) throws Exception {
+<span class="nc bnc" id="L138" title="All 2 branches missed.">		if (key == null) {</span>
+<span class="nc" id="L139">			long clientTime = Calendar.getInstance().getTimeInMillis();</span>
+<span class="nc" id="L140">			key = callServer(Constants.Action.INVALID_KEY_ACTION, Constants.Params.DATA + key + Constants.Params.CLIENT_TIME + clientTime);</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">			if (key == null) {</span>
+<span class="nc" id="L142">				logger.info(&quot;No Response from LS&quot;);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">			} else if(&quot;CONNECTION_ERROR&quot;.equals(key)) {</span>
+<span class="nc" id="L144">				logger.info(&quot;Connection Break from LS&quot;);</span>
+<span class="nc" id="L145">				boolean flag = LSDaoImpl.getInstance().validateGracePeriod(Constants.WAR_NAME);</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				if(!flag)</span>
+<span class="nc" id="L147">					stopServer(Constants.MailingMessages.SUBSCRIPTION_EXPIRED);</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">			} else if(&quot;UNAUTHORIZED_ACCESS&quot;.equals(key)) {</span>
+<span class="nc" id="L149">				logger.info(&quot;UnAuthorized Access&quot;);</span>
+<span class="nc" id="L150">				stopServer(Constants.MailingMessages.UNAUTHORIZED_ACCESS);</span>
+			} else {
+<span class="nc" id="L152">				String[] dataArr = key.split(&quot;Nxt&quot;);</span>
+<span class="nc" id="L153">				String encodeKey = dataArr[0];</span>
+<span class="nc" id="L154">				key = encodeKey;</span>
+<span class="nc" id="L155">				LSDaoImpl.getInstance().updateKey(encodeKey, Constants.WAR_NAME);</span>
+
+<span class="nc bnc" id="L157" title="All 2 branches missed.">				if (dataArr.length &gt; 1) {</span>
+<span class="nc" id="L158">					String expiryCounter = dataArr[1];</span>
+<span class="nc" id="L159">					illegalCounterAction(expiryCounter);</span>
+				}
+			}
+		}
+
+		try {
+<span class="nc" id="L165">			String encodeText = new String(ClientMain.hexToChar(key.toCharArray()));</span>
+<span class="nc" id="L166">			logger.info(&quot;Encoded Text - &quot; + encodeText);</span>
+
+<span class="nc" id="L168">			PrivateKey privateKey = ClientMain.readPrivateKeyFromFile(PRIVATE_KEY_PATH);</span>
+<span class="nc" id="L169">			logger.info(&quot;Private Key - &quot; + privateKey);</span>
+
+<span class="nc" id="L171">			BASE64Decoder decoder = new BASE64Decoder();</span>
+<span class="nc" id="L172">			byte decoded[] = decoder.decodeBuffer(encodeText);</span>
+<span class="nc" id="L173">			logger.info(&quot;Decoded - &quot; + new String(decoded));</span>
+<span class="nc" id="L174">			String decodeText = new String(ClientMain.rsaDecrypt(privateKey, decoded));</span>
+<span class="nc" id="L175">			logger.info(&quot;(TEMP) Decoded Text - &quot; + decodeText);</span>
+
+<span class="nc" id="L177">			SimpleDateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+
+<span class="nc" id="L179">			String[] decodedKeyArr = decodeText.split(&quot;\\|&quot;);</span>
+			//int merchantId = Integer.parseInt(decodedKeyArr[0]);
+<span class="nc" id="L181">			String ipAddress = decodedKeyArr[1];</span>
+<span class="nc" id="L182">			String systemId = decodedKeyArr[2];</span>
+<span class="nc" id="L183">			Date fromDate = dateFormat.parse(decodedKeyArr[3]);</span>
+<span class="nc" id="L184">			Date toDate = dateFormat.parse(decodedKeyArr[4]);</span>
+<span class="nc" id="L185">			int expiryPeriod = Integer.parseInt(decodedKeyArr[5]);</span>
+
+			// Motherboard Serial No. Verification.
+<span class="nc" id="L188">			String localSystemId = calculateSystemId();</span>
+<span class="nc bnc" id="L189" title="All 4 branches missed.">			if(localSystemId == null || localSystemId.length()==0)</span>
+<span class="nc" id="L190">				localSystemId = &quot;null&quot;;</span>
+<span class="nc" id="L191">			logger.info(&quot;System Id - &quot;+systemId+&quot; | Local System Id - &quot;+localSystemId);</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">			if (!systemId.equals(localSystemId)) {</span>
+<span class="nc" id="L193">				logger.info(&quot;System ID Does Not Match&quot;);</span>
+
+<span class="nc" id="L195">				stopServer(Constants.MailingMessages.SYSTEM_ID_NOT_MATCH, calculateIP(), localSystemId);</span>
+			}
+
+			// IP Validation
+<span class="nc" id="L199">			String calculateIP = calculateIP();</span>
+<span class="nc" id="L200">			logger.info(&quot;IP Address - &quot;+ipAddress+&quot; | Calculate IP - &quot;+calculateIP);</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">			if (!ipAddress.equals(calculateIP)) {</span>
+<span class="nc" id="L202">				logger.info(&quot;IP Address Does Not Match&quot;);</span>
+
+<span class="nc" id="L204">				stopServer(Constants.MailingMessages.IP_MISSMATCH, calculateIP());</span>
+			}
+
+			// Date Expiry Validation.
+<span class="nc bnc" id="L208" title="All 2 branches missed.">			if (!validateKey(fromDate, toDate, expiryPeriod)) {</span>
+<span class="nc" id="L209">				String isGracePeriod = Utility.getPropertyFromDB(&quot;IS_GRACE_PERIOD&quot;);</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">				if(&quot;NO&quot;.equals(isGracePeriod))</span>
+<span class="nc" id="L211">					LSDaoImpl.getInstance().setGracePeriod(true, toDate, Constants.WAR_NAME);</span>
+
+<span class="nc" id="L213">				boolean flag = LSDaoImpl.getInstance().validateGracePeriod(Constants.WAR_NAME);</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">				if(!flag)</span>
+<span class="nc" id="L215">					stopServer(Constants.MailingMessages.SUBSCRIPTION_EXPIRED);</span>
+<span class="nc" id="L216">			} else</span>
+<span class="nc" id="L217">				LSDaoImpl.getInstance().setGracePeriod(false, null, Constants.WAR_NAME);</span>
+<span class="nc" id="L218">		} catch (BadPaddingException e) {</span>
+<span class="nc" id="L219">			e.printStackTrace();</span>
+<span class="nc" id="L220">			stopServer(Constants.MailingMessages.BAD_PADDING_ERROR);</span>
+<span class="nc" id="L221">		} catch (IOException e) {</span>
+<span class="nc" id="L222">			e.printStackTrace();</span>
+<span class="nc" id="L223">		}</span>
+<span class="nc" id="L224">	}</span>
+
+	private void sendParamToLS() throws Exception {
+<span class="nc" id="L227">		Map&lt;String, String&gt; paramMap = LSDaoImpl.getInstance().getLMSParamMap();</span>
+
+<span class="nc" id="L229">		String result = callServer(Constants.Action.MONITOR_PARAM, Constants.Params.DATA + paramMap);</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">		if (result == null) {</span>
+<span class="nc" id="L231">			logger.info(&quot;No Response from LS&quot;);</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">		} else if(&quot;CONNECTION_ERROR&quot;.equals(result)) {</span>
+<span class="nc" id="L233">			logger.info(&quot;Connection Break from LS&quot;);</span>
+<span class="nc" id="L234">			boolean flag = LSDaoImpl.getInstance().validateGracePeriod(Constants.WAR_NAME);</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">			if(!flag)</span>
+<span class="nc" id="L236">				stopServer(Constants.MailingMessages.SUBSCRIPTION_EXPIRED);</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">		} else if(&quot;UNAUTHORIZED_ACCESS&quot;.equals(result)) {</span>
+<span class="nc" id="L238">			logger.info(&quot;UnAuthorized Access&quot;);</span>
+<span class="nc" id="L239">			stopServer(Constants.MailingMessages.UNAUTHORIZED_ACCESS);</span>
+		} else {
+<span class="nc" id="L241">			logger.info(&quot;Monitoring Result - &quot; + result);</span>
+		}
+<span class="nc" id="L243">	}</span>
+
+	public String getFinalChecksum() {
+<span class="nc" id="L246">		File source = new File(LMSUtility.sc.getRealPath(Constants.CLASSES_PATH));</span>
+<span class="nc" id="L247">		String filePath = source.getAbsolutePath() + SEPARATOR + Constants.FILE_NAME;</span>
+<span class="nc" id="L248">		String finalCheckSumEncoded = null;</span>
+		try {
+<span class="nc" id="L250">			fout = new FileOutputStream(filePath);</span>
+<span class="nc" id="L251">			checkFiles(source);</span>
+<span class="nc" id="L252">			long totalCheckSum = getCheckSum(filePath);</span>
+<span class="nc" id="L253">			fout.close();</span>
+<span class="nc" id="L254">			finalCheckSumEncoded = MD5Encoder.encode(((Long) totalCheckSum).toString());</span>
+<span class="nc" id="L255">		} catch (Exception e) {</span>
+<span class="nc" id="L256">			e.printStackTrace();</span>
+<span class="nc" id="L257">		}</span>
+
+<span class="nc" id="L259">		return finalCheckSumEncoded;</span>
+	}
+
+	private void checkFiles(File source) throws Exception {
+		try {
+<span class="nc bnc" id="L264" title="All 2 branches missed.">			if (source.isDirectory()) {</span>
+<span class="nc" id="L265">				String files[] = source.list();</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">				for (String file : files)</span>
+<span class="nc" id="L267">					checkFiles(new File(source, file));</span>
+<span class="nc" id="L268">			} else {</span>
+<span class="nc" id="L269">				String newSource = source.getAbsolutePath().replace('\\', '/');</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">				if (newSource.contains(&quot;.class&quot;))</span>
+<span class="nc" id="L271">					fout.write(String.valueOf(getCheckSum(newSource)).getBytes());</span>
+			}
+<span class="nc" id="L273">		} catch (Exception e) {</span>
+<span class="nc" id="L274">			e.printStackTrace();</span>
+<span class="nc" id="L275">			throw new Exception();</span>
+<span class="nc" id="L276">		}</span>
+<span class="nc" id="L277">	}</span>
+
+	private long getCheckSum(String source) throws IOException {
+<span class="nc" id="L280">		FileInputStream fis = new FileInputStream(source);</span>
+<span class="nc" id="L281">		CheckedInputStream cis = new CheckedInputStream(fis, new CRC32());</span>
+<span class="nc" id="L282">		BufferedInputStream bis = new BufferedInputStream(cis);</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">		while (bis.read() != -1) {</span>
+		}
+<span class="nc" id="L285">		long checkSum = cis.getChecksum().getValue();</span>
+<span class="nc" id="L286">		bis.close();</span>
+<span class="nc" id="L287">		cis.close();</span>
+<span class="nc" id="L288">		fis.close();</span>
+
+<span class="nc" id="L290">		return checkSum;</span>
+	}
+
+	private boolean validateKey(Date fromDate, Date toDate, int expiryPeriod) {
+<span class="nc" id="L294">		Date currentDate = new Date();</span>
+		try {
+<span class="nc bnc" id="L296" title="All 2 branches missed.">			if (expiryPeriod &gt; 0) {</span>
+<span class="nc" id="L297">				Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L298">				calendar.setTime(toDate);</span>
+<span class="nc" id="L299">				calendar.add(Calendar.DAY_OF_MONTH, expiryPeriod);</span>
+<span class="nc" id="L300">				toDate = new Date(calendar.getTimeInMillis());</span>
+			}
+
+<span class="nc bnc" id="L303" title="All 4 branches missed.">			if (currentDate.getTime() &gt;= fromDate.getTime() &amp;&amp; currentDate.getTime() &lt;= toDate.getTime())</span>
+<span class="nc" id="L304">				return true;</span>
+<span class="nc" id="L305">		} catch (Exception e) {</span>
+<span class="nc" id="L306">			e.printStackTrace();</span>
+<span class="nc" id="L307">		}</span>
+
+<span class="nc" id="L309">		return false;</span>
+	}
+
+	private String callServer(String actionName, String urlData) throws Exception {
+<span class="nc" id="L313">		URL url = null;</span>
+<span class="nc" id="L314">		URLConnection connection = null;</span>
+<span class="nc" id="L315">		String response = null;</span>
+		try {
+<span class="nc" id="L317">			String dataArr[] = urlData.split(&quot;\\|&quot;);</span>
+<span class="nc" id="L318">			StringBuilder urlStr = new StringBuilder();</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">			for (String data : dataArr) {</span>
+<span class="nc" id="L320">				String encodeData[] = data.split(&quot;:&quot;);</span>
+<span class="nc" id="L321">				urlStr.append(URLEncoder.encode(encodeData[0], &quot;UTF-8&quot;) + &quot;=&quot; + URLEncoder.encode(encodeData[1], &quot;UTF-8&quot;) + &quot;&amp;&quot;);</span>
+			}
+<span class="nc" id="L323">			urlStr.deleteCharAt(urlStr.length() - 1);</span>
+
+			// Send data to Licensing Server
+<span class="nc" id="L326">			url = new URL(Constants.IP + Constants.NAME_SPACE + actionName);</span>
+<span class="nc" id="L327">			connection = url.openConnection();</span>
+<span class="nc" id="L328">			connection.setDoOutput(true);</span>
+<span class="nc" id="L329">			OutputStreamWriter wr = new OutputStreamWriter(connection.getOutputStream());</span>
+<span class="nc" id="L330">			wr.write(urlStr.toString());</span>
+<span class="nc" id="L331">			wr.flush();</span>
+
+			// Get the response from Licensing Server
+<span class="nc" id="L334">			BufferedReader rd = new BufferedReader(new InputStreamReader(connection.getInputStream()));</span>
+<span class="nc" id="L335">			response = rd.readLine();</span>
+<span class="nc" id="L336">			rd.close();</span>
+<span class="nc" id="L337">			wr.close();</span>
+<span class="nc" id="L338">		} catch (Exception e) {</span>
+<span class="nc" id="L339">			e.printStackTrace();</span>
+<span class="nc" id="L340">			return &quot;CONNECTION_ERROR&quot;;</span>
+<span class="nc" id="L341">		}</span>
+
+<span class="nc" id="L343">		return response;</span>
+	}
+
+	private String calculateIP() throws UnknownHostException {
+<span class="nc" id="L347">		String result = &quot;&quot;;</span>
+<span class="nc" id="L348">		String osName = System.getProperty(&quot;os.name&quot;);</span>
+<span class="nc bnc" id="L349" title="All 2 branches missed.">		if (osName != null) {</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">			if (osName.contains(&quot;Window&quot;)) {</span>
+<span class="nc" id="L351">				result = InetAddress.getLocalHost().getHostAddress();</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">			} else if (osName.contains(&quot;Linux&quot;)) {</span>
+<span class="nc" id="L353">				result = calculateIPLinux();</span>
+			}
+		}
+<span class="nc" id="L356">		logger.info(&quot;Calculated IP - &quot; + result);</span>
+<span class="nc" id="L357">		return result;</span>
+	}
+
+	private static String calculateIPLinux() {
+<span class="nc" id="L361">		String result = null;</span>
+		try {
+<span class="nc" id="L363">			Process process = Runtime.getRuntime().exec(new String[] { &quot;sh&quot;, &quot;-c&quot;, &quot;ifconfig eth0 | grep 'inet addr:'| cut -d: -f2 | awk '{ print $1}'&quot; });</span>
+<span class="nc" id="L364">			BufferedReader input = new BufferedReader(new InputStreamReader(process.getInputStream()));</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">			while ((result = input.readLine()) != null)</span>
+<span class="nc" id="L366">				input.close();</span>
+<span class="nc" id="L367">			process.waitFor();</span>
+<span class="nc" id="L368">		} catch (Exception e) {</span>
+<span class="nc" id="L369">			e.printStackTrace();</span>
+<span class="nc" id="L370">		}</span>
+
+<span class="nc" id="L372">		return result;</span>
+	}
+
+	public String calculateSystemId() {
+<span class="nc" id="L376">		String result = &quot;&quot;;</span>
+<span class="nc" id="L377">		String osName = System.getProperty(&quot;os.name&quot;);</span>
+<span class="nc bnc" id="L378" title="All 2 branches missed.">		if (osName != null) {</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">			if (osName.contains(&quot;Window&quot;)) {</span>
+<span class="nc" id="L380">				result = calculateSystemIdWindows();</span>
+<span class="nc bnc" id="L381" title="All 2 branches missed.">			} else if (osName.contains(&quot;Linux&quot;)) {</span>
+<span class="nc" id="L382">				result = calculateSystemIdLinux();</span>
+			}
+		}
+<span class="nc" id="L385">		logger.info(&quot;System ID - &quot; + result);</span>
+<span class="nc" id="L386">		return result;</span>
+	}
+
+	private String calculateSystemIdWindows() {
+<span class="nc" id="L390">		String result = &quot;&quot;;</span>
+		try {
+<span class="nc" id="L392">			File file = File.createTempFile(&quot;realhowto&quot;, &quot;.vbs&quot;);</span>
+<span class="nc" id="L393">			file.deleteOnExit();</span>
+<span class="nc" id="L394">			FileWriter fw = new java.io.FileWriter(file);</span>
+
+<span class="nc" id="L396">			String motherboardInfoVbs = &quot;strComputer = \&quot;.\&quot; \n&quot;</span>
+					+ &quot;Set objWMIService = GetObject(\&quot;winmgmts:\\\\\&quot; &amp; strComputer &amp; \&quot;\\root\\CIMV2\&quot;) \n&quot;
+					+ &quot;Set colItems = objWMIService.ExecQuery(\&quot;SELECT * FROM Win32_BaseBoard\&quot;,,48)\n&quot;
+					+ &quot;For Each objItem in colItems \n&quot;
+					+ &quot;Wscript.Echo objItem.SerialNumber \n&quot; + &quot;Next \n&quot;;
+<span class="nc" id="L401">			fw.write(motherboardInfoVbs);</span>
+<span class="nc" id="L402">			fw.close();</span>
+
+<span class="nc" id="L404">			Process process = Runtime.getRuntime().exec(&quot;cscript //NoLogo &quot; + file.getPath());</span>
+<span class="nc" id="L405">			BufferedReader input = new BufferedReader(new InputStreamReader(process.getInputStream()));</span>
+			String line;
+<span class="nc bnc" id="L407" title="All 2 branches missed.">			while ((line = input.readLine()) != null) {</span>
+<span class="nc" id="L408">				result += line;</span>
+			}
+<span class="nc" id="L410">			input.close();</span>
+<span class="nc" id="L411">		} catch (Exception e) {</span>
+<span class="nc" id="L412">			e.printStackTrace();</span>
+<span class="nc" id="L413">		}</span>
+
+<span class="nc" id="L415">		return result;</span>
+	}
+
+	private String calculateSystemIdLinux() {
+<span class="nc" id="L419">		String result = null;</span>
+		try {
+<span class="nc" id="L421">			Process process = Runtime.getRuntime().exec(&quot;dmidecode -t 1&quot;);</span>
+<span class="nc" id="L422">			BufferedReader input = new BufferedReader(new InputStreamReader(process.getInputStream()));</span>
+<span class="nc" id="L423">			BufferedReader err = new BufferedReader(new InputStreamReader(process.getErrorStream()));</span>
+<span class="nc" id="L424">			String line = null;</span>
+<span class="nc" id="L425">			Map&lt;String, String&gt; infoMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">			while ((line = input.readLine()) != null) {</span>
+<span class="nc" id="L427">				String[] lineArr = line.split(&quot;\\:&quot;);</span>
+<span class="nc bnc" id="L428" title="All 2 branches missed.">				if (lineArr.length != 1) {</span>
+<span class="nc" id="L429">					infoMap.put(lineArr[0].trim(), lineArr[1].trim());</span>
+				}
+<span class="nc" id="L431">			}</span>
+<span class="nc" id="L432">			String serialNo = infoMap.get(&quot;Serial Number&quot;);</span>
+<span class="nc bnc" id="L433" title="All 2 branches missed.">			if (&quot;System Serial Number&quot;.equalsIgnoreCase(serialNo)) {</span>
+<span class="nc" id="L434">				Process process2 = Runtime.getRuntime().exec(&quot;sudo -S dmidecode -t 2&quot;);</span>
+<span class="nc" id="L435">				BufferedReader input2 = new BufferedReader(new InputStreamReader(process2.getInputStream()));</span>
+<span class="nc" id="L436">				BufferedReader err2 = new BufferedReader(new InputStreamReader(process2.getErrorStream()));</span>
+
+<span class="nc" id="L438">				Map&lt;String, String&gt; infoMap2 = new HashMap&lt;String, String&gt;();</span>
+				String line2;
+<span class="nc bnc" id="L440" title="All 2 branches missed.">				while ((line2 = input2.readLine()) != null) {</span>
+<span class="nc" id="L441">					String[] lineArr2 = line2.split(&quot;\\:&quot;);</span>
+<span class="nc bnc" id="L442" title="All 2 branches missed.">					if (lineArr2.length != 1) {</span>
+<span class="nc" id="L443">						infoMap2.put(lineArr2[0].trim(), lineArr2[1].trim());</span>
+					}
+<span class="nc" id="L445">				}</span>
+<span class="nc" id="L446">				String serialNo2 = infoMap2.get(&quot;Serial Number&quot;);</span>
+<span class="nc" id="L447">				result = serialNo2;</span>
+
+				String error2;
+<span class="nc" id="L450">				String errResult2 = &quot;&quot;;</span>
+<span class="nc bnc" id="L451" title="All 2 branches missed.">				while ((error2 = err2.readLine()) != null) {</span>
+<span class="nc" id="L452">					errResult2 += error2;</span>
+				}
+<span class="nc" id="L454">			} else {</span>
+<span class="nc" id="L455">				result = serialNo;</span>
+			}
+
+			String error;
+<span class="nc" id="L459">			String errResult = &quot;&quot;;</span>
+<span class="nc bnc" id="L460" title="All 2 branches missed.">			while ((error = err.readLine()) != null) {</span>
+<span class="nc" id="L461">				errResult += error;</span>
+			}
+<span class="nc" id="L463">			input.close();</span>
+<span class="nc" id="L464">			err.close();</span>
+<span class="nc" id="L465">		} catch (Exception e) {</span>
+<span class="nc" id="L466">			e.printStackTrace();</span>
+<span class="nc" id="L467">		}</span>
+
+<span class="nc" id="L469">		return result;</span>
+	}
+
+	private void illegalCounterAction(String expiryCounter) {
+<span class="nc" id="L473">		logger.info(&quot;Illegal Expiry Counter - &quot; + expiryCounter);</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">		if (expiryCounter != null) {</span>
+			try {
+<span class="nc bnc" id="L476" title="All 2 branches missed.">				if (Integer.parseInt(expiryCounter) &gt; 20) {</span>
+<span class="nc" id="L477">					stopServer(Constants.MailingMessages.ILLEGAL_COUNTER_EXCEED);</span>
+				}
+<span class="nc" id="L479">			} catch (Exception e) {</span>
+<span class="nc" id="L480">				e.printStackTrace();</span>
+<span class="nc" id="L481">			}</span>
+		}
+<span class="nc" id="L483">	}</span>
+
+	private void stopServer(String messagePattern, Object... params) {
+<span class="nc" id="L486">		String mailingMessage = MessageFormat.format(messagePattern, params);</span>
+<span class="nc" id="L487">		logger.info(&quot;Email Message - &quot;+mailingMessage);</span>
+
+<span class="nc" id="L489">		String[] emailIDs = Utility.getPropertyFromDB(&quot;LS_MAILING_USERS&quot;).split(&quot;,&quot;);</span>
+<span class="nc bnc" id="L490" title="All 2 branches missed.">		if(emailIDs.length&gt;0) {</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">			for(String emailID : emailIDs) {</span>
+<span class="nc" id="L492">				MailSend mailSend = new MailSend(emailID.trim(), mailingMessage);</span>
+<span class="nc" id="L493">				mailSend.setDaemon(true);</span>
+<span class="nc" id="L494">				mailSend.start();</span>
+			}
+		}
+
+<span class="nc" id="L498">		logger.info(&quot;Exit from System IN 5 sec.&quot;);</span>
+		try {
+<span class="nc" id="L500">			Thread.sleep(5000);</span>
+<span class="nc" id="L501">		} catch (InterruptedException e) {</span>
+<span class="nc" id="L502">			e.printStackTrace();</span>
+<span class="nc" id="L503">		}</span>
+
+<span class="nc" id="L505">		System.exit(0);</span>
+<span class="nc" id="L506">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

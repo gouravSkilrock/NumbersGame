@@ -1,0 +1,2608 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReconcilationReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">ReconcilationReportHelper.java</span></div><h1>ReconcilationReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import com.skilrock.lms.beans.CashChqPmntBean;
+import com.skilrock.lms.beans.ConsolidatedBean;
+import com.skilrock.lms.beans.PWTPaymentsBean;
+import com.skilrock.lms.beans.ReportBean;
+import com.skilrock.lms.beans.SalePurchaseBean;
+import com.skilrock.lms.beans.StockMrpDiscountBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+
+<span class="nc" id="L30">public class ReconcilationReportHelper {</span>
+	public static void main(String[] args) {
+<span class="nc" id="L32">		SimpleDateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L33">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L34">		CashChqPmntBean cashChqPmntBean = null;</span>
+		try {
+<span class="nc" id="L36">			Map&lt;String, CashChqPmntBean&gt; map = new ReconcilationReportHelper()</span>
+					.getPaymentBeanList(con, 153, new Timestamp(dateFormat
+							.parse(&quot;2009-12-20 00:00:00&quot;).getTime()),
+							new Timestamp(dateFormat.parse(
+									&quot;2009-12-21 00:00:00&quot;).getTime()));
+<span class="nc" id="L41">			Iterator saleItr = map.entrySet().iterator();</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">			while (saleItr.hasNext()) {</span>
+<span class="nc" id="L43">				Map.Entry&lt;String, CashChqPmntBean&gt; saleItrpair = (Map.Entry&lt;String, CashChqPmntBean&gt;) saleItr</span>
+						.next();
+<span class="nc" id="L45">				cashChqPmntBean = saleItrpair.getValue();</span>
+<span class="nc" id="L46">				System.out.println(&quot;Key Type &quot; + saleItrpair.getKey());</span>
+<span class="nc" id="L47">				System.out.println(&quot;Amount &quot;</span>
+						+ cashChqPmntBean.getPaymentAmount());
+<span class="nc" id="L49">				System.out.println(&quot;Type &quot; + cashChqPmntBean.getPaymentType());</span>
+<span class="nc" id="L50">			}</span>
+
+<span class="nc" id="L52">		} catch (ParseException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L54">			e.printStackTrace();</span>
+<span class="nc" id="L55">		}</span>
+
+<span class="nc" id="L57">	}</span>
+
+<span class="nc" id="L59">	private double closingBal = 0.0;</span>
+<span class="nc" id="L60">	private double closingBal2 = 0.0;</span>
+<span class="nc" id="L61">	private double finalclosingBal = 0.0;</span>
+<span class="nc" id="L62">	private double finalopeningBal = 0.0;</span>
+<span class="nc" id="L63">	private double openingBal = 0.0;</span>
+<span class="nc" id="L64">	private double openingBal2 = 0.0;</span>
+	private PreparedStatement prepstatement;
+	// Date present_date = null;
+<span class="nc" id="L67">	Timestamp presentDate = null;</span>
+	private ResultSet resultSet;
+	private ResultSet resultSet2;
+	private ResultSet resultSet3;
+	// private Connection con;
+	private Statement statement;
+	private Statement statement2;
+	private Statement statement3;
+<span class="nc" id="L75">	Timestamp toDate = null;</span>
+<span class="nc" id="L76">	private double totalAmount = 0.0;</span>
+<span class="nc" id="L77">	double totalPurchAmount = 0.0;</span>
+<span class="nc" id="L78">	double totalSaleAmount = 0.0;</span>
+<span class="nc" id="L79">	int totalSaleBooks = 0;</span>
+<span class="nc" id="L80">	double totalSaleComm = 0.0;</span>
+
+<span class="nc" id="L82">	double totalSaleMrp = 0.0;</span>
+
+	public List createConReportAftrPmnt(int agtOrgId, Timestamp from,
+			Timestamp toDate, SimpleDateFormat dateformat1) {
+<span class="nc" id="L86">		double weeklyOpeningBal = 0.0;</span>
+<span class="nc" id="L87">		String reconReportTypeAgt = null;</span>
+<span class="nc" id="L88">		List consolidatedList = new ArrayList();</span>
+<span class="nc" id="L89">		ConsolidatedBean consolidatedBean = null;</span>
+<span class="nc" id="L90">		ReconcilationReportHelper agtreconhelper = new ReconcilationReportHelper();</span>
+<span class="nc" id="L91">		Connection con = null;</span>
+		try {
+<span class="nc" id="L93">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L94">			System.out.println(&quot; ======createConsolidatedReport222 ========&quot;);</span>
+
+<span class="nc" id="L96">			System.out.println(&quot;Agent org ID ===== &quot; + agtOrgId);</span>
+<span class="nc" id="L97">			reconReportTypeAgt = agtreconhelper.getReconRepType(agtOrgId);</span>
+<span class="nc" id="L98">			weeklyOpeningBal = getPrvBalAftrpmnt(agtOrgId, from,</span>
+					reconReportTypeAgt);
+<span class="nc" id="L100">			System.out.println(&quot;weeklyOpeningBal  ====== &quot; + weeklyOpeningBal);</span>
+<span class="nc" id="L101">			consolidatedBean = getConsDetAftrPmt(con, agtOrgId, from, toDate,</span>
+					weeklyOpeningBal, reconReportTypeAgt);
+<span class="nc" id="L103">			consolidatedBean.setWeeklyOpeningBal(weeklyOpeningBal);</span>
+<span class="nc" id="L104">			consolidatedList.add(consolidatedBean);</span>
+
+<span class="nc" id="L106">			Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L107">			calendar.setTimeInMillis(toDate.getTime());</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">			if (!dateformat1.format(calendar.getTime()).equals(</span>
+					dateformat1.format(from))) {
+<span class="nc" id="L110">				calendar.add(Calendar.DAY_OF_MONTH, -1);</span>
+<span class="nc" id="L111">				System.out.println(&quot; inside if calendar Agt &quot;</span>
+						+ dateformat1.format(from) + &quot;  cTo &quot;
+						+ dateformat1.format(calendar.getTime()));
+			}
+<span class="nc" id="L115">			System.out.println(&quot; inside if calendar Agt &quot;</span>
+					+ dateformat1.format(from) + &quot;  cTo &quot;
+					+ dateformat1.format(calendar.getTime()));
+
+<span class="nc" id="L119">			consolidatedList.add(dateformat1.format(from)); // 1 in list</span>
+<span class="nc" id="L120">			consolidatedList.add(dateformat1.format(calendar.getTime()));// 2</span>
+<span class="nc" id="L121">		} catch (LMSException e) {</span>
+<span class="nc" id="L122">			e.printStackTrace();</span>
+<span class="nc" id="L123">		}</span>
+
+		// TODO Auto-generated method stub
+<span class="nc" id="L126">		return consolidatedList;</span>
+	}
+
+	public List createConsolidatedReport(Map agtOrgIdMap, Timestamp from,
+			Timestamp toDate, SimpleDateFormat dateformat1) {
+<span class="nc" id="L131">		double opLedbalance = 0.0;</span>
+<span class="nc" id="L132">		double closLedbalance = 0.0;</span>
+<span class="nc" id="L133">		double weeklyOpeningBal = 0.0;</span>
+<span class="nc" id="L134">		String reconReportTypeAgt = null;</span>
+<span class="nc" id="L135">		List consolidatedList = new ArrayList();</span>
+<span class="nc" id="L136">		ConsolidatedBean consolidatedBean = null;</span>
+<span class="nc" id="L137">		Timestamp regDate = null;</span>
+<span class="nc" id="L138">		Timestamp fromDate = null;</span>
+<span class="nc" id="L139">		ReconcilationReportHelper agtreconhelper = new ReconcilationReportHelper();</span>
+<span class="nc" id="L140">		Iterator agtOrgitr = agtOrgIdMap.entrySet().iterator();</span>
+<span class="nc" id="L141">		Connection con = null;</span>
+		try {
+<span class="nc" id="L143">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L144">			System.out.println(&quot; ======createConsolidatedReport ========&quot;);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">			while (agtOrgitr.hasNext()) {</span>
+<span class="nc" id="L146">				Map.Entry&lt;Integer, String&gt; agtOrgpair = (Map.Entry&lt;Integer, String&gt;) agtOrgitr</span>
+						.next();
+<span class="nc" id="L148">				int agtOrgId = agtOrgpair.getKey();</span>
+<span class="nc" id="L149">				statement = con.createStatement();</span>
+<span class="nc" id="L150">				resultSet = statement</span>
+						.executeQuery(&quot;select transaction_date from st_lms_bo_transaction_master where party_id='&quot;
+								+ agtOrgId
+								+ &quot;' order by transaction_date  limit 1&quot;);
+<span class="nc bnc" id="L154" title="All 2 branches missed.">				while (resultSet.next()) {</span>
+<span class="nc" id="L155">					regDate = resultSet.getTimestamp(&quot;transaction_date&quot;);</span>
+				}
+<span class="nc bnc" id="L157" title="All 2 branches missed.">				if (regDate != null) {</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">					if (regDate.compareTo(from) &lt; 0) {</span>
+<span class="nc" id="L159">						fromDate = from;</span>
+					} else {
+<span class="nc" id="L161">						fromDate = regDate;</span>
+					}
+				} else {
+<span class="nc" id="L164">					fromDate = from;</span>
+				}
+
+<span class="nc" id="L167">				System.out.println(&quot;Agent org ID ===== &quot; + agtOrgId);</span>
+<span class="nc" id="L168">				opLedbalance = 0.0;</span>
+<span class="nc" id="L169">				closLedbalance = 0.0;</span>
+<span class="nc" id="L170">				System.out.println(&quot;opLedbalance  before &quot; + opLedbalance</span>
+						+ &quot; before closLedbalance &quot; + closLedbalance);
+<span class="nc" id="L172">				opLedbalance = getLedgerBal(agtOrgId, fromDate, &quot;opening&quot;);</span>
+<span class="nc" id="L173">				closLedbalance = getLedgerBal(agtOrgId, toDate, &quot;closing&quot;);</span>
+<span class="nc" id="L174">				System.out.println(&quot;opLedbalance &quot; + opLedbalance</span>
+						+ &quot; closLedbalance &quot; + closLedbalance);
+<span class="nc" id="L176">				reconReportTypeAgt = agtreconhelper.getReconRepType(agtOrgId);</span>
+<span class="nc" id="L177">				weeklyOpeningBal = getPreviousBalance(agtOrgId, fromDate,</span>
+						reconReportTypeAgt);
+<span class="nc" id="L179">				System.out.println(&quot;weeklyOpeningBal  ====== &quot;</span>
+						+ weeklyOpeningBal);
+<span class="nc" id="L181">				consolidatedBean = getConsolidatedDetails(con, agtOrgId,</span>
+						fromDate, toDate, weeklyOpeningBal, reconReportTypeAgt);
+<span class="nc" id="L183">				consolidatedBean.setWeeklyOpeningBal(weeklyOpeningBal);</span>
+<span class="nc" id="L184">				consolidatedBean.setOpeningLedBal(opLedbalance);</span>
+<span class="nc" id="L185">				consolidatedBean.setClosingLedBal(closLedbalance);</span>
+<span class="nc" id="L186">				consolidatedList.add(consolidatedBean);</span>
+<span class="nc" id="L187">			}</span>
+<span class="nc" id="L188">			Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L189">			calendar.setTimeInMillis(toDate.getTime());</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">			if (!dateformat1.format(calendar.getTime()).equals(</span>
+					dateformat1.format(from))) {
+<span class="nc" id="L192">				calendar.add(Calendar.DAY_OF_MONTH, -1);</span>
+<span class="nc" id="L193">				System.out.println(&quot; inside if calendar Agt &quot;</span>
+						+ dateformat1.format(from) + &quot;  cTo &quot;
+						+ dateformat1.format(calendar.getTime()));
+			}
+<span class="nc" id="L197">			System.out.println(&quot; inside if calendar Agt &quot;</span>
+					+ dateformat1.format(from) + &quot;  cTo &quot;
+					+ dateformat1.format(calendar.getTime()));
+
+<span class="nc" id="L201">			consolidatedList.add(dateformat1.format(from)); // 1 in list</span>
+<span class="nc" id="L202">			consolidatedList.add(dateformat1.format(calendar.getTime()));// 2</span>
+<span class="nc" id="L203">		} catch (LMSException e) {</span>
+<span class="nc" id="L204">			e.printStackTrace();</span>
+<span class="nc" id="L205">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L207">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L209" title="All 8 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L211">					con.close();</span>
+<span class="nc" id="L212">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L214">					e.printStackTrace();</span>
+<span class="nc" id="L215">				}</span>
+			}
+		}
+
+		// TODO Auto-generated method stub
+<span class="nc" id="L220">		return consolidatedList;</span>
+	}
+
+	public List CreateReport(int agtOrgId, Timestamp from, Timestamp toDate,
+			SimpleDateFormat dateformat1, String reconReportType) {
+<span class="nc" id="L225">		System.out.println(&quot;!!! CreateReport !!!!!!11111111111 from &quot; + from</span>
+				+ &quot;  toDate &quot; + toDate);
+
+<span class="nc" id="L228">		Connection con = null;</span>
+<span class="nc" id="L229">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L230">		List reconList = new ArrayList();</span>
+<span class="nc" id="L231">		ReportBean reportBean = new ReportBean();</span>
+		List&lt;SalePurchaseBean&gt; saleList;
+		List&lt;PWTPaymentsBean&gt; pwtList;
+		List&lt;CashChqPmntBean&gt; paymentList;
+<span class="nc" id="L235">		Map&lt;String, StockMrpDiscountBean&gt; stockMrpDiscMap = null;</span>
+<span class="nc" id="L236">		Map&lt;String, StockMrpDiscountBean&gt; stockMrpDiscRetMap = null;</span>
+<span class="nc" id="L237">		Timestamp regDate = null;</span>
+		try {
+
+<span class="nc" id="L240">			saleList = getSalePurchBeanBookWiseList(con, agtOrgId, from,</span>
+					toDate, reconReportType);
+<span class="nc" id="L242">			pwtList = getPwtBeanBookWiseList(con, agtOrgId, from, toDate,</span>
+					reconReportType);
+<span class="nc" id="L244">			paymentList = getPaymentBeanBookWiseList(con, agtOrgId, from,</span>
+					toDate, reconReportType);
+<span class="nc" id="L246">			resultSet = statement</span>
+					.executeQuery(&quot;select transaction_date from st_lms_bo_transaction_master where party_id='&quot;
+							+ agtOrgId + &quot;' order by transaction_date  limit 1&quot;);
+<span class="nc bnc" id="L249" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L250">				regDate = resultSet.getTimestamp(&quot;transaction_date&quot;);</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">				if (regDate != null) {</span>
+
+<span class="nc bnc" id="L253" title="All 2 branches missed.">					if (&quot;Ticket Wise Report&quot;.equalsIgnoreCase(reconReportType)) {</span>
+<span class="nc" id="L254">						stockMrpDiscRetMap = getStockMrpDiscRetMap(con,</span>
+								agtOrgId, regDate, toDate);
+					}
+<span class="nc" id="L257">					stockMrpDiscMap = getStockMrpDiscountBeanMap(con, agtOrgId,</span>
+							regDate, toDate);
+
+				}
+
+			}
+<span class="nc" id="L263">			reportBean.setSaleList(saleList);</span>
+<span class="nc" id="L264">			reportBean.setPwtList(pwtList);</span>
+<span class="nc" id="L265">			reportBean.setPaymentList(paymentList);</span>
+<span class="nc" id="L266">			reportBean.setStockMrpDiscMap(stockMrpDiscMap);</span>
+<span class="nc" id="L267">			reportBean.setReconReportType(reconReportType);</span>
+<span class="nc" id="L268">			reportBean.setStockMrpDiscRetMap(stockMrpDiscRetMap);</span>
+
+<span class="nc" id="L270">			resultSet = statement</span>
+					.executeQuery(&quot;select balance,account_type from st_lms_bo_ledger where (account_type ='&quot;
+							+ agtOrgId
+							+ &quot;' or account_type = '&quot;
+							+ agtOrgId
+							+ &quot;#') and transaction_date &lt;'&quot;
+							+ from
+							+ &quot;' order by transaction_date desc, task_id desc limit 2&quot;);
+<span class="nc" id="L278">			System.out</span>
+					.println(&quot;opning balance Agt select balance,account_type from st_lms_bo_ledger where (account_type ='&quot;
+							+ agtOrgId
+							+ &quot;' or account_type = '&quot;
+							+ agtOrgId
+							+ &quot;#') and transaction_date &lt;'&quot;
+							+ from
+							+ &quot;' order by transaction_date desc, task_id desc limit 2&quot;);
+<span class="nc" id="L286">			boolean count = false;</span>
+<span class="nc" id="L287">			int countt = 0;</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+
+<span class="nc bnc" id="L290" title="All 2 branches missed.">				if (resultSet.getString(&quot;account_type&quot;).equalsIgnoreCase(</span>
+						agtOrgId + &quot;#&quot;)) {
+<span class="nc" id="L292">					openingBal = resultSet.getDouble(&quot;balance&quot;);</span>
+<span class="nc" id="L293">					count = true;</span>
+				} else {
+<span class="nc" id="L295">					countt++;</span>
+<span class="nc" id="L296">					openingBal2 = resultSet.getDouble(&quot;balance&quot;);</span>
+				}
+<span class="nc bnc" id="L298" title="All 2 branches missed.">				if (countt == 1) {</span>
+<span class="nc" id="L299">					break;</span>
+				}
+			}
+<span class="nc bnc" id="L302" title="All 2 branches missed.">			if (count == true) {</span>
+<span class="nc" id="L303">				finalopeningBal = openingBal;</span>
+			} else {
+<span class="nc" id="L305">				finalopeningBal = openingBal2;</span>
+			}
+
+<span class="nc" id="L308">			resultSet = statement</span>
+					.executeQuery(&quot;select balance,account_type from st_lms_bo_ledger where (account_type = '&quot;
+							+ agtOrgId
+							+ &quot;' or account_type = '&quot;
+							+ agtOrgId
+							+ &quot;#') and transaction_date &lt;='&quot;
+							+ toDate
+							+ &quot;' order by transaction_date desc,task_id desc limit 2&quot;);
+<span class="nc" id="L316">			System.out</span>
+					.println(&quot; closing balance  Agt  select balance,account_type from st_lms_bo_ledger where (account_type = '&quot;
+							+ agtOrgId
+							+ &quot;' or account_type = '&quot;
+							+ agtOrgId
+							+ &quot;#') and transaction_date &lt;='&quot;
+							+ toDate
+							+ &quot;' order by transaction_date, task_id desc desc limit 2&quot;);
+<span class="nc" id="L324">			boolean count2 = false;</span>
+<span class="nc" id="L325">			int countt2 = 0;</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">				if (resultSet.getString(&quot;account_type&quot;).equalsIgnoreCase(</span>
+						agtOrgId + &quot;#&quot;)) {
+<span class="nc" id="L329">					closingBal = resultSet.getDouble(&quot;balance&quot;);</span>
+<span class="nc" id="L330">					count2 = true;</span>
+				} else {
+<span class="nc" id="L332">					countt2++;</span>
+<span class="nc" id="L333">					closingBal2 = resultSet.getDouble(&quot;balance&quot;);</span>
+				}
+<span class="nc bnc" id="L335" title="All 2 branches missed.">				if (countt2 == 1) {</span>
+<span class="nc" id="L336">					break;</span>
+				}
+			}
+<span class="nc bnc" id="L339" title="All 2 branches missed.">			if (count2 == true) {</span>
+<span class="nc" id="L340">				finalclosingBal = closingBal;</span>
+			} else {
+<span class="nc" id="L342">				finalclosingBal = closingBal2;</span>
+			}
+<span class="nc" id="L344">			Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L345">			calendar.setTimeInMillis(toDate.getTime());</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">			if (!dateformat1.format(calendar.getTime()).equals(</span>
+					dateformat1.format(from))) {
+<span class="nc" id="L348">				calendar.add(Calendar.DAY_OF_MONTH, -1);</span>
+<span class="nc" id="L349">				System.out.println(&quot; inside if calendar Agt &quot;</span>
+						+ dateformat1.format(from) + &quot;  cTo &quot;
+						+ dateformat1.format(calendar.getTime()));
+			}
+<span class="nc" id="L353">			System.out.println(&quot; inside if calendar Agt &quot;</span>
+					+ dateformat1.format(from) + &quot;  cTo &quot;
+					+ dateformat1.format(calendar.getTime()));
+
+<span class="nc" id="L357">			reconList.add(reportBean);// 0</span>
+<span class="nc" id="L358">			reconList.add(totalAmount);// 1</span>
+<span class="nc" id="L359">			reconList.add(finalopeningBal);// 2</span>
+<span class="nc" id="L360">			reconList.add(finalclosingBal);// 3</span>
+<span class="nc" id="L361">			reconList.add(dateformat1.format(from)); // 4 in list</span>
+<span class="nc" id="L362">			reconList.add(dateformat1.format(calendar.getTime()));// 5</span>
+<span class="nc" id="L363">			reconList.add(totalSaleMrp);// 6</span>
+<span class="nc" id="L364">			reconList.add(totalSaleComm);// 7</span>
+<span class="nc" id="L365">			reconList.add(totalSaleAmount);// 8</span>
+<span class="nc" id="L366">			reconList.add(totalPurchAmount);// 9</span>
+
+<span class="nc" id="L368">			System.out.println(&quot;reconList size is &quot; + reconList.size());</span>
+
+<span class="nc" id="L370">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L372">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L374" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L376">					con.close();</span>
+<span class="nc" id="L377">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L379">					e.printStackTrace();</span>
+<span class="nc" id="L380">				}</span>
+			}
+		}
+
+<span class="nc" id="L384">		return reconList;</span>
+	}
+
+	public Map&lt;Integer, String&gt; getAgentOrgMap(Timestamp dt) {
+<span class="nc" id="L388">		Connection conn = DBConnect.getConnection();</span>
+<span class="nc" id="L389">		Statement stmt = null;</span>
+<span class="nc" id="L390">		ResultSet result = null;</span>
+<span class="nc" id="L391">		Map&lt;Integer, String&gt; orgMap = new HashMap&lt;Integer, String&gt;();</span>
+		try {
+<span class="nc" id="L393">			stmt = conn.createStatement();</span>
+<span class="nc" id="L394">			result = stmt</span>
+					.executeQuery(&quot;select name,om.organization_id from st_lms_organization_master om,st_lms_user_master um where om.organization_type='AGENT' and om.organization_id=um.organization_id and registration_date&lt;'&quot;
+							+ dt + &quot;' order by name&quot;);
+<span class="nc bnc" id="L397" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L398">				System.out.println(&quot;ID ################ &quot;</span>
+						+ result.getInt(TableConstants.ORG_ID) + &quot; Name &quot;
+						+ result.getString(TableConstants.NAME));
+<span class="nc" id="L401">				orgMap.put(result.getInt(TableConstants.ORG_ID), result</span>
+						.getString(TableConstants.NAME));
+			}
+<span class="nc" id="L404">		} catch (SQLException e) {</span>
+<span class="nc" id="L405">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L407">			try {</span>
+<span class="nc" id="L408">				conn.close();</span>
+<span class="nc" id="L409">			} catch (SQLException e) {</span>
+<span class="nc" id="L410">				e.printStackTrace();</span>
+<span class="nc" id="L411">			}</span>
+<span class="nc" id="L412">		}</span>
+
+		// System.out.println(&quot;receipt search list : &quot;+list);
+<span class="nc" id="L415">		return orgMap;</span>
+
+	}
+
+	private ConsolidatedBean getConsDetAftrPmt(Connection con, int agtOrgId,
+			Timestamp from, Timestamp toDate, double weeklyOpeningBal,
+			String reconReportTypeAgt) {
+<span class="nc" id="L422">		double weeklyClosingBal = weeklyOpeningBal;</span>
+<span class="nc" id="L423">		ConsolidatedBean consolidatedBean = new ConsolidatedBean();</span>
+
+<span class="nc" id="L425">		System.out.println(&quot;getConsolidatedDetails ========== &quot;);</span>
+		try {
+<span class="nc" id="L427">			statement = con.createStatement();</span>
+<span class="nc bnc" id="L428" title="All 2 branches missed.">			if (&quot;Book Wise Report&quot;.equalsIgnoreCase(reconReportTypeAgt)) {</span>
+<span class="nc" id="L429">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as purchAmount  from st_lms_agent_recon_bookwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and type='NET_SALE' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+
+			} else {
+<span class="nc" id="L439">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as purchAmount  from st_lms_agent_recon_ticketwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and type='NET_SALE' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+			}
+<span class="nc bnc" id="L448" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L449">				consolidatedBean.setNetPayable(resultSet</span>
+						.getDouble(&quot;purchAmount&quot;));
+<span class="nc" id="L451">				weeklyClosingBal = weeklyClosingBal</span>
+						+ resultSet.getDouble(&quot;purchAmount&quot;);
+			}
+<span class="nc" id="L454">			System.out.println(&quot;getConsolidatedDetails ========== 2 0000&quot;);</span>
+
+<span class="nc bnc" id="L456" title="All 2 branches missed.">			if (&quot;Book Wise Report&quot;.equalsIgnoreCase(reconReportTypeAgt)) {</span>
+<span class="nc" id="L457">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as totalPWT from st_lms_agent_recon_bookwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;'  and type='PWT' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+
+			} else {
+<span class="nc" id="L467">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as totalPWT from st_lms_agent_recon_ticketwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;'  and type='PWT' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+			}
+<span class="nc bnc" id="L476" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L477">				consolidatedBean.setNetPWT(resultSet.getDouble(&quot;totalPWT&quot;));</span>
+<span class="nc" id="L478">				weeklyClosingBal = weeklyClosingBal</span>
+						- resultSet.getDouble(&quot;totalPWT&quot;);
+			}
+<span class="nc" id="L481">			System.out.println(&quot;getConsolidatedDetails ========== 3 5555&quot;);</span>
+
+<span class="nc bnc" id="L483" title="All 2 branches missed.">			if (&quot;Book Wise Report&quot;.equalsIgnoreCase(reconReportTypeAgt)) {</span>
+<span class="nc" id="L484">				System.out.println(&quot;book wise &quot;);</span>
+<span class="nc" id="L485">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as total,type  from st_lms_agent_recon_bookwise  where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' and game_id is null   group by type&quot;);
+
+			} else {
+<span class="nc" id="L495">				System.out</span>
+						.println(&quot;Ticket  wise select sum(amt_parent) as total,type  from st_lms_agent_recon_ticketwise  where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' and game_id is null   group by type&quot;);
+
+<span class="nc" id="L504">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as total,type  from st_lms_agent_recon_ticketwise  where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' and game_id is null   group by type&quot;);
+
+			}
+
+<span class="nc bnc" id="L515" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L516">				String type = resultSet.getString(&quot;type&quot;);</span>
+<span class="nc" id="L517">				System.out.println(type + &quot;26026025602925902602&quot;);</span>
+<span class="nc bnc" id="L518" title="All 6 branches missed.">				if (type.equalsIgnoreCase(&quot;Cash&quot;)</span>
+						|| type.equalsIgnoreCase(&quot;Cheque&quot;)
+						|| type.equalsIgnoreCase(&quot;Credit Note&quot;)) {
+<span class="nc" id="L521">					consolidatedBean.setNetPayments(consolidatedBean</span>
+							.getNetPayments()
+							+ resultSet.getDouble(&quot;total&quot;));
+<span class="nc" id="L524">					weeklyClosingBal = weeklyClosingBal</span>
+							- resultSet.getDouble(&quot;total&quot;);
+				} else {
+<span class="nc" id="L527">					consolidatedBean.setNetPayments(consolidatedBean</span>
+							.getNetPayments()
+							- resultSet.getDouble(&quot;total&quot;));
+<span class="nc" id="L530">					weeklyClosingBal = weeklyClosingBal</span>
+							+ resultSet.getDouble(&quot;total&quot;);
+				}
+
+<span class="nc" id="L534">			}</span>
+<span class="nc" id="L535">			resultSet = statement</span>
+					.executeQuery(&quot;select name  from st_lms_organization_master  where organization_id='&quot;
+							+ agtOrgId + &quot;' &quot;);
+<span class="nc bnc" id="L538" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L539">				consolidatedBean.setUserName(resultSet.getString(&quot;name&quot;));</span>
+			}
+<span class="nc" id="L541">			consolidatedBean.setWeeklyClosingBal(weeklyClosingBal);</span>
+<span class="nc" id="L542">			System.out.println(&quot;getConsolidatedDetails ========== 4 000&quot;);</span>
+
+<span class="nc" id="L544">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L546">			e.printStackTrace();</span>
+<span class="nc" id="L547">		}</span>
+
+<span class="nc" id="L549">		return consolidatedBean;</span>
+	}
+
+	private ConsolidatedBean getConsolidatedDetails(Connection con,
+			int agtOrgId, Timestamp from, Timestamp toDate,
+			double weeklyOpeningBal, String reconReportTypeAgt) {
+<span class="nc" id="L555">		double weeklyClosingBal = weeklyOpeningBal;</span>
+<span class="nc" id="L556">		ConsolidatedBean consolidatedBean = new ConsolidatedBean();</span>
+
+<span class="nc" id="L558">		System.out.println(&quot;getConsolidatedDetails ========== &quot;);</span>
+		try {
+<span class="nc" id="L560">			statement = con.createStatement();</span>
+<span class="nc bnc" id="L561" title="All 2 branches missed.">			if (&quot;Book Wise Report&quot;.equalsIgnoreCase(reconReportTypeAgt)) {</span>
+<span class="nc" id="L562">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as purchAmount  from st_lms_agent_recon_bookwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and type='NET_SALE' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+
+			} else {
+<span class="nc" id="L572">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as purchAmount  from st_lms_agent_recon_ticketwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and type='NET_SALE' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+			}
+<span class="nc bnc" id="L581" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L582">				consolidatedBean.setNetPayable(resultSet</span>
+						.getDouble(&quot;purchAmount&quot;));
+<span class="nc" id="L584">				weeklyClosingBal = weeklyClosingBal</span>
+						+ resultSet.getDouble(&quot;purchAmount&quot;);
+			}
+<span class="nc" id="L587">			System.out.println(&quot;getConsolidatedDetails ========== 2&quot;);</span>
+
+<span class="nc bnc" id="L589" title="All 2 branches missed.">			if (&quot;Book Wise Report&quot;.equalsIgnoreCase(reconReportTypeAgt)) {</span>
+<span class="nc" id="L590">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as totalPWT from st_lms_agent_recon_bookwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;'  and type='PWT' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+
+			} else {
+<span class="nc" id="L600">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as totalPWT from st_lms_agent_recon_ticketwise arb where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;'  and type='PWT' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' group by organization_id&quot;);
+			}
+<span class="nc bnc" id="L609" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L610">				consolidatedBean.setNetPWT(resultSet.getDouble(&quot;totalPWT&quot;));</span>
+<span class="nc" id="L611">				weeklyClosingBal = weeklyClosingBal</span>
+						- resultSet.getDouble(&quot;totalPWT&quot;);
+			}
+<span class="nc" id="L614">			System.out.println(&quot;getConsolidatedDetails ========== 3&quot;);</span>
+
+<span class="nc bnc" id="L616" title="All 2 branches missed.">			if (&quot;Book Wise Report&quot;.equalsIgnoreCase(reconReportTypeAgt)) {</span>
+<span class="nc" id="L617">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as total,type  from st_lms_agent_recon_bookwise  where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' and game_id is null   group by type&quot;);
+
+			} else {
+<span class="nc" id="L627">				resultSet = statement</span>
+						.executeQuery(&quot;select sum(amt_parent) as total,type  from st_lms_agent_recon_ticketwise  where organization_id='&quot;
+								+ agtOrgId
+								+ &quot;' and recon_date&gt;'&quot;
+								+ from
+								+ &quot;' and recon_date &lt;='&quot;
+								+ toDate
+								+ &quot;' and game_id is null   group by type&quot;);
+			}
+
+<span class="nc bnc" id="L637" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc bnc" id="L638" title="All 6 branches missed.">				if (resultSet.getString(&quot;type&quot;).equalsIgnoreCase(&quot;Cash&quot;)</span>
+						|| resultSet.getString(&quot;type&quot;).equalsIgnoreCase(
+								&quot;Cheque&quot;)
+						|| resultSet.getString(&quot;type&quot;).equalsIgnoreCase(
+								&quot;Credit Note&quot;)) {
+<span class="nc" id="L643">					consolidatedBean.setNetPayments(consolidatedBean</span>
+							.getNetPayments()
+							+ resultSet.getDouble(&quot;total&quot;));
+<span class="nc" id="L646">					weeklyClosingBal = weeklyClosingBal</span>
+							- resultSet.getDouble(&quot;total&quot;);
+				} else {
+<span class="nc" id="L649">					consolidatedBean.setNetPayments(consolidatedBean</span>
+							.getNetPayments()
+							- resultSet.getDouble(&quot;total&quot;));
+<span class="nc" id="L652">					weeklyClosingBal = weeklyClosingBal</span>
+							+ resultSet.getDouble(&quot;total&quot;);
+				}
+
+			}
+<span class="nc" id="L657">			resultSet = statement</span>
+					.executeQuery(&quot;select name  from st_lms_organization_master  where organization_id='&quot;
+							+ agtOrgId + &quot;' &quot;);
+<span class="nc bnc" id="L660" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L661">				consolidatedBean.setUserName(resultSet.getString(&quot;name&quot;));</span>
+			}
+<span class="nc" id="L663">			consolidatedBean.setWeeklyClosingBal(weeklyClosingBal);</span>
+<span class="nc" id="L664">			System.out.println(&quot;getConsolidatedDetails ========== 4&quot;);</span>
+			/*
+			 * List&lt; StockMrpDiscountBean&gt;
+			 * stockMrpDiscList=getStockMrpDiscountBeanList(con, agtOrgId, from,
+			 * toDate); Iterator invItr = stockMrpDiscList.listIterator(); while
+			 * (invItr.hasNext()) { StockMrpDiscountBean stockMrpDiscountBean =
+			 * (StockMrpDiscountBean)invItr.next();
+			 * consolidatedBean.setPurchPrcRemStk(consolidatedBean.getPurchPrcRemStk()+stockMrpDiscountBean.getStDiscPrice()); }
+			 */
+<span class="nc" id="L673">			Map&lt;String, StockMrpDiscountBean&gt; stockMrpDiscMap = getStockMrpDiscountBeanMap(</span>
+					con, agtOrgId, from, toDate);
+<span class="nc" id="L675">			Iterator invItr = stockMrpDiscMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L676" title="All 2 branches missed.">			while (invItr.hasNext()) {</span>
+<span class="nc" id="L677">				Map.Entry&lt;Integer, StockMrpDiscountBean&gt; stockItrpair = (Map.Entry&lt;Integer, StockMrpDiscountBean&gt;) invItr</span>
+						.next();
+<span class="nc" id="L679">				StockMrpDiscountBean stockMrpDiscountBean = stockItrpair</span>
+						.getValue();
+<span class="nc" id="L681">				consolidatedBean.setPurchPrcRemStk(consolidatedBean</span>
+						.getPurchPrcRemStk()
+						+ stockMrpDiscountBean.getStDiscPrice());
+<span class="nc" id="L684">			}</span>
+<span class="nc bnc" id="L685" title="All 2 branches missed.">			if (&quot;Ticket Wise Report&quot;.equalsIgnoreCase(reconReportTypeAgt)) {</span>
+<span class="nc" id="L686">				Map&lt;String, StockMrpDiscountBean&gt; stockMrpDiscRetMap = getStockMrpDiscRetMap(</span>
+						con, agtOrgId, from, toDate);
+<span class="nc" id="L688">				invItr = stockMrpDiscRetMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L689" title="All 2 branches missed.">				while (invItr.hasNext()) {</span>
+<span class="nc" id="L690">					Map.Entry&lt;Integer, StockMrpDiscountBean&gt; stockItrpair = (Map.Entry&lt;Integer, StockMrpDiscountBean&gt;) invItr</span>
+							.next();
+<span class="nc" id="L692">					StockMrpDiscountBean stockMrpDiscountBean = stockItrpair</span>
+							.getValue();
+<span class="nc" id="L694">					consolidatedBean.setPurchPrcRemRetStk(consolidatedBean</span>
+							.getPurchPrcRemRetStk()
+							+ stockMrpDiscountBean.getStDiscPrice());
+<span class="nc" id="L697">				}</span>
+			}
+
+<span class="nc" id="L700">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L702">			e.printStackTrace();</span>
+<span class="nc" id="L703">		}</span>
+
+<span class="nc" id="L705">		return consolidatedBean;</span>
+	}
+
+	public List getDetailsAftrLstPmnt(int agtOrgId, Timestamp from,
+			Timestamp toDate, SimpleDateFormat dateformat1) {
+<span class="nc" id="L710">		System.out.println(&quot;!!! getDetailsAftrLstPmnt !!!!!!11111111111 from &quot;</span>
+				+ from + &quot;  toDate &quot; + toDate);
+
+<span class="nc" id="L713">		String query = &quot;select amount,transaction_date,transaction_type from(select 'Cash' as transaction_type,sbtm.transaction_id,amount,transaction_date from st_lms_bo_transaction_master sbtm,st_lms_bo_cash_transaction sbct where (transaction_type='CASH' )  and transaction_date&gt;='&quot;</span>
+				+ from
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ toDate
+				+ &quot;' and sbtm.transaction_id=sbct.transaction_id and party_id='&quot;
+				+ agtOrgId
+				+ &quot;' union select 'Cheque' as transaction_type,sbtm.transaction_id,cheque_amt as amount,transaction_date from st_lms_bo_transaction_master sbtm,st_lms_bo_sale_chq sbsc where ( sbtm.transaction_type='CHEQUE')  and transaction_date&gt;='&quot;
+				+ from
+				+ &quot;' and transaction_date&lt;='&quot;
+				+ toDate
+				+ &quot;' and sbtm.transaction_id=sbsc.transaction_id and party_id='&quot;
+				+ agtOrgId + &quot;') final order by transaction_id desc limit 1&quot;;
+
+<span class="nc" id="L726">		System.out.println(&quot;!!!!!!!  &quot; + query);</span>
+<span class="nc" id="L727">		Connection con = null;</span>
+<span class="nc" id="L728">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L729">		double amount = 0.0;</span>
+<span class="nc" id="L730">		Timestamp timestamp = null;</span>
+<span class="nc" id="L731">		List list1 = null;</span>
+<span class="nc" id="L732">		String transactionType = null;</span>
+		try {
+<span class="nc" id="L734">			statement = con.createStatement();</span>
+
+<span class="nc" id="L736">			resultSet = statement.executeQuery(query);</span>
+
+<span class="nc bnc" id="L738" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L739">				amount = resultSet.getDouble(&quot;amount&quot;);</span>
+<span class="nc" id="L740">				timestamp = resultSet.getTimestamp(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L741">				transactionType = resultSet.getString(&quot;transaction_type&quot;);</span>
+<span class="nc" id="L742">				System.out.println(&quot;amount ~~~~~~~~~~ &quot; + amount</span>
+						+ &quot;  timestamp  &quot; + timestamp);
+<span class="nc" id="L744">				list1 = (List) new ReconcilationReportHelper()</span>
+						.createConReportAftrPmnt(agtOrgId, timestamp, toDate,
+								dateformat1);
+
+			}
+<span class="nc bnc" id="L749" title="All 2 branches missed.">			if (list1 != null) {</span>
+<span class="nc" id="L750">				list1.add(amount); // 3</span>
+<span class="nc" id="L751">				list1.add(timestamp);// 4</span>
+<span class="nc" id="L752">				list1.add(transactionType);// 5</span>
+			} else {
+<span class="nc" id="L754">				System.out.println(&quot;done$$$$$$$$$$$$$$$&quot;);</span>
+			}
+
+<span class="nc" id="L757">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L759">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L761" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L763">					con.close();</span>
+<span class="nc" id="L764">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L766">					e.printStackTrace();</span>
+<span class="nc" id="L767">				}</span>
+			}
+		}
+<span class="nc" id="L770">		return list1;</span>
+	}
+
+	public double getLedgerBal(int agtOrgId, Timestamp time, String balType) {
+<span class="nc" id="L774">		double ledgerBal = 0.0;</span>
+<span class="nc" id="L775">		double ledgerBal2 = 0.0;</span>
+<span class="nc" id="L776">		double finalLedgerBal = 0.0;</span>
+<span class="nc" id="L777">		Connection con = null;</span>
+		try {
+<span class="nc" id="L779">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L780">			statement = con.createStatement();</span>
+<span class="nc bnc" id="L781" title="All 2 branches missed.">			if (balType.equalsIgnoreCase(&quot;opening&quot;)) {</span>
+<span class="nc" id="L782">				System.out</span>
+						.println(&quot;opning balance  select balance,account_type from st_lms_bo_ledger where (account_type ='&quot;
+								+ agtOrgId
+								+ &quot;' or account_type = '&quot;
+								+ agtOrgId
+								+ &quot;#') and transaction_date &lt;'&quot;
+								+ time
+								+ &quot;' order by transaction_date desc, task_id desc limit 2&quot;);
+<span class="nc" id="L790">				resultSet = statement</span>
+						.executeQuery(&quot;select balance,account_type from st_lms_bo_ledger where (account_type ='&quot;
+								+ agtOrgId
+								+ &quot;' or account_type = '&quot;
+								+ agtOrgId
+								+ &quot;#') and transaction_date &lt;'&quot;
+								+ time
+								+ &quot;' order by transaction_date desc, task_id desc limit 2&quot;);
+			} else {
+<span class="nc" id="L799">				System.out</span>
+						.println(&quot;closing balance  select balance,account_type from st_lms_bo_ledger where (account_type ='&quot;
+								+ agtOrgId
+								+ &quot;' or account_type = '&quot;
+								+ agtOrgId
+								+ &quot;#') and transaction_date &lt;'&quot;
+								+ time
+								+ &quot;' order by transaction_date desc, task_id desc limit 2&quot;);
+<span class="nc" id="L807">				resultSet = statement</span>
+						.executeQuery(&quot;select balance,account_type from st_lms_bo_ledger where (account_type ='&quot;
+								+ agtOrgId
+								+ &quot;' or account_type = '&quot;
+								+ agtOrgId
+								+ &quot;#') and transaction_date &lt;='&quot;
+								+ time
+								+ &quot;' order by transaction_date desc, task_id desc limit 2&quot;);
+			}
+<span class="nc" id="L816">			boolean count = false;</span>
+<span class="nc" id="L817">			int countt = 0;</span>
+<span class="nc bnc" id="L818" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+
+<span class="nc bnc" id="L820" title="All 2 branches missed.">				if (resultSet.getString(&quot;account_type&quot;).equalsIgnoreCase(</span>
+						agtOrgId + &quot;#&quot;)) {
+<span class="nc" id="L822">					ledgerBal = resultSet.getDouble(&quot;balance&quot;);</span>
+<span class="nc" id="L823">					count = true;</span>
+				} else {
+<span class="nc" id="L825">					countt++;</span>
+<span class="nc" id="L826">					ledgerBal2 = resultSet.getDouble(&quot;balance&quot;);</span>
+				}
+<span class="nc bnc" id="L828" title="All 2 branches missed.">				if (countt == 1) {</span>
+<span class="nc" id="L829">					break;</span>
+				}
+			}
+<span class="nc bnc" id="L832" title="All 2 branches missed.">			if (count == true) {</span>
+<span class="nc" id="L833">				finalLedgerBal = ledgerBal;</span>
+			} else {
+<span class="nc" id="L835">				finalLedgerBal = ledgerBal2;</span>
+			}
+<span class="nc" id="L837">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L839">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L841" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L843">					con.close();</span>
+<span class="nc" id="L844">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L846">					e.printStackTrace();</span>
+<span class="nc" id="L847">				}</span>
+			}
+		}
+
+<span class="nc" id="L851">		return finalLedgerBal;</span>
+	}
+
+	private List&lt;CashChqPmntBean&gt; getPaymentBeanBookWiseList(Connection con,
+			int agtOrgId, Timestamp from, Timestamp toDate,
+			String reconReportType) {
+		CashChqPmntBean paymentBean;
+<span class="nc" id="L858">		List&lt;CashChqPmntBean&gt; paymentList = new ArrayList&lt;CashChqPmntBean&gt;();</span>
+<span class="nc" id="L859">		String bookwiseQuery = &quot;select type,sum(amt_parent) as total from st_lms_agent_recon_bookwise  where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and recon_date&gt;'&quot;
+				+ from
+				+ &quot;' and recon_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and game_id is null   group by type&quot;;
+<span class="nc" id="L866">		String ticketWiseQuery = &quot;select type,sum(amt_parent) as total from st_lms_agent_recon_ticketwise  where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and recon_date&gt;'&quot;
+				+ from
+				+ &quot;' and recon_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and game_id is null   group by type&quot;;
+		String query;
+		try {
+<span class="nc" id="L875">			statement = con.createStatement();</span>
+<span class="nc bnc" id="L876" title="All 2 branches missed.">			if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L877">				query = bookwiseQuery;</span>
+			} else {
+<span class="nc" id="L879">				query = ticketWiseQuery;</span>
+			}
+<span class="nc" id="L881">			resultSet = statement.executeQuery(query);</span>
+<span class="nc" id="L882">			System.out.println(&quot;queryyyyyyyyyyyyy  getPaymentBeanBookWiseList &quot;</span>
+					+ query);
+
+<span class="nc bnc" id="L885" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L886">				paymentBean = new CashChqPmntBean();</span>
+<span class="nc" id="L887">				paymentBean.setPaymentType(resultSet.getString(&quot;type&quot;));</span>
+<span class="nc" id="L888">				paymentBean.setPaymentAmount(resultSet.getDouble(&quot;total&quot;));</span>
+<span class="nc" id="L889">				paymentList.add(paymentBean);</span>
+			}
+<span class="nc" id="L891">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L893">			e.printStackTrace();</span>
+<span class="nc" id="L894">		}</span>
+
+<span class="nc" id="L896">		return paymentList;</span>
+
+	}
+
+	public Map&lt;String, CashChqPmntBean&gt; getPaymentBeanList(Connection con,
+			int agtOrgId, Timestamp from, Timestamp toDate) {
+<span class="nc" id="L902">		String creditQuery = &quot;select 'Cash' as transactionType,amount,sbct.transaction_id from st_lms_bo_cash_transaction sbct,st_lms_bo_transaction_master sbtm where transaction_date&gt;='&quot;</span>
+				+ from
+				+ &quot;' and transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sbct.transaction_id=sbtm.transaction_id and party_id='&quot;
+				+ agtOrgId
+				+ &quot;' union select 'Cheque',cheque_amt as amount,sbsc.transaction_id from st_lms_bo_sale_chq sbsc,st_lms_bo_transaction_master sbtm  where sbtm.transaction_type='CHEQUE' and transaction_date&gt;='&quot;
+				+ from
+				+ &quot;' and transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sbsc.transaction_id=sbtm.transaction_id and  party_id='&quot;
+				+ agtOrgId
+				+ &quot;' union select 'Credit Note' as transactionType,amount,sbcn.transaction_id from st_lms_bo_credit_note sbcn,st_lms_bo_transaction_master sbtm where transaction_date&gt;='&quot;
+				+ from
+				+ &quot;' and transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sbcn.transaction_id=sbtm.transaction_id and party_id='&quot;
+				+ agtOrgId + &quot;'&quot;;
+<span class="nc" id="L920">		String debitQuery = &quot;select 'Cheque Bounce' as transactionType,cheque_amt as amount,sbsc.transaction_id from st_lms_bo_sale_chq sbsc,st_lms_bo_transaction_master sbtm  where sbtm.transaction_type='CHQ_BOUNCE' and transaction_date&gt;='&quot;</span>
+				+ from
+				+ &quot;' and transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sbsc.transaction_id=sbtm.transaction_id and  party_id='&quot;
+				+ agtOrgId
+				+ &quot;' union select 'Cheque Bounce Charges',amount,sbdn.transaction_id from st_lms_bo_debit_note sbdn,st_lms_bo_transaction_master sbtm  where sbtm.transaction_type='DR_NOTE' and transaction_date&gt;='&quot;
+				+ from
+				+ &quot;' and transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sbdn.transaction_id=sbtm.transaction_id and  party_id='&quot;
+				+ agtOrgId
+				+ &quot;' union select 'Debit Note',amount,sbdn.transaction_id from st_lms_bo_debit_note sbdn,st_lms_bo_transaction_master sbtm  where sbtm.transaction_type='DR_NOTE_CASH' and transaction_date&gt;='&quot;
+				+ from
+				+ &quot;' and transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sbdn.transaction_id=sbtm.transaction_id and  party_id='&quot;
+				+ agtOrgId + &quot;'&quot;;
+<span class="nc" id="L938">		String paymentType = null;</span>
+<span class="nc" id="L939">		double paymentAmount = 0.0;</span>
+<span class="nc" id="L940">		CashChqPmntBean paymentBean = null;</span>
+<span class="nc" id="L941">		Map&lt;String, CashChqPmntBean&gt; paymentmap = new HashMap&lt;String, CashChqPmntBean&gt;();</span>
+<span class="nc" id="L942">		System.out.println(&quot;Total amount in getPaymentBeanList  enter &quot;</span>
+				+ totalAmount);
+		try {
+<span class="nc" id="L945">			statement = con.createStatement();</span>
+<span class="nc" id="L946">			resultSet = statement.executeQuery(creditQuery);</span>
+<span class="nc bnc" id="L947" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L948">				paymentType = resultSet.getString(&quot;transactionType&quot;);</span>
+<span class="nc" id="L949">				paymentAmount = resultSet.getDouble(&quot;amount&quot;);</span>
+<span class="nc bnc" id="L950" title="All 2 branches missed.">				if (paymentmap.containsKey(paymentType)) {</span>
+<span class="nc" id="L951">					paymentBean = paymentmap.get(paymentType);</span>
+<span class="nc" id="L952">					paymentBean.setPaymentAmount(paymentBean.getPaymentAmount()</span>
+							+ paymentAmount);
+<span class="nc" id="L954">					totalAmount = totalAmount - paymentAmount;</span>
+				} else {
+<span class="nc" id="L956">					paymentBean = new CashChqPmntBean();</span>
+<span class="nc" id="L957">					paymentBean.setPaymentType(paymentType);</span>
+<span class="nc" id="L958">					paymentBean.setPaymentAmount(paymentAmount);</span>
+<span class="nc" id="L959">					paymentmap.put(paymentType, paymentBean);</span>
+<span class="nc" id="L960">					totalAmount = totalAmount - paymentAmount;</span>
+				}
+			}
+<span class="nc" id="L963">			resultSet = statement.executeQuery(debitQuery);</span>
+
+<span class="nc bnc" id="L965" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L966">				paymentType = resultSet.getString(&quot;transactionType&quot;);</span>
+<span class="nc" id="L967">				paymentAmount = resultSet.getDouble(&quot;amount&quot;);</span>
+<span class="nc bnc" id="L968" title="All 2 branches missed.">				if (paymentmap.containsKey(paymentType)) {</span>
+<span class="nc" id="L969">					paymentBean = paymentmap.get(paymentType);</span>
+<span class="nc" id="L970">					paymentBean.setPaymentAmount(paymentBean.getPaymentAmount()</span>
+							+ paymentAmount);
+<span class="nc" id="L972">					totalAmount = totalAmount + paymentAmount;</span>
+				} else {
+<span class="nc" id="L974">					paymentBean = new CashChqPmntBean();</span>
+<span class="nc" id="L975">					paymentBean.setPaymentType(paymentType);</span>
+<span class="nc" id="L976">					paymentBean.setPaymentAmount(paymentAmount);</span>
+<span class="nc" id="L977">					paymentmap.put(paymentType, paymentBean);</span>
+<span class="nc" id="L978">					totalAmount = totalAmount + paymentAmount;</span>
+				}
+			}
+<span class="nc" id="L981">			System.out.println(&quot;creditQuery &quot; + creditQuery);</span>
+<span class="nc" id="L982">			System.out.println(paymentmap.size() + &quot; debitQuery &quot; + debitQuery);</span>
+<span class="nc" id="L983">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L985">			e.printStackTrace();</span>
+<span class="nc" id="L986">		}</span>
+<span class="nc" id="L987">		System.out.println(&quot;Total amount in getPaymentBeanList  exit &quot;</span>
+				+ totalAmount);
+<span class="nc" id="L989">		return paymentmap;</span>
+	}
+
+	public double getPreviousBalance(int agtOrgId, Timestamp frDate,
+			String reconReportType) throws LMSException {
+<span class="nc" id="L994">		Connection con = null;</span>
+<span class="nc" id="L995">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L996">		double balance = 0.0;</span>
+<span class="nc" id="L997">		Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L998">		calendar.setTimeInMillis(frDate.getTime());</span>
+<span class="nc" id="L999">		calendar.add(Calendar.MINUTE, 10);</span>
+<span class="nc" id="L1000">		String ticketWiseQuery = &quot;select recon_balance from st_lms_agent_recon_ticketwise where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and recon_date&lt; '&quot;
+				+ new Timestamp(calendar.getTimeInMillis())
+				+ &quot;' order by recon_date desc,task_id desc limit 1&quot;;
+<span class="nc" id="L1005">		String bookWiseQuery = &quot;select recon_balance from st_lms_agent_recon_bookwise where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and recon_date&lt; '&quot;
+				+ new Timestamp(calendar.getTimeInMillis())
+				+ &quot;' order by recon_date desc,task_id desc limit 1&quot;;
+		try {
+<span class="nc" id="L1011">			Statement statement = con.createStatement();</span>
+<span class="nc bnc" id="L1012" title="All 2 branches missed.">			if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L1013">				resultSet = statement.executeQuery(bookWiseQuery);</span>
+<span class="nc" id="L1014">				System.out.println(&quot;balance query111  &quot; + bookWiseQuery);</span>
+			} else {
+<span class="nc" id="L1016">				resultSet = statement.executeQuery(ticketWiseQuery);</span>
+<span class="nc" id="L1017">				System.out.println(&quot;balance query222  &quot; + ticketWiseQuery);</span>
+			}
+
+<span class="nc bnc" id="L1020" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1021">				balance = resultSet.getDouble(&quot;recon_balance&quot;);</span>
+			}
+<span class="nc" id="L1023">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1025">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L1027" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L1029">					con.close();</span>
+<span class="nc" id="L1030">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L1032">					e.printStackTrace();</span>
+<span class="nc" id="L1033">				}</span>
+			}
+		}
+<span class="nc" id="L1036">		System.out.println(&quot;balance 33  reconReportType &quot; + reconReportType</span>
+				+ &quot;  ----------&quot; + balance);
+<span class="nc" id="L1038">		return balance;</span>
+	}
+
+	public double getPrvBalAftrpmnt(int agtOrgId, Timestamp frDate,
+			String reconReportType) throws LMSException {
+<span class="nc" id="L1043">		Connection con = null;</span>
+<span class="nc" id="L1044">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L1045">		double balance = 0.0;</span>
+<span class="nc" id="L1046">		Calendar calendar = Calendar.getInstance();</span>
+<span class="nc" id="L1047">		calendar.setTimeInMillis(frDate.getTime());</span>
+<span class="nc" id="L1048">		String ticketWiseQuery = &quot;select recon_balance from st_lms_agent_recon_ticketwise where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and recon_date &lt;  '&quot;
+				+ new Timestamp(calendar.getTimeInMillis())
+				+ &quot;' order by recon_date desc,task_id desc limit 1&quot;;
+<span class="nc" id="L1053">		String bookWiseQuery = &quot;select recon_balance from st_lms_agent_recon_bookwise where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and recon_date &lt;  '&quot;
+				+ new Timestamp(calendar.getTimeInMillis())
+				+ &quot;' order by recon_date desc,task_id desc limit 1&quot;;
+		try {
+<span class="nc" id="L1059">			Statement statement = con.createStatement();</span>
+<span class="nc bnc" id="L1060" title="All 2 branches missed.">			if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L1061">				resultSet = statement.executeQuery(bookWiseQuery);</span>
+<span class="nc" id="L1062">				System.out.println(&quot;balance query111  &quot; + bookWiseQuery);</span>
+			} else {
+<span class="nc" id="L1064">				resultSet = statement.executeQuery(ticketWiseQuery);</span>
+<span class="nc" id="L1065">				System.out.println(&quot;balance query222  &quot; + ticketWiseQuery);</span>
+			}
+
+<span class="nc bnc" id="L1068" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1069">				balance = resultSet.getDouble(&quot;recon_balance&quot;);</span>
+			}
+<span class="nc" id="L1071">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1073">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L1075" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L1077">					con.close();</span>
+<span class="nc" id="L1078">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L1080">					e.printStackTrace();</span>
+<span class="nc" id="L1081">				}</span>
+			}
+		}
+<span class="nc" id="L1084">		System.out.println(&quot;balance 33  reconReportType &quot; + reconReportType</span>
+				+ &quot;  ----------&quot; + balance);
+<span class="nc" id="L1086">		return balance;</span>
+	}
+
+	private List&lt;PWTPaymentsBean&gt; getPwtBeanBookWiseList(Connection con,
+			int agtOrgId, Timestamp from, Timestamp toDate,
+			String reconReportType) {
+		PWTPaymentsBean pwtPaymentsBean;
+<span class="nc" id="L1093">		List&lt;PWTPaymentsBean&gt; pwtList = new ArrayList&lt;PWTPaymentsBean&gt;();</span>
+<span class="nc" id="L1094">		String bookwiseQuery = &quot;select sgm.game_nbr,sgm.game_id,game_name,type,sum(amt_parent) as totalPWT,sum(amt_child) as netPWT ,sum(amt_parent-amt_child) as comm from st_lms_agent_recon_bookwise arb,st_se_game_master sgm where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and sgm.game_id=arb.game_id and type='PWT' and recon_date&gt;'&quot;
+				+ from + &quot;' and recon_date &lt;='&quot; + toDate + &quot;' group by game_id&quot;;
+<span class="nc" id="L1098">		String ticketWiseQuery = &quot;select sgm.game_nbr,sgm.game_id,game_name,type,sum(amt_parent) as totalPWT,sum(amt_child) as netPWT ,sum(amt_parent-amt_child) as comm from st_lms_agent_recon_ticketwise arb,st_se_game_master sgm where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and sgm.game_id=arb.game_id and type='PWT' and recon_date&gt;'&quot;
+				+ from + &quot;' and recon_date &lt;='&quot; + toDate + &quot;' group by game_id&quot;;
+		String query;
+		try {
+<span class="nc" id="L1104">			statement = con.createStatement();</span>
+<span class="nc bnc" id="L1105" title="All 2 branches missed.">			if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L1106">				query = bookwiseQuery;</span>
+			} else {
+<span class="nc" id="L1108">				query = ticketWiseQuery;</span>
+			}
+<span class="nc" id="L1110">			resultSet = statement.executeQuery(query);</span>
+<span class="nc" id="L1111">			System.out.println(&quot;queryyyyyyyyyyyyy  getPwtBeanBookWiseList &quot;</span>
+					+ query);
+<span class="nc bnc" id="L1113" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1114">				pwtPaymentsBean = new PWTPaymentsBean();</span>
+<span class="nc" id="L1115">				pwtPaymentsBean.setGameNo(resultSet.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L1116">				pwtPaymentsBean.setGameName(resultSet.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L1117">				pwtPaymentsBean.setTotalAmt(resultSet.getDouble(&quot;totalPWT&quot;));</span>
+<span class="nc" id="L1118">				pwtPaymentsBean.setNetPWT(resultSet.getDouble(&quot;netPWT&quot;));</span>
+<span class="nc" id="L1119">				pwtPaymentsBean.setNetCommAmt(resultSet.getDouble(&quot;comm&quot;));</span>
+
+<span class="nc" id="L1121">				pwtList.add(pwtPaymentsBean);</span>
+			}
+<span class="nc" id="L1123">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1125">			e.printStackTrace();</span>
+<span class="nc" id="L1126">		}</span>
+
+<span class="nc" id="L1128">		return pwtList;</span>
+	}
+
+	public List&lt;PWTPaymentsBean&gt; getPwtBeanList(Connection con, int agtOrgId,
+			Timestamp from, Timestamp toDate) {
+<span class="nc" id="L1133">		String pwtQuery = &quot;select sgm.game_id,sum(pwt_amt) as pwt_amt,sum(comm_amt) as comm_amt,sum(net_amt) as net_amt ,game_name from  st_se_bo_pwt sbp, st_lms_bo_transaction_master sbtm,st_se_game_master sgm where sbp.game_id=sgm.game_id and transaction_date&gt;='&quot;</span>
+				+ from
+				+ &quot;' and transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sbp.transaction_id=sbtm.transaction_id and party_id='&quot;
+				+ agtOrgId + &quot;' group by game_id&quot;;
+<span class="nc" id="L1139">		int gameNo = 0;</span>
+<span class="nc" id="L1140">		String gameName = null;</span>
+<span class="nc" id="L1141">		double netPWT = 0.0;</span>
+<span class="nc" id="L1142">		double netCommAmt = 0.0;</span>
+<span class="nc" id="L1143">		double totalAmt = 0.0;</span>
+<span class="nc" id="L1144">		PWTPaymentsBean bean = null;</span>
+<span class="nc" id="L1145">		PWTPaymentsBean pwtBean = null;</span>
+<span class="nc" id="L1146">		List&lt;PWTPaymentsBean&gt; pwtList = new ArrayList&lt;PWTPaymentsBean&gt;();</span>
+<span class="nc" id="L1147">		System.out.println(&quot;Total amount in getPwtBeanList  enter &quot;</span>
+				+ totalAmount);
+		try {
+<span class="nc" id="L1150">			statement = con.createStatement();</span>
+<span class="nc" id="L1151">			resultSet = statement.executeQuery(pwtQuery);</span>
+<span class="nc bnc" id="L1152" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1153">				gameNo = resultSet.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1154">				gameName = resultSet.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1155">				netPWT = resultSet.getDouble(&quot;pwt_amt&quot;);</span>
+<span class="nc" id="L1156">				netCommAmt = resultSet.getDouble(&quot;comm_amt&quot;);</span>
+<span class="nc" id="L1157">				totalAmt = resultSet.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L1158">				pwtBean = new PWTPaymentsBean();</span>
+<span class="nc" id="L1159">				pwtBean.setGameNo(gameNo);</span>
+<span class="nc" id="L1160">				pwtBean.setGameName(gameName);</span>
+<span class="nc" id="L1161">				pwtBean.setNetPWT(netPWT);</span>
+<span class="nc" id="L1162">				pwtBean.setNetCommAmt(netCommAmt);</span>
+<span class="nc" id="L1163">				pwtBean.setTotalAmt(totalAmt);</span>
+<span class="nc" id="L1164">				pwtList.add(pwtBean);</span>
+<span class="nc" id="L1165">				totalAmount = totalAmount - totalAmt;</span>
+			}
+<span class="nc" id="L1167">			System.out.println(pwtList.size() + &quot; pwt query &quot; + pwtQuery);</span>
+<span class="nc" id="L1168">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1170">			e.printStackTrace();</span>
+<span class="nc" id="L1171">		}</span>
+<span class="nc" id="L1172">		System.out.println(&quot;Total amount in getPwtBeanList  exit &quot;</span>
+				+ totalAmount);
+<span class="nc" id="L1174">		return pwtList;</span>
+	}
+
+	public double getReconbalance(int agtOrgId, Connection connection,
+			String reconReportType) {
+
+<span class="nc" id="L1180">		double balance = 0.0;</span>
+<span class="nc" id="L1181">		String bookwiseQuery = &quot;select recon_balance from st_lms_agent_recon_bookwise where organization_id='&quot;</span>
+				+ agtOrgId + &quot;'  order by recon_date desc,task_id desc limit 1&quot;;
+<span class="nc" id="L1183">		String ticketWiseQuery = &quot;select recon_balance from st_lms_agent_recon_ticketwise where organization_id='&quot;</span>
+				+ agtOrgId + &quot;'  order by recon_date desc,task_id desc limit 1&quot;;
+<span class="nc" id="L1185">		String query = null;</span>
+		try {
+<span class="nc" id="L1187">			Statement statement = connection.createStatement();</span>
+<span class="nc bnc" id="L1188" title="All 2 branches missed.">			if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L1189">				query = bookwiseQuery;</span>
+			} else {
+<span class="nc" id="L1191">				query = ticketWiseQuery;</span>
+			}
+<span class="nc" id="L1193">			resultSet = statement.executeQuery(query);</span>
+
+<span class="nc bnc" id="L1195" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1196">				balance = resultSet.getDouble(&quot;recon_balance&quot;);</span>
+			}
+<span class="nc" id="L1198">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1200">			e.printStackTrace();</span>
+<span class="nc" id="L1201">		}</span>
+
+<span class="nc" id="L1203">		return balance;</span>
+	}
+
+	public String getReconRepType(int agtOrgId) {
+<span class="nc" id="L1207">		Connection con = null;</span>
+<span class="nc" id="L1208">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L1209">		String type = null;</span>
+		try {
+<span class="nc" id="L1211">			Statement statement = con.createStatement();</span>
+<span class="nc" id="L1212">			resultSet = statement</span>
+					.executeQuery(&quot;select recon_report_type from st_lms_organization_master where organization_id='&quot;
+							+ agtOrgId + &quot;' &quot;);
+
+<span class="nc bnc" id="L1216" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1217">				type = resultSet.getString(&quot;recon_report_type&quot;);</span>
+			}
+<span class="nc" id="L1219">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1221">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L1223" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L1225">					con.close();</span>
+<span class="nc" id="L1226">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L1228">					e.printStackTrace();</span>
+<span class="nc" id="L1229">				}</span>
+			}
+		}
+
+<span class="nc" id="L1233">		return type;</span>
+	}
+
+	public Map&lt;String, SalePurchaseBean&gt; getSalePurchaseDetails(Connection con,
+			int agtOrgId, Timestamp from, Timestamp toDate) {
+<span class="nc" id="L1238">		String SaleQuery2 = &quot;select  game_id,game_name,sum(mrp_amt) as mrp,'Sale' transaction_type, sum(net_amt) as saleprice,sum(purchprice)as purchprice,sum(net_amt-purchprice) as comm from (select  sgm.game_name,sgid.game_id,sgid.transaction_id,transaction_type,(net_amt/sart.nbr_of_books) as net_amt,(mrp_amt/sart.nbr_of_books) as mrp_amt,((100-transaction_purchase_comm_rate)*.01*mrp_amt/sart.nbr_of_books) as purchprice from st_se_game_inv_detail sgid,st_se_agent_retailer_transaction sart ,st_se_game_master sgm where sgm.game_id=sgid.game_id and current_owner='RETAILER' and transaction_at='AGENT'  and  sgid.transaction_date&gt;'&quot;</span>
+				+ from
+				+ &quot;'  and sgid.transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sart.transaction_type='SALE' and sart.transaction_id=sgid.transaction_id and sart.agent_org_id='&quot;
+				+ agtOrgId
+				+ &quot;'  order by transaction_id )sale  group by game_id&quot;;
+<span class="nc" id="L1245">		String SaleReturnQuery2 = &quot;select   game_id,game_name,sum(mrp_amt) as mrp,'Sale Return' transaction_type, sum(net_amt) as saleprice,sum(purchprice)as purchprice,sum(net_amt-purchprice) as comm from (select  sgm.game_name,sgid.game_id,sgid.transaction_id,transaction_type,(net_amt/sart.nbr_of_books) as net_amt,(mrp_amt/sart.nbr_of_books) as mrp_amt,((100-transaction_purchase_comm_rate)*.01*mrp_amt/sart.nbr_of_books) as purchprice from st_se_game_inv_detail sgid,st_se_agent_retailer_transaction sart ,st_se_game_master sgm where sgm.game_id=sgid.game_id and current_owner='AGENT' and transaction_at='AGENT'  and  sgid.transaction_date&gt;'&quot;</span>
+				+ from
+				+ &quot;'  and sgid.transaction_date &lt;='&quot;
+				+ toDate
+				+ &quot;' and sart.transaction_type='SALE_RET' and sart.transaction_id=sgid.transaction_id and sart.agent_org_id='&quot;
+				+ agtOrgId
+				+ &quot;'  order by transaction_id )saleret  group by game_id&quot;;
+
+<span class="nc" id="L1253">		String transactionType = null;</span>
+
+<span class="nc" id="L1255">		System.out.println(&quot;Total amount in getSalePurchaseBeanList  enter &quot;</span>
+				+ totalAmount);
+
+<span class="nc" id="L1258">		String gameName = null;</span>
+<span class="nc" id="L1259">		double salePrice = 0.0;</span>
+<span class="nc" id="L1260">		double mrp = 0.0;</span>
+<span class="nc" id="L1261">		double purchPrice = 0.0;</span>
+<span class="nc" id="L1262">		double comm = 0.0;</span>
+<span class="nc" id="L1263">		int gameId = 0;</span>
+<span class="nc" id="L1264">		SalePurchaseBean salePurchaseBean = null;</span>
+<span class="nc" id="L1265">		Map&lt;String, SalePurchaseBean&gt; salemap = new HashMap&lt;String, SalePurchaseBean&gt;();</span>
+
+		try {
+
+<span class="nc" id="L1269">			statement = con.createStatement();</span>
+<span class="nc" id="L1270">			System.out.println(&quot;SaleQuery2 &quot; + SaleQuery2);</span>
+<span class="nc" id="L1271">			resultSet = statement.executeQuery(SaleQuery2);</span>
+
+<span class="nc bnc" id="L1273" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+
+<span class="nc" id="L1275">				gameName = resultSet.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1276">				transactionType = resultSet.getString(&quot;transaction_type&quot;);</span>
+<span class="nc" id="L1277">				mrp = resultSet.getDouble(&quot;mrp&quot;);</span>
+<span class="nc" id="L1278">				salePrice = resultSet.getDouble(&quot;saleprice&quot;);</span>
+<span class="nc" id="L1279">				purchPrice = resultSet.getDouble(&quot;purchprice&quot;);</span>
+<span class="nc" id="L1280">				comm = resultSet.getDouble(&quot;comm&quot;);</span>
+<span class="nc" id="L1281">				gameId = resultSet.getInt(&quot;game_id&quot;);</span>
+<span class="nc bnc" id="L1282" title="All 2 branches missed.">				if (salemap.containsKey(gameName)) {</span>
+<span class="nc" id="L1283">					salePurchaseBean = salemap.get(gameName);</span>
+<span class="nc" id="L1284">					System.out.println(&quot; Sale Old Before ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+
+<span class="nc" id="L1289">					totalSaleMrp = totalSaleMrp + mrp;</span>
+<span class="nc" id="L1290">					totalSaleAmount = totalSaleAmount + salePrice;</span>
+<span class="nc" id="L1291">					totalSaleComm = totalSaleComm + comm;</span>
+<span class="nc" id="L1292">					totalPurchAmount = totalPurchAmount + purchPrice;</span>
+<span class="nc" id="L1293">					salePurchaseBean.setMrp(salePurchaseBean.getMrp() + mrp);</span>
+<span class="nc" id="L1294">					salePurchaseBean.setComm(salePurchaseBean.getComm() + comm);</span>
+<span class="nc" id="L1295">					salePurchaseBean.setSalePrice(salePurchaseBean</span>
+							.getSalePrice()
+							+ salePrice);
+<span class="nc" id="L1298">					salePurchaseBean.setPurchprice(salePurchaseBean</span>
+							.getPurchprice()
+							+ purchPrice);
+<span class="nc" id="L1301">					System.out.println(&quot;Sale Old gameName &quot; + gameName</span>
+							+ &quot; mrp &quot; + mrp + &quot; commAmount &quot; + comm
+							+ &quot; sale price &quot; + salePrice);
+<span class="nc" id="L1304">					System.out.println(&quot; Sale Old After ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+
+				} else {
+<span class="nc" id="L1310">					salePurchaseBean = new SalePurchaseBean();</span>
+<span class="nc" id="L1311">					salePurchaseBean.setGameName(gameName);</span>
+<span class="nc" id="L1312">					salePurchaseBean.setGameId(gameId);</span>
+<span class="nc" id="L1313">					salePurchaseBean.setMrp(mrp);</span>
+<span class="nc" id="L1314">					salePurchaseBean.setComm(comm);</span>
+<span class="nc" id="L1315">					salePurchaseBean.setSalePrice(salePrice);</span>
+<span class="nc" id="L1316">					salePurchaseBean.setPurchprice(purchPrice);</span>
+<span class="nc" id="L1317">					salemap.put(gameName, salePurchaseBean);</span>
+<span class="nc" id="L1318">					System.out.println(&quot;New  Before  ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+<span class="nc" id="L1322">					totalSaleMrp = totalSaleMrp + mrp;</span>
+<span class="nc" id="L1323">					totalSaleAmount = totalSaleAmount + salePrice;</span>
+<span class="nc" id="L1324">					totalSaleComm = totalSaleComm + comm;</span>
+<span class="nc" id="L1325">					totalPurchAmount = totalPurchAmount + purchPrice;</span>
+<span class="nc" id="L1326">					System.out.println(&quot;Sale New gameName &quot; + gameName</span>
+							+ &quot; mrp &quot; + mrp + &quot; commAmount &quot; + comm
+							+ &quot; sale price &quot; + salePrice);
+<span class="nc" id="L1329">					System.out.println(&quot; Sale New After ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+
+				}
+
+			}
+<span class="nc" id="L1337">			statement = con.createStatement();</span>
+<span class="nc" id="L1338">			System.out.println(&quot;SaleReturnQuery2 &quot; + SaleReturnQuery2);</span>
+<span class="nc" id="L1339">			resultSet = statement.executeQuery(SaleReturnQuery2);</span>
+<span class="nc bnc" id="L1340" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+
+<span class="nc" id="L1342">				gameName = resultSet.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1343">				transactionType = resultSet.getString(&quot;transaction_type&quot;);</span>
+<span class="nc" id="L1344">				mrp = resultSet.getDouble(&quot;mrp&quot;);</span>
+<span class="nc" id="L1345">				salePrice = resultSet.getDouble(&quot;saleprice&quot;);</span>
+<span class="nc" id="L1346">				purchPrice = resultSet.getDouble(&quot;purchprice&quot;);</span>
+<span class="nc" id="L1347">				comm = resultSet.getDouble(&quot;comm&quot;);</span>
+<span class="nc" id="L1348">				gameId = resultSet.getInt(&quot;game_id&quot;);</span>
+
+<span class="nc bnc" id="L1350" title="All 2 branches missed.">				if (salemap.containsKey(gameName)) {</span>
+<span class="nc" id="L1351">					salePurchaseBean = salemap.get(gameName);</span>
+<span class="nc" id="L1352">					System.out</span>
+							.println(&quot;Sale Return  Old Before ======  totalSaleMrp &quot;
+									+ totalSaleMrp
+									+ &quot; totalSaleAmount &quot;
+									+ totalSaleAmount
+									+ &quot; totalSaleComm &quot;
+									+ totalSaleComm);
+
+<span class="nc" id="L1360">					totalSaleMrp = totalSaleMrp - mrp;</span>
+<span class="nc" id="L1361">					totalSaleAmount = totalSaleAmount - salePrice;</span>
+<span class="nc" id="L1362">					totalSaleComm = totalSaleComm - comm;</span>
+<span class="nc" id="L1363">					totalPurchAmount = totalPurchAmount - purchPrice;</span>
+<span class="nc" id="L1364">					salePurchaseBean.setMrp(salePurchaseBean.getMrp() - mrp);</span>
+<span class="nc" id="L1365">					salePurchaseBean.setComm(salePurchaseBean.getComm() - comm);</span>
+<span class="nc" id="L1366">					salePurchaseBean.setSalePrice(salePurchaseBean</span>
+							.getSalePrice()
+							- salePrice);
+<span class="nc" id="L1369">					salePurchaseBean.setPurchprice(salePurchaseBean</span>
+							.getPurchprice()
+							- purchPrice);
+<span class="nc" id="L1372">					System.out.println(&quot;Sale Return Old gameName &quot; + gameName</span>
+							+ &quot; mrp &quot; + mrp + &quot; commAmount &quot; + comm
+							+ &quot; salePrice &quot; + salePrice);
+<span class="nc" id="L1375">					System.out</span>
+							.println(&quot;Sale Return  Old After ======  totalSaleMrp &quot;
+									+ totalSaleMrp
+									+ &quot; totalSaleAmount &quot;
+									+ totalSaleAmount
+									+ &quot; totalSaleComm &quot;
+									+ totalSaleComm);
+
+				} else {
+<span class="nc" id="L1384">					salePurchaseBean = new SalePurchaseBean();</span>
+<span class="nc" id="L1385">					salePurchaseBean.setGameName(gameName);</span>
+<span class="nc" id="L1386">					salePurchaseBean.setGameId(gameId);</span>
+<span class="nc" id="L1387">					salePurchaseBean.setMrp(-mrp);</span>
+<span class="nc" id="L1388">					salePurchaseBean.setComm(-comm);</span>
+<span class="nc" id="L1389">					salePurchaseBean.setSalePrice(-salePrice);</span>
+<span class="nc" id="L1390">					salePurchaseBean.setPurchprice(-purchPrice);</span>
+<span class="nc" id="L1391">					salemap.put(gameName, salePurchaseBean);</span>
+<span class="nc" id="L1392">					System.out</span>
+							.println(&quot;Sale Return  New  Before ======  totalSaleMrp &quot;
+									+ totalSaleMrp
+									+ &quot; totalSaleAmount &quot;
+									+ totalSaleAmount
+									+ &quot; totalSaleComm &quot;
+									+ totalSaleComm);
+
+<span class="nc" id="L1400">					totalSaleMrp = totalSaleMrp - mrp;</span>
+<span class="nc" id="L1401">					totalSaleAmount = totalSaleAmount - salePrice;</span>
+<span class="nc" id="L1402">					totalSaleComm = totalSaleComm - comm;</span>
+<span class="nc" id="L1403">					totalPurchAmount = totalPurchAmount - purchPrice;</span>
+<span class="nc" id="L1404">					System.out.println(&quot;Sale Return New gameName &quot; + gameName</span>
+							+ &quot; mrp &quot; + mrp + &quot; commAmount &quot; + comm
+							+ &quot; salePrice &quot; + salePrice);
+<span class="nc" id="L1407">					System.out</span>
+							.println(&quot;Sale Return  New After ======  totalSaleMrp &quot;
+									+ totalSaleMrp
+									+ &quot; totalSaleAmount &quot;
+									+ totalSaleAmount
+									+ &quot; totalSaleComm &quot;
+									+ totalSaleComm);
+
+				}
+
+			}
+
+<span class="nc" id="L1419">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1421">			e.printStackTrace();</span>
+<span class="nc" id="L1422">		}</span>
+<span class="nc" id="L1423">		System.out.println(&quot;Total amount in getSalePurchaseBeanList  exit &quot;</span>
+				+ totalAmount);
+<span class="nc" id="L1425">		System.out.println(&quot;salePurchList end &quot; + salemap.size());</span>
+<span class="nc" id="L1426">		return salemap;</span>
+	}
+
+	public Map&lt;String, SalePurchaseBean&gt; getSalePurchaseTicketDetails(
+			Connection con, int agtOrgId, Timestamp from, Timestamp toDate) {
+<span class="nc" id="L1431">		String SaleQuery2 = &quot;select srrt.game_id,game_name ,recon_date,type,agent_org_id,sum(amt_parent) as purchPrice,sum(amt_child) as salePrice ,sum(mrp_amt) as mrp,sum(amt_child-amt_parent) as profit  from  st_lms_ret_recon_ticketwise srrt,st_se_game_master sgm where agent_org_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and type='NET_SALE' and recon_date&gt;'&quot;
+				+ from
+				+ &quot;' and recon_date&lt;='&quot;
+				+ toDate
+				+ &quot;' and sgm.game_id=srrt.game_id  group by agent_org_id,game_id&quot;;
+
+<span class="nc" id="L1439">		String transactionType = null;</span>
+
+<span class="nc" id="L1441">		String gameName = null;</span>
+<span class="nc" id="L1442">		double salePrice = 0.0;</span>
+<span class="nc" id="L1443">		double mrp = 0.0;</span>
+<span class="nc" id="L1444">		double purchPrice = 0.0;</span>
+<span class="nc" id="L1445">		double comm = 0.0;</span>
+<span class="nc" id="L1446">		int gameId = 0;</span>
+<span class="nc" id="L1447">		SalePurchaseBean salePurchaseBean = null;</span>
+<span class="nc" id="L1448">		Map&lt;String, SalePurchaseBean&gt; salemap = new HashMap&lt;String, SalePurchaseBean&gt;();</span>
+
+		try {
+
+<span class="nc" id="L1452">			statement = con.createStatement();</span>
+<span class="nc" id="L1453">			System.out.println(&quot;SaleQuery2 &quot; + SaleQuery2);</span>
+<span class="nc" id="L1454">			resultSet = statement.executeQuery(SaleQuery2);</span>
+
+<span class="nc bnc" id="L1456" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+
+<span class="nc" id="L1458">				gameName = resultSet.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1459">				transactionType = resultSet.getString(&quot;type&quot;);</span>
+<span class="nc" id="L1460">				mrp = resultSet.getDouble(&quot;mrp&quot;);</span>
+<span class="nc" id="L1461">				salePrice = resultSet.getDouble(&quot;salePrice&quot;);</span>
+<span class="nc" id="L1462">				purchPrice = resultSet.getDouble(&quot;purchPrice&quot;);</span>
+<span class="nc" id="L1463">				comm = resultSet.getDouble(&quot;profit&quot;);</span>
+<span class="nc" id="L1464">				gameId = resultSet.getInt(&quot;game_id&quot;);</span>
+<span class="nc bnc" id="L1465" title="All 2 branches missed.">				if (salemap.containsKey(gameName)) {</span>
+<span class="nc" id="L1466">					salePurchaseBean = salemap.get(gameName);</span>
+<span class="nc" id="L1467">					System.out.println(&quot; Sale Old Before ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+
+<span class="nc" id="L1472">					totalSaleMrp = totalSaleMrp + mrp;</span>
+<span class="nc" id="L1473">					totalSaleAmount = totalSaleAmount + salePrice;</span>
+<span class="nc" id="L1474">					totalSaleComm = totalSaleComm + comm;</span>
+<span class="nc" id="L1475">					totalPurchAmount = totalPurchAmount + purchPrice;</span>
+<span class="nc" id="L1476">					salePurchaseBean.setMrp(salePurchaseBean.getMrp() + mrp);</span>
+<span class="nc" id="L1477">					salePurchaseBean.setComm(salePurchaseBean.getComm() + comm);</span>
+<span class="nc" id="L1478">					salePurchaseBean.setSalePrice(salePurchaseBean</span>
+							.getSalePrice()
+							+ salePrice);
+<span class="nc" id="L1481">					salePurchaseBean.setPurchprice(salePurchaseBean</span>
+							.getPurchprice()
+							+ purchPrice);
+<span class="nc" id="L1484">					System.out.println(&quot;Sale Old gameName &quot; + gameName</span>
+							+ &quot; mrp &quot; + mrp + &quot; commAmount &quot; + comm
+							+ &quot; sale price &quot; + salePrice);
+<span class="nc" id="L1487">					System.out.println(&quot; Sale Old After ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+
+				} else {
+<span class="nc" id="L1493">					salePurchaseBean = new SalePurchaseBean();</span>
+<span class="nc" id="L1494">					salePurchaseBean.setGameName(gameName);</span>
+<span class="nc" id="L1495">					salePurchaseBean.setGameId(gameId);</span>
+<span class="nc" id="L1496">					salePurchaseBean.setMrp(mrp);</span>
+<span class="nc" id="L1497">					salePurchaseBean.setComm(comm);</span>
+<span class="nc" id="L1498">					salePurchaseBean.setSalePrice(salePrice);</span>
+<span class="nc" id="L1499">					salePurchaseBean.setPurchprice(purchPrice);</span>
+<span class="nc" id="L1500">					salemap.put(gameName, salePurchaseBean);</span>
+<span class="nc" id="L1501">					System.out.println(&quot;New  Before  ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+<span class="nc" id="L1505">					totalSaleMrp = totalSaleMrp + mrp;</span>
+<span class="nc" id="L1506">					totalSaleAmount = totalSaleAmount + salePrice;</span>
+<span class="nc" id="L1507">					totalSaleComm = totalSaleComm + comm;</span>
+<span class="nc" id="L1508">					totalPurchAmount = totalPurchAmount + purchPrice;</span>
+<span class="nc" id="L1509">					System.out.println(&quot;Sale New gameName &quot; + gameName</span>
+							+ &quot; mrp &quot; + mrp + &quot; commAmount &quot; + comm
+							+ &quot; sale price &quot; + salePrice);
+<span class="nc" id="L1512">					System.out.println(&quot; Sale New After ======  totalSaleMrp &quot;</span>
+							+ totalSaleMrp + &quot; totalSaleAmount &quot;
+							+ totalSaleAmount + &quot; totalSaleComm &quot;
+							+ totalSaleComm);
+
+				}
+
+			}
+
+<span class="nc" id="L1521">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1523">			e.printStackTrace();</span>
+<span class="nc" id="L1524">		}</span>
+<span class="nc" id="L1525">		System.out.println(&quot;Total amount in getSalePurchaseBeanList  exit &quot;</span>
+				+ totalAmount);
+<span class="nc" id="L1527">		System.out.println(&quot;salePurchList end &quot; + salemap.size());</span>
+<span class="nc" id="L1528">		return salemap;</span>
+	}
+
+	private List&lt;SalePurchaseBean&gt; getSalePurchBeanBookWiseList(Connection con,
+			int agtOrgId, Timestamp from, Timestamp toDate,
+			String reconReportType) {
+<span class="nc" id="L1534">		String bookwiseQuery = &quot;select sgm.game_nbr,sgm.game_id,game_name,sum(mrp_amt) as mrp,type,sum(amt_parent) as purchAmount,sum(amt_child) as saleAmount ,sum(amt_child-amt_parent) as comm from st_lms_agent_recon_bookwise arb,st_se_game_master sgm where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and sgm.game_id=arb.game_id and type='NET_SALE' and recon_date&gt;'&quot;
+				+ from + &quot;' and recon_date &lt;='&quot; + toDate + &quot;' group by game_id&quot;;
+<span class="nc" id="L1538">		String ticketWiseQuery = &quot;select sgm.game_nbr,sgm.game_id,game_name,sum(mrp_amt) as mrp,type,sum(amt_parent) as purchAmount,sum(amt_child) as saleAmount ,sum(amt_child-amt_parent) as comm from st_lms_agent_recon_ticketwise arb,st_se_game_master sgm where organization_id='&quot;</span>
+				+ agtOrgId
+				+ &quot;' and sgm.game_id=arb.game_id and type='NET_SALE' and recon_date&gt;'&quot;
+				+ from + &quot;' and recon_date &lt;='&quot; + toDate + &quot;' group by game_id&quot;;
+		String query;
+		SalePurchaseBean salePurchaseBean;
+<span class="nc" id="L1544">		List&lt;SalePurchaseBean&gt; saleList = new ArrayList&lt;SalePurchaseBean&gt;();</span>
+		try {
+<span class="nc" id="L1546">			statement = con.createStatement();</span>
+<span class="nc bnc" id="L1547" title="All 2 branches missed.">			if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L1548">				query = bookwiseQuery;</span>
+			} else {
+<span class="nc" id="L1550">				query = ticketWiseQuery;</span>
+			}
+<span class="nc" id="L1552">			resultSet = statement.executeQuery(query);</span>
+<span class="nc" id="L1553">			System.out</span>
+					.println(&quot;queryyyyyyyyyyyyy  getSalePurchBeanBookWiseList &quot;
+							+ query);
+<span class="nc bnc" id="L1556" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1557">				salePurchaseBean = new SalePurchaseBean();</span>
+<span class="nc" id="L1558">				salePurchaseBean.setGameId(resultSet.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L1559">				salePurchaseBean.setGameName(resultSet.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L1560">				salePurchaseBean.setMrp(resultSet.getDouble(&quot;mrp&quot;));</span>
+<span class="nc" id="L1561">				salePurchaseBean</span>
+						.setSalePrice(resultSet.getDouble(&quot;saleAmount&quot;));
+<span class="nc" id="L1563">				salePurchaseBean.setPurchprice(resultSet</span>
+						.getDouble(&quot;purchAmount&quot;));
+<span class="nc" id="L1565">				salePurchaseBean.setComm(resultSet.getDouble(&quot;comm&quot;));</span>
+<span class="nc" id="L1566">				saleList.add(salePurchaseBean);</span>
+			}
+<span class="nc" id="L1568">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1570">			e.printStackTrace();</span>
+<span class="nc" id="L1571">		}</span>
+
+<span class="nc" id="L1573">		return saleList;</span>
+	}
+
+	/*
+	 * public List&lt;StockMrpDiscountBean&gt; getStockMrpDiscountBeanList(Connection
+	 * con,int agtOrgId, Timestamp from, Timestamp toDate){
+	 * 
+	 * String idOfGames=&quot;select game_id,game_nbr from st_se_game_master where
+	 * game_status!='NEW'&quot;; String noOfBooksQuery=null; StringBuilder
+	 * stockMrpDiscQuery= null; StockMrpDiscountBean stockMrpDiscBean=null; List&lt;StockMrpDiscountBean&gt;
+	 * stockMrpDiscList= new ArrayList&lt;StockMrpDiscountBean&gt;(); String
+	 * stGameName=null; double stPercent=0; int stGameNo=0; double stMrp=0.0;
+	 * double stDiscPrice=0.0; int stCountBooks=0; System.out.println(&quot;Total
+	 * amount in getStockMrpDiscountBeanList enter &quot;+totalAmount); try {
+	 * statement=con.createStatement();
+	 * resultSet=statement.executeQuery(idOfGames); while(resultSet.next()){
+	 * String table=&quot;st_se_pwt_tickets_inv_&quot;+resultSet.getString(&quot;game_nbr&quot;);
+	 * noOfBooksQuery=&quot;select book_nbr from st_se_game_inv_status where
+	 * current_owner_id=? and game_id = ? and book_nbr not in (select distinct
+	 * book_nbr from &quot;+table+&quot; ) and book_nbr not in(select distinct book_nbr
+	 * from &quot;+table+&quot; where game_id=?)&quot;; stockMrpDiscQuery= new
+	 * StringBuilder(&quot;select transaction_date,game_name,count( book_nbr) as
+	 * noOfBooks ,'Purchase' as transaction_type,game_nbr,&quot; +
+	 * &quot;sum((mrp_amt/nbr_of_books)) as mrp,(net_amt/mrp_amt)*100 as
+	 * percent,sum((net_amt/nbr_of_books))as salePrice ,transaction_id from&quot; +
+	 * &quot;(select book_nbr,transaction_date,game_name,
+	 * transaction_type,game_nbr,mrp_amt,nbr_of_books,net_amt,transaction_id
+	 * from &quot; + &quot;(select book_nbr,transaction_date,game_name,
+	 * transaction_type,game_nbr,mrp_amt,sbat.nbr_of_books,net_amt,sgid.transaction_id
+	 * from &quot; + &quot;st_se_bo_agent_transaction sbat, st_se_game_inv_detail
+	 * sgid,st_se_game_master sgm where sgm.game_id=sgid.game_id and
+	 * transaction_at='BO' and &quot; + &quot;current_owner='AGENT' and
+	 * sgid.transaction_id=sbat.transaction_id and (book_nbr='0'&quot;);
+	 * 
+	 * prepstatement=con.prepareStatement(noOfBooksQuery);
+	 * prepstatement.setInt(1, agtOrgId); prepstatement.setString(2,
+	 * resultSet.getString(&quot;game_id&quot;)); prepstatement.setString(3,
+	 * resultSet.getString(&quot;game_id&quot;)); resultSet2=
+	 * prepstatement.executeQuery(); while(resultSet2.next()){
+	 * stockMrpDiscQuery.append(&quot; or
+	 * book_nbr='&quot;+resultSet2.getString(&quot;book_nbr&quot;)+&quot;'&quot;); }
+	 * stockMrpDiscQuery.append(&quot;) order by transaction_date desc)innermost
+	 * group by book_nbr) outermost group by game_nbr,percent&quot;);
+	 * 
+	 * System.out.println(&quot;stockMrpDiscQuery &quot;+stockMrpDiscQuery);
+	 * statement3=con.createStatement();
+	 * resultSet3=statement3.executeQuery(stockMrpDiscQuery.toString());
+	 * while(resultSet3.next()){ stGameName=resultSet3.getString(&quot;game_name&quot;);
+	 * stPercent=resultSet3.getDouble(&quot;percent&quot;);
+	 * stGameNo=resultSet3.getInt(&quot;game_nbr&quot;);
+	 * stMrp=resultSet3.getDouble(&quot;mrp&quot;);
+	 * stCountBooks=resultSet3.getInt(&quot;noOfBooks&quot;);
+	 * stDiscPrice=resultSet3.getInt(&quot;salePrice&quot;); stockMrpDiscBean=new
+	 * StockMrpDiscountBean(); stockMrpDiscBean.setStPercent(stPercent);
+	 * stockMrpDiscBean.setStGameName(stGameName);
+	 * stockMrpDiscBean.setStGameNo(stGameNo); stockMrpDiscBean.setStMrp(stMrp);
+	 * stockMrpDiscBean.setStCountBooks(stCountBooks);
+	 * stockMrpDiscBean.setStDiscPrice(stDiscPrice);
+	 * stockMrpDiscList.add(stockMrpDiscBean); } } } catch (SQLException e) { //
+	 * TODO Auto-generated catch block e.printStackTrace(); }
+	 * System.out.println(&quot;Total amount in getStockMrpDiscountBeanList exit
+	 * &quot;+totalAmount); return stockMrpDiscList; }
+	 */
+	public Map&lt;String, StockMrpDiscountBean&gt; getStockMrpDiscountBeanMap(
+			Connection con, int agtOrgId, Timestamp from, Timestamp toDate) {
+
+<span class="nc" id="L1639">		String trIdQueryBoAgt = &quot;select transaction_id from st_lms_bo_transaction_master where   transaction_date&lt;='&quot;</span>
+				+ toDate
+				+ &quot;' and party_id='&quot;
+				+ agtOrgId
+				+ &quot;' and (transaction_type='SALE' or transaction_type='SALE_RET')&quot;;
+<span class="nc" id="L1644">		String trIdQueryAgtSale = &quot;select transaction_id from st_lms_agent_transaction_master where  transaction_date&lt;='&quot;</span>
+				+ toDate
+				+ &quot;'  and (transaction_type='SALE') and user_org_id='&quot;
+				+ agtOrgId + &quot;'&quot;;
+<span class="nc" id="L1648">		String trIdQueryAgtSaleRet = &quot;select transaction_id from st_lms_agent_transaction_master where  transaction_date&lt;='&quot;</span>
+				+ toDate
+				+ &quot;'  and (transaction_type='SALE_RET') and user_org_id='&quot;
+				+ agtOrgId + &quot;'&quot;;
+
+<span class="nc" id="L1653">		System.out.println(&quot;trIdQueryAgtSale &quot; + trIdQueryAgtSale);</span>
+<span class="nc" id="L1654">		System.out.println(&quot;trIdQueryAgtSaleRet &quot; + trIdQueryAgtSale);</span>
+		// String noOfBooksQuery=null;
+<span class="nc" id="L1656">		StringBuilder stockMrpDiscQuery = null;</span>
+<span class="nc" id="L1657">		StockMrpDiscountBean stockMrpDiscBean = null;</span>
+<span class="nc" id="L1658">		List&lt;StockMrpDiscountBean&gt; stockMrpDiscList = new ArrayList&lt;StockMrpDiscountBean&gt;();</span>
+<span class="nc" id="L1659">		Map&lt;String, StockMrpDiscountBean&gt; stockmap = new HashMap&lt;String, StockMrpDiscountBean&gt;();</span>
+<span class="nc" id="L1660">		String stGameName = null;</span>
+<span class="nc" id="L1661">		double stPercent = 0;</span>
+<span class="nc" id="L1662">		int stGameNo = 0;</span>
+<span class="nc" id="L1663">		double stMrp = 0.0;</span>
+<span class="nc" id="L1664">		double stDiscPrice = 0.0;</span>
+<span class="nc" id="L1665">		int stCountBooks = 0;</span>
+<span class="nc" id="L1666">		String transactionType = null;</span>
+<span class="nc" id="L1667">		System.out</span>
+				.println(&quot;Total amount in getStockMrpDiscountBeanList  enter &quot;
+						+ totalAmount);
+		try {
+<span class="nc" id="L1671">			statement = con.createStatement();</span>
+<span class="nc" id="L1672">			resultSet = statement.executeQuery(trIdQueryBoAgt);</span>
+<span class="nc" id="L1673">			stockMrpDiscQuery = new StringBuilder(</span>
+					&quot;select game_nbr,game_name,sbat.game_id,agent_org_id,sum(sbat.nbr_of_books) as noOfBooks,sum(mrp_amt) as mrp,transaction_type,sum(net_amt)salePrice,(net_amt/mrp_amt)*100 as percent from st_se_bo_agent_transaction sbat,st_se_game_master sgm where sbat.game_id=sgm.game_id and (transaction_id=0 &quot;);
+<span class="nc" id="L1675">			System.out.println(&quot;stockMrpDiscQuery &quot; + stockMrpDiscQuery);</span>
+<span class="nc bnc" id="L1676" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1677">				stockMrpDiscQuery.append(&quot; or transaction_id='&quot;</span>
+						+ resultSet.getString(&quot;transaction_id&quot;) + &quot;'&quot;);
+
+			}
+<span class="nc" id="L1681">			stockMrpDiscQuery</span>
+					.append(&quot;  )group by transaction_type,game_id,percent&quot;);
+
+<span class="nc" id="L1684">			System.out.println(&quot;stockMrpDiscQuery  &quot; + stockMrpDiscQuery);</span>
+<span class="nc" id="L1685">			statement3 = con.createStatement();</span>
+<span class="nc" id="L1686">			resultSet3 = statement3.executeQuery(stockMrpDiscQuery.toString());</span>
+<span class="nc bnc" id="L1687" title="All 2 branches missed.">			while (resultSet3.next()) {</span>
+<span class="nc" id="L1688">				stGameName = resultSet3.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1689">				stPercent = resultSet3.getDouble(&quot;percent&quot;);</span>
+<span class="nc" id="L1690">				stGameNo = resultSet3.getInt(&quot;game_nbr&quot;);</span>
+<span class="nc" id="L1691">				stMrp = resultSet3.getDouble(&quot;mrp&quot;);</span>
+<span class="nc" id="L1692">				stCountBooks = resultSet3.getInt(&quot;noOfBooks&quot;);</span>
+<span class="nc" id="L1693">				stDiscPrice = resultSet3.getInt(&quot;salePrice&quot;);</span>
+<span class="nc" id="L1694">				transactionType = resultSet3.getString(&quot;transaction_type&quot;);</span>
+<span class="nc bnc" id="L1695" title="All 2 branches missed.">				if (stockmap.containsKey(&quot;&quot; + stGameNo + stPercent)) {</span>
+<span class="nc" id="L1696">					stockMrpDiscBean = (StockMrpDiscountBean) stockmap.get(&quot;&quot;</span>
+							+ stGameNo + stPercent);
+
+<span class="nc bnc" id="L1699" title="All 2 branches missed.">					if (transactionType.equalsIgnoreCase(&quot;SALE&quot;)) {</span>
+<span class="nc" id="L1700">						stockMrpDiscBean.setStMrp(stockMrpDiscBean.getStMrp()</span>
+								+ stMrp);
+<span class="nc" id="L1702">						stockMrpDiscBean.setStCountBooks(stockMrpDiscBean</span>
+								.getStCountBooks()
+								+ stCountBooks);
+<span class="nc" id="L1705">						stockMrpDiscBean.setStDiscPrice(stockMrpDiscBean</span>
+								.getStDiscPrice()
+								+ stDiscPrice);
+					} else {
+<span class="nc" id="L1709">						stockMrpDiscBean.setStMrp(stockMrpDiscBean.getStMrp()</span>
+								- stMrp);
+<span class="nc" id="L1711">						stockMrpDiscBean.setStCountBooks(stockMrpDiscBean</span>
+								.getStCountBooks()
+								- stCountBooks);
+<span class="nc" id="L1714">						stockMrpDiscBean.setStDiscPrice(stockMrpDiscBean</span>
+								.getStDiscPrice()
+								- stDiscPrice);
+					}
+
+				} else {
+<span class="nc" id="L1720">					stockMrpDiscBean = new StockMrpDiscountBean();</span>
+<span class="nc" id="L1721">					stockMrpDiscBean.setStPercent(stPercent);</span>
+<span class="nc" id="L1722">					stockMrpDiscBean.setStGameName(stGameName);</span>
+<span class="nc" id="L1723">					stockMrpDiscBean.setStGameNo(stGameNo);</span>
+<span class="nc" id="L1724">					stockMrpDiscBean.setStMrp(stMrp);</span>
+<span class="nc" id="L1725">					stockMrpDiscBean.setStCountBooks(stCountBooks);</span>
+<span class="nc" id="L1726">					stockMrpDiscBean.setStDiscPrice(stDiscPrice);</span>
+<span class="nc" id="L1727">					stockmap.put(&quot;&quot; + stGameNo + stPercent, stockMrpDiscBean);</span>
+				}
+			}
+
+			// ///// Agent Retailer transactions///////
+
+<span class="nc" id="L1733">			resultSet = statement.executeQuery(trIdQueryAgtSale);</span>
+<span class="nc" id="L1734">			stockMrpDiscQuery = new StringBuilder(</span>
+					&quot;select game_nbr,game_name,sbat.game_id,count(sbat.book_nbr) as noOfBooks,sum((nbr_of_tickets_per_book*ticket_price)) as mrp,sum((nbr_of_tickets_per_book*ticket_price)*0.01*(100-transaction_purchase_comm_rate))salePrice,(100-transaction_purchase_comm_rate) as percent from st_se_game_inv_detail sbat,st_se_game_master sgm where sbat.game_id=sgm.game_id and (transaction_id=0 &quot;);
+<span class="nc" id="L1736">			System.out.println(&quot;stockMrpDiscQuery &quot; + stockMrpDiscQuery);</span>
+<span class="nc bnc" id="L1737" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1738">				stockMrpDiscQuery.append(&quot; or transaction_id='&quot;</span>
+						+ resultSet.getString(&quot;transaction_id&quot;) + &quot;'&quot;);
+
+			}
+<span class="nc" id="L1742">			stockMrpDiscQuery.append(&quot;  )group by game_id,percent&quot;);</span>
+
+<span class="nc" id="L1744">			System.out.println(&quot;stockMrpDiscQuery  &quot; + stockMrpDiscQuery);</span>
+<span class="nc" id="L1745">			statement3 = con.createStatement();</span>
+<span class="nc" id="L1746">			resultSet3 = statement3.executeQuery(stockMrpDiscQuery.toString());</span>
+<span class="nc bnc" id="L1747" title="All 2 branches missed.">			while (resultSet3.next()) {</span>
+<span class="nc" id="L1748">				stGameName = resultSet3.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1749">				stPercent = resultSet3.getDouble(&quot;percent&quot;);</span>
+<span class="nc" id="L1750">				stGameNo = resultSet3.getInt(&quot;game_nbr&quot;);</span>
+<span class="nc" id="L1751">				stMrp = resultSet3.getDouble(&quot;mrp&quot;);</span>
+<span class="nc" id="L1752">				stCountBooks = resultSet3.getInt(&quot;noOfBooks&quot;);</span>
+<span class="nc" id="L1753">				stDiscPrice = resultSet3.getInt(&quot;salePrice&quot;);</span>
+
+<span class="nc bnc" id="L1755" title="All 2 branches missed.">				if (stockmap.containsKey(&quot;&quot; + stGameNo + stPercent)) {</span>
+<span class="nc" id="L1756">					stockMrpDiscBean = (StockMrpDiscountBean) stockmap.get(&quot;&quot;</span>
+							+ stGameNo + stPercent);
+
+<span class="nc" id="L1759">					stockMrpDiscBean.setStMrp(stockMrpDiscBean.getStMrp()</span>
+							- stMrp);
+<span class="nc" id="L1761">					stockMrpDiscBean.setStCountBooks(stockMrpDiscBean</span>
+							.getStCountBooks()
+							- stCountBooks);
+<span class="nc" id="L1764">					stockMrpDiscBean.setStDiscPrice(stockMrpDiscBean</span>
+							.getStDiscPrice()
+							- stDiscPrice);
+
+				} else {
+<span class="nc" id="L1769">					stockMrpDiscBean = new StockMrpDiscountBean();</span>
+<span class="nc" id="L1770">					stockMrpDiscBean.setStPercent(stPercent);</span>
+<span class="nc" id="L1771">					stockMrpDiscBean.setStGameName(stGameName);</span>
+<span class="nc" id="L1772">					stockMrpDiscBean.setStGameNo(stGameNo);</span>
+<span class="nc" id="L1773">					stockMrpDiscBean.setStMrp(stMrp);</span>
+<span class="nc" id="L1774">					stockMrpDiscBean.setStCountBooks(stCountBooks);</span>
+<span class="nc" id="L1775">					stockMrpDiscBean.setStDiscPrice(stDiscPrice);</span>
+<span class="nc" id="L1776">					stockmap.put(&quot;&quot; + stGameNo + stPercent, stockMrpDiscBean);</span>
+				}
+			}
+
+<span class="nc" id="L1780">			resultSet = statement.executeQuery(trIdQueryAgtSaleRet);</span>
+<span class="nc" id="L1781">			stockMrpDiscQuery = new StringBuilder(</span>
+					&quot;select game_nbr,game_name,sbat.game_id,count(sbat.book_nbr) as noOfBooks,sum((nbr_of_tickets_per_book*ticket_price)) as mrp,sum((nbr_of_tickets_per_book*ticket_price)*0.01*(100-transaction_purchase_comm_rate))salePrice,(100-transaction_purchase_comm_rate) as percent from st_se_game_inv_detail sbat,st_se_game_master sgm where sbat.game_id=sgm.game_id and (transaction_id=0 &quot;);
+<span class="nc" id="L1783">			System.out.println(&quot;stockMrpDiscQuery &quot; + stockMrpDiscQuery);</span>
+<span class="nc bnc" id="L1784" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L1785">				stockMrpDiscQuery.append(&quot; or transaction_id='&quot;</span>
+						+ resultSet.getString(&quot;transaction_id&quot;) + &quot;'&quot;);
+
+			}
+<span class="nc" id="L1789">			stockMrpDiscQuery.append(&quot;  )group by game_id,percent&quot;);</span>
+
+<span class="nc" id="L1791">			System.out.println(&quot;stockMrpDiscQuery  &quot; + stockMrpDiscQuery);</span>
+<span class="nc" id="L1792">			statement3 = con.createStatement();</span>
+<span class="nc" id="L1793">			resultSet3 = statement3.executeQuery(stockMrpDiscQuery.toString());</span>
+<span class="nc bnc" id="L1794" title="All 2 branches missed.">			while (resultSet3.next()) {</span>
+<span class="nc" id="L1795">				stGameName = resultSet3.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1796">				stPercent = resultSet3.getDouble(&quot;percent&quot;);</span>
+<span class="nc" id="L1797">				stGameNo = resultSet3.getInt(&quot;game_nbr&quot;);</span>
+<span class="nc" id="L1798">				stMrp = resultSet3.getDouble(&quot;mrp&quot;);</span>
+<span class="nc" id="L1799">				stCountBooks = resultSet3.getInt(&quot;noOfBooks&quot;);</span>
+<span class="nc" id="L1800">				stDiscPrice = resultSet3.getInt(&quot;salePrice&quot;);</span>
+
+<span class="nc bnc" id="L1802" title="All 2 branches missed.">				if (stockmap.containsKey(&quot;&quot; + stGameNo + stPercent)) {</span>
+<span class="nc" id="L1803">					stockMrpDiscBean = (StockMrpDiscountBean) stockmap.get(&quot;&quot;</span>
+							+ stGameNo + stPercent);
+
+<span class="nc" id="L1806">					stockMrpDiscBean.setStMrp(stockMrpDiscBean.getStMrp()</span>
+							+ stMrp);
+<span class="nc" id="L1808">					stockMrpDiscBean.setStCountBooks(stockMrpDiscBean</span>
+							.getStCountBooks()
+							+ stCountBooks);
+<span class="nc" id="L1811">					stockMrpDiscBean.setStDiscPrice(stockMrpDiscBean</span>
+							.getStDiscPrice()
+							+ stDiscPrice);
+
+				} else {
+<span class="nc" id="L1816">					stockMrpDiscBean = new StockMrpDiscountBean();</span>
+<span class="nc" id="L1817">					stockMrpDiscBean.setStPercent(stPercent);</span>
+<span class="nc" id="L1818">					stockMrpDiscBean.setStGameName(stGameName);</span>
+<span class="nc" id="L1819">					stockMrpDiscBean.setStGameNo(stGameNo);</span>
+<span class="nc" id="L1820">					stockMrpDiscBean.setStMrp(stMrp);</span>
+<span class="nc" id="L1821">					stockMrpDiscBean.setStCountBooks(stCountBooks);</span>
+<span class="nc" id="L1822">					stockMrpDiscBean.setStDiscPrice(stDiscPrice);</span>
+<span class="nc" id="L1823">					stockmap.put(&quot;&quot; + stGameNo + stPercent, stockMrpDiscBean);</span>
+				}
+			}
+
+<span class="nc" id="L1827">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1829">			e.printStackTrace();</span>
+<span class="nc" id="L1830">		}</span>
+<span class="nc" id="L1831">		System.out.println(&quot;Total amount in getStockMrpDiscountBeanList  exit &quot;</span>
+				+ totalAmount);
+<span class="nc" id="L1833">		return stockmap;</span>
+	}
+
+	public Map&lt;String, StockMrpDiscountBean&gt; getStockMrpDiscRetMap(
+			Connection con, int agtOrgId, Timestamp from, Timestamp toDate) {
+<span class="nc" id="L1838">		StockMrpDiscountBean stockMrpDiscBean = null;</span>
+
+		StringBuilder stockRetTicketQuery;
+
+<span class="nc" id="L1842">		System.out</span>
+				.println(&quot;Total amount in getStockMrpDiscountBeanList  enter &quot;
+						+ totalAmount);
+<span class="nc" id="L1845">		Map&lt;String, StockMrpDiscountBean&gt; tktStockMap = new HashMap&lt;String, StockMrpDiscountBean&gt;();</span>
+		try {
+<span class="nc" id="L1847">			Map retOrgIdMap = new ReconcilationReportRetHelper().getRetOrgMap(</span>
+					agtOrgId, toDate);
+<span class="nc" id="L1849">			Iterator retOrgitr = retOrgIdMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L1850" title="All 2 branches missed.">			while (retOrgitr.hasNext()) {</span>
+<span class="nc" id="L1851">				String stGameName = null;</span>
+<span class="nc" id="L1852">				double stPercent = 0;</span>
+<span class="nc" id="L1853">				int stGameNo = 0;</span>
+<span class="nc" id="L1854">				double stMrp = 0.0;</span>
+<span class="nc" id="L1855">				double stDiscPrice = 0.0;</span>
+<span class="nc" id="L1856">				int stCountTickets = 0;</span>
+<span class="nc" id="L1857">				Map.Entry&lt;Integer, String&gt; retOrgpair = (Map.Entry&lt;Integer, String&gt;) retOrgitr</span>
+						.next();
+<span class="nc" id="L1859">				int retOrgId = retOrgpair.getKey();</span>
+
+				/*
+				 * new discount method
+				 */
+<span class="nc" id="L1864">				Map&lt;String, Timestamp&gt; map = new HashMap&lt;String, Timestamp&gt;();</span>
+
+<span class="nc" id="L1866">				statement = con.createStatement();</span>
+<span class="nc" id="L1867">				resultSet = statement</span>
+						.executeQuery(&quot;select date,book_nbr from st_se_game_ticket_inv_history where  current_owner_id='&quot;
+								+ retOrgId + &quot;' and date&lt;='&quot; + toDate + &quot;' &quot;);
+<span class="nc bnc" id="L1870" title="All 2 branches missed.">				while (resultSet.next()) {</span>
+<span class="nc" id="L1871">					System.out.println(&quot;book_nbr &quot;</span>
+							+ resultSet.getString(&quot;book_nbr&quot;));
+<span class="nc" id="L1873">					System.out.println(&quot;date  &quot;</span>
+							+ resultSet.getTimestamp(&quot;date&quot;));
+<span class="nc" id="L1875">					map.put(resultSet.getString(&quot;book_nbr&quot;), resultSet</span>
+							.getTimestamp(&quot;date&quot;));
+				}
+<span class="nc" id="L1878">				statement = con.createStatement();</span>
+<span class="nc" id="L1879">				StringBuilder builder = new StringBuilder(</span>
+						&quot;select date,book_nbr from st_se_game_ticket_inv_history where  (book_nbr='0' &quot;);
+<span class="nc" id="L1881">				Iterator invItr = map.entrySet().iterator();</span>
+<span class="nc bnc" id="L1882" title="All 2 branches missed.">				while (invItr.hasNext()) {</span>
+<span class="nc" id="L1883">					Map.Entry&lt;String, Timestamp&gt; bookItrpair = (Map.Entry&lt;String, Timestamp&gt;) invItr</span>
+							.next();
+<span class="nc" id="L1885">					String bookNo = bookItrpair.getKey();</span>
+<span class="nc" id="L1886">					Timestamp date = bookItrpair.getValue();</span>
+<span class="nc" id="L1887">					builder.append(&quot;or book_nbr='&quot; + bookNo + &quot;'&quot;);</span>
+<span class="nc" id="L1888">				}</span>
+<span class="nc" id="L1889">				builder.append(&quot;) and date&lt;='&quot; + toDate</span>
+						+ &quot;' and current_owner='AGENT'&quot;);
+<span class="nc" id="L1891">				System.out.println(&quot;query=======  &quot; + builder.toString());</span>
+<span class="nc" id="L1892">				resultSet = statement.executeQuery(builder.toString());</span>
+<span class="nc bnc" id="L1893" title="All 2 branches missed.">				while (resultSet.next()) {</span>
+<span class="nc" id="L1894">					System.out.println(&quot;book_nbr &quot;</span>
+							+ resultSet.getString(&quot;book_nbr&quot;));
+<span class="nc" id="L1896">					System.out.println(&quot;date  &quot;</span>
+							+ resultSet.getTimestamp(&quot;date&quot;));
+<span class="nc bnc" id="L1898" title="All 2 branches missed.">					if (map.containsKey(resultSet.getString(&quot;book_nbr&quot;))) {</span>
+<span class="nc bnc" id="L1899" title="All 2 branches missed.">						if (map.get(resultSet.getString(&quot;book_nbr&quot;)).before(</span>
+								resultSet.getTimestamp(&quot;date&quot;))) {
+<span class="nc" id="L1901">							map.remove(resultSet.getString(&quot;book_nbr&quot;));</span>
+						}
+					}
+
+				}
+<span class="nc" id="L1906">				System.out.println(&quot;map ======= &quot; + map);</span>
+
+				/*
+				 * end new method
+				 */
+<span class="nc" id="L1911">				stockRetTicketQuery = new StringBuilder(</span>
+						&quot;select cur_rem_tickets,game_id,game_name,book_nbr,date,sum(sold_tickets) soldTickets,(ticket_price*cur_rem_tickets)as mrp from (select sgtih.cur_rem_tickets,sgtih.game_id,game_name,sgtih.book_nbr,date,sold_tickets,ticket_price  from st_se_game_ticket_inv_history sgtih ,st_se_game_master sgm where   sgtih.game_id=sgm.game_id and  sgtih.current_owner_id='&quot;
+								+ retOrgId
+								+ &quot;' and date&lt;='&quot;
+								+ toDate
+								+ &quot;'  and (book_nbr='0'&quot;);
+<span class="nc" id="L1917">				invItr = map.entrySet().iterator();</span>
+<span class="nc bnc" id="L1918" title="All 2 branches missed.">				while (invItr.hasNext()) {</span>
+<span class="nc" id="L1919">					Map.Entry&lt;String, Timestamp&gt; bookItrpair = (Map.Entry&lt;String, Timestamp&gt;) invItr</span>
+							.next();
+<span class="nc" id="L1921">					String bookNo = bookItrpair.getKey();</span>
+<span class="nc" id="L1922">					Timestamp date = bookItrpair.getValue();</span>
+<span class="nc" id="L1923">					stockRetTicketQuery.append(&quot;or book_nbr='&quot; + bookNo + &quot;'&quot;);</span>
+<span class="nc" id="L1924">				}</span>
+<span class="nc" id="L1925">				stockRetTicketQuery</span>
+						.append(&quot;) order by task_id desc ) aa group by book_nbr,game_id&quot;);
+<span class="nc" id="L1927">				System.out.println(&quot;query=======  &quot;</span>
+						+ stockRetTicketQuery.toString());
+<span class="nc" id="L1929">				statement = con.createStatement();</span>
+<span class="nc" id="L1930">				resultSet = statement.executeQuery(stockRetTicketQuery</span>
+						.toString());
+<span class="nc bnc" id="L1932" title="All 2 branches missed.">				while (resultSet.next()) {</span>
+<span class="nc" id="L1933">					String bookNo = resultSet.getString(&quot;book_nbr&quot;);</span>
+<span class="nc" id="L1934">					stGameName = resultSet.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L1935">					stMrp = resultSet.getDouble(&quot;mrp&quot;);</span>
+<span class="nc" id="L1936">					stCountTickets = resultSet.getInt(&quot;cur_rem_tickets&quot;);</span>
+<span class="nc" id="L1937">					statement2 = con.createStatement();</span>
+<span class="nc" id="L1938">					resultSet2 = statement2</span>
+							.executeQuery(&quot;select (100-transaction_purchase_comm_rate) as purchrate ,game_id ,book_nbr from st_se_game_inv_detail where book_nbr='&quot;
+									+ bookNo
+									+ &quot;' order by transaction_date desc limit 1&quot;);
+<span class="nc bnc" id="L1942" title="All 2 branches missed.">					while (resultSet2.next()) {</span>
+<span class="nc" id="L1943">						stDiscPrice = resultSet2.getDouble(&quot;purchrate&quot;) * 0.01</span>
+								* stMrp;
+<span class="nc bnc" id="L1945" title="All 2 branches missed.">						if (tktStockMap.containsKey(resultSet2</span>
+								.getInt(&quot;game_id&quot;)
+								+ &quot;_&quot; + resultSet2.getDouble(&quot;purchrate&quot;))) {
+
+<span class="nc" id="L1949">							stockMrpDiscBean = (StockMrpDiscountBean) tktStockMap</span>
+									.get(resultSet2.getInt(&quot;game_id&quot;) + &quot;_&quot;
+											+ resultSet2.getDouble(&quot;purchrate&quot;));
+<span class="nc" id="L1952">							stockMrpDiscBean.setStMrp(stockMrpDiscBean</span>
+									.getStMrp()
+									+ stMrp);
+<span class="nc" id="L1955">							stockMrpDiscBean.setStCountTickets(stockMrpDiscBean</span>
+									.getStCountTickets()
+									+ stCountTickets);
+<span class="nc" id="L1958">							stockMrpDiscBean.setStDiscPrice(stockMrpDiscBean</span>
+									.getStDiscPrice()
+									+ stDiscPrice);
+
+						} else {
+<span class="nc" id="L1963">							stockMrpDiscBean = new StockMrpDiscountBean();</span>
+<span class="nc" id="L1964">							stockMrpDiscBean.setStGameName(stGameName);</span>
+<span class="nc" id="L1965">							stockMrpDiscBean.setStMrp(stMrp);</span>
+<span class="nc" id="L1966">							stockMrpDiscBean.setStCountTickets(stCountTickets);</span>
+<span class="nc" id="L1967">							stockMrpDiscBean.setStDiscPrice(stDiscPrice);</span>
+<span class="nc" id="L1968">							stockMrpDiscBean.setStPercent(resultSet2</span>
+									.getDouble(&quot;purchrate&quot;));
+
+<span class="nc" id="L1971">							tktStockMap.put(resultSet2.getInt(&quot;game_id&quot;) + &quot;_&quot;</span>
+									+ resultSet2.getDouble(&quot;purchrate&quot;),
+									stockMrpDiscBean);
+						}
+
+					}
+<span class="nc" id="L1977">				}</span>
+
+<span class="nc" id="L1979">			}</span>
+
+<span class="nc" id="L1981">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L1983">			e.printStackTrace();</span>
+<span class="nc" id="L1984">		}</span>
+<span class="nc" id="L1985">		System.out.println(&quot;Total amount in getStockMrpDiscountBeanList  exit &quot;</span>
+				+ totalAmount);
+<span class="nc" id="L1987">		return tktStockMap;</span>
+	}
+
+	public int getUserId(String agentName) {
+<span class="nc" id="L1991">		Connection con = null;</span>
+<span class="nc" id="L1992">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L1993">		int agtId = 0;</span>
+		try {
+<span class="nc" id="L1995">			statement = con.createStatement();</span>
+
+<span class="nc" id="L1997">			resultSet = statement</span>
+					.executeQuery(&quot;select organization_id  from st_lms_organization_master  where name='&quot;
+							+ agentName + &quot;' &quot;);
+
+<span class="nc bnc" id="L2001" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L2002">				agtId = resultSet.getInt(&quot;organization_id&quot;);</span>
+			}
+<span class="nc" id="L2004">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L2006">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L2008" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L2010">					con.close();</span>
+<span class="nc" id="L2011">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L2013">					e.printStackTrace();</span>
+<span class="nc" id="L2014">				}</span>
+			}
+		}
+<span class="nc" id="L2017">		return agtId;</span>
+	}
+
+	public void insertAgentTicketWiseRecon(int agtOrgId, Timestamp pToDate,
+			String reconReportType) {
+<span class="nc" id="L2022">		Connection con = null;</span>
+<span class="nc" id="L2023">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L2024">		String dep_Date = new LedgerHelper().getDeployMentDate();</span>
+<span class="nc" id="L2025">		DateFormat dateFormat1 = new java.text.SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L2026">		java.util.Date date = null;</span>
+<span class="nc" id="L2027">		List&lt;Timestamp&gt; frTimeList = new ArrayList&lt;Timestamp&gt;();</span>
+<span class="nc" id="L2028">		List&lt;Timestamp&gt; toTimeList = new ArrayList&lt;Timestamp&gt;();</span>
+<span class="nc" id="L2029">		presentDate = null;</span>
+<span class="nc" id="L2030">		toDate = null;</span>
+<span class="nc" id="L2031">		prepstatement = null;</span>
+<span class="nc" id="L2032">		statement = null;</span>
+<span class="nc" id="L2033">		resultSet = null;</span>
+
+		try {
+<span class="nc" id="L2036">			prepstatement = con.prepareStatement(QueryManager</span>
+					.getAgtReconTktwiseDate());
+<span class="nc" id="L2038">			prepstatement.setInt(1, agtOrgId);</span>
+
+<span class="nc" id="L2040">			toDate = pToDate;</span>
+<span class="nc" id="L2041">			resultSet = prepstatement.executeQuery();</span>
+<span class="nc bnc" id="L2042" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L2043">				presentDate = resultSet.getTimestamp(&quot;recon_date&quot;);</span>
+
+				break;
+			}
+<span class="nc bnc" id="L2047" title="All 4 branches missed.">			if (presentDate == null || presentDate.before(toDate)) {</span>
+<span class="nc bnc" id="L2048" title="All 2 branches missed.">				if (presentDate == null) {</span>
+<span class="nc" id="L2049">					statement = con.createStatement();</span>
+<span class="nc" id="L2050">					resultSet = statement</span>
+							.executeQuery(&quot;select transaction_date from st_lms_bo_transaction_master where  party_id='&quot;
+									+ agtOrgId
+									+ &quot;' order by transaction_date  limit 1&quot;);
+<span class="nc bnc" id="L2054" title="All 2 branches missed.">					while (resultSet.next()) {</span>
+<span class="nc" id="L2055">						presentDate = resultSet</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+					}
+<span class="nc bnc" id="L2058" title="All 2 branches missed.">					if (presentDate == null) {</span>
+<span class="nc" id="L2059">						System.out</span>
+								.println(&quot; #######  No transaction between BO and Agent &quot;
+										+ agtOrgId);
+						return;
+					}
+
+				}
+
+<span class="nc" id="L2067">				Calendar from = Calendar.getInstance();</span>
+<span class="nc" id="L2068">				Calendar to = Calendar.getInstance();</span>
+<span class="nc" id="L2069">				from.setTimeInMillis(presentDate.getTime());</span>
+<span class="nc" id="L2070">				to.setTimeInMillis(toDate.getTime());</span>
+
+<span class="nc" id="L2072">				Calendar manipulatedFrom = Calendar.getInstance();</span>
+<span class="nc" id="L2073">				Calendar manipulatedTo = Calendar.getInstance();</span>
+
+<span class="nc" id="L2075">				Calendar tempFrom = Calendar.getInstance();</span>
+<span class="nc" id="L2076">				Calendar tempTo = Calendar.getInstance();</span>
+
+<span class="nc" id="L2078">				manipulatedFrom.setTimeInMillis(from.getTimeInMillis());</span>
+<span class="nc" id="L2079">				manipulatedTo.setTimeInMillis(to.getTimeInMillis());</span>
+
+<span class="nc" id="L2081">				manipulatedFrom.set(manipulatedFrom.get(Calendar.YEAR),</span>
+						manipulatedFrom.get(Calendar.MONTH), manipulatedFrom
+								.get(Calendar.DATE), 0, 0, 0);
+<span class="nc" id="L2084">				manipulatedTo.set(manipulatedTo.get(Calendar.YEAR),</span>
+						manipulatedTo.get(Calendar.MONTH), manipulatedTo
+								.get(Calendar.DATE), 0, 0, 0);
+<span class="nc" id="L2087">				System.out.println(&quot; from &quot; + from.getTime() + &quot;   to &quot;</span>
+						+ to.getTime() + &quot;  manipulatedTo &quot;
+						+ manipulatedTo.getTime());
+
+<span class="nc bnc" id="L2091" title="All 12 branches missed.">				if (manipulatedFrom.get(Calendar.YEAR) == manipulatedTo</span>
+						.get(Calendar.YEAR)
+						&amp;&amp; manipulatedFrom.get(Calendar.MONTH) == manipulatedTo
+								.get(Calendar.MONTH)
+						&amp;&amp; manipulatedFrom.get(Calendar.DATE) == manipulatedTo
+								.get(Calendar.DATE)
+						&amp;&amp; manipulatedFrom.get(Calendar.HOUR) == manipulatedTo
+								.get(Calendar.HOUR)
+						&amp;&amp; manipulatedFrom.get(Calendar.MINUTE) == manipulatedTo
+								.get(Calendar.MINUTE)
+						&amp;&amp; manipulatedFrom.get(Calendar.SECOND) == manipulatedTo
+								.get(Calendar.SECOND)) {
+<span class="nc" id="L2103">					frTimeList.add(new Timestamp(from.getTimeInMillis()));</span>
+<span class="nc" id="L2104">					toTimeList.add(new Timestamp(to.getTimeInMillis()));</span>
+<span class="nc" id="L2105">					System.out</span>
+							.println(agtOrgId
+									+ &quot; ###insertAgentTicketWiseRecon  same date 1111 frTimeList &quot;
+									+ frTimeList);
+<span class="nc" id="L2109">					System.out</span>
+							.println(agtOrgId
+									+ &quot; ###insertAgentTicketWiseRecon same date  11111toTimeList &quot;
+									+ toTimeList);
+
+				} else {
+
+<span class="nc" id="L2116">					tempFrom.setTimeInMillis(from.getTimeInMillis());</span>
+<span class="nc" id="L2117">					tempTo.setTimeInMillis(manipulatedFrom.getTimeInMillis());</span>
+<span class="nc" id="L2118">					tempTo.add(Calendar.DATE, 1);</span>
+<span class="nc" id="L2119">					int j = 0;</span>
+
+<span class="nc bnc" id="L2121" title="All 12 branches missed.">					while (!(tempFrom.get(Calendar.YEAR) == manipulatedTo</span>
+							.get(Calendar.YEAR)
+							&amp;&amp; tempFrom.get(Calendar.MONTH) == manipulatedTo
+									.get(Calendar.MONTH)
+							&amp;&amp; tempFrom.get(Calendar.DATE) == manipulatedTo
+									.get(Calendar.DATE)
+							&amp;&amp; tempFrom.get(Calendar.HOUR) == manipulatedTo
+									.get(Calendar.HOUR)
+							&amp;&amp; tempFrom.get(Calendar.MINUTE) == manipulatedTo
+									.get(Calendar.MINUTE) &amp;&amp; tempFrom
+							.get(Calendar.SECOND) == manipulatedTo
+							.get(Calendar.SECOND))) {
+<span class="nc" id="L2133">						j++;</span>
+
+<span class="nc" id="L2135">						frTimeList</span>
+								.add(new Timestamp(tempFrom.getTimeInMillis()));
+<span class="nc" id="L2137">						toTimeList.add(new Timestamp(tempTo.getTimeInMillis()));</span>
+
+<span class="nc" id="L2139">						tempFrom.setTimeInMillis(tempTo.getTimeInMillis());</span>
+<span class="nc" id="L2140">						tempTo.add(Calendar.DATE, 1);</span>
+
+					}
+<span class="nc bnc" id="L2143" title="All 2 branches missed.">					if (tempTo.compareTo(to) &gt; 0) {</span>
+<span class="nc" id="L2144">						tempTo.add(Calendar.DATE, -1);</span>
+<span class="nc bnc" id="L2145" title="All 12 branches missed.">						if (!(tempTo.get(Calendar.YEAR) == to</span>
+								.get(Calendar.YEAR)
+								&amp;&amp; tempTo.get(Calendar.MONTH) == to
+										.get(Calendar.MONTH)
+								&amp;&amp; tempTo.get(Calendar.DATE) == to
+										.get(Calendar.DATE)
+								&amp;&amp; tempTo.get(Calendar.HOUR) == to
+										.get(Calendar.HOUR)
+								&amp;&amp; tempTo.get(Calendar.MINUTE) == to
+										.get(Calendar.MINUTE) &amp;&amp; tempTo
+								.get(Calendar.SECOND) == to
+								.get(Calendar.SECOND))) {
+<span class="nc" id="L2157">							frTimeList.add(new Timestamp(tempTo</span>
+									.getTimeInMillis()));
+<span class="nc" id="L2159">							toTimeList.add(new Timestamp(to.getTimeInMillis()));</span>
+						}
+					}
+
+<span class="nc" id="L2163">					System.out</span>
+							.println(agtOrgId
+									+ &quot;** ###insertAgentTicketWiseRecon  same date 1111 frTimeList &quot;
+									+ frTimeList);
+<span class="nc" id="L2167">					System.out</span>
+							.println(agtOrgId
+									+ &quot;** ###insertAgentTicketWiseRecon same date  11111toTimeList &quot;
+									+ toTimeList);
+				}
+
+<span class="nc bnc" id="L2173" title="All 2 branches missed.">				if (frTimeList != null) {</span>
+<span class="nc bnc" id="L2174" title="All 2 branches missed.">					for (int i = 0; i &lt; frTimeList.size(); i++) {</span>
+<span class="nc" id="L2175">						insertSalePurchaseDetails(con, agtOrgId, frTimeList</span>
+								.get(i), toTimeList.get(i), reconReportType);
+<span class="nc" id="L2177">						insertPaymentDetails(con, agtOrgId, frTimeList.get(i),</span>
+								toTimeList.get(i), reconReportType);
+<span class="nc" id="L2179">						insertPWTDetails(con, agtOrgId, frTimeList.get(i),</span>
+								toTimeList.get(i), reconReportType);
+
+					}
+				}
+
+			}
+<span class="nc" id="L2186">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L2188">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L2190" title="All 8 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L2192">					con.close();</span>
+<span class="nc" id="L2193">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L2195">					e.printStackTrace();</span>
+<span class="nc" id="L2196">				}</span>
+			}
+		}
+
+<span class="nc" id="L2200">	}</span>
+
+	public void insertPaymentDetails(Connection con, int agtOrgId,
+			Timestamp from, Timestamp toDate, String reconReportType) {
+<span class="nc" id="L2204">		Map&lt;String, CashChqPmntBean&gt; paymentMap = getPaymentBeanList(con,</span>
+				agtOrgId, from, toDate);
+		CashChqPmntBean chqPmntBean;
+<span class="nc" id="L2207">		String bookwiseQuery = &quot;insert into st_lms_agent_recon_bookwise (organization_id,recon_date,type,amt_parent,recon_balance) values(?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L2208">		String ticketWiseQuery = &quot;insert into st_lms_agent_recon_ticketwise (organization_id,recon_date,type,amt_parent,recon_balance) values(?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L2209">		String insertQuery = null;</span>
+<span class="nc bnc" id="L2210" title="All 2 branches missed.">		if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L2211">			insertQuery = bookwiseQuery;</span>
+
+		} else {
+<span class="nc" id="L2214">			insertQuery = ticketWiseQuery;</span>
+
+		}
+		PreparedStatement preparedStatement;
+		try {
+<span class="nc" id="L2219">			con.setAutoCommit(false);</span>
+<span class="nc" id="L2220">			preparedStatement = con.prepareStatement(insertQuery);</span>
+
+<span class="nc" id="L2222">			double prevReconBal = getReconbalance(agtOrgId, con,</span>
+					reconReportType);
+<span class="nc" id="L2224">			System.out.println(&quot;prevReconBal initial &quot; + prevReconBal);</span>
+<span class="nc bnc" id="L2225" title="All 2 branches missed.">			if (paymentMap.size() != 0) {</span>
+<span class="nc" id="L2226">				Iterator paymentItr = paymentMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L2227" title="All 2 branches missed.">				while (paymentItr.hasNext()) {</span>
+<span class="nc" id="L2228">					Map.Entry&lt;String, CashChqPmntBean&gt; paymentItrpair = (Map.Entry&lt;String, CashChqPmntBean&gt;) paymentItr</span>
+							.next();
+<span class="nc" id="L2230">					chqPmntBean = paymentItrpair.getValue();</span>
+<span class="nc" id="L2231">					preparedStatement.setInt(1, agtOrgId);</span>
+<span class="nc" id="L2232">					preparedStatement.setTimestamp(2, toDate);</span>
+<span class="nc bnc" id="L2233" title="All 2 branches missed.">					if (chqPmntBean.getPaymentType().equalsIgnoreCase(</span>
+							&quot;Cheque Bounce Charges&quot;)) {
+<span class="nc" id="L2235">						preparedStatement.setString(3, &quot;ChqBounce Charges&quot;);</span>
+					} else {
+<span class="nc" id="L2237">						preparedStatement.setString(3, chqPmntBean</span>
+								.getPaymentType());
+					}
+<span class="nc" id="L2240">					preparedStatement.setDouble(4, chqPmntBean</span>
+							.getPaymentAmount());
+<span class="nc bnc" id="L2242" title="All 6 branches missed.">					if (chqPmntBean.getPaymentType().equalsIgnoreCase(&quot;Cash&quot;)</span>
+							|| chqPmntBean.getPaymentType().equalsIgnoreCase(
+									&quot;Credit Note&quot;)
+							|| chqPmntBean.getPaymentType().equalsIgnoreCase(
+									&quot;Cheque&quot;)) {
+<span class="nc" id="L2247">						prevReconBal = prevReconBal</span>
+								- chqPmntBean.getPaymentAmount();
+<span class="nc" id="L2249">						preparedStatement.setDouble(5, prevReconBal);</span>
+<span class="nc bnc" id="L2250" title="All 6 branches missed.">					} else if (chqPmntBean.getPaymentType().equalsIgnoreCase(</span>
+							&quot;Cheque Bounce&quot;)
+							|| chqPmntBean.getPaymentType().equalsIgnoreCase(
+									&quot;Cheque Bounce Charges&quot;)
+							|| chqPmntBean.getPaymentType().equalsIgnoreCase(
+									&quot;Debit Note&quot;)) {
+
+<span class="nc" id="L2257">						prevReconBal = prevReconBal</span>
+								+ chqPmntBean.getPaymentAmount();
+<span class="nc" id="L2259">						preparedStatement.setDouble(5, prevReconBal);</span>
+					}
+<span class="nc" id="L2261">					preparedStatement.executeUpdate();</span>
+<span class="nc" id="L2262">					con.commit();</span>
+<span class="nc" id="L2263">					System.out.println(&quot;prevReconBal after commit &quot;</span>
+							+ prevReconBal);
+<span class="nc" id="L2265">				}</span>
+<span class="nc" id="L2266">			} else {</span>
+<span class="nc" id="L2267">				preparedStatement.setInt(1, agtOrgId);</span>
+<span class="nc" id="L2268">				preparedStatement.setTimestamp(2, toDate);</span>
+<span class="nc" id="L2269">				preparedStatement.setString(3, &quot;N.A.&quot;);</span>
+<span class="nc" id="L2270">				preparedStatement.setDouble(4, 0.0);</span>
+<span class="nc" id="L2271">				preparedStatement.setDouble(5, prevReconBal);</span>
+<span class="nc" id="L2272">				preparedStatement.executeUpdate();</span>
+<span class="nc" id="L2273">				con.commit();</span>
+			}
+<span class="nc" id="L2275">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L2277">			e.printStackTrace();</span>
+<span class="nc" id="L2278">		}</span>
+<span class="nc" id="L2279">	}</span>
+
+	public void insertPWTDetails(Connection con, int agtOrgId, Timestamp from,
+			Timestamp toDate, String reconReportType) {
+<span class="nc" id="L2283">		List&lt;PWTPaymentsBean&gt; pwtBeanList = getPwtBeanList(con, agtOrgId, from,</span>
+				toDate);
+		PreparedStatement preparedStatement;
+		PWTPaymentsBean pwtPaymentsBean;
+		String insertQuery;
+<span class="nc" id="L2288">		String bookwiseQuery = &quot;insert into st_lms_agent_recon_bookwise (organization_id,game_id,recon_date,type,amt_parent,amt_child,recon_balance) values(?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L2289">		String ticketWiseQuery = &quot;insert into st_lms_agent_recon_ticketwise (organization_id,game_id,recon_date,type,amt_parent,amt_child,recon_balance) values(?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc bnc" id="L2290" title="All 2 branches missed.">		if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L2291">			insertQuery = bookwiseQuery;</span>
+
+		} else {
+<span class="nc" id="L2294">			insertQuery = ticketWiseQuery;</span>
+
+		}
+<span class="nc" id="L2297">		System.out.println(&quot;###########################PWT Enter&quot;);</span>
+		try {
+<span class="nc" id="L2299">			con.setAutoCommit(false);</span>
+<span class="nc" id="L2300">			preparedStatement = con.prepareStatement(insertQuery);</span>
+
+<span class="nc" id="L2302">			double prevReconBal = getReconbalance(agtOrgId, con,</span>
+					reconReportType);
+<span class="nc bnc" id="L2304" title="All 2 branches missed.">			if (pwtBeanList.size() != 0) {</span>
+<span class="nc" id="L2305">				Iterator pwtBeanListIterator = pwtBeanList.listIterator();</span>
+<span class="nc bnc" id="L2306" title="All 2 branches missed.">				while (pwtBeanListIterator.hasNext()) {</span>
+<span class="nc" id="L2307">					pwtPaymentsBean = (PWTPaymentsBean) pwtBeanListIterator</span>
+							.next();
+
+					// preparedStatement=con.prepareStatement(insertQuery);
+<span class="nc" id="L2311">					preparedStatement.setInt(1, agtOrgId);</span>
+
+<span class="nc" id="L2313">					preparedStatement.setInt(2, pwtPaymentsBean.getGameNo());</span>
+<span class="nc" id="L2314">					preparedStatement.setTimestamp(3, toDate);</span>
+<span class="nc" id="L2315">					preparedStatement.setString(4, &quot;PWT&quot;);</span>
+<span class="nc" id="L2316">					preparedStatement.setDouble(5, pwtPaymentsBean</span>
+							.getTotalAmt());
+<span class="nc" id="L2318">					preparedStatement.setDouble(6, pwtPaymentsBean.getNetPWT());</span>
+<span class="nc" id="L2319">					prevReconBal = prevReconBal - pwtPaymentsBean.getTotalAmt();</span>
+<span class="nc" id="L2320">					preparedStatement.setDouble(7, prevReconBal);</span>
+<span class="nc" id="L2321">					preparedStatement.executeUpdate();</span>
+<span class="nc" id="L2322">					con.commit();</span>
+
+				}
+<span class="nc" id="L2325">			} else {</span>
+<span class="nc" id="L2326">				preparedStatement.setInt(1, agtOrgId);</span>
+
+<span class="nc" id="L2328">				preparedStatement.setInt(2, 0);</span>
+<span class="nc" id="L2329">				preparedStatement.setTimestamp(3, toDate);</span>
+<span class="nc" id="L2330">				preparedStatement.setString(4, &quot;PWT&quot;);</span>
+<span class="nc" id="L2331">				preparedStatement.setDouble(5, 0.0);</span>
+<span class="nc" id="L2332">				preparedStatement.setDouble(6, 0.0);</span>
+<span class="nc" id="L2333">				preparedStatement.setDouble(7, prevReconBal);</span>
+<span class="nc" id="L2334">				preparedStatement.executeUpdate();</span>
+<span class="nc" id="L2335">				con.commit();</span>
+			}
+<span class="nc" id="L2337">			System.out.println(&quot;###########################PWT Exit&quot;);</span>
+<span class="nc" id="L2338">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L2340">			e.printStackTrace();</span>
+<span class="nc" id="L2341">		}</span>
+<span class="nc" id="L2342">	}</span>
+
+	public void insertSalePurchaseDetails(Connection con, int agtOrgId,
+			Timestamp from, Timestamp toDate, String reconReportType) {
+		Map&lt;String, SalePurchaseBean&gt; salemap;
+<span class="nc" id="L2347">		String bookwiseQuery = &quot;insert into st_lms_agent_recon_bookwise (organization_id,game_id,recon_date,type,amt_parent,amt_child,recon_balance,mrp_amt) values(?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L2348">		String ticketWiseQuery = &quot;insert into st_lms_agent_recon_ticketwise (organization_id,game_id,recon_date,type,amt_parent,amt_child,recon_balance,mrp_amt) values(?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L2349">		String insertQuery = null;</span>
+<span class="nc bnc" id="L2350" title="All 2 branches missed.">		if (reconReportType.equalsIgnoreCase(&quot;Book Wise Report&quot;)) {</span>
+<span class="nc" id="L2351">			insertQuery = bookwiseQuery;</span>
+<span class="nc" id="L2352">			salemap = getSalePurchaseDetails(con, agtOrgId, from, toDate);</span>
+<span class="nc" id="L2353">			System.out.println(&quot;Book Wise Report Agent&quot;);</span>
+		} else {
+<span class="nc" id="L2355">			insertQuery = ticketWiseQuery;</span>
+<span class="nc" id="L2356">			salemap = getSalePurchaseTicketDetails(con, agtOrgId, from, toDate);</span>
+<span class="nc" id="L2357">			System.out.println(&quot;Ticket Wise Report Agent&quot;);</span>
+		}
+
+		PreparedStatement preparedStatement;
+		SalePurchaseBean salePurchaseBean;
+<span class="nc" id="L2362">		double prevReconBal = getReconbalance(agtOrgId, con, reconReportType);</span>
+		try {
+<span class="nc" id="L2364">			con.setAutoCommit(false);</span>
+<span class="nc" id="L2365">			preparedStatement = con.prepareStatement(insertQuery);</span>
+<span class="nc bnc" id="L2366" title="All 2 branches missed.">			if (salemap.size() != 0) {</span>
+<span class="nc" id="L2367">				Iterator saleItr = salemap.entrySet().iterator();</span>
+<span class="nc bnc" id="L2368" title="All 2 branches missed.">				while (saleItr.hasNext()) {</span>
+<span class="nc" id="L2369">					Map.Entry&lt;String, SalePurchaseBean&gt; saleItrpair = (Map.Entry&lt;String, SalePurchaseBean&gt;) saleItr</span>
+							.next();
+<span class="nc" id="L2371">					salePurchaseBean = saleItrpair.getValue();</span>
+
+<span class="nc" id="L2373">					preparedStatement.setInt(1, agtOrgId);</span>
+
+<span class="nc" id="L2375">					preparedStatement.setInt(2, salePurchaseBean.getGameId());</span>
+<span class="nc" id="L2376">					preparedStatement.setTimestamp(3, toDate);</span>
+<span class="nc" id="L2377">					preparedStatement.setString(4, &quot;NET_SALE&quot;);</span>
+<span class="nc" id="L2378">					preparedStatement.setDouble(5, salePurchaseBean</span>
+							.getPurchprice());
+<span class="nc" id="L2380">					preparedStatement.setDouble(6, salePurchaseBean</span>
+							.getSalePrice());
+
+<span class="nc" id="L2383">					prevReconBal = salePurchaseBean.getPurchprice()</span>
+							+ prevReconBal;
+<span class="nc" id="L2385">					preparedStatement.setDouble(7, prevReconBal);</span>
+<span class="nc" id="L2386">					preparedStatement.setDouble(8, salePurchaseBean.getMrp());</span>
+
+<span class="nc" id="L2388">					preparedStatement.executeUpdate();</span>
+<span class="nc" id="L2389">					con.commit();</span>
+
+<span class="nc" id="L2391">				}</span>
+<span class="nc" id="L2392">			} else {</span>
+<span class="nc" id="L2393">				preparedStatement.setInt(1, agtOrgId);</span>
+
+<span class="nc" id="L2395">				preparedStatement.setInt(2, 0);</span>
+<span class="nc" id="L2396">				preparedStatement.setTimestamp(3, toDate);</span>
+<span class="nc" id="L2397">				preparedStatement.setString(4, &quot;NET_SALE&quot;);</span>
+<span class="nc" id="L2398">				preparedStatement.setDouble(5, 0.0);</span>
+<span class="nc" id="L2399">				preparedStatement.setDouble(6, 0.0);</span>
+<span class="nc" id="L2400">				preparedStatement.setDouble(7, prevReconBal);</span>
+<span class="nc" id="L2401">				preparedStatement.setDouble(8, 0.0);</span>
+
+<span class="nc" id="L2403">				preparedStatement.executeUpdate();</span>
+<span class="nc" id="L2404">				con.commit();</span>
+			}
+<span class="nc" id="L2406">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L2408">			e.printStackTrace();</span>
+<span class="nc" id="L2409">		}</span>
+<span class="nc" id="L2410">	}</span>
+
+	public void reconAgentBookwiseEntry(int agtOrgId, Timestamp pToDate,
+			String reconReportType) {
+<span class="nc" id="L2414">		Connection con = null;</span>
+<span class="nc" id="L2415">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L2416">		String dep_Date = new LedgerHelper().getDeployMentDate();</span>
+<span class="nc" id="L2417">		DateFormat dateFormat1 = new java.text.SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L2418">		java.util.Date date = null;</span>
+<span class="nc" id="L2419">		List&lt;Timestamp&gt; frTimeList = new ArrayList&lt;Timestamp&gt;();</span>
+<span class="nc" id="L2420">		List&lt;Timestamp&gt; toTimeList = new ArrayList&lt;Timestamp&gt;();</span>
+<span class="nc" id="L2421">		presentDate = null;</span>
+<span class="nc" id="L2422">		toDate = null;</span>
+<span class="nc" id="L2423">		prepstatement = null;</span>
+<span class="nc" id="L2424">		statement = null;</span>
+<span class="nc" id="L2425">		resultSet = null;</span>
+		try {
+<span class="nc" id="L2427">			prepstatement = con.prepareStatement(QueryManager</span>
+					.getAgtReconBookwiseDate());
+<span class="nc" id="L2429">			prepstatement.setInt(1, agtOrgId);</span>
+
+<span class="nc" id="L2431">			toDate = pToDate;</span>
+<span class="nc" id="L2432">			resultSet = prepstatement.executeQuery();</span>
+<span class="nc bnc" id="L2433" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+				// present_date = rs1.getDate(&quot;date&quot;);
+<span class="nc" id="L2435">				presentDate = resultSet.getTimestamp(&quot;recon_date&quot;);</span>
+
+				break;
+			}
+<span class="nc bnc" id="L2439" title="All 4 branches missed.">			if (presentDate == null || presentDate.before(toDate)) {</span>
+<span class="nc bnc" id="L2440" title="All 2 branches missed.">				if (presentDate == null) {</span>
+<span class="nc" id="L2441">					statement = con.createStatement();</span>
+<span class="nc" id="L2442">					resultSet = statement</span>
+							.executeQuery(&quot;select transaction_date from st_lms_bo_transaction_master where party_id='&quot;
+									+ agtOrgId
+									+ &quot;' order by transaction_date  limit 1&quot;);
+<span class="nc bnc" id="L2446" title="All 2 branches missed.">					while (resultSet.next()) {</span>
+<span class="nc" id="L2447">						presentDate = resultSet</span>
+								.getTimestamp(&quot;transaction_date&quot;);
+<span class="nc" id="L2449">						System.out.println(&quot;presentDate =======  &quot;</span>
+								+ presentDate + &quot; agtOrgId ====== &quot; + agtOrgId);
+					}
+<span class="nc bnc" id="L2452" title="All 2 branches missed.">					if (presentDate == null) {</span>
+						return;
+					}
+
+				}
+
+<span class="nc" id="L2458">				Calendar from = Calendar.getInstance();</span>
+<span class="nc" id="L2459">				Calendar to = Calendar.getInstance();</span>
+<span class="nc" id="L2460">				from.setTimeInMillis(presentDate.getTime());</span>
+<span class="nc" id="L2461">				to.setTimeInMillis(toDate.getTime());</span>
+
+<span class="nc" id="L2463">				Calendar manipulatedFrom = Calendar.getInstance();</span>
+<span class="nc" id="L2464">				Calendar manipulatedTo = Calendar.getInstance();</span>
+
+<span class="nc" id="L2466">				Calendar tempFrom = Calendar.getInstance();</span>
+<span class="nc" id="L2467">				Calendar tempTo = Calendar.getInstance();</span>
+
+<span class="nc" id="L2469">				manipulatedFrom.setTimeInMillis(from.getTimeInMillis());</span>
+<span class="nc" id="L2470">				manipulatedTo.setTimeInMillis(to.getTimeInMillis());</span>
+
+<span class="nc" id="L2472">				manipulatedFrom.set(manipulatedFrom.get(Calendar.YEAR),</span>
+						manipulatedFrom.get(Calendar.MONTH), manipulatedFrom
+								.get(Calendar.DATE), 0, 0, 0);
+<span class="nc" id="L2475">				manipulatedTo.set(manipulatedTo.get(Calendar.YEAR),</span>
+						manipulatedTo.get(Calendar.MONTH), manipulatedTo
+								.get(Calendar.DATE), 0, 0, 0);
+
+<span class="nc bnc" id="L2479" title="All 12 branches missed.">				if (manipulatedFrom.get(Calendar.YEAR) == manipulatedTo</span>
+						.get(Calendar.YEAR)
+						&amp;&amp; manipulatedFrom.get(Calendar.MONTH) == manipulatedTo
+								.get(Calendar.MONTH)
+						&amp;&amp; manipulatedFrom.get(Calendar.DATE) == manipulatedTo
+								.get(Calendar.DATE)
+						&amp;&amp; manipulatedFrom.get(Calendar.HOUR) == manipulatedTo
+								.get(Calendar.HOUR)
+						&amp;&amp; manipulatedFrom.get(Calendar.MINUTE) == manipulatedTo
+								.get(Calendar.MINUTE)
+						&amp;&amp; manipulatedFrom.get(Calendar.SECOND) == manipulatedTo
+								.get(Calendar.SECOND)) {
+<span class="nc" id="L2491">					frTimeList.add(new Timestamp(from.getTimeInMillis()));</span>
+<span class="nc" id="L2492">					toTimeList.add(new Timestamp(to.getTimeInMillis()));</span>
+<span class="nc" id="L2493">					System.out</span>
+							.println(agtOrgId
+									+ &quot; ###reconAgentBookwiseEntry  same date 1111 frTimeList &quot;
+									+ frTimeList);
+<span class="nc" id="L2497">					System.out</span>
+							.println(agtOrgId
+									+ &quot;###reconAgentBookwiseEntry same date  11111toTimeList &quot;
+									+ toTimeList);
+				} else {
+
+<span class="nc" id="L2503">					tempFrom.setTimeInMillis(from.getTimeInMillis());</span>
+<span class="nc" id="L2504">					tempTo.setTimeInMillis(manipulatedFrom.getTimeInMillis());</span>
+<span class="nc" id="L2505">					tempTo.add(Calendar.DATE, 1);</span>
+<span class="nc" id="L2506">					int j = 0;</span>
+
+<span class="nc bnc" id="L2508" title="All 12 branches missed.">					while (!(tempFrom.get(Calendar.YEAR) == manipulatedTo</span>
+							.get(Calendar.YEAR)
+							&amp;&amp; tempFrom.get(Calendar.MONTH) == manipulatedTo
+									.get(Calendar.MONTH)
+							&amp;&amp; tempFrom.get(Calendar.DATE) == manipulatedTo
+									.get(Calendar.DATE)
+							&amp;&amp; tempFrom.get(Calendar.HOUR) == manipulatedTo
+									.get(Calendar.HOUR)
+							&amp;&amp; tempFrom.get(Calendar.MINUTE) == manipulatedTo
+									.get(Calendar.MINUTE) &amp;&amp; tempFrom
+							.get(Calendar.SECOND) == manipulatedTo
+							.get(Calendar.SECOND))) {
+<span class="nc" id="L2520">						j++;</span>
+
+<span class="nc" id="L2522">						frTimeList</span>
+								.add(new Timestamp(tempFrom.getTimeInMillis()));
+<span class="nc" id="L2524">						toTimeList.add(new Timestamp(tempTo.getTimeInMillis()));</span>
+
+<span class="nc" id="L2526">						tempFrom.setTimeInMillis(tempTo.getTimeInMillis());</span>
+<span class="nc" id="L2527">						tempTo.add(Calendar.DATE, 1);</span>
+
+					}
+<span class="nc bnc" id="L2530" title="All 2 branches missed.">					if (tempTo.compareTo(to) &gt; 0) {</span>
+<span class="nc" id="L2531">						tempTo.add(Calendar.DATE, -1);</span>
+<span class="nc bnc" id="L2532" title="All 12 branches missed.">						if (!(tempTo.get(Calendar.YEAR) == to</span>
+								.get(Calendar.YEAR)
+								&amp;&amp; tempTo.get(Calendar.MONTH) == to
+										.get(Calendar.MONTH)
+								&amp;&amp; tempTo.get(Calendar.DATE) == to
+										.get(Calendar.DATE)
+								&amp;&amp; tempTo.get(Calendar.HOUR) == to
+										.get(Calendar.HOUR)
+								&amp;&amp; tempTo.get(Calendar.MINUTE) == to
+										.get(Calendar.MINUTE) &amp;&amp; tempTo
+								.get(Calendar.SECOND) == to
+								.get(Calendar.SECOND))) {
+<span class="nc" id="L2544">							frTimeList.add(new Timestamp(tempTo</span>
+									.getTimeInMillis()));
+<span class="nc" id="L2546">							toTimeList.add(new Timestamp(to.getTimeInMillis()));</span>
+						}
+					}
+<span class="nc" id="L2549">					System.out</span>
+							.println(agtOrgId
+									+ &quot; ###reconAgentBookwiseEntry  Final 1111 frTimeList &quot;
+									+ frTimeList);
+<span class="nc" id="L2553">					System.out</span>
+							.println(agtOrgId
+									+ &quot; ###reconAgentBookwiseEntry Final  11111toTimeList &quot;
+									+ toTimeList);
+
+				}
+
+<span class="nc bnc" id="L2560" title="All 2 branches missed.">				for (int i = 0; i &lt; frTimeList.size(); i++) {</span>
+<span class="nc" id="L2561">					insertSalePurchaseDetails(con, agtOrgId, frTimeList.get(i),</span>
+							toTimeList.get(i), reconReportType);
+<span class="nc" id="L2563">					insertPaymentDetails(con, agtOrgId, frTimeList.get(i),</span>
+							toTimeList.get(i), reconReportType);
+<span class="nc" id="L2565">					insertPWTDetails(con, agtOrgId, frTimeList.get(i),</span>
+							toTimeList.get(i), reconReportType);
+
+				}
+
+			}
+<span class="nc" id="L2571">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L2573">			e.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L2575" title="All 8 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L2577">					con.close();</span>
+<span class="nc" id="L2578">				} catch (SQLException e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L2580">					e.printStackTrace();</span>
+<span class="nc" id="L2581">				}</span>
+			}
+		}
+<span class="nc" id="L2584">	}</span>
+
+	public void reconAgentTicketwiseEntry(int agtOrgId, Timestamp pToDate,
+			String reconReportType) {
+<span class="nc" id="L2588">		System.out.println(&quot;+++++++++++reconAgentTicketwiseEntry agtOrgId  &quot;</span>
+				+ agtOrgId);
+<span class="nc" id="L2590">		List timeList = null;</span>
+<span class="nc" id="L2591">		ReconcilationReportRetHelper rrh = new ReconcilationReportRetHelper();</span>
+<span class="nc" id="L2592">		Map retOrgIdMap = rrh.getRetOrgMap(agtOrgId, pToDate);</span>
+<span class="nc" id="L2593">		Iterator retOrgitr = retOrgIdMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L2594" title="All 2 branches missed.">		while (retOrgitr.hasNext()) {</span>
+<span class="nc" id="L2595">			Map.Entry&lt;Integer, String&gt; retOrgpair = (Map.Entry&lt;Integer, String&gt;) retOrgitr</span>
+					.next();
+<span class="nc" id="L2597">			int retOrgId = retOrgpair.getKey();</span>
+<span class="nc" id="L2598">			new ReconcilationReportRetHelper().reconRetTktwiseEntry(retOrgId,</span>
+					pToDate, agtOrgId, reconReportType);
+<span class="nc" id="L2600">			System.out.println(&quot;After return time list&quot; + timeList);</span>
+<span class="nc" id="L2601">		}</span>
+
+<span class="nc" id="L2603">		insertAgentTicketWiseRecon(agtOrgId, pToDate, reconReportType);</span>
+
+<span class="nc" id="L2605">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

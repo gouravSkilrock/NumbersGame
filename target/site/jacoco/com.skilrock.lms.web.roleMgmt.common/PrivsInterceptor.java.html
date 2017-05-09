@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PrivsInterceptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.roleMgmt.common</a> &gt; <span class="el_source">PrivsInterceptor.java</span></div><h1>PrivsInterceptor.java</h1><pre class="source lang-java linenums">/*
+ * $Id: PrivsInterceptor.java,v 1.5 2016/10/31 09:46:07 neeraj Exp $
+ *
+ * Copyright 2006 The Apache Software Foundation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.skilrock.lms.web.roleMgmt.common;
+
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import net.sf.json.JSONObject;
+import net.sf.json.JSONSerializer;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.AbstractInterceptor;
+import com.skilrock.lms.beans.PriviledgeBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.utility.LMSUtility;
+
+<span class="nc" id="L51">public class PrivsInterceptor extends AbstractInterceptor {</span>
+<span class="nc" id="L52">	static Log logger = LogFactory.getLog(PrivsInterceptor.class);</span>
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+<span class="nc" id="L57">	private List&lt;String&gt; disallowedRoles = new ArrayList&lt;String&gt;();</span>
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+<span class="nc" id="L60">	private String saleStatus = null;</span>
+
+	private String actionName;
+	public String getActionName() {
+<span class="nc" id="L64">		return actionName;</span>
+	}
+	public void setActionName(String actionName) {
+<span class="nc" id="L67">		this.actionName = actionName;</span>
+<span class="nc" id="L68">	}</span>
+
+	public void createCookie() {
+<span class="nc" id="L71">		boolean found = false;</span>
+<span class="nc" id="L72">		Cookie userSessionId = null;</span>
+<span class="nc" id="L73">		Cookie[] cookies = request.getCookies();</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">		for (Cookie element : cookies) {</span>
+<span class="nc" id="L75">			userSessionId = element;</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">			if (userSessionId.getName().equals(&quot;LMSCookie&quot;)) {</span>
+<span class="nc" id="L77">				found = true;</span>
+<span class="nc" id="L78">				break;</span>
+			}
+		}
+<span class="nc bnc" id="L81" title="All 2 branches missed.">		if (!found) {</span>
+<span class="nc" id="L82">			userSessionId = new Cookie(&quot;LMSCookie&quot;, &quot;&quot;);</span>
+<span class="nc" id="L83">			userSessionId.setMaxAge(24 * 60 * 60);</span>
+<span class="nc" id="L84">			userSessionId.setPath(&quot;/&quot;);</span>
+<span class="nc" id="L85">			response.addCookie(userSessionId);</span>
+		} else {
+<span class="nc" id="L87">			userSessionId.setMaxAge(24 * 60 * 60);</span>
+<span class="nc" id="L88">			userSessionId.setPath(&quot;/&quot;);</span>
+<span class="nc" id="L89">			response.addCookie(userSessionId);</span>
+		}
+
+
+<span class="nc" id="L93">	}</span>
+
+	/**
+	 * Handles a rejection by sending a 403 HTTP error
+	 * 
+	 * @param invocation
+	 *            The invocation
+	 * @return The result code
+	 * @throws Exception
+	 */
+	protected String handleRejection(ActionInvocation invocation,
+			HttpServletResponse response) throws Exception {
+		// logger.debug(&quot;I am in Allowed roles444444444444444444444&quot;);
+<span class="nc" id="L106">		response.sendError(HttpServletResponse.SC_FORBIDDEN);</span>
+<span class="nc" id="L107">		return null;</span>
+	}
+
+	@Override
+	public String intercept(ActionInvocation invocation) throws Exception {
+
+		// logger.debug(&quot;1&quot;);
+<span class="nc" id="L114">		HttpServletRequest request = ServletActionContext.getRequest();</span>
+<span class="nc" id="L115">		HttpServletResponse response = ServletActionContext.getResponse();</span>
+
+<span class="nc" id="L117">		String result = null;</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">		if (!isAllowed(request, invocation.getAction())) {</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">			if (saleStatus != null) {</span>
+<span class="nc" id="L120">				return saleStatus;</span>
+			} else {
+<span class="nc" id="L122">				result = handleRejection(invocation, response);</span>
+			}
+		} else {
+<span class="nc" id="L125">			result = invocation.invoke();</span>
+
+		}
+		// logger.debug(&quot;I am in disAllowed roles&quot;+result);
+		// logger.debug(&quot;I am in disAllowed roles&quot;+request);
+
+<span class="nc" id="L131">		return result;</span>
+	}
+
+	/**
+	 * Determines if the request should be allowed for the action
+	 * 
+	 * @param request
+	 *            The request
+	 * @param action
+	 *            The action object
+	 * @return True if allowed, false otherwise
+	 * @throws SQLException
+	 */
+	protected boolean isAllowed(HttpServletRequest request, Object action)
+			throws SQLException {
+<span class="nc" id="L146">		String json = request.getParameter(&quot;json&quot;);</span>
+<span class="nc" id="L147">		HttpSession session = null;</span>
+<span class="nc" id="L148">		String userName = null;</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">		if(json != null){</span>
+<span class="nc" id="L150">			JSONObject requestData = (JSONObject) JSONSerializer.toJSON(json);</span>
+<span class="nc" id="L151">			userName = (String) requestData.get(&quot;userName&quot;);</span>
+		}
+		
+<span class="nc bnc" id="L154" title="All 2 branches missed.">		if(userName == null){</span>
+<span class="nc" id="L155">			session = request.getSession();</span>
+		} else{
+<span class="nc" id="L157">			Map currentUserSessionMap = (Map) LMSUtility.sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L158">			session = (HttpSession) currentUserSessionMap.get(userName);</span>
+		}
+		
+		// logger.debug(&quot;allowedRoles::&quot; + allowedRoles);
+
+		// logger.debug(&quot;i am inside priv interceptor&quot;);
+<span class="nc" id="L164">		String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L165">		logger.debug(&quot;Action Name - &quot; + actionName);</span>
+
+<span class="nc" id="L167">		boolean result = false;</span>
+<span class="nc" id="L168">		ArrayList&lt;String&gt; userActionList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L169">		userActionList = (ArrayList&lt;String&gt;) session</span>
+				.getAttribute(&quot;ACTION_LIST&quot;);
+<span class="nc" id="L171">		logger.debug(&quot;userActionList: &quot; + userActionList);</span>
+		List&lt;String&gt; disableTabs;
+<span class="nc" id="L173">		UserInfoBean userBean = (UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L175">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc bnc" id="L176" title="All 4 branches missed.">		if (userBean.getUserType().equals(&quot;RETAILER&quot;)</span>
+				&amp;&amp; !isSaleDuration(userBean)) {
+<span class="nc" id="L178">			disableTabs = Arrays.asList(((String) sc</span>
+					.getAttribute(&quot;RET_SALE_BOUND&quot;)).split(&quot;,&quot;));
+<span class="nc bnc" id="L180" title="All 2 branches missed.">			for (int i = 0; i &lt; disableTabs.size(); i++) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">				if (actionName.contains(disableTabs.get(i))) {</span>
+<span class="nc" id="L182">					saleStatus = &quot;SALE_STOP&quot;;</span>
+<span class="nc" id="L183">					return false;</span>
+				}
+			}
+		}
+<span class="nc bnc" id="L187" title="All 2 branches missed.">		if(!userBean.getLoginChannel().equalsIgnoreCase(&quot;WEB&quot;)){</span>
+<span class="nc" id="L188">			return false;</span>
+		}
+<span class="nc bnc" id="L190" title="All 2 branches missed.">		if (userActionList.contains(actionName)) {</span>
+<span class="nc" id="L191">			HashMap actionServiceMap = (HashMap) session</span>
+					.getAttribute(&quot;PRIV_MAP&quot;);
+<span class="nc" id="L193">			Iterator itrMap = actionServiceMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">			while (itrMap.hasNext()) {</span>
+<span class="nc" id="L195">				Map.Entry pairs = (Map.Entry) itrMap.next();</span>
+<span class="nc" id="L196">				List privList = (List) pairs.getValue();</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">				for (int i = 0; i &lt; privList.size(); i++) {</span>
+
+<span class="nc bnc" id="L199" title="All 2 branches missed.">					if (((PriviledgeBean) privList.get(i)).getActionMapping()</span>
+							.equals(actionName)) {
+<span class="nc" id="L201">						refreshSession(session);</span>
+					}
+				}
+<span class="nc" id="L204">			}</span>
+<span class="nc" id="L205">			result = true;</span>
+		}
+
+<span class="nc" id="L208">		return result;</span>
+	}
+
+	public boolean isSaleDuration(UserInfoBean userInfoBean) {
+<span class="nc" id="L212">		Date d = new Date();</span>
+<span class="nc" id="L213">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc bnc" id="L214" title="All 4 branches missed.">		if (d.toString().split(&quot; &quot;)[3].compareTo((String) sc</span>
+				.getAttribute(&quot;SALE_START_TIME&quot;)) &gt;= 0
+				&amp;&amp; d.toString().split(&quot; &quot;)[3].compareTo((String) sc
+						.getAttribute(&quot;SALE_END_TIME&quot;)) &lt;= 0) {
+<span class="nc" id="L218">			return true;</span>
+		}
+<span class="nc" id="L220">		return false;</span>
+	}
+
+	public void refreshSession(HttpSession session) {
+<span class="nc" id="L224">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L225">		String sesVariables = (String) sc.getAttribute(&quot;SESSION_VARIABLES&quot;);</span>
+<span class="nc" id="L226">		List sesVar = Arrays.asList(sesVariables.split(&quot;,&quot;));</span>
+
+<span class="nc" id="L228">		Enumeration sesEnum = session.getAttributeNames();</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">		while (sesEnum.hasMoreElements()) {</span>
+<span class="nc" id="L230">			Object variable = sesEnum.nextElement();</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">			if (!sesVar.contains(variable.toString())) {</span>
+<span class="nc" id="L232">				session.removeAttribute(variable.toString());</span>
+			}
+<span class="nc" id="L234">		}</span>
+<span class="nc" id="L235">	}</span>
+
+	public void setAllowedPrivs(String privs) {
+<span class="nc" id="L238">	}</span>
+
+	public void setDisallowedRoles(String roles) {
+<span class="nc" id="L241">		this.disallowedRoles = stringToList(roles);</span>
+		// logger.debug(&quot;I am in disAllowed roles&quot;);
+<span class="nc" id="L243">	}</span>
+
+	/**
+	 * Splits a string into a List
+	 */
+	protected List&lt;String&gt; stringToList(String val) {
+<span class="nc bnc" id="L249" title="All 2 branches missed.">		if (val != null) {</span>
+<span class="nc" id="L250">			String[] list = val.split(&quot;[ ]*,[ ]*&quot;);</span>
+			// logger.debug(&quot;I am in Allowed roles&quot;+val);
+<span class="nc" id="L252">			return Arrays.asList(list);</span>
+		} else {
+<span class="nc" id="L254">			return Collections.EMPTY_LIST;</span>
+		}
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

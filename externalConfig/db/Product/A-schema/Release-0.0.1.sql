@@ -1,0 +1,11 @@
+--liquibase formatted sql
+
+--changeset BaseSchemaRMS:2
+
+alter table `st_lms_user_master` add column `tp_user_id` varchar (20) DEFAULT 'NULL';
+alter table `st_lms_oranization_limits` change `security_deposit_rate` `security_deposit_rate` decimal (10,2)UNSIGNED   NULL; 
+alter table `st_lms_oranization_limits_history` change `security_deposit_rate` `security_deposit_rate` decimal (10,2)UNSIGNED   NULL; 
+alter table `st_lms_rg_org_weekly_tx` change `iw_reprint_limit` `iw_reprint_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL , change `vs_invalid_pwt_limit` `vs_invalid_pwt_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL , change `vs_cancel_limit` `vs_cancel_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL , change `vs_reprint_limit` `vs_reprint_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL ;
+alter table `st_lms_rg_org_daily_tx` change `iw_reprint_limit` `iw_reprint_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL , change `vs_invalid_pwt_limit` `vs_invalid_pwt_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL , change `vs_cancel_limit` `vs_cancel_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL , change `vs_reprint_limit` `vs_reprint_limit` int (10)UNSIGNED DEFAULT '0' NOT NULL ;
+alter table `st_lms_rg_org_daily_tx_history` change `iw_pwt_amt` `iw_pwt_amt` double (20,2) DEFAULT '0.00' NOT NULL , change `iw_invalid_pwt_limit` `iw_invalid_pwt_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `iw_reprint_limit` `iw_reprint_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `vs_invalid_pwt_limit` `vs_invalid_pwt_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `vs_cancel_limit` `vs_cancel_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `vs_reprint_limit` `vs_reprint_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL; 
+alter table `st_lms_rg_org_weakly_tx_history` change `iw_pwt_amt` `iw_pwt_amt` double (20,2) DEFAULT '0.00' NOT NULL , change `iw_invalid_pwt_limit` `iw_invalid_pwt_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `iw_reprint_limit` `iw_reprint_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `vs_invalid_pwt_limit` `vs_invalid_pwt_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `vs_cancel_limit` `vs_cancel_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL , change `vs_reprint_limit` `vs_reprint_limit` int (10)UNSIGNED  DEFAULT '0' NOT NULL;

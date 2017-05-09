@@ -1,0 +1,1350 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ResponsibleGaming.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.common.utility</a> &gt; <span class="el_source">ResponsibleGaming.java</span></div><h1>ResponsibleGaming.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.common.utility;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+
+import com.skilrock.lms.beans.ResponsibleGamingBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L32">public class ResponsibleGaming {</span>
+<span class="nc" id="L33">    static Log logger=LogFactory.getLog(ResponsibleGaming.class);</span>
+	public static Set&lt;String&gt; chkRGCriteOnLogIn(int userId, int orgId) {
+<span class="nc" id="L35">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L36">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L37">		ResultSet rs = null;</span>
+<span class="nc" id="L38">		String selectQuery = null;</span>
+<span class="nc" id="L39">		boolean isExecuteble = false;</span>
+<span class="nc" id="L40">		Set&lt;String&gt; actionSet = new HashSet&lt;String&gt;();</span>
+		try {
+<span class="nc" id="L42">			con.setAutoCommit(false);</span>
+<span class="nc" id="L43">			selectQuery = &quot;select criteria,criteria_limit,crit_action,criteria_type from st_lms_rg_criteria_limit where crit_status='ACTIVE' and organization_type='RETAILER' and criteria_type='DAILY' and service_code in (select service_code from st_lms_service_master where status='ACTIVE')&quot;;</span>
+<span class="nc" id="L44">			pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L45">			logger.info(&quot;Criteria Limit Query ::&quot; + pstmt);</span>
+<span class="nc" id="L46">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L47">			StringBuilder dailyQuery = new StringBuilder(&quot;select concat(&quot;);</span>
+<span class="nc" id="L48">			String actionStr = null, actionQuery = null;</span>
+
+<span class="nc bnc" id="L50" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L51">				isExecuteble = true;</span>
+<span class="nc" id="L52">				dailyQuery.append(&quot;\&quot;'\&quot;,if(&quot; + rs.getString(&quot;criteria&quot;) + &quot;&lt;&quot;</span>
+						+ rs.getString(&quot;criteria_limit&quot;) + &quot;,'','&quot;
+						+ rs.getString(&quot;criteria&quot;) + &quot;'),\&quot;'\&quot;,\&quot;,\&quot;,&quot;);
+			}
+<span class="nc bnc" id="L56" title="All 2 branches missed.">			if (isExecuteble) {</span>
+<span class="nc" id="L57">				dailyQuery.delete(dailyQuery.length() - 5, dailyQuery.length());</span>
+<span class="nc" id="L58">				dailyQuery</span>
+						.append(&quot;) from st_lms_rg_org_daily_tx where user_id=? and organization_id=?&quot;);
+				// logger.info(dailyQuery);
+<span class="nc" id="L61">				pstmt = con.prepareStatement(dailyQuery.toString());</span>
+<span class="nc" id="L62">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L63">				pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L64">				logger.info(&quot;*******&quot; + pstmt);</span>
+<span class="nc" id="L65">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">				if (rs.next()) {</span>
+<span class="nc" id="L67">					actionStr = rs.getString(1);</span>
+				}
+
+<span class="nc" id="L70">				actionQuery = &quot;select distinct(crit_action) from st_lms_rg_criteria_limit where crit_status='ACTIVE' and organization_type='RETAILER' and criteria_type='DAILY' and criteria in (&quot;</span>
+						+ actionStr + &quot;)&quot;;
+<span class="nc" id="L72">				pstmt = con.prepareStatement(actionQuery);</span>
+<span class="nc" id="L73">				logger.info(&quot;*******&quot; + pstmt);</span>
+<span class="nc" id="L74">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L76">					actionSet.add(rs.getString(&quot;crit_action&quot;));</span>
+				}
+			}
+<span class="nc" id="L79">			isExecuteble = false;</span>
+<span class="nc" id="L80">			selectQuery = &quot;select criteria,criteria_limit,crit_action,criteria_type from st_lms_rg_criteria_limit where crit_status='ACTIVE' and organization_type='RETAILER' and criteria_type='WEEKLY' and service_code in (select service_code from st_lms_service_master where status='ACTIVE')&quot;;</span>
+<span class="nc" id="L81">			pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L82">			logger.info(&quot;Criteria Limit Query ::&quot; + pstmt);</span>
+<span class="nc" id="L83">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L84">			dailyQuery = new StringBuilder(&quot;select concat(&quot;);</span>
+<span class="nc" id="L85">			actionStr = null;</span>
+<span class="nc" id="L86">			actionQuery = null;</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L88">				isExecuteble = true;</span>
+<span class="nc" id="L89">				dailyQuery.append(&quot;\&quot;'\&quot;,if(&quot; + rs.getString(&quot;criteria&quot;) + &quot;&lt;&quot;</span>
+						+ rs.getString(&quot;criteria_limit&quot;) + &quot;,'','&quot;
+						+ rs.getString(&quot;criteria&quot;) + &quot;'),\&quot;'\&quot;,\&quot;,\&quot;,&quot;);
+			}
+<span class="nc bnc" id="L93" title="All 2 branches missed.">			if (isExecuteble) {</span>
+<span class="nc" id="L94">				dailyQuery.delete(dailyQuery.length() - 5, dailyQuery.length());</span>
+<span class="nc" id="L95">				dailyQuery</span>
+						.append(&quot;) from st_lms_rg_org_weekly_tx where user_id=? and organization_id=?&quot;);
+				// logger.info(dailyQuery);
+<span class="nc" id="L98">				pstmt = con.prepareStatement(dailyQuery.toString());</span>
+<span class="nc" id="L99">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L100">				pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L101">				logger.info(&quot;*******&quot; + pstmt);</span>
+<span class="nc" id="L102">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">				if (rs.next()) {</span>
+<span class="nc" id="L104">					actionStr = rs.getString(1);</span>
+				}
+
+<span class="nc" id="L107">				actionQuery = &quot;select distinct(crit_action) from st_lms_rg_criteria_limit where crit_status='ACTIVE' and organization_type='RETAILER' and criteria_type='WEEKLY' and criteria in (&quot;</span>
+						+ actionStr + &quot;)&quot;;
+<span class="nc" id="L109">				pstmt = con.prepareStatement(actionQuery);</span>
+<span class="nc" id="L110">				logger.info(&quot;*******&quot; + pstmt);</span>
+<span class="nc" id="L111">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L113">					actionSet.add(rs.getString(&quot;crit_action&quot;));</span>
+				}
+			}
+<span class="nc" id="L116">			logger.info(actionSet);</span>
+			/*
+			 * for (String action : actionSet) { actionOnFraudDetection(action,
+			 * userId, orgId); }
+			 */
+<span class="nc" id="L121">		} catch (Exception e) {</span>
+<span class="nc" id="L122">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L124">			try {</span>
+<span class="nc" id="L125">				con.close();</span>
+<span class="nc" id="L126">			} catch (SQLException e) {</span>
+<span class="nc" id="L127">				e.printStackTrace();</span>
+<span class="nc" id="L128">			}</span>
+<span class="nc" id="L129">		}</span>
+<span class="nc" id="L130">		return actionSet;</span>
+	}
+
+	public static String chkRGCriteOnLogIn(UserInfoBean userBean) {
+<span class="nc" id="L134">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L135">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L136">		HttpSession session = (HttpSession) currentUserSessionMap.get(userBean</span>
+				.getUserName());
+<span class="nc" id="L138">		Set&lt;String&gt; actionSet = chkRGCriteOnLogIn(userBean.getUserId(),</span>
+				userBean.getUserOrgId());
+<span class="nc bnc" id="L140" title="All 2 branches missed.">		if (actionSet.contains(&quot;INACTIVE_USER&quot;)) {</span>
+<span class="nc" id="L141">			currentUserSessionMap.remove(userBean.getUserName());</span>
+<span class="nc" id="L142">			return &quot;Your Responsible Gaming Limits are exceed!!&quot;;</span>
+		}
+
+	/*	List actionList = (List) session.getAttribute(&quot;ACTION_LIST&quot;);
+		logger.info(&quot;************Action_List**&quot; + actionList);
+		logger.info(&quot;************actionSet**&quot; + actionSet);
+		for (String str : actionSet) {
+			actionList = removeAction(actionList, str);
+		}
+		logger.info(&quot;After RG Check ACTION_LIST&quot; + actionList);
+		session.setAttribute(&quot;ACTION_LIST&quot;, actionList);*/
+<span class="nc" id="L153">		return &quot;SUCCESS&quot;;</span>
+	}
+
+	public static void insertDailyHistory() throws LMSException {
+<span class="nc" id="L157">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L158">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L159">		String insertQuery = null, updateQuery = null;</span>
+		try {
+<span class="nc" id="L161">			boolean isSLE = (&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsSLE()));</span>
+<span class="nc" id="L162">			boolean isIW = (&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsIW()));</span>
+<span class="nc" id="L163">			boolean isVS = (&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsVS()));</span>
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">			String sleString  = isSLE?&quot;, sle_sale_amt,sle_pwt_amt,sle_reprint_limit,sle_cancel_limit,sle_invalid_pwt_limit &quot;:&quot;&quot;;</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">			String sleUpdateString  = isSLE?&quot;, sle_sale_amt = 0.0 ,sle_pwt_amt = 0.0 ,sle_reprint_limit = 0 ,sle_cancel_limit = 0,sle_invalid_pwt_limit = 0 &quot;:&quot;&quot;;</span>
+			
+<span class="nc bnc" id="L168" title="All 2 branches missed.">			String iwString  = isIW?&quot;, iw_sale_amt, iw_pwt_amt, iw_reprint_limit, iw_invalid_pwt_limit &quot;:&quot;&quot;;</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">			String iwUpdateString  = isIW?&quot;, iw_sale_amt = 0.0, iw_pwt_amt = 0.0, iw_reprint_limit = 0, iw_invalid_pwt_limit = 0 &quot;:&quot;&quot;;</span>
+			
+<span class="nc bnc" id="L171" title="All 2 branches missed.">			String vsString  = isVS?&quot;, vs_sale_amt, vs_pwt_amt, vs_reprint_limit, vs_invalid_pwt_limit &quot;:&quot;&quot;;</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">			String vsUpdateString  = isVS?&quot;, vs_sale_amt = 0.0, vs_pwt_amt = 0.0, vs_reprint_limit = 0, vs_invalid_pwt_limit = 0 &quot;:&quot;&quot;;</span>
+
+<span class="nc" id="L174">			con.setAutoCommit(false);</span>
+<span class="nc" id="L175">			insertQuery = &quot;insert into st_lms_rg_org_daily_tx_history (organization_id, user_id,&quot;</span>
+					+ &quot; date, dg_sale_amt, dg_pwt_amt, dg_reprint_limit, dg_cancel_limit, dg_invalid_pwt_limit,&quot;
+					+ &quot; se_sale_amt, se_pwt_amt, se_invalid_pwt_limit &quot;+sleString+&quot;  &quot; +iwString+&quot;  &quot; +vsString+&quot;) select organization_id, user_id&quot;
+					+ &quot;,CURRENT_TIMESTAMP,dg_sale_amt, dg_pwt_amt, dg_reprint_limit, dg_cancel_limit, &quot;
+					+ &quot;dg_invalid_pwt_limit, se_sale_amt, se_pwt_amt, se_invalid_pwt_limit &quot;+sleString+ &quot; &quot; +iwString+ &quot; &quot; +vsString+ &quot; from st_lms_rg_org_daily_tx&quot;;
+<span class="nc" id="L180">			pstmt = con.prepareStatement(insertQuery);</span>
+<span class="nc" id="L181">			pstmt.executeUpdate();</span>
+
+<span class="nc" id="L183">			updateQuery = &quot;update st_lms_rg_org_daily_tx set dg_sale_amt=0.0,dg_pwt_amt=0.0,dg_reprint_limit=0,dg_cancel_limit=0,dg_invalid_pwt_limit=0,se_sale_amt=0.0,se_pwt_amt=0.0,se_invalid_pwt_limit=0.0 &quot;+ sleUpdateString + &quot; &quot; + iwUpdateString + &quot; &quot; + vsUpdateString;</span>
+<span class="nc" id="L184">			pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L185">			pstmt.executeUpdate();</span>
+
+<span class="nc" id="L187">			con.commit();</span>
+		} /*catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			try {
+				con.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}*/
+<span class="nc" id="L197">		 catch (SQLException e) {</span>
+<span class="nc" id="L198">				logger.info(&quot;SQL Exception &quot;,e);</span>
+<span class="nc" id="L199">				throw new LMSException(&quot;SQL Exception &quot;+e.getMessage());</span>
+<span class="nc" id="L200">		 }catch (Exception e) {</span>
+<span class="nc" id="L201">				logger.info(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L202">				throw new LMSException(&quot;Exception&quot;+e.getMessage());</span>
+			} finally {
+<span class="nc" id="L204">				DBConnect.closeCon(con);</span>
+<span class="nc" id="L205">		}</span>
+<span class="nc" id="L206">	}</span>
+
+	public static void insertWeeklyHistory() throws LMSException {
+<span class="nc" id="L209">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L210">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L211">		String insertQuery = null, updateQuery = null;</span>
+		try {
+<span class="nc" id="L213">			boolean isSLE = (&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsSLE()));</span>
+<span class="nc" id="L214">			boolean isIW = (&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsIW()));</span>
+<span class="nc" id="L215">			boolean isVS = (&quot;YES&quot;.equalsIgnoreCase(LMSFilterDispatcher.getIsVS()));</span>
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">			String sleString  = isSLE?&quot;, sle_sale_amt,sle_pwt_amt,sle_reprint_limit,sle_cancel_limit,sle_invalid_pwt_limit &quot;:&quot;&quot;;</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">			String sleUpdateString  = isSLE?&quot;, sle_sale_amt = 0.0 ,sle_pwt_amt = 0.0 ,sle_reprint_limit = 0 ,sle_cancel_limit = 0,sle_invalid_pwt_limit = 0 &quot;:&quot;&quot;;</span>
+
+<span class="nc bnc" id="L220" title="All 2 branches missed.">			String iwString  = isIW?&quot;, iw_sale_amt, iw_pwt_amt, iw_reprint_limit, iw_invalid_pwt_limit &quot;:&quot;&quot;;</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">			String iwUpdateString  = isIW?&quot;, iw_sale_amt = 0.0, iw_pwt_amt = 0.0, iw_reprint_limit = 0, iw_invalid_pwt_limit = 0 &quot;:&quot;&quot;;</span>
+
+<span class="nc bnc" id="L223" title="All 2 branches missed.">			String vsString  = isVS?&quot;, vs_sale_amt, vs_pwt_amt, vs_reprint_limit, vs_invalid_pwt_limit &quot;:&quot;&quot;;</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">			String vsUpdateString  = isVS?&quot;, vs_sale_amt = 0.0, vs_pwt_amt = 0.0, vs_reprint_limit = 0, vs_invalid_pwt_limit = 0 &quot;:&quot;&quot;;</span>
+
+<span class="nc" id="L226">			con.setAutoCommit(false);</span>
+<span class="nc" id="L227">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L228">			cal.setTimeInMillis(new Date().getTime());</span>
+<span class="nc" id="L229">			cal.add(Calendar.DAY_OF_MONTH, -7);</span>
+<span class="nc" id="L230">			logger.info(&quot;*********7 day before date &quot;</span>
+					+ new Timestamp(cal.getTimeInMillis()));
+<span class="nc" id="L232">			insertQuery = &quot;insert into st_lms_rg_org_weakly_tx_history (organization_id, user_id, startdate, &quot;</span>
+					+ &quot;enddate, dg_sale_amt, dg_pwt_amt, dg_reprint_limit, dg_cancel_limit, dg_invalid_pwt_limit,&quot;
+					+ &quot; se_sale_amt, se_pwt_amt, se_invalid_pwt_limit &quot; + sleString + iwString + vsString + &quot; )select organization_id, user_id,&quot;
+					+ &quot; startdate, CURRENT_TIMESTAMP, dg_sale_amt, dg_pwt_amt, dg_reprint_limit, dg_cancel_limit, &quot;
+					+ &quot;dg_invalid_pwt_limit, se_sale_amt, se_pwt_amt, se_invalid_pwt_limit &quot; + sleString + iwString + vsString + &quot; from &quot;
+					+ &quot;st_lms_rg_org_weekly_tx&quot;;
+<span class="nc" id="L238">			pstmt = con.prepareStatement(insertQuery);</span>
+<span class="nc" id="L239">			pstmt.executeUpdate();</span>
+
+<span class="nc" id="L241">			updateQuery = &quot;update st_lms_rg_org_weekly_tx set startdate=CURRENT_TIMESTAMP,dg_sale_amt=0.0,dg_pwt_amt=0.0,dg_reprint_limit=0,dg_cancel_limit=0,dg_invalid_pwt_limit=0,se_sale_amt=0.0,se_pwt_amt=0.0,se_invalid_pwt_limit=0.0 &quot; +sleUpdateString + iwUpdateString + vsUpdateString;</span>
+<span class="nc" id="L242">			pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L243">			pstmt.executeUpdate();</span>
+<span class="nc" id="L244">			con.commit();</span>
+<span class="nc" id="L245">		} catch (SQLException e) {</span>
+<span class="nc" id="L246">			logger.info(&quot;SQL Exception &quot;,e);</span>
+<span class="nc" id="L247">			throw new LMSException(&quot;SQL Exception &quot;+e.getMessage());</span>
+<span class="nc" id="L248">		}catch (Exception e) {</span>
+<span class="nc" id="L249">			logger.info(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L250">			throw new LMSException(&quot;Exception&quot;+e.getMessage());</span>
+		} finally {
+<span class="nc" id="L252">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L253">		}</span>
+<span class="nc" id="L254">	}</span>
+
+	public static void main(String[] args) {
+<span class="nc" id="L257">		ResponsibleGaming rg = new ResponsibleGaming();</span>
+<span class="nc" id="L258">		List list = new ArrayList();</span>
+<span class="nc" id="L259">		list.addAll(Arrays.asList(&quot;ret_rep_sale_Navigate&quot;,</span>
+				&quot;ret_rep_cashChq_Menu&quot;, &quot;ret_rep_cashChq_Search&quot;,
+				&quot;ret_rep_ledger_Menu&quot;, &quot;ret_rep_ledger_Generate&quot;,
+				&quot;ret_um_addSubUser_Menu&quot;, &quot;ret_um_editSubUserPriv_Menu&quot;,
+				&quot;rep_common_openPDF&quot;, &quot;bo_rep_showReceipt&quot;,
+				&quot;bo_rep_showDeliveryChallen&quot;, &quot;agt_rep_showDeliveryChallen&quot;,
+				&quot;generateDeliveryChallanToPDF&quot;, &quot;ret_rep_sale_Menu&quot;,
+				&quot;ret_rep_sale_Search&quot;, &quot;ret_im_bookWiseInvDet_Menu&quot;,
+				&quot;ret_im_bookWiseInvDetAjx_Detail&quot;, &quot;ret_rep_pwt_Menu&quot;,
+				&quot;ret_rep_pwt_Search&quot;, &quot;ret_om_quickOrder_Menu&quot;,
+				&quot;ret_om_quickOrder_Save&quot;, &quot;ret_im_soldTktEntry_Menu&quot;,
+				&quot;ret_im_soldTktEntry_save&quot;,
+				&quot;ret_im_soldTktEntry_fetchBooksAjax&quot;, &quot;verifyTicket&quot;,
+				&quot;fortuneBuy&quot;, &quot;fortuneReprintTicket&quot;, &quot;reprintTicket&quot;,
+				&quot;fortuneInfo&quot;, &quot;card12Buy&quot;, &quot;card12ReprintTicket&quot;,
+				&quot;card12Info&quot;, &quot;jreVersion&quot;, &quot;card16Buy&quot;, &quot;card16ReprintTicket&quot;,
+				&quot;card16Info&quot;, &quot;getServerTime&quot;, &quot;lottoBuy&quot;,
+				&quot;lottoReprintTicket&quot;, &quot;lottoInfo&quot;, &quot;kenoBuy&quot;,
+				&quot;kenoReprintTicket&quot;, &quot;kenoInfo&quot;, &quot;fastLottoBuy&quot;,
+				&quot;fastlottoReprintTicket&quot;, &quot;fastLottoInfo&quot;, &quot;zeroToNineBuy&quot;,
+				&quot;zimLottoBuy&quot;, &quot;zimlottoReprintTicket&quot;, &quot;zimLottoInfo&quot;,
+				&quot;zimLottotwoBuy&quot;, &quot;zimlottotwoReprintTicket&quot;,
+				&quot;zimLottotwoInfo&quot;, &quot;cancelTicket&quot;, &quot;rpos&quot;, &quot;updatedData&quot;,
+				&quot;registerPlayer&quot;, &quot;ret_dg_rep_pwt_Search&quot;,
+				&quot;ret_dg_rep_sale_Menu&quot;, &quot;ret_dg_rep_sale_Search&quot;,
+				&quot;ret_dg_rep_sale_Navigate&quot;, &quot;ret_dg_rep_pwt_Menu&quot;));
+		// logger.info(list);
+<span class="nc" id="L286">		rg.removeAction(list, &quot;SALE_HOLD&quot;);</span>
+		// logger.info(list);
+<span class="nc" id="L288">	}</span>
+
+	public static List removeAction(List actionList, String action) {
+<span class="nc" id="L291">		String actType = &quot;NO_ACTION&quot;;</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">		if (&quot;INACTIVE_USER&quot;.equals(action)) {</span>
+<span class="nc" id="L293">			actionList = new ArrayList();</span>
+<span class="nc" id="L294">			return actionList;</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">		} else if (&quot;PWT_HOLD&quot;.equals(action)) {</span>
+<span class="nc" id="L296">			actType = &quot;verifyTicket&quot;;</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">		} else if (&quot;SALE_HOLD&quot;.equals(action)) {</span>
+<span class="nc" id="L298">			actType = &quot;Buy&quot;;</span>
+<span class="nc bnc" id="L299" title="All 2 branches missed.">		} else if (&quot;REPRINT_HOLD&quot;.equals(action)) {</span>
+<span class="nc" id="L300">			actType = &quot;reprintTicket&quot;;</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">		} else if (&quot;CANCEL_HOLD&quot;.equals(action)) {</span>
+<span class="nc" id="L302">			actType = &quot;cancelTicket&quot;;</span>
+		}
+<span class="nc bnc" id="L304" title="All 2 branches missed.">		for (int i = 0; i &lt; actionList.size(); i++) {</span>
+<span class="nc" id="L305">			String str = (String) actionList.get(i);</span>
+<span class="nc" id="L306">			logger.info(&quot;*******str&quot; + str);</span>
+<span class="nc bnc" id="L307" title="All 2 branches missed.">			if (str.contains(actType)) {</span>
+<span class="nc" id="L308">				logger.info(&quot;*******strMatch&quot; + str);</span>
+<span class="nc" id="L309">				actionList.remove(str);</span>
+<span class="nc" id="L310">				logger.info(str);</span>
+<span class="nc" id="L311">				i--;</span>
+			}
+		}
+<span class="nc" id="L314">		return actionList;</span>
+	}
+
+	public static boolean respGaming(UserInfoBean userBean, String criTpye,
+			String limit) {
+<span class="nc" id="L319">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L320">		boolean result = false;</span>
+		try {
+<span class="nc" id="L322">			con.setAutoCommit(false);</span>
+<span class="nc" id="L323">			result = respGaming(userBean, criTpye, limit, con);</span>
+<span class="nc" id="L324">			con.commit();</span>
+<span class="nc" id="L325">		} catch (Exception e) {</span>
+<span class="nc" id="L326">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L328">			try {</span>
+<span class="nc" id="L329">				con.close();</span>
+<span class="nc" id="L330">			} catch (SQLException e) {</span>
+<span class="nc" id="L331">				e.printStackTrace();</span>
+<span class="nc" id="L332">			}</span>
+<span class="nc" id="L333">		}</span>
+<span class="nc" id="L334">		return result;</span>
+	}
+
+	public static boolean respGaming(UserInfoBean userBean, String criTpye,
+			String limit, Connection con) {
+<span class="nc" id="L339">		int orgId = userBean.getUserOrgId();</span>
+<span class="nc" id="L340">		int userId = userBean.getUserId();</span>
+		//logger.info(&quot;RG Counter for Criteria::&quot; + criTpye+ &quot; and limit::&quot; + limit);
+<span class="nc" id="L342">		List&lt;String&gt; criTpyeList = Arrays.asList(&quot;DG_SALE&quot;, &quot;DG_PWT&quot;,</span>
+				&quot;DG_REPRINT&quot;, &quot;DG_CANCEL&quot;, &quot;DG_PWT_INVALID&quot;, &quot;SE_PWT&quot;,
+				&quot;SE_PWT_INVALID&quot;, &quot;DG_OFFLINE_LATEUPLOAD&quot;,
+				&quot;DG_OFFLINE_ERRORFILE&quot;, &quot;CS_REPRINT_LIMIT&quot;,&quot;DG_CANCEL_AMOUNT&quot;,&quot;DG_PWT_COUNT&quot;,&quot;AGENT_DG_PWT&quot;,
+				&quot;SLE_SALE&quot;,&quot;SLE_CANCEL&quot;,&quot;SLE_CANCEL_AMOUNT&quot;,&quot;SLE_REPRINT&quot;, &quot;SLE_PWT&quot;, &quot;SLE_INVALID_PWT&quot;, &quot;IW_SALE&quot;, &quot;IW_PWT&quot;, &quot;IW_INVALID_PWT&quot;, &quot;IW_REPRINT_LIMIT&quot;,&quot;VS_SALE&quot;,&quot;VS_PWT&quot;);
+<span class="nc" id="L347">		ResponsibleGaming rg = new ResponsibleGaming();</span>
+<span class="nc" id="L348">		boolean isFraud = false;</span>
+<span class="nc bnc" id="L349" title="All 26 branches missed.">		switch (criTpyeList.indexOf(criTpye)) {</span>
+		case 0: // DG_SALE
+<span class="nc" id="L351">			isFraud = rg.rgCounter(orgId, userId, &quot;dg_sale_amt&quot;, Double</span>
+					.parseDouble(limit),con);
+<span class="nc" id="L353">			break;</span>
+		case 1: // DG_PWT
+<span class="nc" id="L355">			isFraud = rg.rgCounter(orgId, userId, &quot;dg_pwt_amt&quot;, Double</span>
+					.parseDouble(limit));
+<span class="nc" id="L357">			break;</span>
+		case 2: // DG_REPRINT
+<span class="nc" id="L359">			isFraud = rg.rgCounter(orgId, userId, &quot;dg_reprint_limit&quot;, Integer</span>
+					.parseInt(limit), con);
+<span class="nc" id="L361">			break;</span>
+		case 3: // DG_CANCEL
+<span class="nc" id="L363">			isFraud = rg.rgCounter(orgId, userId, &quot;dg_cancel_limit&quot;, Integer</span>
+					.parseInt(limit), con);
+<span class="nc" id="L365">			break;</span>
+		case 4: // DG_PWT_INVALID
+<span class="nc" id="L367">			isFraud = rg.rgCounter(orgId, userId, &quot;dg_invalid_pwt_limit&quot;,</span>
+					Integer.parseInt(limit), con);
+<span class="nc" id="L369">			break;</span>
+		case 5:
+<span class="nc" id="L371">			isFraud = rg.rgCounter(orgId, userId, &quot;se_pwt_amt&quot;, Double</span>
+					.parseDouble(limit));
+<span class="nc" id="L373">			break;</span>
+		case 6:
+<span class="nc" id="L375">			isFraud = rg.rgCounter(orgId, userId, &quot;se_invalid_pwt_limit&quot;,</span>
+					Integer.parseInt(limit), con);
+<span class="nc" id="L377">			break;</span>
+		case 7:
+<span class="nc" id="L379">			isFraud = rg.rgCounter(orgId, userId, &quot;dg_offline_lateupload&quot;,</span>
+					Integer.parseInt(limit), con);
+<span class="nc" id="L381">			break;</span>
+		case 8:
+<span class="nc" id="L383">			isFraud = rg.rgCounter(orgId, userId, &quot;dg_offline_errorfile&quot;,</span>
+					Integer.parseInt(limit), con);
+<span class="nc" id="L385">			break;</span>
+		case 9:
+<span class="nc" id="L387">			isFraud = rg.rgCounter(orgId, userId, &quot;cs_reprint_limit&quot;, Integer</span>
+					.parseInt(limit), con);
+<span class="nc" id="L389">			break;</span>
+			//subtract cancel amount from sale
+		case 10:
+<span class="nc" id="L392">			isFraud = rg.rgCounterCancel(orgId, userId, &quot;dg_sale_amt&quot;,  Double</span>
+					.parseDouble(limit), con);
+<span class="nc" id="L394">			break;</span>
+		case 11:
+<span class="nc" id="L396">			isFraud = rg.rgCounterCheck(orgId, userId, &quot;dg_invalid_pwt_limit&quot;,</span>
+					Integer.parseInt(limit), con);
+<span class="nc" id="L398">			break;</span>
+		case 12:
+<span class="nc" id="L400">			isFraud = rg.rgCounterCheck(orgId, userId,&quot;dg_pwt_amt&quot;, Double.parseDouble(limit), con,0);</span>
+<span class="nc" id="L401">			break;</span>
+		case 13:
+<span class="nc" id="L403">			isFraud = rg.rgCounter(orgId, userId,&quot;sle_sale_amt&quot;, Double.parseDouble(limit), con);</span>
+<span class="nc" id="L404">			break;</span>
+		case 14:
+<span class="nc" id="L406">			isFraud = rg.rgCounter(orgId, userId,&quot;sle_cancel_limit&quot;, Integer.parseInt(limit), con);</span>
+<span class="nc" id="L407">			break;</span>
+		case 15:
+<span class="nc" id="L409">			isFraud = rg.rgCounterCancel(orgId, userId, &quot;sle_sale_amt&quot;,  Double.parseDouble(limit), con);</span>
+<span class="nc" id="L410">			break;</span>
+		case 16:
+<span class="nc" id="L412">			isFraud = rg.rgCounter(orgId, userId, &quot;sle_reprint_limit&quot;,  Integer.parseInt(limit), con);</span>
+<span class="nc" id="L413">			break;</span>
+		case 17:
+<span class="nc" id="L415">			isFraud = rg.rgCounter(orgId, userId, &quot;sle_pwt_amt&quot;,  Double.parseDouble(limit), con);</span>
+<span class="nc" id="L416">			break;</span>
+		case 18:
+<span class="nc" id="L418">			isFraud = rg.rgCounter(orgId, userId, &quot;sle_invalid_pwt_limit&quot;,  Integer.parseInt(limit), con);</span>
+<span class="nc" id="L419">			break;</span>
+		case 19:
+<span class="nc" id="L421">			isFraud = rg.rgCounter(orgId, userId, &quot;iw_sale_amt&quot;, Double.parseDouble(limit), con);</span>
+<span class="nc" id="L422">			break;</span>
+		case 20:
+<span class="nc" id="L424">			isFraud = rg.rgCounter(orgId, userId, &quot;iw_pwt_amt&quot;, Double.parseDouble(limit), con);</span>
+<span class="nc" id="L425">			break;</span>
+		case 21:
+<span class="nc" id="L427">			isFraud = rg.rgCounter(orgId, userId, &quot;iw_invalid_pwt_limit&quot;, Integer.parseInt(limit), con);</span>
+<span class="nc" id="L428">			break;</span>
+		/*case 22:
+			isFraud = rg.rgCounter(orgId, userId, &quot;iw_cancel_limit&quot;,  Integer.parseInt(limit), con);
+			break;*/
+		case 22:
+<span class="nc" id="L433">			isFraud = rg.rgCounter(orgId, userId, &quot;iw_reprint_limit&quot;,  Integer.parseInt(limit), con);</span>
+<span class="nc" id="L434">			break;</span>
+		case 23:
+<span class="nc" id="L436">			isFraud = rg.rgCounter(orgId, userId, &quot;vs_sale_amt&quot;, Double.parseDouble(limit), con);</span>
+<span class="nc" id="L437">			break;	</span>
+		case 24:
+<span class="nc" id="L439">			isFraud = rg.rgCounter(orgId, userId, &quot;vs_pwt_amt&quot;, Double.parseDouble(limit), con);</span>
+<span class="nc" id="L440">			break;</span>
+		default:
+			break;
+		}
+		/*if (isFraud) {
+			rg.logOutUser(userBean);
+		}*/
+<span class="nc" id="L447">		return isFraud;</span>
+	}
+
+	@Deprecated
+	public static boolean rgInsertion(int userId, int OrgId) {
+
+<span class="nc" id="L453">		logger.info(&quot;RG Insert for UserID::&quot; + userId + &quot;  and OrgId::&quot;</span>
+				+ OrgId);
+<span class="nc" id="L455">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L456">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L457">		String updateQuery = null;</span>
+<span class="nc" id="L458">		boolean chkDone = false;</span>
+		try {
+<span class="nc" id="L460">			con.setAutoCommit(false);</span>
+
+			// for daily table
+<span class="nc" id="L463">			updateQuery = &quot;insert into st_lms_rg_org_daily_tx (organization_id,user_id) values(?,?)&quot;;</span>
+<span class="nc" id="L464">			pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L465">			pstmt.setInt(1, OrgId);</span>
+<span class="nc" id="L466">			pstmt.setInt(2, userId);</span>
+<span class="nc" id="L467">			pstmt.executeUpdate();</span>
+<span class="nc" id="L468">			pstmt.close();</span>
+			// for weekly table
+<span class="nc" id="L470">			updateQuery = &quot;insert into st_lms_rg_org_weekly_tx (organization_id,user_id,startdate) values (?,?,?)&quot;;</span>
+<span class="nc" id="L471">			pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L472">			pstmt.setInt(1, OrgId);</span>
+<span class="nc" id="L473">			pstmt.setInt(2, userId);</span>
+<span class="nc" id="L474">			pstmt.setTimestamp(3, new Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L475">			pstmt.executeUpdate();</span>
+<span class="nc" id="L476">			pstmt.close();</span>
+<span class="nc" id="L477">			con.commit();</span>
+<span class="nc" id="L478">			chkDone = true;</span>
+<span class="nc" id="L479">		} catch (Exception e) {</span>
+<span class="nc" id="L480">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L482">			try {</span>
+<span class="nc" id="L483">				con.close();</span>
+<span class="nc" id="L484">			} catch (SQLException e) {</span>
+<span class="nc" id="L485">				e.printStackTrace();</span>
+<span class="nc" id="L486">			}</span>
+<span class="nc" id="L487">		}</span>
+<span class="nc" id="L488">		return chkDone;</span>
+	}
+
+	public static boolean rgInsertion(int userId, int OrgId , Connection con)throws SQLException {
+
+<span class="nc" id="L493">		logger.info(&quot;RG Insert for UserID::&quot; + userId + &quot;  and OrgId::&quot;	+ OrgId +&quot; With Connection&quot;);</span>
+<span class="nc" id="L494">		boolean chkDone = false;</span>
+<span class="nc" id="L495">		String updateQuery = null;</span>
+<span class="nc" id="L496">		PreparedStatement pstmt = null;</span>
+		// for daily table
+<span class="nc" id="L498">			updateQuery = &quot;insert into st_lms_rg_org_daily_tx (organization_id,user_id) values(?,?)&quot;;</span>
+<span class="nc" id="L499">			pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L500">			pstmt.setInt(1, OrgId);</span>
+<span class="nc" id="L501">			pstmt.setInt(2, userId);</span>
+<span class="nc" id="L502">			pstmt.executeUpdate();</span>
+<span class="nc" id="L503">			DBConnect.closePstmt(pstmt);</span>
+
+			// for weekly table
+<span class="nc" id="L506">			updateQuery = &quot;insert into st_lms_rg_org_weekly_tx (organization_id,user_id,startdate) values (?,?,?)&quot;;</span>
+<span class="nc" id="L507">			pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L508">			pstmt.setInt(1, OrgId);</span>
+<span class="nc" id="L509">			pstmt.setInt(2, userId);</span>
+<span class="nc" id="L510">			pstmt.setTimestamp(3, new Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L511">			pstmt.executeUpdate();</span>
+<span class="nc" id="L512">			DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L513">			chkDone = true;</span>
+			
+<span class="nc" id="L515">		return chkDone;</span>
+	}
+	
+	private String criteriaAction;
+
+	public List fetchRGEnumList() {
+<span class="nc" id="L521">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L522">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L523">		ResultSet rs = null;</span>
+<span class="nc" id="L524">		String selectQuery = null;</span>
+<span class="nc" id="L525">		List&lt;List&gt; mainList = new ArrayList&lt;List&gt;();</span>
+		try {
+<span class="nc" id="L527">			selectQuery = &quot;select SUBSTRING(COLUMN_TYPE,5) as list from information_schema.COLUMNS where TABLE_SCHEMA='&quot;</span>
+					+ DBConnect.getDatabaseName()
+					+ &quot;' and TABLE_NAME='st_lms_rg_criteria_limit' and COLUMN_TYPE like 'enum%'&quot;;
+<span class="nc" id="L530">			pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L531">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L532" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L533">				List tempList = Arrays.asList(rs.getString(&quot;list&quot;).replace(&quot;(&quot;,</span>
+						&quot;&quot;).replace(&quot;)&quot;, &quot;&quot;).replaceAll(&quot;'&quot;, &quot;&quot;).split(&quot;,&quot;));
+<span class="nc" id="L535">				logger.info(&quot;******&quot; + tempList);</span>
+<span class="nc" id="L536">				mainList.add(tempList);</span>
+<span class="nc" id="L537">			}</span>
+
+<span class="nc" id="L539">		} catch (Exception e) {</span>
+<span class="nc" id="L540">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L542">			try {</span>
+<span class="nc" id="L543">				con.close();</span>
+<span class="nc" id="L544">			} catch (SQLException e) {</span>
+<span class="nc" id="L545">				e.printStackTrace();</span>
+<span class="nc" id="L546">			}</span>
+<span class="nc" id="L547">		}</span>
+<span class="nc" id="L548">		return mainList;</span>
+	}
+
+	public List fetchRGLimits(String criType) {
+<span class="nc" id="L552">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L553">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L554">		ResultSet rs = null;</span>
+<span class="nc" id="L555">		String selectQuery = null;</span>
+<span class="nc" id="L556">		List&lt;ResponsibleGamingBean&gt; criList = new ArrayList&lt;ResponsibleGamingBean&gt;();</span>
+<span class="nc" id="L557">		ResponsibleGamingBean bean = null;</span>
+		try {
+<span class="nc" id="L559">			selectQuery = &quot;select crit_id,criteria_desc,criteria_limit,crit_status,crit_action,organization_type from st_lms_rg_criteria_limit where criteria_type='&quot;</span>
+					+ criType
+					+ &quot;' and service_code in (select service_code from st_lms_service_master where status='ACTIVE')&quot;;
+<span class="nc" id="L562">			pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L563">			logger.info(&quot;***fetchRGLimits****&quot; + pstmt);</span>
+<span class="nc" id="L564">			rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L566" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L567">				bean = new ResponsibleGamingBean();</span>
+<span class="nc" id="L568">				bean.setCriteriaId(rs.getInt(&quot;crit_id&quot;));</span>
+<span class="nc" id="L569">				bean.setCriteria(rs.getString(&quot;criteria_desc&quot;));</span>
+<span class="nc" id="L570">				bean.setCriLimit(FormatNumber.formatNumber(rs.getDouble(&quot;criteria_limit&quot;)));</span>
+<span class="nc" id="L571">				bean.setCriAction(rs.getString(&quot;crit_action&quot;));</span>
+<span class="nc" id="L572">				bean.setOrgType(rs.getString(&quot;organization_type&quot;));</span>
+<span class="nc" id="L573">				bean.setStatus(rs.getString(&quot;crit_status&quot;));</span>
+<span class="nc" id="L574">				criList.add(bean);</span>
+			}
+
+<span class="nc" id="L577">		} catch (Exception e) {</span>
+<span class="nc" id="L578">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L580">			try {</span>
+<span class="nc" id="L581">				con.close();</span>
+<span class="nc" id="L582">			} catch (SQLException e) {</span>
+<span class="nc" id="L583">				e.printStackTrace();</span>
+<span class="nc" id="L584">			}</span>
+<span class="nc" id="L585">		}</span>
+<span class="nc" id="L586">		return criList;</span>
+	}
+
+	public String getCriteriaAction() {
+<span class="nc" id="L590">		return criteriaAction;</span>
+	}
+
+	public void logOutUser(UserInfoBean userBean) {
+		//ServletContext sc = ServletActionContext.getServletContext();
+<span class="nc" id="L595">		ServletContext sc = LMSUtility.sc;</span>
+<span class="nc" id="L596">		Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L597">		HttpSession session = (HttpSession) currentUserSessionMap.get(userBean</span>
+				.getUserName());
+        //if session is null then skip log out function
+<span class="nc bnc" id="L600" title="All 2 branches missed.">		if(session !=null){</span>
+<span class="nc" id="L601">		String critAction = getCriteriaAction();</span>
+<span class="nc bnc" id="L602" title="All 2 branches missed.">		if (&quot;INACTIVE_USER&quot;.equals(critAction)) { // user logout only in case</span>
+			// of invalid pwt
+<span class="nc" id="L604">			currentUserSessionMap.remove(userBean.getUserName());</span>
+<span class="nc" id="L605">			userBean.setUserSession(null);</span>
+<span class="nc" id="L606">			return;</span>
+		}
+
+<span class="nc" id="L609">		List actionList = (List) session.getAttribute(&quot;ACTION_LIST&quot;);</span>
+<span class="nc" id="L610">		logger.info(&quot;************Action_List**&quot; + actionList);</span>
+<span class="nc" id="L611">		actionList = removeAction(actionList, critAction);</span>
+
+<span class="nc" id="L613">		logger.info(&quot;After RG Check ACTION_LIST&quot; + actionList);</span>
+<span class="nc" id="L614">		session.setAttribute(&quot;ACTION_LIST&quot;, actionList);</span>
+		}
+<span class="nc" id="L616">	}</span>
+	
+	/**
+	 * This function is used to cancel the ticket amount from sale
+	 * @param orgId
+	 * @param userId
+	 * @param criteriaType
+	 * @param amount
+	 * @param con
+	 * @return
+	 */
+	public boolean rgCounterCancel(int orgId, int userId, String criteriaType,
+			double amount,Connection con) {
+<span class="nc" id="L629">		logger.info(&quot;RG Counter for Criteria::&quot; + criteriaType</span>
+				+ &quot; and amount::&quot; + amount);
+		
+<span class="nc" id="L632">		PreparedStatement pstmt = null;</span>
+		
+<span class="nc" id="L634">		String  updateQuery = null;</span>
+		
+		try {
+<span class="nc bnc" id="L637" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getStatus())){</span>
+				
+<span class="nc" id="L639">						updateQuery = &quot;update st_lms_rg_org_daily_tx set &quot;</span>
+								+ criteriaType + &quot;=&quot; + criteriaType
+								+ &quot;-? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L642">						pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L643">						pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L644">						pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L645">						pstmt.setInt(3, userId);</span>
+<span class="nc" id="L646">						logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L647">						pstmt.executeUpdate();</span>
+					
+			}
+					
+<span class="nc bnc" id="L651" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getStatus())){</span>
+				
+<span class="nc" id="L653">				updateQuery = &quot;update st_lms_rg_org_weekly_tx set &quot;</span>
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;-? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L656">					pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L657">					pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L658">					pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L659">					pstmt.setInt(3, userId);</span>
+<span class="nc" id="L660">					logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L661">					pstmt.executeUpdate();</span>
+				
+			}
+			
+<span class="nc" id="L665">		} catch (Exception e) {</span>
+<span class="nc" id="L666">			e.printStackTrace();</span>
+<span class="nc" id="L667">			return true;</span>
+<span class="nc" id="L668">		}</span>
+
+<span class="nc" id="L670">		return false;</span>
+	}
+	
+
+	public boolean rgCounter(int orgId, int userId, String criteriaType,
+			double amount,Connection con) {
+		//logger.info(&quot;RG Counter for Criteria::&quot; + criteriaType	+ &quot; and amount::&quot; + amount);
+		
+<span class="nc" id="L678">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L679">		ResultSet rsUser = null;</span>
+<span class="nc" id="L680">		String selectQuery = null, updateQuery = null, critAction = null;</span>
+<span class="nc" id="L681">		double maxLimit = 0.0, currentAmount = 0.0;</span>
+<span class="nc" id="L682">		boolean isFraud = false;</span>
+		try {
+<span class="nc bnc" id="L684" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getStatus())){</span>
+<span class="nc" id="L685">				maxLimit = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L686">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L688">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_daily_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L689">					pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L690">					pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L691">					pstmt.setInt(2, userId);</span>
+<span class="nc" id="L692">					logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L693">					rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L694" title="All 2 branches missed.">					if (rsUser.next()) {</span>
+<span class="nc" id="L695">						currentAmount = rsUser.getDouble(criteriaType);</span>
+					}
+<span class="nc bnc" id="L697" title="All 2 branches missed.">					logger.info(&quot;check &quot; + (currentAmount + amount)+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;+ (currentAmount + amount &lt; maxLimit));</span>
+<span class="nc bnc" id="L698" title="All 2 branches missed.">					if (currentAmount + amount &lt;= maxLimit) {</span>
+<span class="nc" id="L699">						updateQuery = &quot;update st_lms_rg_org_daily_tx set &quot;</span>
+								+ criteriaType + &quot;=&quot; + criteriaType
+								+ &quot;+? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L702">						pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L703">						pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L704">						pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L705">						pstmt.setInt(3, userId);</span>
+<span class="nc" id="L706">						logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L707">						pstmt.executeUpdate();</span>
+					} else {
+<span class="nc" id="L709">						logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L710">						isFraud = true;</span>
+<span class="nc" id="L711">						setCriteriaAction(critAction);</span>
+<span class="nc" id="L712">						return isFraud;</span>
+					}
+			}
+			
+				
+<span class="nc bnc" id="L717" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getStatus())){</span>
+<span class="nc" id="L718">				maxLimit = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L719">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L721">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_weekly_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L722">				pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L723">				pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L724">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L725">				logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L726">				rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L727" title="All 2 branches missed.">				if (rsUser.next()) {</span>
+<span class="nc" id="L728">					currentAmount = rsUser.getDouble(criteriaType);</span>
+				}
+<span class="nc bnc" id="L730" title="All 2 branches missed.">				logger.info(&quot;check &quot; + (currentAmount + amount)</span>
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (currentAmount + amount &lt; maxLimit));
+<span class="nc bnc" id="L733" title="All 2 branches missed.">				if (currentAmount + amount &lt; maxLimit) {</span>
+<span class="nc" id="L734">					updateQuery = &quot;update st_lms_rg_org_weekly_tx set &quot;</span>
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;+? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L737">					pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L738">					pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L739">					pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L740">					pstmt.setInt(3, userId);</span>
+<span class="nc" id="L741">					logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L742">					pstmt.executeUpdate();</span>
+				} else {
+<span class="nc" id="L744">					logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L745">					isFraud = true;</span>
+<span class="nc" id="L746">					setCriteriaAction(critAction);</span>
+<span class="nc" id="L747">					return isFraud;</span>
+				}
+			}
+<span class="nc" id="L750">			setCriteriaAction(critAction);</span>
+			
+	/*		selectQuery = &quot;select criteria_limit,crit_action,criteria_type from st_lms_rg_criteria_limit where criteria=? and  crit_status='ACTIVE' and organization_type='RETAILER' order by criteria_type&quot;;
+			pstmt = con.prepareStatement(selectQuery);
+			pstmt.setString(1, criteriaType);
+			logger.info(&quot;Criteria Limit Query ::&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				logger.info(&quot;******for criteria_type&quot;
+						+ rs.getString(&quot;criteria_type&quot;));
+				if (&quot;DAILY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getDouble(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_daily_tx&quot;;
+				} else if (&quot;WEEKLY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getDouble(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_weekly_tx&quot;;
+				}
+				selectQuery = &quot;select &quot; + criteriaType + &quot; from &quot; + tableName
+						+ &quot; where organization_id=? and user_id=?&quot;;
+				pstmt = con.prepareStatement(selectQuery);
+				pstmt.setInt(1, orgId);
+				pstmt.setInt(2, userId);
+				logger.info(&quot;Select Query Retailer::&quot; + pstmt);
+				rsUser = pstmt.executeQuery();
+				if (rsUser.next()) {
+					currentAmount = rsUser.getDouble(criteriaType);
+				}
+				logger.info(&quot;check &quot; + (currentAmount + amount)
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (currentAmount + amount &lt; maxLimit));
+				if (currentAmount + amount &lt; maxLimit) {
+					updateQuery = &quot;update &quot; + tableName + &quot; set &quot;
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;+? where organization_id=? and user_id=?&quot;;
+					pstmt = con.prepareStatement(updateQuery);
+					pstmt.setDouble(1, amount);
+					pstmt.setInt(2, orgId);
+					pstmt.setInt(3, userId);
+					logger.info(&quot;Update Query ::&quot; + pstmt);
+					pstmt.executeUpdate();
+				} else {
+					logger.info(&quot;************RG Criteria fails&quot;);
+					isFraud = true;
+					break;
+				}
+			}
+			setCriteriaAction(critAction);*/
+			
+<span class="nc" id="L800">		} catch (Exception e) {</span>
+<span class="nc" id="L801">			e.printStackTrace();</span>
+<span class="nc" id="L802">		}</span>
+
+<span class="nc" id="L804">		return isFraud;</span>
+	}
+
+	public boolean rgCounter(int orgId, int userId, String criteriaType,
+			double amount) {
+<span class="nc" id="L809">		logger.info(&quot;RG Counter for Criteria::&quot; + criteriaType</span>
+				+ &quot; and amount::&quot; + amount);
+<span class="nc" id="L811">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L812">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L813">		ResultSet rs = null, rsUser = null;</span>
+<span class="nc" id="L814">		String selectQuery = null, updateQuery = null, critAction = null, tableName = null;</span>
+<span class="nc" id="L815">		double maxLimit = 0.0, currentAmount = 0.0;</span>
+<span class="nc" id="L816">		boolean isFraud = false;</span>
+		try {
+<span class="nc" id="L818">			con.setAutoCommit(false);</span>
+			
+<span class="nc bnc" id="L820" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getStatus())){</span>
+<span class="nc" id="L821">				maxLimit = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L822">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L824">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_daily_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L825">					pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L826">					pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L827">					pstmt.setInt(2, userId);</span>
+<span class="nc" id="L828">					logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L829">					rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L830" title="All 2 branches missed.">					if (rsUser.next()) {</span>
+<span class="nc" id="L831">						currentAmount = rsUser.getDouble(criteriaType);</span>
+					}
+<span class="nc bnc" id="L833" title="All 2 branches missed.">					logger.info(&quot;check &quot; + (currentAmount + amount)+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;+ (currentAmount + amount &lt; maxLimit));</span>
+<span class="nc bnc" id="L834" title="All 2 branches missed.">					if (currentAmount + amount &lt; maxLimit) {</span>
+<span class="nc" id="L835">						updateQuery = &quot;update st_lms_rg_org_daily_tx set &quot;</span>
+								+ criteriaType + &quot;=&quot; + criteriaType
+								+ &quot;+? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L838">						pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L839">						pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L840">						pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L841">						pstmt.setInt(3, userId);</span>
+<span class="nc" id="L842">						logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L843">						pstmt.executeUpdate();</span>
+					} else {
+<span class="nc" id="L845">						logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L846">						isFraud = true;</span>
+<span class="nc" id="L847">						setCriteriaAction(critAction);</span>
+<span class="nc" id="L848">						return isFraud;</span>
+					}
+			}
+			
+				
+<span class="nc bnc" id="L853" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getStatus())){</span>
+<span class="nc" id="L854">				maxLimit = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L855">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L857">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_weekly_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L858">				pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L859">				pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L860">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L861">				logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L862">				rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L863" title="All 2 branches missed.">				if (rsUser.next()) {</span>
+<span class="nc" id="L864">					currentAmount = rsUser.getDouble(criteriaType);</span>
+				}
+<span class="nc bnc" id="L866" title="All 2 branches missed.">				logger.info(&quot;check &quot; + (currentAmount + amount)</span>
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (currentAmount + amount &lt; maxLimit));
+<span class="nc bnc" id="L869" title="All 2 branches missed.">				if (currentAmount + amount &lt; maxLimit) {</span>
+<span class="nc" id="L870">					updateQuery = &quot;update st_lms_rg_org_weekly_tx set &quot;</span>
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;+? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L873">					pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L874">					pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L875">					pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L876">					pstmt.setInt(3, userId);</span>
+<span class="nc" id="L877">					logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L878">					pstmt.executeUpdate();</span>
+				} else {
+<span class="nc" id="L880">					logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L881">					isFraud = true;</span>
+<span class="nc" id="L882">					setCriteriaAction(critAction);</span>
+<span class="nc" id="L883">					return isFraud;</span>
+				}
+			}
+<span class="nc" id="L886">			setCriteriaAction(critAction);</span>
+			
+			
+			/*selectQuery = &quot;select criteria_limit,crit_action,criteria_type from st_lms_rg_criteria_limit where criteria=? and  crit_status='ACTIVE' and organization_type='RETAILER' order by criteria_type&quot;;
+			pstmt = con.prepareStatement(selectQuery);
+			pstmt.setString(1, criteriaType);
+			logger.info(&quot;Criteria Limit Query ::&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				logger.info(&quot;******for criteria_type&quot;
+						+ rs.getString(&quot;criteria_type&quot;));
+				if (&quot;DAILY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getDouble(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_daily_tx&quot;;
+				} else if (&quot;WEEKLY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getDouble(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_weekly_tx&quot;;
+				}
+				selectQuery = &quot;select &quot; + criteriaType + &quot; from &quot; + tableName
+						+ &quot; where organization_id=? and user_id=?&quot;;
+				pstmt = con.prepareStatement(selectQuery);
+				pstmt.setInt(1, orgId);
+				pstmt.setInt(2, userId);
+				logger.info(&quot;Select Query Retailer::&quot; + pstmt);
+				rsUser = pstmt.executeQuery();
+				if (rsUser.next()) {
+					currentAmount = rsUser.getDouble(criteriaType);
+				}
+				logger.info(&quot;check &quot; + (currentAmount + amount)
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (currentAmount + amount &lt; maxLimit));
+				if (currentAmount + amount &lt; maxLimit) {
+					updateQuery = &quot;update &quot; + tableName + &quot; set &quot;
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;+? where organization_id=? and user_id=?&quot;;
+					pstmt = con.prepareStatement(updateQuery);
+					pstmt.setDouble(1, amount);
+					pstmt.setInt(2, orgId);
+					pstmt.setInt(3, userId);
+					logger.info(&quot;Update Query ::&quot; + pstmt);
+					pstmt.executeUpdate();
+				} else {
+					logger.info(&quot;************RG Criteria fails&quot;);
+					isFraud = true;
+					break;
+				}
+			}
+			setCriteriaAction(critAction);*/
+<span class="nc" id="L936">			con.commit();</span>
+<span class="nc" id="L937">		} catch (Exception e) {</span>
+<span class="nc" id="L938">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L940">			try {</span>
+<span class="nc" id="L941">				con.close();</span>
+<span class="nc" id="L942">			} catch (SQLException e) {</span>
+<span class="nc" id="L943">				e.printStackTrace();</span>
+<span class="nc" id="L944">			}</span>
+<span class="nc" id="L945">		}</span>
+
+<span class="nc" id="L947">		return isFraud;</span>
+	}
+
+	public boolean rgCounter(int orgId, int userId, String criteriaType,
+			int count, Connection con) {
+<span class="nc" id="L952">		logger.info(&quot;RG Counter for Criteria::&quot; + criteriaType</span>
+				+ &quot; and count::&quot; + count);
+<span class="nc" id="L954">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L955">		ResultSet rs = null, rsUser = null;</span>
+<span class="nc" id="L956">		String selectQuery = null, updateQuery = null, critAction = null;</span>
+<span class="nc" id="L957">		int maxLimit = 0, curCount = 0;</span>
+<span class="nc" id="L958">		boolean isFraud = false;</span>
+		try {
+			
+<span class="nc bnc" id="L961" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getStatus())){</span>
+<span class="nc" id="L962">				maxLimit = (int) Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L963">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L965">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_daily_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L966">					pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L967">					pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L968">					pstmt.setInt(2, userId);</span>
+<span class="nc" id="L969">					logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L970">					rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L971" title="All 2 branches missed.">					if (rsUser.next()) {</span>
+<span class="nc" id="L972">						curCount = rsUser.getInt(criteriaType);</span>
+					}
+<span class="nc bnc" id="L974" title="All 2 branches missed.">					logger.info(&quot;check &quot; + (curCount + count)</span>
+							+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+							+ (curCount + count &lt; maxLimit));
+<span class="nc bnc" id="L977" title="All 2 branches missed.">					if (curCount &lt; maxLimit) {</span>
+<span class="nc" id="L978">						updateQuery = &quot;update st_lms_rg_org_daily_tx set &quot;</span>
+								+ criteriaType + &quot;=&quot; + criteriaType
+								+ &quot;+? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L981">						pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L982">						pstmt.setInt(1, count);</span>
+<span class="nc" id="L983">						pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L984">						pstmt.setInt(3, userId);</span>
+<span class="nc" id="L985">						logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L986">						pstmt.executeUpdate();</span>
+					} else {
+<span class="nc" id="L988">						logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L989">						isFraud = true;</span>
+<span class="nc" id="L990">						setCriteriaAction(critAction);</span>
+<span class="nc" id="L991">						return isFraud;</span>
+					}
+			}
+			
+				
+<span class="nc bnc" id="L996" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getStatus())){</span>
+<span class="nc" id="L997">				maxLimit = (int) Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L998">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L1000">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_weekly_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L1001">				pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L1002">				pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L1003">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L1004">				logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L1005">				rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1006" title="All 2 branches missed.">				if (rsUser.next()) {</span>
+<span class="nc" id="L1007">					curCount = rsUser.getInt(criteriaType);</span>
+				}
+<span class="nc bnc" id="L1009" title="All 2 branches missed.">				logger.info(&quot;check &quot; + (curCount + count)</span>
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (curCount + count &lt; maxLimit));
+<span class="nc bnc" id="L1012" title="All 2 branches missed.">				if (curCount &lt; maxLimit) {</span>
+<span class="nc" id="L1013">					updateQuery = &quot;update st_lms_rg_org_weekly_tx set &quot;</span>
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;+? where organization_id=? and user_id=?&quot;;
+<span class="nc" id="L1016">					pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L1017">					pstmt.setInt(1, count);</span>
+<span class="nc" id="L1018">					pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L1019">					pstmt.setInt(3, userId);</span>
+<span class="nc" id="L1020">					logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L1021">					pstmt.executeUpdate();</span>
+				}else {
+<span class="nc" id="L1023">					logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L1024">					isFraud = true;</span>
+<span class="nc" id="L1025">					setCriteriaAction(critAction);</span>
+<span class="nc" id="L1026">					return isFraud;</span>
+				}
+			}
+<span class="nc" id="L1029">			setCriteriaAction(critAction);</span>
+			
+			
+			/*
+			selectQuery = &quot;select criteria_limit,crit_action,criteria_type from st_lms_rg_criteria_limit where criteria=? and  crit_status='ACTIVE' and organization_type='RETAILER' order by criteria_type&quot;;
+			pstmt = con.prepareStatement(selectQuery);
+			pstmt.setString(1, criteriaType);
+			logger.info(&quot;Criteria Limit Query ::&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				if (&quot;DAILY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getInt(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_daily_tx&quot;;
+				} else if (&quot;WEEKLY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getInt(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_weekly_tx&quot;;
+				}
+				selectQuery = &quot;select &quot; + criteriaType + &quot; from &quot; + tableName
+						+ &quot; where organization_id=? and user_id=?&quot;;
+				pstmt = con.prepareStatement(selectQuery);
+				pstmt.setInt(1, orgId);
+				pstmt.setInt(2, userId);
+				logger.info(&quot;Select Query Retailer::&quot; + pstmt);
+				rsUser = pstmt.executeQuery();
+				if (rsUser.next()) {
+					curCount = rsUser.getInt(criteriaType);
+				}
+				logger.info(&quot;check &quot; + (curCount + count)
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (curCount + count &lt; maxLimit));
+				if (curCount &lt; maxLimit) {
+					updateQuery = &quot;update &quot; + tableName + &quot; set &quot;
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;+? where organization_id=? and user_id=?&quot;;
+					pstmt = con.prepareStatement(updateQuery);
+					pstmt.setInt(1, count);
+					pstmt.setInt(2, orgId);
+					pstmt.setInt(3, userId);
+					logger.info(&quot;Update Query ::&quot; + pstmt);
+					pstmt.executeUpdate();
+				} else {
+					logger.info(&quot;************RG Criteria fails&quot;);
+					isFraud = true;
+					break;
+				}
+			}
+			setCriteriaAction(critAction);*/
+
+<span class="nc" id="L1079">		} catch (Exception e) {</span>
+<span class="nc" id="L1080">			e.printStackTrace();</span>
+<span class="nc" id="L1081">		}</span>
+<span class="nc" id="L1082">		return isFraud;</span>
+	}
+
+	public boolean rgCounterCheck(int orgId, int userId, String criteriaType,
+			int count, Connection con) {
+<span class="nc" id="L1087">		logger.info(&quot;RG Counter for Criteria::&quot; + criteriaType</span>
+				+ &quot; and count::&quot; + count);
+<span class="nc" id="L1089">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1090">		ResultSet rs = null, rsUser = null;</span>
+<span class="nc" id="L1091">		String selectQuery = null, critAction = null;</span>
+<span class="nc" id="L1092">		int maxLimit = 0, curCount = 0;</span>
+<span class="nc" id="L1093">		boolean isFraud = false;</span>
+		try {
+			
+<span class="nc bnc" id="L1096" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getStatus())){</span>
+<span class="nc" id="L1097">				maxLimit = (int) Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L1098">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;DAILY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L1100">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_daily_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L1101">					pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L1102">					pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L1103">					pstmt.setInt(2, userId);</span>
+<span class="nc" id="L1104">					logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L1105">					rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1106" title="All 2 branches missed.">					if (rsUser.next()) {</span>
+<span class="nc" id="L1107">						curCount = rsUser.getInt(criteriaType);</span>
+					}
+					
+<span class="nc bnc" id="L1110" title="All 2 branches missed.">					if (curCount &lt; maxLimit) {</span>
+<span class="nc bnc" id="L1111" title="All 2 branches missed.">						logger.info(&quot;check &quot; + (curCount + count)</span>
+								+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+								+ (curCount + count &lt; maxLimit));
+					} else {
+<span class="nc" id="L1115">						logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L1116">						isFraud = true;</span>
+<span class="nc" id="L1117">						setCriteriaAction(critAction);</span>
+<span class="nc" id="L1118">						return isFraud;</span>
+					}
+			}
+			
+				
+<span class="nc bnc" id="L1123" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equals(Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getStatus())){</span>
+<span class="nc" id="L1124">				maxLimit = (int) Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriteriaLimit();</span>
+<span class="nc" id="L1125">				critAction = Util.respGamingCriteriaStatusMap.get(criteriaType+&quot;WEEKLY&quot;).getCriAction();</span>
+				
+<span class="nc" id="L1127">				selectQuery = &quot;select &quot; + criteriaType + &quot; from st_lms_rg_org_weekly_tx where organization_id=? and user_id=?&quot;;</span>
+<span class="nc" id="L1128">				pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L1129">				pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L1130">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L1131">				logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L1132">				rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1133" title="All 2 branches missed.">				if (rsUser.next()) {</span>
+<span class="nc" id="L1134">					curCount = rsUser.getInt(criteriaType);</span>
+				}
+				
+<span class="nc bnc" id="L1137" title="All 2 branches missed.">				if (curCount &lt; maxLimit) {</span>
+<span class="nc bnc" id="L1138" title="All 2 branches missed.">					logger.info(&quot;check &quot; + (curCount + count)</span>
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (curCount + count &lt; maxLimit));
+				} else {
+<span class="nc" id="L1142">					logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L1143">					isFraud = true;</span>
+<span class="nc" id="L1144">					setCriteriaAction(critAction);</span>
+<span class="nc" id="L1145">					return isFraud;</span>
+				}
+			}
+<span class="nc" id="L1148">			setCriteriaAction(critAction);</span>
+			
+			
+			/*
+			selectQuery = &quot;select criteria_limit,crit_action,criteria_type from st_lms_rg_criteria_limit where criteria=? and  crit_status='ACTIVE' and organization_type='RETAILER' order by criteria_type&quot;;
+			pstmt = con.prepareStatement(selectQuery);
+			pstmt.setString(1, criteriaType);
+			logger.info(&quot;Criteria Limit Query ::&quot; + pstmt);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				if (&quot;DAILY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getInt(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_daily_tx&quot;;
+				} else if (&quot;WEEKLY&quot;.equals(rs.getString(&quot;criteria_type&quot;))) {
+					maxLimit = rs.getInt(&quot;criteria_limit&quot;);
+					critAction = rs.getString(&quot;crit_action&quot;);
+					tableName = &quot;st_lms_rg_org_weekly_tx&quot;;
+				}
+				selectQuery = &quot;select &quot; + criteriaType + &quot; from &quot; + tableName
+						+ &quot; where organization_id=? and user_id=?&quot;;
+				pstmt = con.prepareStatement(selectQuery);
+				pstmt.setInt(1, orgId);
+				pstmt.setInt(2, userId);
+				logger.info(&quot;Select Query Retailer::&quot; + pstmt);
+				rsUser = pstmt.executeQuery();
+				if (rsUser.next()) {
+					curCount = rsUser.getInt(criteriaType);
+				}
+				logger.info(&quot;check &quot; + (curCount + count)
+						+ &quot; *** maxLimit&quot; + maxLimit + &quot; **&quot;
+						+ (curCount + count &lt; maxLimit));
+				if (curCount &lt; maxLimit) {
+					updateQuery = &quot;update &quot; + tableName + &quot; set &quot;
+							+ criteriaType + &quot;=&quot; + criteriaType
+							+ &quot;+? where organization_id=? and user_id=?&quot;;
+					pstmt = con.prepareStatement(updateQuery);
+					pstmt.setInt(1, count);
+					pstmt.setInt(2, orgId);
+					pstmt.setInt(3, userId);
+					logger.info(&quot;Update Query ::&quot; + pstmt);
+					pstmt.executeUpdate();
+				} else {
+					logger.info(&quot;************RG Criteria fails&quot;);
+					isFraud = true;
+					break;
+				}
+			}
+			setCriteriaAction(critAction);*/
+
+<span class="nc" id="L1198">		} catch (Exception e) {</span>
+<span class="nc" id="L1199">			e.printStackTrace();</span>
+<span class="nc" id="L1200">		}</span>
+<span class="nc" id="L1201">		return isFraud;</span>
+	}
+	
+	
+	public boolean rgCounterCheck(int orgId, int userId,String criteriaType , double amount, Connection con,int zero) {
+<span class="nc" id="L1206">		logger.info(&quot;RG Counter for Criteria::&quot; + criteriaType</span>
+				+ &quot; and amount::&quot; + amount);
+	
+<span class="nc" id="L1209">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1210">		ResultSet rsUser = null;</span>
+<span class="nc" id="L1211">		String selectQuery = null,updateQuery = null, critAction = null;</span>
+		
+<span class="nc" id="L1213">		boolean pwtCheck=false;</span>
+<span class="nc" id="L1214">		boolean isFraud = false;</span>
+		try {
+<span class="nc" id="L1216">			con.setAutoCommit(false);</span>
+			
+			
+<span class="nc" id="L1219">				selectQuery = &quot;select if(dg_pwt_amt&gt;max_daily_claim_amt,true,false) pwt_check from (select  organization_id,dg_pwt_amt+? dg_pwt_amt from st_lms_rg_org_daily_tx where organization_id=?) a inner join (select organization_id, max_daily_claim_amt from st_lms_oranization_limits where organization_id=?) b on a.organization_id=b.organization_id&quot;;</span>
+<span class="nc" id="L1220">					pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc" id="L1221">					pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L1222">					pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L1223">					pstmt.setInt(3, orgId);</span>
+<span class="nc" id="L1224">					logger.info(&quot;Select Query Retailer::&quot; + pstmt);</span>
+<span class="nc" id="L1225">					rsUser = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1226" title="All 2 branches missed.">					if (rsUser.next()) {</span>
+<span class="nc" id="L1227">						pwtCheck = rsUser.getBoolean(&quot;pwt_check&quot;);</span>
+					}
+					
+<span class="nc bnc" id="L1230" title="All 2 branches missed.">					if (!pwtCheck) {</span>
+<span class="nc" id="L1231">						updateQuery = &quot;update st_lms_rg_org_daily_tx set &quot;+ criteriaType + &quot;=&quot; + criteriaType</span>
+								+ &quot;+? where organization_id=?&quot;;
+<span class="nc" id="L1233">						pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L1234">						pstmt.setDouble(1, amount);</span>
+<span class="nc" id="L1235">						pstmt.setInt(2, orgId);</span>
+<span class="nc" id="L1236">						logger.info(&quot;Update Query ::&quot; + pstmt);</span>
+<span class="nc" id="L1237">						pstmt.executeUpdate();</span>
+					} else {
+<span class="nc" id="L1239">						logger.info(&quot;************RG Criteria fails&quot;);</span>
+<span class="nc" id="L1240">						isFraud = true;</span>
+						//setCriteriaAction(critAction);
+<span class="nc" id="L1242">						return isFraud;</span>
+					}
+			
+			//setCriteriaAction(critAction);
+<span class="nc" id="L1246">			con.commit();</span>
+<span class="nc" id="L1247">		} catch (Exception e) {</span>
+<span class="nc" id="L1248">			e.printStackTrace();</span>
+		} finally {
+			
+<span class="nc" id="L1251">				DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L1252">				DBConnect.closeRs(rsUser);</span>
+<span class="nc" id="L1253">			}</span>
+<span class="nc" id="L1254">		return isFraud;</span>
+	} 
+
+	
+	public StringBuilder saveRGLimits(int criteriaId[], String criLimit[],
+			String criAction[], String status[], String criType) {
+<span class="nc" id="L1260">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1261">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1262">		ResultSet rs = null;</span>
+<span class="nc" id="L1263">		String updateQuery = null;</span>
+<span class="nc" id="L1264">		String insertQuery = null;</span>
+<span class="nc" id="L1265">		String selectQuery = null;</span>
+<span class="nc" id="L1266">		Map&lt;Integer, Double&gt; critIdLimitMap = new HashMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L1267">		Map&lt;Integer, String&gt; cirtIdNameMap = new HashMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L1268">		StringBuilder returnStr = new StringBuilder(&quot;&quot;);</span>
+		try {
+<span class="nc" id="L1270">			con.setAutoCommit(false);</span>
+<span class="nc" id="L1271">			selectQuery = &quot;select rg2.crit_id,rg1.criteria,rg1.criteria_limit from st_lms_rg_criteria_limit rg1,st_lms_rg_criteria_limit rg2 where rg1.criteria=rg2.criteria and rg1.criteria_type=? and rg2.criteria_type=?&quot;;</span>
+<span class="nc" id="L1272">			pstmt = con.prepareStatement(selectQuery);</span>
+<span class="nc bnc" id="L1273" title="All 2 branches missed.">			pstmt.setString(1, &quot;WEEKLY&quot;.equalsIgnoreCase(criType) ? &quot;DAILY&quot;</span>
+					: &quot;WEEKLY&quot;);
+<span class="nc" id="L1275">			pstmt.setString(2, criType);</span>
+<span class="nc" id="L1276">			logger.info(&quot;***selectQuery::&quot; + pstmt);</span>
+<span class="nc" id="L1277">			rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L1279" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1280">				critIdLimitMap.put(rs.getInt(&quot;crit_id&quot;), rs</span>
+						.getDouble(&quot;criteria_limit&quot;));
+<span class="nc" id="L1282">				cirtIdNameMap.put(rs.getInt(&quot;crit_id&quot;), rs</span>
+						.getString(&quot;criteria&quot;));
+			}
+<span class="nc" id="L1285">			logger.info(&quot;*****critIdLimitMap::&quot; + critIdLimitMap);</span>
+<span class="nc" id="L1286">			logger.info(&quot;*****cirtIdNameMap::&quot; + cirtIdNameMap);</span>
+<span class="nc" id="L1287">			pstmt.close();</span>
+			// insert into st_lms_rg_criteria_limit_history table
+<span class="nc" id="L1289">			insertQuery = &quot;insert into st_lms_rg_criteria_limit_history (crit_id,date, criteria, criteria_type, criteria_limit, crit_status, organization_type, crit_action, criteria_desc,service_code) select crit_id,?,criteria,criteria_type,criteria_limit,crit_status,organization_type,crit_action,criteria_desc,service_code from st_lms_rg_criteria_limit where criteria_type='&quot;</span>
+					+ criType + &quot;'&quot;;
+<span class="nc" id="L1291">			pstmt = con.prepareStatement(insertQuery);</span>
+<span class="nc" id="L1292">			pstmt.setTimestamp(1, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L1293">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1294">			pstmt.close();</span>
+
+			// update st_lms_rg_criteria_limit table
+<span class="nc" id="L1297">			updateQuery = &quot;update st_lms_rg_criteria_limit set criteria_limit=?,crit_status=?,crit_action=? where crit_id=?&quot;;</span>
+<span class="nc" id="L1298">			pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc bnc" id="L1299" title="All 2 branches missed.">			for (int i = 0; i &lt; criteriaId.length; i++) {</span>
+<span class="nc" id="L1300">				pstmt.setDouble(1, Double.parseDouble(criLimit[i]));</span>
+<span class="nc" id="L1301">				pstmt.setString(2, status[i]);</span>
+<span class="nc" id="L1302">				pstmt.setString(3, criAction[i]);</span>
+<span class="nc" id="L1303">				pstmt.setInt(4, criteriaId[i]);</span>
+
+<span class="nc bnc" id="L1305" title="All 2 branches missed.">				if (&quot;WEEKLY&quot;.equalsIgnoreCase(criType)) {</span>
+<span class="nc bnc" id="L1306" title="All 2 branches missed.">					if (Double.parseDouble(criLimit[i]) &gt;= critIdLimitMap</span>
+							.get(criteriaId[i])) {
+<span class="nc" id="L1308">						pstmt.executeUpdate();</span>
+<span class="nc" id="L1309">						returnStr</span>
+								.append(cirtIdNameMap.get(criteriaId[i]) + &quot;,&quot;);
+					} else {
+<span class="nc" id="L1312">						cirtIdNameMap.remove(criteriaId[i]);</span>
+					}
+				} else { // In case DAILY
+<span class="nc bnc" id="L1315" title="All 2 branches missed.">					if (Double.parseDouble(criLimit[i]) &lt;= critIdLimitMap</span>
+							.get(criteriaId[i])) {
+<span class="nc" id="L1317">						pstmt.executeUpdate();</span>
+<span class="nc" id="L1318">						returnStr</span>
+								.append(cirtIdNameMap.get(criteriaId[i]) + &quot;,&quot;);
+					} else {
+<span class="nc" id="L1321">						cirtIdNameMap.remove(criteriaId[i]);</span>
+					}
+				}
+			}
+<span class="nc" id="L1325">			pstmt.close();</span>
+<span class="nc" id="L1326">			con.commit();</span>
+<span class="nc bnc" id="L1327" title="All 2 branches missed.">			if (returnStr.indexOf(&quot;,&quot;) == -1) {</span>
+<span class="nc" id="L1328">				returnStr.append(&quot;No Limits&quot;);</span>
+			} else {
+<span class="nc" id="L1330">				returnStr.deleteCharAt(returnStr.lastIndexOf(&quot;,&quot;));</span>
+			}
+<span class="nc" id="L1332">		} catch (Exception e) {</span>
+<span class="nc" id="L1333">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1335">			try {</span>
+<span class="nc" id="L1336">				con.close();</span>
+<span class="nc" id="L1337">			} catch (SQLException e) {</span>
+<span class="nc" id="L1338">				e.printStackTrace();</span>
+<span class="nc" id="L1339">			}</span>
+<span class="nc" id="L1340">		}</span>
+
+<span class="nc" id="L1342">		return returnStr;</span>
+	}
+
+	public void setCriteriaAction(String criteriaAction) {
+<span class="nc" id="L1346">		this.criteriaAction = criteriaAction;</span>
+<span class="nc" id="L1347">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

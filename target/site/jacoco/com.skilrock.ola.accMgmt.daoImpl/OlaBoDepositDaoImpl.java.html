@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaBoDepositDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.ola.accMgmt.daoImpl</a> &gt; <span class="el_source">OlaBoDepositDaoImpl.java</span></div><h1>OlaBoDepositDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.ola.accMgmt.daoImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.ola.accMgmt.javaBeans.OLADepositRefundBean;
+
+
+
+<span class="nc" id="L19">public class OlaBoDepositDaoImpl {</span>
+	
+<span class="nc" id="L21">		static Log logger = LogFactory.getLog(OlaBoDepositDaoImpl.class);	</span>
+		
+		public static boolean depositeRefund(long depositTxnId, UserInfoBean userBean, Connection con) throws SQLException, LMSException {
+<span class="nc" id="L24">			OLADepositRefundBean refundBean = new OLADepositRefundBean();</span>
+<span class="nc" id="L25">			PreparedStatement pstmt = null;</span>
+<span class="nc" id="L26">			ResultSet rs = null;</span>
+			
+<span class="nc" id="L28">			String fetchRefundDataQuery = &quot;select wallet_id, deposit_amt,  plr_id from st_ola_bo_direct_plr_deposit where transaction_id = ?&quot;;</span>
+<span class="nc" id="L29">			pstmt = con.prepareStatement(fetchRefundDataQuery);</span>
+<span class="nc" id="L30">			pstmt.setLong(1, depositTxnId);</span>
+<span class="nc" id="L31">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L32" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L33">				refundBean.setWalletId(rs.getInt(&quot;wallet_id&quot;));</span>
+<span class="nc" id="L34">				refundBean.setDepositAmt(rs.getDouble(&quot;deposit_amt&quot;));</span>
+<span class="nc" id="L35">				refundBean.setPlrId(rs.getInt(&quot;plr_id&quot;));		</span>
+			}
+<span class="nc" id="L37">			pstmt.clearParameters();</span>
+<span class="nc" id="L38">			String insertInLMS = QueryManager.insertInLMSTransactionMaster();</span>
+<span class="nc" id="L39">			PreparedStatement pstmt1 = con.prepareStatement(insertInLMS);</span>
+<span class="nc" id="L40">			pstmt1.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L41">			long transactionId = 0;</span>
+<span class="nc" id="L42">			pstmt1.executeUpdate();</span>
+<span class="nc" id="L43">			int isUpdate=0;</span>
+<span class="nc" id="L44">			ResultSet rs1 = pstmt1.getGeneratedKeys();</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">			if (rs1.next()) {</span>
+<span class="nc" id="L46">				transactionId = rs1.getLong(1);</span>
+				// insert into retailer transaction master
+<span class="nc" id="L48">				pstmt1 = con.prepareStatement(&quot;INSERT INTO st_lms_bo_transaction_master (transaction_id,user_id,user_org_id,party_type,party_id,transaction_type,transaction_date) VALUES (?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L49">				pstmt1.setLong(1, transactionId);</span>
+<span class="nc" id="L50">				pstmt1.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L51">				pstmt1.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L52">				pstmt1.setString(4, &quot;PLAYER&quot;);	</span>
+<span class="nc" id="L53">				pstmt1.setInt(5, refundBean.getPlrId());</span>
+<span class="nc" id="L54">				pstmt1.setString(6, &quot;OLA_DEPOSIT_REFUND_PLR&quot;);</span>
+				
+<span class="nc" id="L56">				pstmt1.setTimestamp(7, Util.getCurrentTimeStamp());</span>
+			
+<span class="nc" id="L58">				isUpdate = pstmt1.executeUpdate();</span>
+			
+<span class="nc" id="L60">				logger.info(&quot;inserted into bo transaction master&quot;+isUpdate);</span>
+
+<span class="nc" id="L62">				pstmt1 = con</span>
+						.prepareStatement(&quot;insert into st_ola_bo_direct_plr_deposit_refund(transaction_id,bo_user_id,bo_org_id,wallet_id,plr_id,deposit_amt,cancel_reason,ref_transaction_id) values(?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L64">				pstmt1.setLong(1, transactionId);</span>
+<span class="nc" id="L65">				pstmt1.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L66">				pstmt1.setInt(3, userBean.getUserOrgId());</span>
+				
+<span class="nc" id="L68">				pstmt1.setInt(4, refundBean.getWalletId());</span>
+<span class="nc" id="L69">				pstmt1.setInt(5,refundBean.getPlrId());</span>
+<span class="nc" id="L70">				pstmt1.setDouble(6, refundBean.getDepositAmt());</span>
+<span class="nc" id="L71">				pstmt1.setString(7, &quot;CANCEL_SERVER&quot;);</span>
+<span class="nc" id="L72">				pstmt1.setLong(8, depositTxnId);</span>
+<span class="nc" id="L73">				isUpdate=pstmt1.executeUpdate();</span>
+					
+<span class="nc" id="L75">				logger.info(&quot;inserted into st_ola_bo_direct_plr_deposit_refund &quot;+isUpdate);</span>
+		
+			} else {
+<span class="nc" id="L78">				return false;</span>
+			}
+<span class="nc" id="L80">			return true;</span>
+		}		
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TenByTwentyHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">TenByTwentyHelper.java</span></div><h1>TenByTwentyHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.google.gson.Gson;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.common.utility.orgOnLineSaleCreditUpdation;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.dge.beans.KenoPurchaseBean;
+import com.skilrock.lms.dge.beans.KenoRequestBean;
+import com.skilrock.lms.dge.beans.KenoResponseBean;
+import com.skilrock.lms.dge.gameconstants.TenByTwentyConstants;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L29">public class TenByTwentyHelper {</span>
+
+<span class="nc" id="L31">	Log logger = LogFactory.getLog(TenByTwentyHelper.class);</span>
+
+	public KenoPurchaseBean commonPurchseProcess(UserInfoBean userBean, KenoPurchaseBean purchaseBean)
+			throws LMSException, SQLException {
+<span class="nc" id="L35">		purchaseBean.setPromotkt(false);</span>
+<span class="nc" id="L36">		purchaseBean = tenByTwentyPurchaseTicket(userBean, purchaseBean);</span>
+<span class="nc" id="L37">		String saleStatus = purchaseBean.getSaleStatus();</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">		if (&quot;SUCCESS&quot;.equalsIgnoreCase(saleStatus)) {</span>
+<span class="nc" id="L39">			DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L40">			purchaseBean = helper.commonPromoPurchaseProcess(purchaseBean, userBean);</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">			if (&quot;SUCCESS&quot;.equalsIgnoreCase(purchaseBean.getPromoSaleStatus())) {</span>
+<span class="nc" id="L42">				return purchaseBean;</span>
+			} else {
+<span class="nc" id="L44">				helper.cancelTicket(purchaseBean.getTicket_no()</span>
+						+ purchaseBean.getReprintCount(),
+						purchaseBean.getPurchaseChannel(),
+						purchaseBean.getDrawIdTableMap(),
+						purchaseBean.getGame_no(),
+						purchaseBean.getPartyId(),
+						purchaseBean.getPartyType(),
+						purchaseBean.getRefMerchantId(), userBean,
+						purchaseBean.getRefTransId());
+			}
+		}
+<span class="nc" id="L55">		return purchaseBean;</span>
+	}
+
+	private boolean isDrawAvailable(int gameNo) {
+<span class="nc" id="L59">		return Util.drawIdTableMap.get(gameNo).isEmpty();</span>
+	}
+
+	public KenoPurchaseBean tenByTwentyPurchaseTicket(UserInfoBean userBean, KenoPurchaseBean purchaseBean) throws LMSException {
+<span class="nc" id="L63">		purchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L64">		Connection con = null;</span>
+<span class="nc" id="L65">		long balDed = 0;</span>
+<span class="nc" id="L66">		double dgeTotPurAmt = 0.0;</span>
+<span class="nc" id="L67">		double lmsTotPurAmt = 0.0;</span>
+<span class="nc" id="L68">		String status = &quot;&quot;;</span>
+<span class="nc" id="L69">		double oldTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L70">		double modifiedTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L71">		ServiceRequest sReq = new ServiceRequest();</span>
+<span class="nc" id="L72">		sReq.setServiceName(ServiceName.TENBYTWENTY_MGMT);</span>
+<span class="nc" id="L73">		sReq.setServiceMethod(ServiceMethodName.TENBYTWENTY_PURCHASE_TICKET);</span>
+<span class="nc" id="L74">		KenoRequestBean requestBean = new KenoRequestBean();</span>
+<span class="nc" id="L75">		sReq.setServiceData(requestBean);</span>
+<span class="nc" id="L76">		IServiceDelegate delegate = ServiceDelegate.getInstance();</span>
+
+		try {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">			if (isDrawAvailable(purchaseBean.getGameId())) {</span>
+<span class="nc" id="L80">				purchaseBean.setSaleStatus(&quot;NO_DRAWS&quot;);</span>
+<span class="nc" id="L81">				return purchaseBean;</span>
+			}
+			
+<span class="nc bnc" id="L84" title="All 4 branches missed.">			if(!purchaseBean.isPromotkt() &amp;&amp; DrawGameRPOSHelper.chkFreezeTimeSale(purchaseBean.getGameId())) {</span>
+<span class="nc" id="L85">				purchaseBean.setSaleStatus(&quot;NO_DRAWS&quot;);</span>
+<span class="nc" id="L86">				return purchaseBean;</span>
+			}
+
+<span class="nc bnc" id="L89" title="All 2 branches missed.">			if (!tenByTwentyValidateData(purchaseBean)) {</span>
+<span class="nc" id="L90">				logger.info(&quot;Data Validation returned false&quot;);</span>
+<span class="nc" id="L91">				return purchaseBean;</span>
+			}
+
+<span class="nc" id="L94">			int noOfPanel = purchaseBean.getNoOfPanel();</span>
+<span class="nc" id="L95">			String playTypeArr[] = purchaseBean.getPlayType();</span>
+<span class="nc" id="L96">			String[] noPickStr = purchaseBean.getNoPicked();</span>
+<span class="nc" id="L97">			int noOfLines[] = new int[noOfPanel];</span>
+<span class="nc" id="L98">			int betAmtMulArr[] = purchaseBean.getBetAmountMultiple();</span>
+<span class="nc" id="L99">			double unitPriceArr[] = new double[noOfPanel];</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">			for (int i = 0; i &lt; noOfPanel; i++) {</span>
+<span class="nc" id="L101">				String playType = playTypeArr[i];</span>
+<span class="nc" id="L102">				String[] noPick = noPickStr[i].split(&quot;,&quot;);</span>
+<span class="nc" id="L103">				int[] n = new int[noPick.length];</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">				for (int j = 0; j &lt; noPick.length; j++) {</span>
+<span class="nc" id="L105">					n[j] = Integer.parseInt(noPick[j]);</span>
+				}
+<span class="nc bnc" id="L107" title="All 18 branches missed.">				if (playType.equalsIgnoreCase(&quot;Direct10&quot;) || playType.equalsIgnoreCase(&quot;AllOdd&quot;) || playType.equalsIgnoreCase(&quot;AllEven&quot;)</span>
+					||	playType.equalsIgnoreCase(&quot;First10&quot;) || playType.equalsIgnoreCase(&quot;Last10&quot;) || playType.equalsIgnoreCase(&quot;OddEven&quot;)
+					|| playType.equalsIgnoreCase(&quot;EvenOdd&quot;) || playType.equalsIgnoreCase(&quot;JumpOddEven&quot;) || playType.equalsIgnoreCase(&quot;JumpEvenOdd&quot;)) {
+					
+<span class="nc" id="L111">					noOfLines[i] = 1;</span>
+				}
+				/*if (playType.equalsIgnoreCase(&quot;Perm12&quot;)) {
+					noOfLines[i] = &quot;13&quot;.equals(noPickStr[i]) ? 13 : 91 ;
+				}*/
+<span class="nc" id="L116">				unitPriceArr[i] = Util.getUnitPrice(purchaseBean.getGameId(), playTypeArr[i]);</span>
+<span class="nc" id="L117">				dgeTotPurAmt += noOfLines[i] * unitPriceArr[i] * purchaseBean.getNoOfDraws() * betAmtMulArr[i];</span>
+			}
+<span class="nc" id="L119">			purchaseBean.setUnitPrice(unitPriceArr);</span>
+<span class="nc" id="L120">			purchaseBean.setNoOfLines(noOfLines);</span>
+
+<span class="nc" id="L122">			String doMathRounding = Utility.getPropertyValue(&quot;DO_MATH_ROUNDING_FOR_SALE_AMT&quot;);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">			if(&quot;YES&quot;.equals(doMathRounding)) {</span>
+<span class="nc" id="L124">				lmsTotPurAmt = CommonMethods.roundDrawTktAmt(dgeTotPurAmt);</span>
+<span class="nc" id="L125">				lmsTotPurAmt = CommonMethods.fmtToTwoDecimal(lmsTotPurAmt);</span>
+			} else {
+<span class="nc" id="L127">				lmsTotPurAmt = CommonMethods.fmtToTwoDecimal(dgeTotPurAmt);</span>
+			}
+
+<span class="nc" id="L130">			logger.debug(&quot;DGE Purchase Amount - &quot; + dgeTotPurAmt);</span>
+<span class="nc" id="L131">			logger.debug(&quot;LMS Purchase Amount - &quot; + lmsTotPurAmt);</span>
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">			if (dgeTotPurAmt &lt;= 0) {</span>
+<span class="nc" id="L134">				purchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L135">				return purchaseBean;</span>
+			}
+<span class="nc bnc" id="L137" title="All 2 branches missed.">			if(purchaseBean.isPromotkt())</span>
+<span class="nc" id="L138">				purchaseBean.setTotalPurchaseAmt(0);</span>
+			else
+<span class="nc" id="L140">				purchaseBean.setTotalPurchaseAmt(dgeTotPurAmt);</span>
+
+<span class="nc" id="L142">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L143">			con.setAutoCommit(false);</span>
+
+<span class="nc bnc" id="L145" title="All 2 branches missed.">			if(&quot;TERMINAL&quot;.equals(purchaseBean.getDeviceType())) {</span>
+<span class="nc" id="L146">				int autoCancelHoldDays = Integer.parseInt(Utility.getPropertyValue(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));</span>
+<span class="nc" id="L147">				DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L148">				helper.checkLastPrintedTicketStatusAndUpdate(userBean, Long.parseLong(purchaseBean.getLastSoldTicketNo()), purchaseBean.getDeviceType(), purchaseBean.getRefMerchantId(), autoCancelHoldDays, purchaseBean.getActionName(), purchaseBean.getLastGameId(), con);</span>
+			}
+
+<span class="nc" id="L151">			logger.debug(&quot;SALE_AUTO_CANCEL_LOGS:SALE Continue for the new ticket&quot;);</span>
+
+<span class="nc" id="L153">			boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;DG_SALE&quot;, lmsTotPurAmt + &quot;&quot;, con);</span>
+			//boolean isFraud = false;
+<span class="nc bnc" id="L155" title="All 2 branches missed.">			if (!isFraud) {</span>
+<span class="nc" id="L156">				balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDeduction(userBean, purchaseBean.getGameId(), lmsTotPurAmt, purchaseBean.getPlrMobileNumber(), con);</span>
+<span class="nc" id="L157">				oldTotalPurchaseAmt = purchaseBean.getTotalPurchaseAmt();</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">				if (balDed &gt; 0) {</span>
+<span class="nc" id="L159">					purchaseBean.setRefTransId(balDed + &quot;&quot;);</span>
+<span class="nc" id="L160">					con.commit();</span>
+				} else {
+<span class="nc bnc" id="L162" title="All 2 branches missed.">					if (balDed == -1) {</span>
+<span class="nc" id="L163">						status = &quot;AGT_INS_BAL&quot;;// Agent has insufficient</span>
+						// Balance
+<span class="nc bnc" id="L165" title="All 2 branches missed.">					} else if (balDed == -2) {</span>
+<span class="nc" id="L166">						status = &quot;FAILED&quot;;// Error LMS</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">					} else if (balDed == 0) {</span>
+<span class="nc" id="L168">						status = &quot;RET_INS_BAL&quot;;// Retailer has insufficient</span>
+						// Balance
+					}
+<span class="nc bnc" id="L171" title="All 2 branches missed.">					else if (balDed == -5) {</span>
+<span class="nc" id="L172">						status = &quot;UNAUTHORISED&quot;;// Retailer status is INACTIVE, cannot sale ticket  						</span>
+					}
+<span class="nc" id="L174">					purchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L175">					return purchaseBean;</span>
+				}
+			} else {
+<span class="nc" id="L178">				logger.debug(&quot;Responsing Gaming not allowed to sale&quot;);</span>
+<span class="nc" id="L179">				purchaseBean.setSaleStatus(&quot;FRAUD&quot;);</span>
+<span class="nc" id="L180">				return purchaseBean;</span>
+			}
+<span class="nc" id="L182">		} catch (SQLException se) {</span>
+<span class="nc" id="L183">			se.printStackTrace();</span>
+<span class="nc" id="L184">			throw new LMSException();</span>
+<span class="nc" id="L185">		} catch (Exception e) {</span>
+<span class="nc" id="L186">			e.printStackTrace();</span>
+<span class="nc" id="L187">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L189">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L190">		}</span>
+
+		try {
+<span class="nc" id="L193">			requestBean.setBetAmountMultiple(purchaseBean.getBetAmountMultiple());</span>
+<span class="nc" id="L194">			requestBean.setDrawIdTableMap(purchaseBean.getDrawIdTableMap());</span>
+<span class="nc" id="L195">			requestBean.setDrawDateTime(purchaseBean.getDrawDateTime());</span>
+<span class="nc" id="L196">			requestBean.setGame_no(purchaseBean.getGame_no());</span>
+<span class="nc" id="L197">			requestBean.setGameId(purchaseBean.getGameId());</span>
+<span class="nc" id="L198">			requestBean.setIsAdvancedPlay(purchaseBean.getIsAdvancedPlay());</span>
+<span class="nc" id="L199">			requestBean.setIsQuickPick(purchaseBean.getIsQuickPick());</span>
+<span class="nc" id="L200">			requestBean.setNoOfDraws(purchaseBean.getNoOfDraws());</span>
+<span class="nc" id="L201">			requestBean.setNoPicked(purchaseBean.getNoPicked());</span>
+<span class="nc" id="L202">			requestBean.setPartyId(purchaseBean.getPartyId());</span>
+<span class="nc" id="L203">			requestBean.setPartyType(purchaseBean.getPartyType());</span>
+<span class="nc" id="L204">			requestBean.setPlayerData(purchaseBean.getPlayerData());</span>
+<span class="nc" id="L205">			requestBean.setPlayType(purchaseBean.getPlayType());</span>
+<span class="nc" id="L206">			requestBean.setPurchaseChannel(purchaseBean.getPurchaseChannel());</span>
+<span class="nc" id="L207">			requestBean.setRefMerchantId(purchaseBean.getRefMerchantId());</span>
+<span class="nc" id="L208">			requestBean.setRefTransId(purchaseBean.getRefTransId());</span>
+<span class="nc" id="L209">			requestBean.setUserId(purchaseBean.getUserId());</span>
+<span class="nc" id="L210">			requestBean.setUserMappingId(purchaseBean.getUserMappingId());</span>
+<span class="nc" id="L211">			requestBean.setServiceId(purchaseBean.getServiceId());</span>
+<span class="nc" id="L212">			requestBean.setPromotkt(purchaseBean.isPromotkt());</span>
+<span class="nc" id="L213">			requestBean.setUnitPrice(purchaseBean.getUnitPrice());</span>
+<span class="nc" id="L214">			requestBean.setTotalPurchaseAmt(purchaseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L215">			requestBean.setQPPreGenerated(purchaseBean.getQPPreGenerated());</span>
+
+<span class="nc" id="L217">			String responseString = delegate.getResponseString(sReq);</span>
+<span class="nc" id="L218">			KenoResponseBean responseBean = new Gson().fromJson(responseString, KenoResponseBean.class);</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">			if (responseBean.getIsSuccess()) {</span>
+<span class="nc" id="L220">				purchaseBean.setSaleStatus(responseBean.getSaleStatus());</span>
+<span class="nc" id="L221">				purchaseBean.setTicket_no(responseBean.getTicketNo());</span>
+<span class="nc" id="L222">				purchaseBean.setBarcodeCount(responseBean.getBarcodeCount());</span>
+<span class="nc" id="L223">				purchaseBean.setNoOfDraws(responseBean.getNoOfDraws());</span>
+<span class="nc" id="L224">				purchaseBean.setPurchaseTime(responseBean.getPurchaseTime());</span>
+<span class="nc" id="L225">				purchaseBean.setReprintCount(responseBean.getReprintCount());</span>
+<span class="nc" id="L226">				purchaseBean.setPlayerData(responseBean.getPlayerData());</span>
+				//purchaseBean.setTotalPurchaseAmt(responseBean.getTotalPurchaseAmt());
+<span class="nc" id="L228">				purchaseBean.setTotalPurchaseAmt(lmsTotPurAmt);</span>
+<span class="nc" id="L229">				purchaseBean.setDrawDateTime(responseBean.getDrawDateTime());</span>
+<span class="nc" id="L230">				modifiedTotalPurchaseAmt = responseBean.getTotalPurchaseAmt();</span>
+<span class="nc" id="L231">				con = DBConnect.getConnection();</span>
+<span class="nc" id="L232">				con.setAutoCommit(false);</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">				if (oldTotalPurchaseAmt != modifiedTotalPurchaseAmt) {</span>
+<span class="nc" id="L234">					balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDedUpdate(userBean, purchaseBean.getGameId(), modifiedTotalPurchaseAmt, oldTotalPurchaseAmt, balDed, con);</span>
+				}
+
+<span class="nc" id="L237">				int tickUpd = orgOnLineSaleCreditUpdation.drawPromoTicketSaleTicketUpdate(balDed,</span>
+								purchaseBean.getTicket_no(), purchaseBean.getGameId(), userBean, purchaseBean.getPurchaseChannel(), con, purchaseBean.isPromotkt());
+<span class="nc bnc" id="L239" title="All 2 branches missed.">				if (tickUpd == 1) {</span>
+<span class="nc" id="L240">					AjaxRequestHelper.getLiveAmt(userBean, con);</span>
+<span class="nc" id="L241">					purchaseBean.setAdvMsg(Util.getDGSaleAdvMessage(userBean.getUserOrgId(), purchaseBean.getGameId()));</span>
+
+<span class="nc" id="L243">					status = &quot;SUCCESS&quot;;</span>
+<span class="nc" id="L244">					purchaseBean.setSaleStatus(status);</span>
+					/*if (!&quot;applet&quot;.equals(purchaseBean.getBarcodeType())) {
+						IDBarcode.getBarcode(purchaseBean.getTicket_no() + purchaseBean.getReprintCount());
+					}*/
+<span class="nc" id="L248">					con.commit();</span>
+<span class="nc" id="L249">					return purchaseBean;</span>
+				} else {
+<span class="nc" id="L251">					status = &quot;FAILED&quot;;</span>
+<span class="nc" id="L252">					purchaseBean.setSaleStatus(status);</span>
+					// Code for cancelling the Ticket to be send to Draw
+					// Game Engine
+<span class="nc" id="L255">					new DrawGameRPOSHelper().cancelTicket(purchaseBean.getTicket_no() + purchaseBean.getReprintCount(),</span>
+									purchaseBean.getPurchaseChannel(), purchaseBean.getDrawIdTableMap(), purchaseBean.getGame_no(),
+									purchaseBean.getPartyId(), purchaseBean.getPartyType(), purchaseBean.getRefMerchantId(), userBean,
+									purchaseBean.getRefTransId());
+<span class="nc" id="L259">					return purchaseBean;</span>
+				}
+			} else {
+<span class="nc" id="L262">				purchaseBean.setSaleStatus(responseBean.getSaleStatus());</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">				if (purchaseBean.getSaleStatus() == null) {</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">					if(responseBean.getErrorCode().equalsIgnoreCase(&quot;600&quot;)){</span>
+<span class="nc" id="L265">						purchaseBean.setSaleStatus(&quot;LIMIT_REACHED&quot;);// Error</span>
+					}
+					else{
+<span class="nc" id="L268">						purchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+					}
+<span class="nc" id="L270">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, purchaseBean.getGameId(), &quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L271">					return purchaseBean;</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">				} else if (&quot;ERROR_TICKET_LIMIT&quot;.equalsIgnoreCase(purchaseBean.getSaleStatus())) {</span>
+<span class="nc" id="L273">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, purchaseBean.getGameId(), &quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L274">					return purchaseBean;</span>
+				} else {
+<span class="nc" id="L276">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, purchaseBean.getGameId(), &quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L277">					return purchaseBean;</span>
+				}
+			}
+<span class="nc" id="L280">		} catch (Exception se) {</span>
+<span class="nc" id="L281">			se.printStackTrace();</span>
+<span class="nc bnc" id="L282" title="All 2 branches missed.">			if (purchaseBean.getSaleStatus() == null) {</span>
+<span class="nc" id="L283">				purchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+<span class="nc" id="L284">				orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, purchaseBean.getGame_no(), &quot;FAILED&quot;, balDed);</span>
+			} else {
+<span class="nc" id="L286">				orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, purchaseBean.getGame_no(), &quot;FAILED&quot;, balDed);</span>
+			}
+		} finally {
+<span class="nc" id="L289">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L290">		}</span>
+<span class="nc" id="L291">		return purchaseBean;</span>
+	}
+
+	public boolean tenByTwentyValidateData(KenoPurchaseBean purchaseBean) {
+<span class="nc bnc" id="L295" title="All 2 branches missed.">		if (purchaseBean != null) {</span>
+<span class="nc bnc" id="L296" title="All 2 branches missed.">			if (purchaseBean.getNoOfDraws() &lt; 1) {</span>
+<span class="nc" id="L297">				logger.debug(&quot;insufficient no of draws&quot;);</span>
+<span class="nc" id="L298">				return false;</span>
+			}
+<span class="nc bnc" id="L300" title="All 2 branches missed.">			if (purchaseBean.getNoOfPanel() &lt; 1) {</span>
+<span class="nc" id="L301">				logger.debug(&quot;insufficient no of panels&quot;);</span>
+<span class="nc" id="L302">				return false;</span>
+			}
+
+<span class="nc" id="L305">			int noOfPanel = purchaseBean.getNoOfPanel();</span>
+<span class="nc" id="L306">			String playTypeArr[] = purchaseBean.getPlayType();</span>
+<span class="nc" id="L307">			int[] qp = purchaseBean.getIsQuickPick();</span>
+<span class="nc" id="L308">			boolean[] qpPreGenerated = purchaseBean.getQPPreGenerated();</span>
+<span class="nc" id="L309">			boolean isValid = true;</span>
+<span class="nc" id="L310">			String[] pickedNumbersArr = purchaseBean.getPlayerData();</span>
+<span class="nc" id="L311">			String[] noPickedArr = purchaseBean.getNoPicked();			</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">			for (int i = 0; i &lt; noOfPanel; i++) {</span>
+<span class="nc" id="L313">				String playerData = pickedNumbersArr[i];</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">				if (!&quot;QP&quot;.equals(playerData)) {</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">					if (playTypeArr[i].contains(&quot;Direct10&quot;)) {</span>
+<span class="nc" id="L316">						int pickValue = Integer.parseInt(TenByTwentyConstants.BET_TYPE_MAP.get(playTypeArr[i]));</span>
+<span class="nc bnc" id="L317" title="All 8 branches missed.">						if (!qpPreGenerated[i] &amp;&amp; qp[i] != 2 || playerData.split(&quot;,&quot;).length != pickValue || Integer.parseInt(noPickedArr[i]) != pickValue) {</span>
+<span class="nc" id="L318">							isValid = false;</span>
+<span class="nc" id="L319">							break;</span>
+						}
+					} 
+					
+<span class="nc" id="L323">					isValid = Util.validateNumber(TenByTwentyConstants.START_RANGE, TenByTwentyConstants.END_RANGE, playerData, false);</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">					if (!isValid) {</span>
+<span class="nc" id="L325">						break;</span>
+					}
+				} else {
+<span class="nc bnc" id="L328" title="All 2 branches missed.">					if (playTypeArr[i].contains(&quot;Direct10&quot;)) {</span>
+<span class="nc" id="L329">						int pickValue = Integer.parseInt(TenByTwentyConstants.BET_TYPE_MAP.get(playTypeArr[i]));</span>
+<span class="nc bnc" id="L330" title="All 4 branches missed.">						if (qp[i] != 1 || Integer.parseInt(noPickedArr[i]) != pickValue) {</span>
+<span class="nc" id="L331">							isValid = false;</span>
+<span class="nc" id="L332">							break;</span>
+						}
+					}
+				}
+			}
+
+<span class="nc bnc" id="L338" title="All 2 branches missed.">			if (!isValid) {</span>
+<span class="nc" id="L339">				purchaseBean.setSaleStatus(&quot;INVALID_INPUT&quot;);// Error Draw</span>
+				// setKenoPurchaseBean(kenoPurchaseBean);
+<span class="nc" id="L341">				logger.info(&quot;-----------Ten By Twenty Validation Error-------------------&quot; + purchaseBean.getSaleStatus());</span>
+<span class="nc" id="L342">				return false;</span>
+			}
+<span class="nc" id="L344">		} else {</span>
+<span class="nc" id="L345">			logger.debug(&quot;Ten By Twenty Data Error : Null Bean Recieved &quot;);</span>
+<span class="nc" id="L346">			return false;</span>
+		}
+<span class="nc" id="L348">		return true;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

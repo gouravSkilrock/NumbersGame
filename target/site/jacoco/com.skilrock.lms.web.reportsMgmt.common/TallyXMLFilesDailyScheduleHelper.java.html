@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TallyXMLFilesDailyScheduleHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.reportsMgmt.common</a> &gt; <span class="el_source">TallyXMLFilesDailyScheduleHelper.java</span></div><h1>TallyXMLFilesDailyScheduleHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.reportsMgmt.common;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.util.LinkedList;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.TallyXMLBankDepositBean;
+import com.skilrock.lms.beans.TallyXMLFilesBean;
+import com.skilrock.lms.beans.TallyXmlVariablesBean;
+import com.skilrock.lms.beans.TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllBankersDate;
+import com.skilrock.lms.beans.TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L28">public class TallyXMLFilesDailyScheduleHelper {</span>
+	private static final long serialVersionUID = 1L;
+
+<span class="nc" id="L31">	private static Log logger = LogFactory</span>
+			.getLog(TallyXMLFilesDailyScheduleHelper.class);
+/*
+	public static String perform(int jobId) {
+		Connection con = null;
+		SimpleDateFormat formet = new SimpleDateFormat(&quot;yyyy/MM/dd&quot;);
+		try {
+			con = DBConnect.getConnection();
+			SchedulerCommonFuntionsHelper.updateSchedulerStart(jobId, con);
+			Calendar todayDate = Calendar.getInstance();
+			todayDate.add(Calendar.DAY_OF_MONTH, -1);
+			String date = formet.format(todayDate.getTime()).replace(&quot;/&quot;, &quot;-&quot;);
+
+			logger.info(&quot;Tally Xml Cash Collection and Bank Deposit Files for :&quot;+date);
+			bankDepositXMLFilesCreation(date, con);
+			cashXMLFilesCreation(date, con);
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return e.getMessage();
+		} finally {
+			DBConnect.closeCon(con);
+		}
+		return null;
+	}
+*/
+	public static void cashXMLFilesCreation(String date, Connection con) {
+<span class="nc" id="L58">		Statement stmt = null;</span>
+<span class="nc" id="L59">		ResultSet rs = null;</span>
+<span class="nc" id="L60">		String query = null;</span>
+<span class="nc" id="L61">		TallyXmlVariablesBean bean = null;</span>
+		try {
+<span class="nc" id="L63">			bean = new TallyXmlVariablesBean();</span>
+<span class="nc" id="L64">			bean.setEndDate(date);</span>
+<span class="nc" id="L65">			bean.setStartDate(date);</span>
+<span class="nc" id="L66">			bean.setCashBean();</span>
+<span class="nc" id="L67">			stmt = con.createStatement();</span>
+<span class="nc" id="L68">			query = &quot;select bb.AgentName name,sum(ab.Cash) amt from (select amount Cash,agent_org_id from st_lms_bo_cash_transaction a inner join st_lms_bo_transaction_master b on a.transaction_id =b.transaction_id where  date(b.transaction_date)='&quot;</span>
+					+ date
+					+ &quot;' and b.transaction_type='CASH' ) ab inner join (select name AgentName,organization_id from st_lms_organization_master) bb on ab.agent_org_id =bb.organization_id group by bb.AgentName;&quot;;
+<span class="nc" id="L71">			logger.info(&quot;Cash Collection Query:&quot; + query);</span>
+<span class="nc" id="L72">			rs = stmt.executeQuery(query);</span>
+<span class="nc" id="L73">			xmlFileCreation(bean, rs);</span>
+<span class="nc" id="L74">		} catch (Exception e) {</span>
+<span class="nc" id="L75">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L77">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L78">		}</span>
+<span class="nc" id="L79">	}</span>
+
+	public static void bankDepositXMLFilesCreation(String date, Connection con) {
+<span class="nc" id="L82">		Statement stmt = null;</span>
+<span class="nc" id="L83">		ResultSet rs = null;</span>
+<span class="nc" id="L84">		String query = null;</span>
+<span class="nc" id="L85">		TallyXmlVariablesBean bean = null;</span>
+		try {
+<span class="nc" id="L87">			bean = new TallyXmlVariablesBean();</span>
+<span class="nc" id="L88">			bean.setEndDate(date);</span>
+<span class="nc" id="L89">			bean.setStartDate(date);</span>
+<span class="nc" id="L90">			bean.setBankBean();</span>
+<span class="nc" id="L91">			stmt = con.createStatement();</span>
+<span class="nc" id="L92">			logger.info(&quot;Bank Deposit Query:&quot; + query);</span>
+<span class="nc" id="L93">			query = &quot;select bb.AgentName name,sum(ab.BankDeposit) amt from (select amount BankDeposit,agent_org_id from st_lms_bo_bank_deposit_transaction a inner join st_lms_bo_transaction_master b on a.transaction_id =b.transaction_id where  date(b.transaction_date) ='&quot;</span>
+					+ date
+					+ &quot;' and b.transaction_type='BANK_DEPOSIT' ) ab inner join (select name AgentName,organization_id from st_lms_organization_master) bb on ab.agent_org_id =bb.organization_id group by bb.AgentName;&quot;;
+<span class="nc" id="L96">			rs = stmt.executeQuery(query);</span>
+<span class="nc" id="L97">			xmlFileCreation(bean, rs);</span>
+<span class="nc" id="L98">		} catch (Exception e) {</span>
+<span class="nc" id="L99">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L101">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L102">		}</span>
+<span class="nc" id="L103">	}</span>
+
+	private static synchronized void xmlFileCreation(
+			TallyXmlVariablesBean variablesBean, ResultSet rs) {
+
+<span class="nc" id="L108">		String date = null;</span>
+<span class="nc" id="L109">		double amt = 0.0;</span>
+<span class="nc" id="L110">		String firstName = null;</span>
+<span class="nc" id="L111">		String totalName = null;</span>
+<span class="nc" id="L112">		boolean flag = true;</span>
+<span class="nc" id="L113">		String narration = null;</span>
+		try {
+<span class="nc" id="L115">			NumberFormat formatter = new DecimalFormat(&quot;#0.00&quot;);</span>
+<span class="nc" id="L116">			date = Util.changeFormat(&quot;yyyy-MM-dd&quot;, &quot;dd.MM.yy&quot;, variablesBean</span>
+					.getStartDate());
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">			if (&quot;Cash&quot;.equalsIgnoreCase(variablesBean.getXmlFileType())) {</span>
+<span class="nc" id="L120">				totalName = &quot;Cash Collections Account&quot;;</span>
+<span class="nc" id="L121">				narration = &quot;Being amount received from agents for the day: &quot;</span>
+						+ date + &quot;.&quot;;
+<span class="nc bnc" id="L123" title="All 2 branches missed.">			} else if (&quot;Bank&quot;.equalsIgnoreCase(variablesBean.getXmlFileType())) {</span>
+<span class="nc" id="L124">				totalName = &quot;Diamond Bank-Collections A/C&quot;;</span>
+<span class="nc" id="L125">				narration = &quot;Being amount  deposited  into bank by agent directly for  the day: &quot;</span>
+						+ date + &quot;.&quot;;
+			}
+
+<span class="nc bnc" id="L129" title="All 2 branches missed.">			if (!(&quot;Bank&quot;.equalsIgnoreCase(variablesBean.getXmlFileType()))) {</span>
+<span class="nc" id="L130">				LinkedList&lt;AllLedgerEntries&gt; allLedgerList = new LinkedList&lt;AllLedgerEntries&gt;();</span>
+<span class="nc" id="L131">				TallyXMLFilesBean bean = new TallyXMLFilesBean();</span>
+<span class="nc" id="L132">				TallyXMLFilesBean.Header header = new TallyXMLFilesBean.Header();</span>
+<span class="nc" id="L133">				bean.setHeader(header);</span>
+<span class="nc" id="L134">				TallyXMLFilesBean.Body body = new TallyXMLFilesBean.Body();</span>
+<span class="nc" id="L135">				TallyXMLFilesBean.Body.ImportData importData = new TallyXMLFilesBean.Body.ImportData();</span>
+<span class="nc" id="L136">				TallyXMLFilesBean.Body.ImportData.RequestDesc requestDesc = new TallyXMLFilesBean.Body.ImportData.RequestDesc();</span>
+<span class="nc" id="L137">				TallyXMLFilesBean.Body.ImportData.RequestDesc.StaticVariables staticVariables = new TallyXMLFilesBean.Body.ImportData.RequestDesc.StaticVariables();</span>
+<span class="nc" id="L138">				requestDesc.setStaticVariables(staticVariables);</span>
+<span class="nc" id="L139">				importData.setRequestDesc(requestDesc);</span>
+<span class="nc" id="L140">				TallyXMLFilesBean.Body.ImportData.RequestData requestData = new TallyXMLFilesBean.Body.ImportData.RequestData();</span>
+<span class="nc" id="L141">				TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage tallyMessage = new TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage();</span>
+<span class="nc" id="L142">				TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage.Voucher voucher = new TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage.Voucher();</span>
+
+				// different for bank deposit
+<span class="nc" id="L145">				voucher.setVchtype(variablesBean.getVoucherType());</span>
+
+				// toDate
+<span class="nc" id="L148">				voucher.setDate(variablesBean.getEndDate().replace(&quot;-&quot;, &quot;&quot;));</span>
+
+<span class="nc" id="L150">				voucher.setNarration(narration);</span>
+<span class="nc" id="L151">				voucher.setVoucherTypeName(variablesBean.getVoucherType());</span>
+
+				// toDate
+<span class="nc" id="L154">				voucher.setEffectiveDate(variablesBean.getEndDate().replace(</span>
+						&quot;-&quot;, &quot;&quot;));
+<span class="nc" id="L156">				String regex = &quot;^[0-9]*$&quot;;</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">					if (flag) {</span>
+<span class="nc" id="L159">						String data = rs.getString(&quot;name&quot;);</span>
+<span class="nc bnc" id="L160" title="All 4 branches missed.">						if(data.length()&gt;8 &amp;&amp; data.substring(data.length()-8, data.length()).matches(regex))</span>
+<span class="nc" id="L161">							data=data.substring(0,data.length()-8);</span>
+						
+<span class="nc" id="L163">						firstName=data;</span>
+<span class="nc" id="L164">						flag = false;</span>
+					}
+<span class="nc" id="L166">					amt += rs.getDouble(&quot;amt&quot;);</span>
+
+<span class="nc" id="L168">					TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries allLedgerEntries = new TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries();</span>
+<span class="nc" id="L169">					allLedgerEntries.setIsDeemedPositive(variablesBean</span>
+							.getIsDeemedForLedger());
+<span class="nc bnc" id="L171" title="All 2 branches missed.">					if (&quot;No&quot;.equalsIgnoreCase(variablesBean</span>
+							.getIsLedgerAmountPositive()))
+<span class="nc" id="L173">						allLedgerEntries.setAmount(formatter.format(-1</span>
+								* (rs.getDouble(&quot;amt&quot;))));
+					else
+<span class="nc" id="L176">						allLedgerEntries.setAmount(formatter.format(rs</span>
+								.getDouble(&quot;amt&quot;)));
+<span class="nc" id="L178">					String data = rs.getString(&quot;name&quot;);</span>
+<span class="nc bnc" id="L179" title="All 4 branches missed.">					if(data.length()&gt;8 &amp;&amp; data.substring(data.length()-8, data.length()).matches(regex))</span>
+<span class="nc" id="L180">						data=data.substring(0,data.length()-8);</span>
+					
+<span class="nc" id="L182">					allLedgerEntries.setLedgerName(data);</span>
+<span class="nc" id="L183">					allLedgerEntries.setIsPartyLedger(variablesBean</span>
+							.getIsPartyForLedger());
+<span class="nc" id="L185">					allLedgerList.add(allLedgerEntries);</span>
+<span class="nc" id="L186">				}</span>
+
+<span class="nc" id="L188">				TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries allLedgerEntries = new TallyXMLFilesBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries();</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">				if (&quot;No&quot;.equalsIgnoreCase(variablesBean</span>
+						.getIsLedgerAmountPositive()))
+<span class="nc" id="L191">					allLedgerEntries.setAmount(formatter.format(amt));</span>
+				else
+<span class="nc" id="L193">					allLedgerEntries.setAmount(formatter.format(-1 * amt));</span>
+<span class="nc" id="L194">				allLedgerEntries.setLedgerName(totalName);</span>
+<span class="nc" id="L195">				allLedgerEntries.setIsDeemedPositive(variablesBean</span>
+						.getIsDeemedForTotal());
+<span class="nc" id="L197">				allLedgerEntries.setIsPartyLedger(variablesBean</span>
+						.getIsPartyForTotal());
+
+<span class="nc bnc" id="L200" title="All 2 branches missed.">				if (&quot;Top&quot;.equalsIgnoreCase(variablesBean.getLocationOfTotal()))</span>
+<span class="nc" id="L201">					allLedgerList.addFirst(allLedgerEntries);</span>
+				else
+<span class="nc" id="L203">					allLedgerList.add(allLedgerEntries);</span>
+
+<span class="nc" id="L205">				voucher.setPartyLedgerName(firstName);</span>
+<span class="nc" id="L206">				voucher.setAllLedger(allLedgerList);</span>
+<span class="nc" id="L207">				tallyMessage.setVoucher(voucher);</span>
+<span class="nc" id="L208">				requestData.setTallyMessage(tallyMessage);</span>
+<span class="nc" id="L209">				importData.setRequestData(requestData);</span>
+<span class="nc" id="L210">				body.setImportData(importData);</span>
+<span class="nc" id="L211">				bean.setBody(body);</span>
+<span class="nc" id="L212">				jaxbObjectToXML(bean, variablesBean.getXmlFileType(),</span>
+						variablesBean.getEndDate().replace(&quot;-&quot;, &quot;&quot;),
+						variablesBean.getGameName(), &quot;Cash&quot;);
+<span class="nc" id="L215">			} else {</span>
+<span class="nc" id="L216">				LinkedList&lt;com.skilrock.lms.beans.TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries&gt; allLedgerList = new LinkedList&lt;com.skilrock.lms.beans.TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries&gt;();</span>
+<span class="nc" id="L217">				LinkedList&lt;AllBankersDate&gt; allBankersList = new LinkedList&lt;AllBankersDate&gt;();</span>
+<span class="nc" id="L218">				TallyXMLBankDepositBean bean = new TallyXMLBankDepositBean();</span>
+<span class="nc" id="L219">				TallyXMLBankDepositBean.Header header = new TallyXMLBankDepositBean.Header();</span>
+<span class="nc" id="L220">				bean.setHeader(header);</span>
+<span class="nc" id="L221">				TallyXMLBankDepositBean.Body body = new TallyXMLBankDepositBean.Body();</span>
+<span class="nc" id="L222">				TallyXMLBankDepositBean.Body.ImportData importData = new TallyXMLBankDepositBean.Body.ImportData();</span>
+<span class="nc" id="L223">				TallyXMLBankDepositBean.Body.ImportData.RequestDesc requestDesc = new TallyXMLBankDepositBean.Body.ImportData.RequestDesc();</span>
+<span class="nc" id="L224">				TallyXMLBankDepositBean.Body.ImportData.RequestDesc.StaticVariables staticVariables = new TallyXMLBankDepositBean.Body.ImportData.RequestDesc.StaticVariables();</span>
+<span class="nc" id="L225">				requestDesc.setStaticVariables(staticVariables);</span>
+<span class="nc" id="L226">				importData.setRequestDesc(requestDesc);</span>
+<span class="nc" id="L227">				TallyXMLBankDepositBean.Body.ImportData.RequestData requestData = new TallyXMLBankDepositBean.Body.ImportData.RequestData();</span>
+<span class="nc" id="L228">				TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage tallyMessage = new TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage();</span>
+<span class="nc" id="L229">				TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher voucher = new TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher();</span>
+<span class="nc" id="L230">				TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllBankersDate bankerDate = new TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllBankersDate();</span>
+
+<span class="nc" id="L232">				bankerDate.setBasicBankersDate(variablesBean.getEndDate()</span>
+						.replace(&quot;-&quot;, &quot;&quot;));
+<span class="nc" id="L234">				allBankersList.add(bankerDate);</span>
+<span class="nc" id="L235">				voucher.setBankersDate(allBankersList);</span>
+
+				// different for bank deposit
+<span class="nc" id="L238">				voucher.setVchtype(variablesBean.getVoucherType());</span>
+
+				// toDate
+<span class="nc" id="L241">				voucher.setDate(variablesBean.getEndDate().replace(&quot;-&quot;, &quot;&quot;));</span>
+
+<span class="nc" id="L243">				voucher.setNarration(narration);</span>
+<span class="nc" id="L244">				voucher.setVoucherTypeName(variablesBean.getVoucherType());</span>
+
+				// toDate
+<span class="nc" id="L247">				voucher.setEffectiveDate(variablesBean.getEndDate().replace(&quot;-&quot;, &quot;&quot;));</span>
+<span class="nc" id="L248">				String regex = &quot;^[0-9]*$&quot;;</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L250" title="All 2 branches missed.">					if (flag) {</span>
+<span class="nc" id="L251">						String data = rs.getString(&quot;name&quot;);</span>
+<span class="nc bnc" id="L252" title="All 4 branches missed.">						if(data.length()&gt;8 &amp;&amp; data.substring(data.length()-8, data.length()).matches(regex))</span>
+<span class="nc" id="L253">							data=data.substring(0,data.length()-8);</span>
+						
+<span class="nc" id="L255">						firstName=data;</span>
+<span class="nc" id="L256">						flag = false;</span>
+					}
+<span class="nc" id="L258">					amt += rs.getDouble(&quot;amt&quot;);</span>
+
+<span class="nc" id="L260">					TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries allLedgerEntries = new TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries();</span>
+<span class="nc" id="L261">					allLedgerEntries.setIsDeemedPositive(variablesBean</span>
+							.getIsDeemedForLedger());
+<span class="nc bnc" id="L263" title="All 2 branches missed.">					if (&quot;No&quot;.equalsIgnoreCase(variablesBean</span>
+							.getIsLedgerAmountPositive()))
+<span class="nc" id="L265">						allLedgerEntries.setAmount(formatter.format(-1</span>
+								* (rs.getDouble(&quot;amt&quot;))));
+					else
+<span class="nc" id="L268">						allLedgerEntries.setAmount(formatter.format(rs.getDouble(&quot;amt&quot;)));</span>
+<span class="nc" id="L269">					String data = rs.getString(&quot;name&quot;);</span>
+<span class="nc bnc" id="L270" title="All 4 branches missed.">					if(data.length()&gt;8 &amp;&amp; data.substring(data.length()-8, data.length()).matches(regex))</span>
+<span class="nc" id="L271">						data=data.substring(0,data.length()-8);</span>
+					
+<span class="nc" id="L273">					allLedgerEntries.setLedgerName(data);</span>
+<span class="nc" id="L274">					allLedgerEntries.setIsPartyLedger(variablesBean.getIsPartyForLedger());</span>
+<span class="nc" id="L275">					allLedgerList.add(allLedgerEntries);</span>
+<span class="nc" id="L276">				}</span>
+
+<span class="nc" id="L278">				TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries allLedgerEntries = new TallyXMLBankDepositBean.Body.ImportData.RequestData.TallyMessage.Voucher.AllLedgerEntries();</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">				if (&quot;No&quot;.equalsIgnoreCase(variablesBean</span>
+						.getIsLedgerAmountPositive()))
+<span class="nc" id="L281">					allLedgerEntries.setAmount(formatter.format(amt));</span>
+				else
+<span class="nc" id="L283">					allLedgerEntries.setAmount(formatter.format(-1 * amt));</span>
+<span class="nc" id="L284">				allLedgerEntries.setLedgerName(totalName);</span>
+<span class="nc" id="L285">				allLedgerEntries.setIsDeemedPositive(variablesBean</span>
+						.getIsDeemedForTotal());
+<span class="nc" id="L287">				allLedgerEntries.setIsPartyLedger(variablesBean</span>
+						.getIsPartyForTotal());
+
+<span class="nc bnc" id="L290" title="All 2 branches missed.">				if (&quot;Top&quot;.equalsIgnoreCase(variablesBean.getLocationOfTotal()))</span>
+<span class="nc" id="L291">					allLedgerList.addFirst(allLedgerEntries);</span>
+				else
+<span class="nc" id="L293">					allLedgerList.add(allLedgerEntries);</span>
+
+<span class="nc" id="L295">				voucher.setPartyLedgerName(firstName);</span>
+<span class="nc" id="L296">				voucher.setAllLedger(allLedgerList);</span>
+<span class="nc" id="L297">				tallyMessage.setVoucher(voucher);</span>
+<span class="nc" id="L298">				requestData.setTallyMessage(tallyMessage);</span>
+<span class="nc" id="L299">				importData.setRequestData(requestData);</span>
+<span class="nc" id="L300">				body.setImportData(importData);</span>
+<span class="nc" id="L301">				bean.setBody(body);</span>
+<span class="nc" id="L302">				jaxbObjectToXML(bean, variablesBean.getXmlFileType(),</span>
+						variablesBean.getEndDate().replace(&quot;-&quot;, &quot;&quot;), null,
+						&quot;Bank&quot;);
+			}
+
+<span class="nc" id="L307">		} catch (Exception e) {</span>
+<span class="nc" id="L308">			e.printStackTrace();</span>
+<span class="nc" id="L309">		}</span>
+<span class="nc" id="L310">	}</span>
+
+	private static void jaxbObjectToXML(Object emp, String type, String date, Object object, String fileType) {
+		try {
+<span class="nc" id="L314">			JAXBContext context = null;</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">			if (!(&quot;Bank&quot;.equalsIgnoreCase(fileType)))</span>
+<span class="nc" id="L316">				context = JAXBContext.newInstance(TallyXMLFilesBean.class);</span>
+			else
+<span class="nc" id="L318">				context = JAXBContext.newInstance(TallyXMLBankDepositBean.class);</span>
+
+<span class="nc" id="L320">			Marshaller m = context.createMarshaller();</span>
+<span class="nc" id="L321">			m.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);</span>
+<span class="nc" id="L322">			m.marshal(emp, System.out);</span>
+
+<span class="nc" id="L324">			File file = null;</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			if (object == null)</span>
+<span class="nc" id="L326">				file = new File(type + date + &quot;.xml&quot;);</span>
+			else
+<span class="nc" id="L328">				file = new File(type + &quot;-&quot; + object + date + &quot;.xml&quot;);</span>
+
+<span class="nc" id="L330">			m.marshal(emp, new FileOutputStream(file));</span>
+
+<span class="nc" id="L332">			String OS = System.getProperty(&quot;os.name&quot;).toLowerCase();</span>
+<span class="nc" id="L333">			String root = &quot;/tmp&quot;;</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">			if (OS.indexOf(&quot;win&quot;) &gt;= 0) {</span>
+<span class="nc" id="L335">				root = &quot;D:\\&quot;;</span>
+			} else {
+<span class="nc" id="L337">				root = &quot;/home/stpl/&quot;;</span>
+			}
+
+<span class="nc" id="L340">			File folder = new File(root + &quot;upload/&quot;);</span>
+<span class="nc bnc" id="L341" title="All 4 branches missed.">			if (!folder.exists() || !folder.isDirectory()) {</span>
+<span class="nc" id="L342">				folder.mkdir();</span>
+			}
+
+<span class="nc" id="L345">			String fileName = null;</span>
+<span class="nc bnc" id="L346" title="All 2 branches missed.">			if (object == null)</span>
+<span class="nc" id="L347">				fileName = type + date + &quot;.xml&quot;;</span>
+			else
+<span class="nc" id="L349">				fileName = type + &quot;-&quot; + object + date + &quot;.xml&quot;;</span>
+
+<span class="nc" id="L351">			file = new File(folder, fileName);</span>
+<span class="nc" id="L352">			System.out.println(file);</span>
+
+<span class="nc" id="L354">			m.marshal(emp, new FileOutputStream(file));</span>
+<span class="nc" id="L355">		} catch (JAXBException e) {</span>
+<span class="nc" id="L356">			e.printStackTrace();</span>
+<span class="nc" id="L357">		} catch (FileNotFoundException e) {</span>
+<span class="nc" id="L358">			e.printStackTrace();</span>
+<span class="nc" id="L359">		}</span>
+<span class="nc" id="L360">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

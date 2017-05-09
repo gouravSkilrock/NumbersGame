@@ -1,0 +1,680 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DepositWthdrwReportControllerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.ola.reportsMgmt.controllerImpl</a> &gt; <span class="el_source">DepositWthdrwReportControllerImpl.java</span></div><h1>DepositWthdrwReportControllerImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.ola.reportsMgmt.controllerImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.DecimalFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.OlaAgentReportBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.GenericException;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.OrganizationTerminateReportHelper;
+import com.skilrock.lms.rolemgmt.beans.userBean;
+import com.skilrock.ola.commonMethods.controllerImpl.OlaCommonMethodControllerImpl;
+import com.skilrock.ola.reportsMgmt.javaBeans.OlaOrgReportRequestBean;
+import com.skilrock.ola.reportsMgmt.javaBeans.OlaOrgReportResponseBean;
+import com.skilrock.ola.reportsMgmt.javaBeans.OlaReportBean;
+
+
+<span class="nc" id="L34">public class DepositWthdrwReportControllerImpl  {</span>
+	
+<span class="nc" id="L36">	static Log logger = LogFactory.getLog(DepositWthdrwReportControllerImpl.class);</span>
+	
+	public List&lt;OlaReportBean&gt; fetchOlaRetailerReportData(
+			OlaReportBean olaReportBean, int walletId, int retOrgId,String playerType) throws GenericException {
+<span class="nc" id="L40">		List&lt;OlaReportBean&gt; olaReportList = new ArrayList&lt;OlaReportBean&gt;();</span>
+<span class="nc" id="L41">		Connection con=null;</span>
+		try {
+<span class="nc" id="L43">			double depositAmt = 0.0;</span>
+<span class="nc" id="L44">			double withdrawlAmt = 0.0;			</span>
+<span class="nc" id="L45">			double totalDepositAmount = 0.0;</span>
+<span class="nc" id="L46">			double totalWithdrawlAmount = 0.0;</span>
+<span class="nc" id="L47">			 con= DBConnect.getConnection();</span>
+<span class="nc" id="L48">			String startDate = olaReportBean.getFromDate();</span>
+<span class="nc" id="L49">			String endDate = olaReportBean.getToDate();</span>
+<span class="nc" id="L50">			con.setAutoCommit(false);</span>
+<span class="nc" id="L51">			String subQuery=&quot; &quot;;</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">			if(playerType.equalsIgnoreCase(&quot;Bind&quot;)){</span>
+<span class="nc" id="L53">				subQuery =&quot; where player_id is not null &quot;;</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">			}else if(playerType.equalsIgnoreCase(&quot;Notbind&quot;)) {</span>
+<span class="nc" id="L55">				subQuery=&quot; where player_id is null  &quot;;</span>
+			}
+<span class="nc" id="L57">			StringBuilder sbQuery = new StringBuilder();</span>
+<span class="nc" id="L58">									sbQuery.append(&quot; select sum(depositAmt) depositAmt,sum(withdrawlAmt) withdrawlAmt,party_id,transaction_type,Date(transaction_date) transaction_date,player_id from (&quot;);</span>
+<span class="nc" id="L59">									sbQuery.append(&quot; select 0.0 depositAmt,withdrawlAmt,party_id,transaction_type,transaction_date from (	select  sum(withdrawl_amt) withdrawlAmt,0.0 refundAmt,party_id,transaction_type,transaction_date&quot;);</span>
+<span class="nc" id="L60">									sbQuery.append(&quot; from st_lms_retailer_transaction_master rtm  inner join st_ola_ret_withdrawl wl on rtm.transaction_id=wl.transaction_id where rtm.transaction_type='OLA_WITHDRAWL'&quot;);</span>
+<span class="nc" id="L61">									sbQuery.append(&quot; and wallet_id=? and wl.retailer_org_id=? and transaction_date&gt;=? and transaction_date&lt;=? group by party_id &quot;);</span>
+<span class="nc" id="L62">									sbQuery.append(&quot; union all select 0.0 	withdrawlAmt,sum(withdrawl_amt) refundAmt,party_id,transaction_type,transaction_date from 	 st_lms_retailer_transaction_master rtm&quot;);</span>
+<span class="nc" id="L63">									sbQuery.append(&quot;  inner join st_ola_ret_withdrawl_refund wlr on rtm.transaction_id=wlr.transaction_id	where rtm.transaction_type='OLA_WITHDRAWL_REFUND' and wallet_id=? and wlr.retailer_org_id=? and&quot;);</span>
+<span class="nc" id="L64">									sbQuery.append(&quot;  transaction_date&gt;=?  and transaction_date&lt;=? 	group by party_id )withdrawl group by party_id &quot;);</span>
+<span class="nc" id="L65">									sbQuery.append(&quot;  union all	select sum(depositAmt- refundAmt) depositAmt,0.0 withdrawlAmt,party_id,transaction_type,transaction_date from (select sum(deposit_amt) depositAmt,0.0 refundAmt,party_id,transaction_type,transaction_date &quot;);</span>
+<span class="nc" id="L66">									sbQuery.append(&quot;   from st_lms_retailer_transaction_master rtm	inner join st_ola_ret_deposit dp on rtm.transaction_id=dp.transaction_id  where rtm.transaction_type='OLA_DEPOSIT' and wallet_id=? and dp.retailer_org_id=? &quot;);</span>
+<span class="nc" id="L67">									sbQuery.append(&quot;  and transaction_date&gt;=?  and transaction_date&lt;=?  group by party_id union all select 0.0  depositAmt,sum(deposit_amt) refundAmt,party_id,transaction_type,transaction_date from&quot;);</span>
+<span class="nc" id="L68">									sbQuery.append(&quot;  st_lms_retailer_transaction_master rtm inner join st_ola_ret_deposit_refund dpr on rtm.transaction_id=dpr.transaction_id 	  where rtm.transaction_type='OLA_DEPOSIT_REFUND' and wallet_id=? and dpr.retailer_org_id=? and&quot;);</span>
+<span class="nc" id="L69">									sbQuery.append(&quot; transaction_date&gt;=?  and transaction_date&lt;=?	group by party_id )olaDeposit group by party_id	)ola left join (select player_id from st_ola_affiliate_plr_mapping  where ref_user_org_id=? and wallet_id=?)apm  on ola.party_id =apm.player_id &quot;);</span>
+<span class="nc" id="L70">									sbQuery.append(subQuery);</span>
+<span class="nc" id="L71">									sbQuery.append(&quot; group by party_id&quot;);</span>
+									
+<span class="nc" id="L73">			PreparedStatement pstmt = con.prepareStatement(sbQuery.toString());</span>
+<span class="nc" id="L74">			pstmt.setInt(1,walletId);</span>
+<span class="nc" id="L75">			pstmt.setInt(2,retOrgId);</span>
+<span class="nc" id="L76">			pstmt.setString(3,startDate);</span>
+<span class="nc" id="L77">			pstmt.setString(4,endDate);</span>
+<span class="nc" id="L78">			pstmt.setInt(5,walletId);</span>
+<span class="nc" id="L79">			pstmt.setInt(6,retOrgId);</span>
+<span class="nc" id="L80">			pstmt.setString(7,startDate);</span>
+<span class="nc" id="L81">			pstmt.setString(8,endDate);</span>
+<span class="nc" id="L82">			pstmt.setInt(9,walletId);</span>
+<span class="nc" id="L83">			pstmt.setInt(10,retOrgId);</span>
+<span class="nc" id="L84">			pstmt.setString(11,startDate);</span>
+<span class="nc" id="L85">			pstmt.setString(12,endDate);</span>
+<span class="nc" id="L86">			pstmt.setInt(13,walletId);</span>
+<span class="nc" id="L87">			pstmt.setInt(14,retOrgId);</span>
+<span class="nc" id="L88">			pstmt.setString(15,startDate);</span>
+<span class="nc" id="L89">			pstmt.setString(16,endDate);</span>
+<span class="nc" id="L90">			pstmt.setInt(17,retOrgId);</span>
+<span class="nc" id="L91">			pstmt.setInt(18,walletId);</span>
+<span class="nc" id="L92">			System.out.println(pstmt);</span>
+<span class="nc" id="L93">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L95">				olaReportBean = new OlaReportBean();</span>
+<span class="nc" id="L96">				String playerName = OlaCommonMethodControllerImpl.getPlayerNameFromPlayerId(rs.getInt(&quot;party_id&quot;));</span>
+<span class="nc" id="L97">				olaReportBean.setPlayerName(playerName);</span>
+<span class="nc" id="L98">				depositAmt = rs.getDouble(&quot;depositAmt&quot;);</span>
+<span class="nc" id="L99">				olaReportBean.setDepositAmt(depositAmt);</span>
+<span class="nc" id="L100">				totalDepositAmount = totalDepositAmount + depositAmt;</span>
+<span class="nc" id="L101">				withdrawlAmt = rs.getDouble(&quot;withdrawlAmt&quot;);</span>
+<span class="nc" id="L102">				olaReportBean.setWithdrawlAmt(withdrawlAmt);</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">				if(rs.getString(&quot;player_id&quot;)==null){</span>
+<span class="nc" id="L104">					olaReportBean.setPlayerType(&quot;Not Bind&quot;);</span>
+				}else{
+<span class="nc" id="L106">					olaReportBean.setPlayerType(&quot;Bind&quot;);</span>
+				}
+<span class="nc" id="L108">				olaReportBean.setTrnDate(rs.getString(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L109">				totalWithdrawlAmount = totalWithdrawlAmount + withdrawlAmt;</span>
+			
+<span class="nc" id="L111">				olaReportList.add(olaReportBean);</span>
+<span class="nc" id="L112">			}</span>
+<span class="nc" id="L113">			OlaReportBean totalBean = new OlaReportBean();</span>
+<span class="nc" id="L114">			totalBean.setPlayerName(&quot;Total&quot;);</span>
+<span class="nc" id="L115">			totalBean.setDepositAmt(totalDepositAmount);			</span>
+<span class="nc" id="L116">			totalBean.setWithdrawlAmt(totalWithdrawlAmount);</span>
+<span class="nc" id="L117">			olaReportList.add(totalBean);</span>
+<span class="nc" id="L118">			con.commit();</span>
+			
+<span class="nc" id="L120">		}catch(SQLException se){</span>
+<span class="nc" id="L121">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE,se);</span>
+<span class="nc" id="L122">		}catch(Exception e){</span>
+<span class="nc" id="L123">			e.printStackTrace();</span>
+<span class="nc" id="L124">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE,e);</span>
+		}
+		finally{
+<span class="nc" id="L127">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L128">		}</span>
+<span class="nc" id="L129">		return olaReportList;</span>
+	}
+	
+	public OlaReportBean fetchTxnReportData(
+			String fromDate, String toDate, int retOrgId) throws GenericException {
+<span class="nc" id="L134">		Connection con=null;</span>
+<span class="nc" id="L135">		OlaReportBean totalBean = null;</span>
+		try {
+<span class="nc" id="L137">			double mrpDepositAmt = 0.0;</span>
+<span class="nc" id="L138">			double mrpWithdrawlAmt = 0.0;			</span>
+<span class="nc" id="L139">			double totalMrpDepositAmount = 0.0;</span>
+<span class="nc" id="L140">			double totalMrpWithdrawlAmount = 0.0;</span>
+<span class="nc" id="L141">			double netAmt = 0.0;</span>
+<span class="nc" id="L142">			double totalNetAmt = 0.0;</span>
+<span class="nc" id="L143">			totalBean = new OlaReportBean();</span>
+<span class="nc" id="L144">			 con= DBConnect.getConnection();</span>
+<span class="nc" id="L145">			String startDate = fromDate;</span>
+<span class="nc" id="L146">			String endDate = toDate;</span>
+			
+			
+<span class="nc" id="L149">			StringBuilder depositSbQuery = new StringBuilder();</span>
+<span class="nc" id="L150">				depositSbQuery.append(&quot;select sum(depositAmt) depositAmt, sum(netAmt) netAmt, party_id,transaction_type,Date(transaction_date) transaction_date,player_id from (&quot;);</span>
+<span class="nc" id="L151">				depositSbQuery.append(&quot; select sum(depositAmt- refundAmt) depositAmt, sum(netDAmt-netRAmt) netAmt, party_id,transaction_type,transaction_date from (&quot;);</span>
+<span class="nc" id="L152">				depositSbQuery.append(&quot; select sum(deposit_amt) depositAmt,0.0 refundAmt, sum(net_amt) netDAmt, 0.0 netRAmt, party_id,transaction_type,transaction_date from st_lms_retailer_transaction_master rtm inner join st_ola_ret_deposit dp on rtm.transaction_id=dp.transaction_id  where rtm.transaction_type='OLA_DEPOSIT'  and dp.retailer_org_id=? and transaction_date&gt;=?  and transaction_date&lt;=? group by party_id&quot;);</span>
+<span class="nc" id="L153">				depositSbQuery.append(&quot; union all&quot;);</span>
+<span class="nc" id="L154">				depositSbQuery.append(&quot; select 0.0  depositAmt,sum(deposit_amt) refundAmt, 0.0 netDAmt, sum(net_amt) netRAmt, party_id,transaction_type,transaction_date from  st_lms_retailer_transaction_master rtm inner join st_ola_ret_deposit_refund dpr on rtm.transaction_id=dpr.transaction_id where rtm.transaction_type='OLA_DEPOSIT_REFUND'  and dpr.retailer_org_id=? and transaction_date&gt;=?  and transaction_date&lt;=? group by party_id ) olaDeposit&quot;);</span>
+<span class="nc" id="L155">				depositSbQuery.append(&quot; group by party_id )ola&quot;);</span>
+<span class="nc" id="L156">				depositSbQuery.append(&quot; left join&quot;);</span>
+<span class="nc" id="L157">				depositSbQuery.append(&quot; (select player_id from st_ola_affiliate_plr_mapping  where ref_user_org_id=? )apm&quot;);</span>
+<span class="nc" id="L158">				depositSbQuery.append(&quot; on ola.party_id =apm.player_id  group by party_id&quot;);</span>
+				
+<span class="nc" id="L160">			StringBuilder wdrwlSbQuery = new StringBuilder();</span>
+<span class="nc" id="L161">				wdrwlSbQuery.append(&quot;select sum(withdrawlAmt) withdrawlAmt,sum(netAmt) netAmt,party_id,transaction_type,Date(transaction_date) transaction_date,player_id from ( &quot;);</span>
+<span class="nc" id="L162">				wdrwlSbQuery.append(&quot; select withdrawlAmt, netAmt,party_id,transaction_type,transaction_date from (	&quot;);</span>
+<span class="nc" id="L163">				wdrwlSbQuery.append(&quot; select  sum(withdrawl_amt) withdrawlAmt,0.0 refundAmt, sum(net_amt) netAmt, party_id,transaction_type,transaction_date from st_lms_retailer_transaction_master rtm  inner join st_ola_ret_withdrawl wl on rtm.transaction_id=wl.transaction_id where rtm.transaction_type='OLA_WITHDRAWL'  and wl.retailer_org_id=? and transaction_date&gt;=? and transaction_date&lt;=? group by party_id ) withdrawl group by party_id)ola &quot;);</span>
+<span class="nc" id="L164">				wdrwlSbQuery.append(&quot; left join &quot;);</span>
+<span class="nc" id="L165">				wdrwlSbQuery.append(&quot; (select player_id from st_ola_affiliate_plr_mapping  where ref_user_org_id=? )apm  &quot;);</span>
+<span class="nc" id="L166">				wdrwlSbQuery.append(&quot; on ola.party_id =apm.player_id  group by party_id&quot;);</span>
+				
+<span class="nc" id="L168">			PreparedStatement pstmt = con.prepareStatement(depositSbQuery.toString());</span>
+<span class="nc" id="L169">				pstmt.setInt(1, retOrgId);</span>
+<span class="nc" id="L170">				pstmt.setString(2, startDate);</span>
+<span class="nc" id="L171">				pstmt.setString(3, endDate);</span>
+<span class="nc" id="L172">				pstmt.setInt(4, retOrgId);</span>
+<span class="nc" id="L173">				pstmt.setString(5, startDate);</span>
+<span class="nc" id="L174">				pstmt.setString(6, endDate);</span>
+<span class="nc" id="L175">				pstmt.setInt(7, retOrgId);</span>
+<span class="nc" id="L176">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L178">				mrpDepositAmt = rs.getDouble(&quot;depositAmt&quot;);				</span>
+<span class="nc" id="L179">				totalMrpDepositAmount = totalMrpDepositAmount + mrpDepositAmt;</span>
+<span class="nc" id="L180">				netAmt = rs.getDouble(&quot;netAmt&quot;);</span>
+<span class="nc" id="L181">				totalNetAmt = totalNetAmt + netAmt;				</span>
+			}
+<span class="nc" id="L183">			totalBean.setTotalDepositAmount(totalNetAmt);</span>
+<span class="nc" id="L184">			totalBean.setDepositAmt(totalMrpDepositAmount);</span>
+<span class="nc" id="L185">			totalNetAmt = 0.0;</span>
+<span class="nc" id="L186">			netAmt = 0.0;</span>
+<span class="nc" id="L187">			pstmt.clearParameters();</span>
+<span class="nc" id="L188">			pstmt = con.prepareStatement(wdrwlSbQuery.toString());</span>
+<span class="nc" id="L189">				pstmt.setInt(1, retOrgId);</span>
+<span class="nc" id="L190">				pstmt.setString(2, startDate);</span>
+<span class="nc" id="L191">				pstmt.setString(3, endDate);</span>
+<span class="nc" id="L192">				pstmt.setInt(4, retOrgId);</span>
+<span class="nc" id="L193">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L195">				mrpWithdrawlAmt = rs.getDouble(&quot;withdrawlAmt&quot;);			</span>
+<span class="nc" id="L196">				totalMrpWithdrawlAmount = totalMrpWithdrawlAmount + mrpWithdrawlAmt;</span>
+<span class="nc" id="L197">				netAmt = rs.getDouble(&quot;netAmt&quot;);</span>
+<span class="nc" id="L198">				totalNetAmt = totalNetAmt + netAmt;</span>
+			}
+<span class="nc" id="L200">			totalBean.setTotalWithdrawlAmount(netAmt);</span>
+<span class="nc" id="L201">			totalBean.setWithdrawlAmt(totalMrpWithdrawlAmount);	</span>
+			
+			
+<span class="nc" id="L204">		}catch(SQLException se){</span>
+<span class="nc" id="L205">			se.printStackTrace();</span>
+<span class="nc" id="L206">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L207">		}catch(Exception e){</span>
+<span class="nc" id="L208">			e.printStackTrace();</span>
+<span class="nc" id="L209">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		}
+		finally{
+<span class="nc" id="L212">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L213">		}</span>
+<span class="nc" id="L214">		return totalBean;</span>
+	}
+	
+	
+	public String fetchOlaRetailerReportDataConsolidate(String  fromDate, int walletId, int retOrgId) throws GenericException {
+<span class="nc" id="L219">		Connection con=null;</span>
+<span class="nc" id="L220">		StringBuilder sb= new StringBuilder();</span>
+		try {	
+<span class="nc" id="L222">				String startDate =null;</span>
+<span class="nc" id="L223">				String endDate =null;</span>
+<span class="nc" id="L224">				con= DBConnect.getConnection();</span>
+<span class="nc" id="L225">				SimpleDateFormat sdf = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">				if(fromDate.equalsIgnoreCase(&quot;lastday&quot;)){</span>
+<span class="nc" id="L227">					 Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L228">					 cal.add(Calendar.DATE, -1);</span>
+<span class="nc" id="L229">					 startDate = (sdf.format(cal.getTime()))+&quot; 00:00:00&quot;;</span>
+<span class="nc" id="L230">					 endDate = (sdf.format(cal.getTime()))+&quot; 23:59:59&quot;;				 </span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">				}else if(fromDate.equalsIgnoreCase(&quot;currentday&quot;)){</span>
+<span class="nc" id="L232">					 Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L233">					 startDate = (sdf.format(cal.getTime()))+&quot; 00:00:00&quot;;</span>
+<span class="nc" id="L234">					 endDate = (sdf.format(cal.getTime()))+&quot; 23:59:59&quot;;</span>
+<span class="nc" id="L235">				}else {</span>
+<span class="nc" id="L236">					 Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L237">					 startDate = (sdf.format(sdf.parse(fromDate)))+&quot; 00:00:00&quot;;</span>
+<span class="nc" id="L238">					 endDate = (sdf.format(cal.getTime()))+&quot; 23:59:59&quot;;</span>
+				}
+<span class="nc" id="L240">				StringBuilder sbQuery = new StringBuilder();</span>
+<span class="nc" id="L241">									sbQuery.append(&quot; select sum(depositAmt) depositAmt,sum(withdrawlAmt) withdrawlAmt,transactionDate from ( &quot;);</span>
+<span class="nc" id="L242">									sbQuery.append(&quot;select 0.0 depositAmt,withdrawlAmt,transactionDate  from ( select  sum(withdrawl_amt) withdrawlAmt,0.0 refundAmt,transaction_type,Date(transaction_date) transactionDate  &quot;);</span>
+<span class="nc" id="L243">									sbQuery.append(&quot; from st_lms_retailer_transaction_master rtm  inner join st_ola_ret_withdrawl wl on rtm.transaction_id=wl.transaction_id where rtm.transaction_type='OLA_WITHDRAWL' and wallet_id=? and wl.retailer_org_id=? and transaction_date&gt;=?  and transaction_date&lt;=?  group by transactionDate&quot;);</span>
+<span class="nc" id="L244">									sbQuery.append(&quot; union all select 0.0 	withdrawlAmt,sum(withdrawl_amt) refundAmt,transaction_type,Date(transaction_date) transactionDate &quot;);</span>
+<span class="nc" id="L245">									sbQuery.append(&quot; from st_lms_retailer_transaction_master rtm  inner join st_ola_ret_withdrawl_refund wlr on rtm.transaction_id=wlr.transaction_id	where rtm.transaction_type='OLA_WITHDRAWL_REFUND' and wallet_id=? and wlr.retailer_org_id=? and  transaction_date&gt;=?  and transaction_date&lt;=? group by transactionDate  )withdrawl &quot;);</span>
+<span class="nc" id="L246">									sbQuery.append(&quot; union all	select sum(depositAmt- refundAmt) depositAmt,0.0 withdrawlAmt,transactionDate from (select sum(deposit_amt) depositAmt,0.0 refundAmt,Date(transaction_date) transactionDate  &quot;);</span>
+<span class="nc" id="L247">									sbQuery.append(&quot;  from st_lms_retailer_transaction_master rtm	inner join st_ola_ret_deposit dp on rtm.transaction_id=dp.transaction_id  where rtm.transaction_type='OLA_DEPOSIT' and wallet_id=? and dp.retailer_org_id=?   and transaction_date&gt;=?  and transaction_date&lt;=? group by transactionDate&quot;);</span>
+<span class="nc" id="L248">									sbQuery.append(&quot;  union all	select 0.0  depositAmt,sum(deposit_amt) refundAmt,Date(transaction_date) transactionDate  from  st_lms_retailer_transaction_master rtm inner join st_ola_ret_deposit_refund dpr on rtm.transaction_id=dpr.transaction_id 	 &quot;);</span>
+<span class="nc" id="L249">									sbQuery.append(&quot; where rtm.transaction_type='OLA_DEPOSIT_REFUND' and wallet_id=? and dpr.retailer_org_id=? and transaction_date&gt;=?  and transaction_date&lt;=? group by transactionDate &quot;);</span>
+<span class="nc" id="L250">									sbQuery.append(&quot;)olaDeposit  group by transactionDate	)ola group by transactionDate&quot;);</span>
+									
+<span class="nc" id="L252">			PreparedStatement pstmt = con.prepareStatement(sbQuery.toString());</span>
+<span class="nc" id="L253">			pstmt.setInt(1,walletId);</span>
+<span class="nc" id="L254">			pstmt.setInt(2,retOrgId);</span>
+<span class="nc" id="L255">			pstmt.setString(3,startDate);</span>
+<span class="nc" id="L256">			pstmt.setString(4,endDate);</span>
+<span class="nc" id="L257">			pstmt.setInt(5,walletId);</span>
+<span class="nc" id="L258">			pstmt.setInt(6,retOrgId);</span>
+<span class="nc" id="L259">			pstmt.setString(7,startDate);</span>
+<span class="nc" id="L260">			pstmt.setString(8,endDate);</span>
+<span class="nc" id="L261">			pstmt.setInt(9,walletId);</span>
+<span class="nc" id="L262">			pstmt.setInt(10,retOrgId);</span>
+<span class="nc" id="L263">			pstmt.setString(11,startDate);</span>
+<span class="nc" id="L264">			pstmt.setString(12,endDate);</span>
+<span class="nc" id="L265">			pstmt.setInt(13,walletId);</span>
+<span class="nc" id="L266">			pstmt.setInt(14,retOrgId);</span>
+<span class="nc" id="L267">			pstmt.setString(15,startDate);</span>
+<span class="nc" id="L268">			pstmt.setString(16,endDate);</span>
+<span class="nc" id="L269">			logger.info(pstmt);</span>
+<span class="nc" id="L270">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">			while (rs.next()) {			</span>
+<span class="nc" id="L272">					sb.append(rs.getString(&quot;transactionDate&quot;)+&quot;*&quot;);</span>
+<span class="nc" id="L273">					sb.append(rs.getString(&quot;depositAmt&quot;)+&quot;,&quot;);</span>
+<span class="nc" id="L274">					sb.append(rs.getString(&quot;withdrawlAmt&quot;));</span>
+<span class="nc" id="L275">					sb.append(&quot;|&quot;);</span>
+			}
+<span class="nc" id="L277">			logger.info(&quot;response data:&quot;+ sb.toString());</span>
+<span class="nc" id="L278">		}catch(SQLException se){</span>
+<span class="nc" id="L279">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE,se);</span>
+<span class="nc" id="L280">		}catch(Exception e){</span>
+<span class="nc" id="L281">			e.printStackTrace();</span>
+<span class="nc" id="L282">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE,e);</span>
+		}finally{
+<span class="nc" id="L284">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L285">		}</span>
+<span class="nc" id="L286">		return sb.toString() ;</span>
+	}
+	
+	public List&lt;OlaReportBean&gt; fetchOlaAgentDepWithReportData(
+			OlaReportBean olaReportBean, int walletId, int agtOrgId) throws GenericException {
+<span class="nc" id="L291">		List&lt;OlaReportBean&gt; olaReportList = new ArrayList&lt;OlaReportBean&gt;();</span>
+
+<span class="nc" id="L293">		double depositAmt = 0.0;</span>
+<span class="nc" id="L294">		double withdrawlAmt = 0.0;</span>
+<span class="nc" id="L295">		double retailerDepositComm = 0.0;</span>
+<span class="nc" id="L296">		double retailerWithdrawlComm = 0.0;</span>
+
+<span class="nc" id="L298">		double retailerNetGaming = 0.0;</span>
+<span class="nc" id="L299">		double retailerCalculatedcomm = 0.0;</span>
+
+<span class="nc" id="L301">		double totalDepositAmount = 0.0;</span>
+<span class="nc" id="L302">		double totalWithdrawlAmount = 0.0;</span>
+<span class="nc" id="L303">		double totalDepositCommission = 0.0;</span>
+<span class="nc" id="L304">		double totalWithdrawlCommission = 0.0;</span>
+<span class="nc" id="L305">		double totalPlayerNetGaming = 0.0;</span>
+<span class="nc" id="L306">		double totalCommissionCalculated = 0.0;</span>
+<span class="nc" id="L307">		PreparedStatement pstmt=null;</span>
+		try {
+
+<span class="nc" id="L310">			DecimalFormat df = new DecimalFormat(&quot;##.## &quot;);</span>
+<span class="nc" id="L311">			Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L312">			String startDate = olaReportBean.getFromDate();</span>
+<span class="nc" id="L313">			String endDate = olaReportBean.getToDate();</span>
+<span class="nc" id="L314">			con.setAutoCommit(false);</span>
+
+		//	String query1 = &quot;select user_name,organization_id from st_lms_user_master where organization_id in(select organization_id from st_lms_organization_master where parent_id=&quot;
+			//		+ agtOrgId + &quot;)&quot;;
+<span class="nc" id="L318">			String orgCodeQry = &quot;  name orgCode  &quot;;</span>
+
+			
+<span class="nc bnc" id="L321" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L322">				orgCodeQry = &quot;org_code orgCode  &quot;;</span>
+	
+
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L327">				orgCodeQry = &quot; concat(org_code,'_',name)  orgCode  &quot;;</span>
+			
+
+<span class="nc bnc" id="L330" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L332">				orgCodeQry = &quot; concat(name,'_',org_code)  orgCode  &quot;;</span>
+			
+
+			}
+			
+<span class="nc" id="L337">			String query1 = &quot;select &quot;+orgCodeQry+&quot;,organization_id from st_lms_organization_master where parent_id=&quot;+agtOrgId+&quot; order by &quot;+QueryManager.getAppendOrgOrder();</span>
+			
+<span class="nc" id="L339">			PreparedStatement pstmt1 = con.prepareStatement(query1);</span>
+<span class="nc" id="L340">			ResultSet rs1 = pstmt1.executeQuery();</span>
+
+
+<span class="nc bnc" id="L343" title="All 2 branches missed.">			while (rs1.next()) {</span>
+<span class="nc" id="L344">				String retailerName = rs1.getString(1);</span>
+<span class="nc" id="L345">				int retOrgId = rs1.getInt(2);</span>
+<span class="nc" id="L346">				olaReportBean = new OlaReportBean();</span>
+
+<span class="nc" id="L348">				String query = &quot;select Final.deposit deposit ,Final.deposit*Final.ret_dep_comm/100 retailer_deposit_cal_comm ,Final.withdraw withdraw,Final.withdraw*Final.ret_with_comm/100  retailer_withdraw_cal_comm,Final.commission_calculated commission_calculated,Final.plr_net_gaming plr_net_gaming from	(select  DEPOSIT.deposit-DEPREF.refund deposit ,  DEPOSIT.ret_dep_comm ret_dep_comm ,WITHDRAW.withdraw-WITHREF.refund withdraw ,WITHDRAW.ret_with_comm ret_with_comm,NETPLR.plr_net_gaming plr_net_gaming,NETPLR.commission_calculated commission_calculated from (select rettx.retailer_org_id retalier_org,ifnull(ola .retailer_comm,0.0) ,ifnull(sum(withdrawl_amt),0.0) refund from st_ola_ret_withdrawl_refund ola  inner join (select transaction_id,retailer_org_id from st_lms_retailer_transaction_master where transaction_date&gt;='&quot;</span>
+						+ startDate
+						+ &quot;' and transaction_date&lt;='&quot;
+						+ endDate
+						+ &quot;' and transaction_type='OLA_WITHDRAWL_REFUND' and retailer_org_id=&quot;
+						+ retOrgId
+						+ &quot; ) rettx on ola.transaction_id=rettx.transaction_id and wallet_id=&quot;
+						+ walletId
+						+ &quot;) WITHREF,(select rettx.retailer_org_id retalier_org,ifnull(sum(withdrawl_amt),0.0) withdraw,ifnull(ola .retailer_comm,0.0) ret_with_comm from st_ola_ret_withdrawl ola  inner join (select transaction_id,retailer_org_id from st_lms_retailer_transaction_master where transaction_date&gt;='&quot;
+						+ startDate
+						+ &quot;'    and transaction_date&lt;='&quot;
+						+ endDate
+						+ &quot;'    and transaction_type='OLA_WITHDRAWL' and retailer_org_id=&quot;
+						+ retOrgId
+						+ &quot;   ) rettx on ola.transaction_id=rettx.transaction_id and wallet_id=&quot;
+						+ walletId
+						+ &quot;)WITHDRAW,(select retailer_org_id retalier_org,ifnull(sum(deposit_amt),0.0) refund ,ifnull(ola .retailer_comm,0.0) from st_ola_ret_deposit_refund ola  inner join (select transaction_id from st_lms_retailer_transaction_master where transaction_date&gt;='&quot;
+						+ startDate
+						+ &quot;'    and transaction_date&lt;='&quot;
+						+ endDate
+						+ &quot;'    and transaction_type='OLA_DEPOSIT_REFUND' and retailer_org_id=&quot;
+						+ retOrgId
+						+ &quot;   ) rettx on ola.transaction_id=rettx.transaction_id and wallet_id=&quot;
+						+ walletId
+						+ &quot;) DEPREF,(select retailer_org_id retalier_org,ifnull(sum(deposit_amt),0.0) deposit,ifnull(ola .retailer_comm,0.0) ret_dep_comm from st_ola_ret_deposit ola  inner join (select transaction_id from st_lms_retailer_transaction_master where transaction_date&gt;='&quot;
+						+ startDate
+						+ &quot;'    and transaction_date&lt;='&quot;
+						+ endDate
+						+ &quot;'      and transaction_type='OLA_DEPOSIT' and retailer_org_id=&quot;
+						+ retOrgId
+						+ &quot;   ) rettx on ola.transaction_id=rettx.transaction_id and wallet_id=&quot;
+						+ walletId
+						+ &quot;) DEPOSIT,(select arc.plr_net_gaming plr_net_gaming,arc.commission_calculated commission_calculated from st_ola_agt_ret_commission arc inner join (select transaction_id ,user_org_id from st_lms_agent_transaction_master where transaction_type ='OLA_COMMISSION' and transaction_date&gt;='&quot;
+						+ startDate
+						+ &quot;'     and transaction_date&lt;='&quot;
+						+ endDate
+						+ &quot;'   and user_org_id=&quot;
+						+ agtOrgId
+						+ &quot;   ) atm on atm.transaction_id=arc.transaction_id and arc.ret_org_id=&quot;
+						+ retOrgId
+						+ &quot; and wallet_id=&quot;
+						+ walletId
+						+ &quot; group by arc.ret_org_id union select distinct(0.0) commission_calculated,0.0 plr_net_gaming from st_lms_organization_master limit 1) NETPLR) Final&quot;;
+				
+<span class="nc" id="L392">				StringBuilder mainQuery=null;</span>
+<span class="nc" id="L393">				StringBuilder unionQuery=null;</span>
+<span class="nc bnc" id="L394" title="All 2 branches missed.">				if(LMSFilterDispatcher.isRepFrmSP){</span>
+<span class="nc" id="L395">					mainQuery=new StringBuilder(&quot;select sum(deposit) deposit,sum(retailer_deposit_cal_comm) retailer_deposit_cal_comm, sum(withdraw) withdraw,sum(retailer_withdraw_cal_comm) retailer_withdraw_cal_comm,sum(commission_calculated) commission_calculated,sum(plr_net_gaming) plr_net_gaming from (&quot;);</span>
+<span class="nc" id="L396">					unionQuery=new StringBuilder(&quot; union all select sum(deposit_net)-sum(ref_deposit_net_amt) deposit,0.0 retailer_deposit_cal_comm,sum(withdrawal_net_amt)-sum(ref_withdrawal_net_amt) withdraw , 0.00 retailer_withdraw_cal_comm,sum(net_gaming_net_comm) commission_calculated , 0.00 plr_net_gaming from st_rep_ola_retailer where finaldate&gt;='&quot;+startDate+&quot;'  and finaldate&lt;='&quot;+endDate+&quot;' and organization_id=&quot;+retOrgId+&quot; and wallet_id=&quot;+walletId+&quot;) reptbl&quot;);</span>
+<span class="nc" id="L397">					mainQuery.append(query).append(unionQuery.toString());</span>
+<span class="nc" id="L398">					pstmt = con.prepareStatement(mainQuery.toString());</span>
+				} else{
+<span class="nc" id="L400">					pstmt = con.prepareStatement(query.toString());</span>
+				}
+				
+<span class="nc" id="L403">				System.out.println(pstmt);</span>
+<span class="nc" id="L404">				ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L406" title="All 2 branches missed.">				while (rs.next()) {</span>
+
+<span class="nc" id="L408">					olaReportBean.setRetailerName(retailerName);</span>
+<span class="nc" id="L409">					depositAmt = rs.getDouble(&quot;deposit&quot;);</span>
+<span class="nc" id="L410">					olaReportBean.setDepositAmt(depositAmt);</span>
+<span class="nc" id="L411">					totalDepositAmount = Double.parseDouble(df</span>
+							.format(totalDepositAmount + depositAmt));
+
+<span class="nc" id="L414">					withdrawlAmt = rs.getDouble(&quot;withdraw&quot;);</span>
+<span class="nc" id="L415">					olaReportBean.setWithdrawlAmt(withdrawlAmt);</span>
+<span class="nc" id="L416">					totalWithdrawlAmount = Double.parseDouble(df</span>
+							.format(totalWithdrawlAmount + withdrawlAmt));
+
+<span class="nc" id="L419">					retailerNetGaming = rs.getDouble(&quot;plr_net_gaming&quot;);</span>
+<span class="nc" id="L420">					olaReportBean.setRetailerNetGaming(retailerNetGaming);</span>
+<span class="nc" id="L421">					totalPlayerNetGaming = Double.parseDouble(df</span>
+							.format(totalPlayerNetGaming + retailerNetGaming));
+
+<span class="nc" id="L424">					retailerCalculatedcomm = rs</span>
+							.getDouble(&quot;commission_calculated&quot;);
+<span class="nc" id="L426">					olaReportBean</span>
+							.setRetailerCommissionCalculated(retailerCalculatedcomm);
+<span class="nc" id="L428">					totalCommissionCalculated = Double.parseDouble(df</span>
+							.format(totalCommissionCalculated
+									+ retailerCalculatedcomm));
+
+<span class="nc" id="L432">					retailerDepositComm = Double.parseDouble(df.format(rs</span>
+							.getDouble(&quot;retailer_deposit_cal_comm&quot;)));
+<span class="nc" id="L434">					olaReportBean</span>
+							.setRetailerDepositCommission(retailerDepositComm);
+
+<span class="nc" id="L437">					totalDepositCommission = Double.parseDouble(df</span>
+							.format(totalDepositCommission
+									+ retailerDepositComm));
+
+<span class="nc" id="L441">					retailerWithdrawlComm = Double.parseDouble(df.format(rs</span>
+							.getDouble(&quot;retailer_withdraw_cal_comm&quot;)));
+<span class="nc" id="L443">					olaReportBean</span>
+							.setRetailerWithdrawlCommission(retailerWithdrawlComm);
+
+<span class="nc" id="L446">					totalWithdrawlCommission = Double.parseDouble(df</span>
+							.format(totalWithdrawlCommission
+									+ retailerWithdrawlComm));
+
+<span class="nc" id="L450">					olaReportList.add(olaReportBean);</span>
+				}
+<span class="nc" id="L452">			}</span>
+<span class="nc" id="L453">			OlaReportBean totalBean = new OlaReportBean();</span>
+<span class="nc" id="L454">			totalBean.setPlayerName(&quot;Total&quot;);</span>
+<span class="nc" id="L455">			totalBean.setTotalDepositAmount(totalDepositAmount);</span>
+<span class="nc" id="L456">			totalBean.setTotalDepositCommission(totalDepositCommission);</span>
+<span class="nc" id="L457">			totalBean.setTotalWithdrawlAmount(totalWithdrawlAmount);</span>
+<span class="nc" id="L458">			totalBean.setTotalWithdrawlCommission(totalWithdrawlCommission);</span>
+<span class="nc" id="L459">			totalBean.setTotalPlayerNetGaming(totalPlayerNetGaming);</span>
+<span class="nc" id="L460">			totalBean.setCommissionCalculated(totalCommissionCalculated);</span>
+<span class="nc" id="L461">			System.out.println(totalCommissionCalculated</span>
+					+ &quot;totalCommissionCalculated &quot;);
+
+<span class="nc" id="L464">			olaReportList.add(totalBean);</span>
+
+<span class="nc" id="L466">			con.commit();</span>
+<span class="nc" id="L467">		}catch(SQLException se){</span>
+<span class="nc" id="L468">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE,se);</span>
+<span class="nc" id="L469">		}catch(Exception e){</span>
+<span class="nc" id="L470">			e.printStackTrace();</span>
+<span class="nc" id="L471">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE,e);</span>
+<span class="nc" id="L472">		}</span>
+<span class="nc" id="L473">		return olaReportList;</span>
+	}
+	
+	@Deprecated
+	public List&lt;OlaAgentReportBean&gt; fetchOlaBoDepWithReportData(
+			OlaAgentReportBean olaReportBean, int walletId, int boOrgId) throws GenericException {
+<span class="nc" id="L479">		List&lt;OlaAgentReportBean&gt; olaReportList = new ArrayList&lt;OlaAgentReportBean&gt;();</span>
+
+<span class="nc" id="L481">		double depositAmt = 0.0;</span>
+<span class="nc" id="L482">		double withdrawlAmt = 0.0;</span>
+<span class="nc" id="L483">		double agentDepositComm = 0.0;</span>
+<span class="nc" id="L484">		double agentWithdrawlComm = 0.0;</span>
+
+<span class="nc" id="L486">		double agentNetGaming = 0.0;</span>
+<span class="nc" id="L487">		double agentCalculatedcomm = 0.0;</span>
+
+<span class="nc" id="L489">		double totalDepositAmount = 0.0;</span>
+<span class="nc" id="L490">		double totalWithdrawlAmount = 0.0;</span>
+<span class="nc" id="L491">		double totalDepositCommission = 0.0;</span>
+<span class="nc" id="L492">		double totalWithdrawlCommission = 0.0;</span>
+<span class="nc" id="L493">		double totalPlayerNetGaming = 0.0;</span>
+<span class="nc" id="L494">		double totalCommissionCalculated = 0.0;</span>
+
+		try {
+
+<span class="nc" id="L498">			DecimalFormat df = new DecimalFormat(&quot;##.## &quot;);</span>
+<span class="nc" id="L499">			Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L500">			String startDate = olaReportBean.getFromDate();</span>
+<span class="nc" id="L501">			String endDate = olaReportBean.getToDate();</span>
+<span class="nc" id="L502">			con.setAutoCommit(false);</span>
+			
+<span class="nc" id="L504">			String query1=&quot;select user_name,organization_id from st_lms_user_master where organization_id in(select organization_id from st_lms_organization_master where parent_id=&quot;+boOrgId+&quot;)&quot;;</span>
+<span class="nc" id="L505">			PreparedStatement pstmt1 = con.prepareStatement(query1);</span>
+<span class="nc" id="L506">			ResultSet rs1 = pstmt1.executeQuery();</span>
+<span class="nc" id="L507">			System.out</span>
+			.println(&quot;heeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2222222222222.................................&quot;);
+				
+<span class="nc bnc" id="L510" title="All 2 branches missed.">			while (rs1.next()) {</span>
+<span class="nc" id="L511">				String agentName=rs1.getString(1);</span>
+<span class="nc" id="L512">				int agtOrgId= rs1.getInt(2);</span>
+<span class="nc" id="L513">				olaReportBean = new OlaAgentReportBean();</span>
+								
+			
+<span class="nc" id="L516">			String query = &quot;select Final.deposit deposit ,Final.deposit*Final.agt_dep_comm/100 agent_deposit_cal_comm ,Final.withdraw withdraw,	Final.withdraw*Final.agt_with_comm/100  agent_withdraw_cal_comm,Final.commission_calculated commission_calculated,Final.net_gaming net_gaming from (select  DEPOSIT.deposit-DEPREF.refund deposit ,DEPOSIT.agt_dep_comm agt_dep_comm ,WITHDRAW.withdraw-WITHREF.refund withdraw ,WITHDRAW.agt_with_comm agt_with_comm,NETPLR.net_gaming net_gaming,NETPLR.commission_calculated commission_calculated from (select rettx.user_org_id agent_org,ifnull(sum(withdrawl_amt),0.0) refund,ifnull(ola .agent_comm,0.0) agt_with_comm from st_ola_agt_withdrawl_refund ola  inner join (select transaction_id,user_org_id from st_lms_agent_transaction_master where transaction_date&gt;='&quot; +startDate+&quot;'  and transaction_date&lt;='&quot;+endDate+&quot;'    and transaction_type='OLA_WITHDRAWL_REFUND' and user_org_id=&quot;+agtOrgId +&quot;  ) rettx on ola.transaction_id=rettx.transaction_id ) WITHREF,	(				select rettx.user_org_id agent_org,ifnull(sum(withdrawl_amt),0.0) withdraw,ifnull(ola .agent_comm,0.0) agt_with_comm from st_ola_agt_withdrawl ola  inner join (select transaction_id,user_org_id from st_lms_agent_transaction_master where transaction_date&gt;='&quot; +startDate+&quot;'  and transaction_date&lt;='&quot;+endDate+&quot;'    and transaction_type='OLA_WITHDRAWL' and user_org_id=&quot;+agtOrgId +&quot;  ) rettx on ola.transaction_id=rettx.transaction_id)WITHDRAW,(select rettx.user_org_id agent_org,ifnull(sum(deposit_amt),0.0) refund,ifnull(ola .agent_comm,0.0) agt_dep_comm from st_ola_agt_deposit_refund ola  inner join (select transaction_id,user_org_id from st_lms_agent_transaction_master where transaction_date&gt;='&quot; +startDate+&quot;'  and transaction_date&lt;='&quot;+endDate+&quot;'    and transaction_type='OLA_DEPOSIT_REFUND' and user_org_id=&quot;+agtOrgId +&quot;  ) rettx on ola.transaction_id=rettx.transaction_id) DEPREF,(select rettx.user_org_id agent_org,ifnull(sum(deposit_amt),0.0) deposit,ifnull(ola .agent_comm,0.0) agt_dep_comm from st_ola_agt_deposit ola  inner join (select transaction_id,user_org_id from st_lms_agent_transaction_master where transaction_date&gt;='&quot; +startDate+&quot;'  and transaction_date&lt;='&quot;+endDate+&quot;'    and transaction_type='OLA_DEPOSIT' and user_org_id=&quot;+agtOrgId +&quot;  ) rettx on ola.transaction_id=rettx.transaction_id) DEPOSIT, (select arc.net_gaming net_gaming,arc.commission_calculated commission_calculated from st_ola_bo_agt_commission arc inner join (select transaction_id ,user_org_id from st_lms_bo_transaction_master where transaction_type ='OLA_COMMISSION' and transaction_date&gt;='&quot; +startDate+&quot;'  and transaction_date&lt;='&quot;+endDate+&quot;' and user_org_id=&quot;+boOrgId +&quot;  ) atm on atm.transaction_id=arc.transaction_id and arc.agt_org_id=&quot;+agtOrgId+&quot;  group by arc.agt_org_id	union select distinct(0.0) commission_calculated,0.0 plr_net_gaming from st_lms_organization_master limit 1) NETPLR) Final&quot;;</span>
+<span class="nc" id="L517">			System.out.println(query);</span>
+<span class="nc" id="L518">			PreparedStatement pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L519">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L521" title="All 2 branches missed.">			while (rs.next()) {</span>
+				
+				
+<span class="nc" id="L524">				olaReportBean.setAgentName(agentName);</span>
+<span class="nc" id="L525">				depositAmt = rs.getDouble(&quot;deposit&quot;);</span>
+<span class="nc" id="L526">				olaReportBean.setDepositAmt(depositAmt);</span>
+<span class="nc" id="L527">				totalDepositAmount = Double.parseDouble(df</span>
+						.format(totalDepositAmount + depositAmt));
+
+<span class="nc" id="L530">				withdrawlAmt = rs.getDouble(&quot;withdraw&quot;);</span>
+<span class="nc" id="L531">				olaReportBean.setWithdrawlAmt(withdrawlAmt);</span>
+<span class="nc" id="L532">				totalWithdrawlAmount = Double.parseDouble(df</span>
+						.format(totalWithdrawlAmount + withdrawlAmt));
+
+<span class="nc" id="L535">				agentNetGaming = rs.getDouble(&quot;net_gaming&quot;);</span>
+<span class="nc" id="L536">				olaReportBean.setAgentNetGaming(agentNetGaming);</span>
+<span class="nc" id="L537">				totalPlayerNetGaming = Double.parseDouble(df</span>
+						.format(totalPlayerNetGaming + agentNetGaming));
+
+<span class="nc" id="L540">				agentCalculatedcomm = rs.getDouble(&quot;commission_calculated&quot;);</span>
+<span class="nc" id="L541">				olaReportBean</span>
+						.setAgentCommissionCalculated(agentCalculatedcomm);
+<span class="nc" id="L543">				totalCommissionCalculated = Double.parseDouble(df</span>
+						.format(totalCommissionCalculated
+								+ agentCalculatedcomm));
+
+<span class="nc" id="L547">				agentDepositComm = Double.parseDouble(df.format(rs.getDouble(&quot;agent_deposit_cal_comm&quot;)));</span>
+<span class="nc" id="L548">				olaReportBean.setAgentDepositCommission(agentDepositComm);</span>
+
+<span class="nc" id="L550">				totalDepositCommission = Double.parseDouble(df</span>
+						.format(totalDepositCommission + agentDepositComm));
+
+<span class="nc" id="L553">				agentWithdrawlComm =  Double.parseDouble(df.format(rs.getDouble(&quot;agent_withdraw_cal_comm&quot;)));</span>
+<span class="nc" id="L554">				olaReportBean.setAgentWithdrawlCommission(agentWithdrawlComm);</span>
+
+<span class="nc" id="L556">				totalWithdrawlCommission = Double.parseDouble(df</span>
+						.format(totalWithdrawlCommission+ agentWithdrawlComm));
+
+<span class="nc" id="L559">				olaReportList.add(olaReportBean);</span>
+			}
+<span class="nc" id="L561">			}</span>
+<span class="nc" id="L562">			OlaAgentReportBean totalBean = new OlaAgentReportBean();</span>
+<span class="nc" id="L563">			totalBean.setPlayerName(&quot;Total&quot;);</span>
+<span class="nc" id="L564">			totalBean.setTotalDepositAmount(totalDepositAmount);</span>
+<span class="nc" id="L565">			totalBean.setTotalDepositCommission(totalDepositCommission);</span>
+<span class="nc" id="L566">			totalBean.setTotalWithdrawlAmount(totalWithdrawlAmount);</span>
+<span class="nc" id="L567">			totalBean.setTotalWithdrawlCommission(totalWithdrawlCommission);</span>
+<span class="nc" id="L568">			totalBean.setTotalPlayerNetGaming(totalPlayerNetGaming);</span>
+<span class="nc" id="L569">			totalBean.setCommissionCalculated(totalCommissionCalculated);</span>
+<span class="nc" id="L570">			System.out.println(totalCommissionCalculated</span>
+					+ &quot;totalCommissionCalculated &quot;);
+
+<span class="nc" id="L573">			olaReportList.add(totalBean);</span>
+
+<span class="nc" id="L575">			con.commit();</span>
+<span class="nc" id="L576">		}catch(SQLException se){</span>
+<span class="nc" id="L577">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE,se);</span>
+<span class="nc" id="L578">		}catch(Exception e){</span>
+<span class="nc" id="L579">			e.printStackTrace();</span>
+<span class="nc" id="L580">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE,e);</span>
+<span class="nc" id="L581">		}</span>
+<span class="nc" id="L582">		return olaReportList;</span>
+	}
+	
+	public List&lt;OlaAgentReportBean&gt; fetchOlaBoDepWithReportData(OlaOrgReportRequestBean requestBean) throws SQLException, GenericException, ParseException{
+		
+<span class="nc" id="L587">		double depositAmt = 0.0;</span>
+<span class="nc" id="L588">		double withdrawlAmt = 0.0;</span>
+<span class="nc" id="L589">		double agentDepositComm = 0.0;</span>
+<span class="nc" id="L590">		double agentWithdrawlComm = 0.0;</span>
+
+<span class="nc" id="L592">		double totalDepositAmount = 0.0;</span>
+<span class="nc" id="L593">		double totalWithdrawlAmount = 0.0;</span>
+<span class="nc" id="L594">		double totalDepositCommission = 0.0;</span>
+<span class="nc" id="L595">		double totalWithdrawlCommission = 0.0;</span>
+<span class="nc" id="L596">		double totalPlayerNetGaming = 0.0;</span>
+<span class="nc" id="L597">		double totalCommissionCalculated = 0.0;</span>
+		
+<span class="nc" id="L599">		 Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L600">		 Map&lt;Integer, OlaOrgReportResponseBean&gt; detMap = OlaAgentReportControllerImpl.fetchDepositWithdrawlMultipleAgent(requestBean, con);</span>
+<span class="nc" id="L601">		 String agtOrgQry = QueryManager.getOrgQry(&quot;AGENT&quot;);</span>
+<span class="nc" id="L602">		 PreparedStatement pstmt = con.prepareStatement(agtOrgQry);</span>
+<span class="nc" id="L603">		 ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L604">		 int orgId = 0;</span>
+<span class="nc" id="L605">		 List&lt;OlaAgentReportBean&gt; respList = new ArrayList&lt;OlaAgentReportBean&gt;();</span>
+<span class="nc" id="L606">		 SimpleDateFormat sdf=new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L607">		 Timestamp stDate = new Timestamp(sdf.parse(requestBean.getFromDate().toString()).getTime());</span>
+<span class="nc" id="L608">		 Timestamp toDate = new Timestamp(sdf.parse(requestBean.getToDate().toString()).getTime() + (1000 * 60 * 60 * 24) - 1);</span>
+		 	
+		 //remove terminate Agent
+<span class="nc" id="L611">		OrganizationTerminateReportHelper.getTerminateAgentListForRep(stDate, toDate);</span>
+<span class="nc" id="L612">		List&lt;Integer&gt; terminateAgentList=OrganizationTerminateReportHelper.AgentOrgIdIntTypeList;</span>
+<span class="nc" id="L613">	    logger.info(&quot;Terminate agent List::&quot;+terminateAgentList);</span>
+	         
+<span class="nc bnc" id="L615" title="All 2 branches missed.">		 while (rs.next()) {</span>
+<span class="nc" id="L616">			 orgId = rs.getInt(&quot;organization_id&quot;);</span>
+<span class="nc bnc" id="L617" title="All 2 branches missed.">			 if(terminateAgentList.contains(orgId)){</span>
+<span class="nc" id="L618">				 continue;</span>
+			 }
+			
+<span class="nc" id="L621">			 OlaAgentReportBean resBean = new OlaAgentReportBean();</span>
+<span class="nc" id="L622">			 resBean.setAgentName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc bnc" id="L623" title="All 2 branches missed.">			 if(detMap.containsKey(orgId)){</span>
+				 
+<span class="nc" id="L625">				 depositAmt = detMap.get(orgId).getMrpDepositAmt();</span>
+<span class="nc" id="L626">				 resBean.setDepositAmt(depositAmt);</span>
+<span class="nc" id="L627">				 totalDepositAmount = totalDepositAmount + depositAmt;</span>
+				 
+<span class="nc" id="L629">				 agentDepositComm = detMap.get(orgId).getMrpDepositAmt() - detMap.get(orgId).getNetDepositAmt();</span>
+<span class="nc" id="L630">				 resBean.setAgentDepositCommission(agentDepositComm);</span>
+<span class="nc" id="L631">				 totalDepositCommission = totalDepositCommission + agentDepositComm;</span>
+				 
+<span class="nc" id="L633">				 withdrawlAmt = detMap.get(orgId).getMrpWithdrawalAmt();</span>
+<span class="nc" id="L634">				 resBean.setWithdrawlAmt(withdrawlAmt);</span>
+<span class="nc" id="L635">				 totalWithdrawlAmount = totalWithdrawlAmount + withdrawlAmt;</span>
+				 
+<span class="nc" id="L637">				 agentWithdrawlComm = detMap.get(orgId).getMrpWithdrawalAmt() - detMap.get(orgId).getNetWithdrawalAmt();</span>
+<span class="nc" id="L638">				 resBean.setAgentWithdrawlCommission(agentWithdrawlComm);</span>
+<span class="nc" id="L639">				 totalWithdrawlCommission = totalWithdrawlCommission + agentWithdrawlComm;</span>
+			 }	
+<span class="nc" id="L641">			 respList.add(resBean);</span>
+<span class="nc" id="L642">		 }</span>
+		 
+<span class="nc" id="L644">		OlaAgentReportBean totalBean = new OlaAgentReportBean();</span>
+<span class="nc" id="L645">		totalBean.setPlayerName(&quot;Total&quot;);</span>
+<span class="nc" id="L646">		totalBean.setTotalDepositAmount(totalDepositAmount);</span>
+<span class="nc" id="L647">		totalBean.setTotalDepositCommission(totalDepositCommission);</span>
+<span class="nc" id="L648">		totalBean.setTotalWithdrawlAmount(totalWithdrawlAmount);</span>
+<span class="nc" id="L649">		totalBean.setTotalWithdrawlCommission(totalWithdrawlCommission);</span>
+<span class="nc" id="L650">		totalBean.setTotalPlayerNetGaming(totalPlayerNetGaming);</span>
+<span class="nc" id="L651">		totalBean.setCommissionCalculated(totalCommissionCalculated);</span>
+<span class="nc" id="L652">		respList.add(totalBean);</span>
+			
+<span class="nc" id="L654">		return respList;		</span>
+	}
+	
+	
+	public OlaAgentReportBean fetchOlaBoDepWithReportDataforBOUser(OlaOrgReportRequestBean requestBean) throws SQLException, GenericException, ParseException{		
+<span class="nc" id="L659">		Connection con = null;</span>
+<span class="nc" id="L660">		OlaAgentReportBean resBean = null;</span>
+		try{
+<span class="nc" id="L662">			 con = DBConnect.getConnection();</span>
+<span class="nc" id="L663">			 resBean = new OlaAgentReportBean();</span>
+<span class="nc" id="L664">			 OlaOrgReportResponseBean respBean = OlaBOReportController.fetchDepositWithdrawlBO(requestBean, con);</span>
+			 
+<span class="nc" id="L666">			 resBean.setDepositAmt(respBean.getMrpDepositAmt());</span>
+<span class="nc" id="L667">			 resBean.setWithdrawlAmt(respBean.getMrpWithdrawalAmt());</span>
+<span class="nc" id="L668">		}catch(GenericException ge){</span>
+<span class="nc" id="L669">			throw ge;</span>
+<span class="nc" id="L670">		}catch(Exception e){</span>
+<span class="nc" id="L671">			e.printStackTrace();</span>
+<span class="nc" id="L672">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE,e);</span>
+		}finally{
+<span class="nc" id="L674">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L675">		}</span>
+<span class="nc" id="L676">		return resBean;		</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

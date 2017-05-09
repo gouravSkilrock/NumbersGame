@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RetPWTProcessHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.pwtMgmt</a> &gt; <span class="el_source">RetPWTProcessHelper.java</span></div><h1>RetPWTProcessHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.pwtMgmt;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper;
+import com.skilrock.lms.dge.beans.GameMasterLMSBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L20">public class RetPWTProcessHelper {</span>
+
+<span class="nc" id="L22">	static Log logger = LogFactory.getLog(RetPWTProcessHelper.class);</span>
+
+	public Long retDirPlrPwtPayment(int userId, int userOrgId, int parentOrgId,
+			int gameNbr, int gameId, boolean isAutoScrap, double pwtAmt,
+			int drawId, int playerId, double taxAmt, double netAmt,
+			String paymentType, String chqNbr, Date chqDate, String draweeBank,
+			String issuingPartyName, String ticketNbr, Connection connection,
+			Object panelId, String schemeType, int taskId) throws LMSException {
+
+		try {
+
+			// insert data into main transaction master
+<span class="nc" id="L34">			logger.debug(&quot;insert data into transaction master &quot;);</span>
+<span class="nc" id="L35">			String transMasQuery = QueryManager.insertInLMSTransactionMaster();</span>
+<span class="nc" id="L36">			PreparedStatement pstmt = connection</span>
+					.prepareStatement(transMasQuery);
+<span class="nc" id="L38">			pstmt.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L39">			pstmt.executeUpdate();</span>
+<span class="nc" id="L40">			ResultSet rs = pstmt.getGeneratedKeys();</span>
+
+<span class="nc bnc" id="L42" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L43">				long transId = rs.getLong(1);</span>
+
+<span class="nc" id="L45">				CommonFunctionsHelper commHelper = new CommonFunctionsHelper();</span>
+				// insert into retailer transaction master
+<span class="nc" id="L47">				String retTransMasterQuery = &quot;insert into  st_lms_retailer_transaction_master ( transaction_id , retailer_user_id , retailer_org_id ,game_id, transaction_date , transaction_type ) values (?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L48">				logger.debug(&quot;retTransMasterQuery = &quot; + retTransMasterQuery);</span>
+<span class="nc" id="L49">				pstmt = connection.prepareStatement(retTransMasterQuery);</span>
+<span class="nc" id="L50">				pstmt.setLong(1, transId);</span>
+<span class="nc" id="L51">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L52">				pstmt.setInt(3, userOrgId);</span>
+<span class="nc" id="L53">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L54">				pstmt.setTimestamp(5, new java.sql.Timestamp(</span>
+						new java.util.Date().getTime()));
+<span class="nc" id="L56">				pstmt.setString(6, &quot;DG_PWT_PLR&quot;);</span>
+<span class="nc" id="L57">				pstmt.executeUpdate();</span>
+<span class="nc" id="L58">				logger.debug(&quot;insert into retailer transaction master = &quot;</span>
+						+ pstmt);
+
+				// fetch Agent And Retailer PWT commission
+<span class="nc" id="L62">				double agtComm = CommonFunctionsHelper</span>
+						.fetchDGCommOfOrganization(gameId, parentOrgId, &quot;PWT&quot;,
+								&quot;AGENT&quot;, connection);
+<span class="nc" id="L65">				double retComm = CommonFunctionsHelper</span>
+						.fetchDGCommOfOrganization(gameId, userOrgId, &quot;PWT&quot;,
+								&quot;RETAILER&quot;, connection);
+
+				// direct player PWT payment
+<span class="nc" id="L70">				String directPlrPayment = &quot;insert into st_dg_ret_direct_plr_pwt (retailer_user_id, &quot;</span>
+						+ &quot;retailer_org_id, draw_id, transaction_id, transaction_date, game_id, player_id,&quot;
+						+ &quot; pwt_amt, tax_amt, net_amt, payment_type, cheque_nbr, cheque_date, drawee_bank,&quot;
+						+ &quot; issuing_party_name, pwt_claim_status, retailer_claim_comm, agt_claim_comm, panel_id,task_id)&quot;
+						+ &quot; values (?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)&quot;;
+<span class="nc" id="L75">				pstmt = connection.prepareStatement(directPlrPayment);</span>
+<span class="nc" id="L76">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L77">				pstmt.setInt(2, userOrgId);</span>
+<span class="nc" id="L78">				pstmt.setInt(3, drawId);</span>
+<span class="nc" id="L79">				pstmt.setLong(4, transId);</span>
+<span class="nc" id="L80">				pstmt.setTimestamp(5, new java.sql.Timestamp(</span>
+						new java.util.Date().getTime()));
+<span class="nc" id="L82">				pstmt.setInt(6, gameId);</span>
+<span class="nc" id="L83">				pstmt.setInt(7, playerId);</span>
+<span class="nc" id="L84">				pstmt.setDouble(8, pwtAmt);</span>
+<span class="nc" id="L85">				pstmt.setDouble(9, taxAmt);</span>
+<span class="nc" id="L86">				pstmt.setDouble(10, netAmt);</span>
+<span class="nc" id="L87">				pstmt.setString(11, paymentType);</span>
+
+<span class="nc bnc" id="L89" title="All 4 branches missed.">				if (&quot;cash&quot;.equalsIgnoreCase(paymentType)</span>
+						|| &quot;TPT&quot;.equalsIgnoreCase(paymentType)) {
+<span class="nc" id="L91">					pstmt.setObject(12, null);</span>
+<span class="nc" id="L92">					pstmt.setObject(13, null);</span>
+<span class="nc" id="L93">					pstmt.setObject(14, null);</span>
+<span class="nc" id="L94">					pstmt.setObject(15, null);</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">				} else if (&quot;cheque&quot;.equalsIgnoreCase(paymentType)) {</span>
+<span class="nc" id="L96">					pstmt.setString(12, chqNbr);</span>
+<span class="nc" id="L97">					pstmt.setDate(13, chqDate);</span>
+<span class="nc" id="L98">					pstmt.setString(14, draweeBank);</span>
+<span class="nc" id="L99">					pstmt.setString(15, issuingPartyName);</span>
+				}
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">				pstmt.setString(16, isAutoScrap ? &quot;CLAIM_BAL&quot; : &quot;UNCLAIM_BAL&quot;);</span>
+<span class="nc" id="L103">				pstmt.setDouble(17, pwtAmt * .01 * retComm);</span>
+<span class="nc" id="L104">				pstmt.setDouble(18, pwtAmt * .01 * agtComm);</span>
+<span class="nc" id="L105">				pstmt.setObject(19, panelId);</span>
+<span class="nc" id="L106">				pstmt.setInt(20, taskId);</span>
+<span class="nc" id="L107">				pstmt.executeUpdate();</span>
+<span class="nc" id="L108">				logger.debug(&quot;insert into st_dg_ret_direct_pwt = &quot; + pstmt);</span>
+
+				// update ticket details into st_dg_pwt_inv_? table
+<span class="nc" id="L111">				String insIntoDGPwtInvQuery = null;</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">				if (&quot;DRAW_WISE&quot;.equalsIgnoreCase(schemeType.trim())) {</span>
+<span class="nc" id="L113">					insIntoDGPwtInvQuery = &quot;update st_dg_pwt_inv_? set status = ? ,  retailer_trn_id = ? &quot;</span>
+							+ &quot; where ticket_nbr = ? and draw_id = ?&quot;;
+				} else {
+<span class="nc" id="L116">					insIntoDGPwtInvQuery = &quot;update st_dg_pwt_inv_? set status = ? ,  retailer_trn_id = ? &quot;</span>
+							+ &quot; where ticket_nbr = ? and draw_id = ? and panel_id=&quot;
+							+ panelId;
+				}
+<span class="nc" id="L120">				PreparedStatement insIntoDGPwtInvPstmt = connection</span>
+						.prepareStatement(insIntoDGPwtInvQuery);
+<span class="nc" id="L122">				insIntoDGPwtInvPstmt.setInt(1, gameNbr);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">				insIntoDGPwtInvPstmt.setString(2,</span>
+						isAutoScrap ? &quot;CLAIM_PLR_RET_CLM_DIR&quot;
+								: &quot;CLAIM_PLR_RET_UNCLM_DIR&quot;);
+<span class="nc" id="L126">				insIntoDGPwtInvPstmt.setLong(3, transId);</span>
+<span class="nc" id="L127">				insIntoDGPwtInvPstmt.setString(4, ticketNbr);</span>
+<span class="nc" id="L128">				insIntoDGPwtInvPstmt.setInt(5, drawId);</span>
+<span class="nc" id="L129">				insIntoDGPwtInvPstmt.executeUpdate();</span>
+<span class="nc" id="L130">				logger.debug(&quot;insIntoDGPwtInvPstmt = &quot; + insIntoDGPwtInvPstmt);</span>
+
+				// update retailer UNCLAIM_BAL payment
+<span class="nc bnc" id="L133" title="All 2 branches missed.">				if (isAutoScrap) {</span>
+					
+					//Now make payment updte method only one
+<span class="nc" id="L136">					OrgCreditUpdation.updateOrganizationBalWithValidate(pwtAmt + pwtAmt</span>
+							* .01 * retComm, &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userOrgId, parentOrgId, &quot;RETAILER&quot;, 0, connection);
+					
+<span class="nc" id="L139">					OrgCreditUpdation.updateOrganizationBalWithValidate(pwtAmt + pwtAmt</span>
+							* .01 * agtComm, &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, parentOrgId,0, &quot;AGENT&quot;, 0, connection);
+					
+					
+					
+					/*// now retailer claimable balance DEBITED
+					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, pwtAmt + pwtAmt
+							* .01 * retComm, userOrgId, &quot;DEBIT&quot;, connection);
+					// agent claimable balance DEBITED
+					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, pwtAmt + pwtAmt
+							* .01 * agtComm, parentOrgId, &quot;DEBIT&quot;, connection);*/
+				} else {
+<span class="nc" id="L151">					OrgCreditUpdation.updateOrganizationBalWithValidate(pwtAmt, &quot;UNCLAIM_BAL&quot;, &quot;CREDIT&quot;,</span>
+	                           userOrgId,parentOrgId, &quot;RETAILER&quot;, 0, connection);
+					/*commHelper.updateOrgBalance(&quot;UNCLAIM_BAL&quot;, pwtAmt,
+							userOrgId, &quot;CREDIT&quot;, connection);*/
+				}
+
+				// receipt entries are required to be inserted into receipt
+				// table
+<span class="nc" id="L159">				return transId;</span>
+
+			} else {
+<span class="nc" id="L162">				throw new LMSException(</span>
+						&quot;no data insert into main transaction master&quot;);
+			}
+
+<span class="nc" id="L166">		} catch (SQLException e) {</span>
+<span class="nc" id="L167">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L168">			e.printStackTrace();</span>
+<span class="nc" id="L169">			throw new LMSException(e);</span>
+		}
+
+	}
+
+	public long retPwtPayment(int userId, int userOrgId, int parentOrgId,
+			 int gameId, boolean isAutoScrap, double pwtAmt,
+			int drawId, Object panelId, String ticketNbr,
+			Connection connection, boolean isAgent,boolean isGovtTaxDeduct) throws LMSException {
+<span class="nc" id="L178">		logger.debug(&quot;auto scrap is **********8 &quot; + isAutoScrap);</span>
+		try {
+<span class="nc" id="L180">			Double fmtPwtAmt=CommonMethods.fmtToTwoDecimal(pwtAmt);</span>
+			// insert data into main transaction master
+<span class="nc" id="L182">			logger.debug(&quot;insert data into transaction master &quot;);</span>
+<span class="nc" id="L183">			String transMasQuery = QueryManager.insertInLMSTransactionMaster();</span>
+<span class="nc" id="L184">			PreparedStatement pstmt = connection</span>
+					.prepareStatement(transMasQuery);
+<span class="nc" id="L186">			pstmt.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L187">			pstmt.executeUpdate();</span>
+<span class="nc" id="L188">			ResultSet rs = pstmt.getGeneratedKeys();</span>
+
+<span class="nc bnc" id="L190" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L191">				long transId = rs.getLong(1);</span>
+
+<span class="nc" id="L193">				CommonFunctionsHelper commHelper = new CommonFunctionsHelper();</span>
+				// insert into retailer transaction master
+<span class="nc" id="L195">				String retTransMasterQuery = &quot;insert into  st_lms_retailer_transaction_master ( transaction_id , retailer_user_id , retailer_org_id ,game_id, transaction_date , transaction_type ) values (?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L196">				logger.debug(&quot;retTransMasterQuery = &quot; + retTransMasterQuery);</span>
+<span class="nc" id="L197">				pstmt = connection.prepareStatement(retTransMasterQuery);</span>
+<span class="nc" id="L198">				pstmt.setLong(1, transId);</span>
+<span class="nc" id="L199">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L200">				pstmt.setInt(3, userOrgId);</span>
+<span class="nc" id="L201">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L202">				pstmt.setTimestamp(5, new java.sql.Timestamp(</span>
+						new java.util.Date().getTime()));
+<span class="nc" id="L204">				pstmt.setString(6, &quot;DG_PWT&quot;);</span>
+<span class="nc" id="L205">				pstmt.executeUpdate();</span>
+<span class="nc" id="L206">				logger.debug(&quot;insert into retailer transaction master = &quot;</span>
+						+ pstmt);
+
+<span class="nc" id="L209">				GameMasterLMSBean gameMasterLMSBean =Util.getGameMasterLMSBean(gameId);</span>
+				// fetch Agent And Retailer PWT commission
+<span class="nc" id="L211">				double agtComm = CommonFunctionsHelper</span>
+						.fetchDGCommOfOrganization(gameId, parentOrgId, &quot;PWT&quot;,
+								&quot;AGENT&quot;, connection);
+<span class="nc" id="L214">				double retComm = CommonFunctionsHelper</span>
+						.fetchDGCommOfOrganization(gameId, userOrgId, &quot;PWT&quot;,
+								&quot;RETAILER&quot;, connection);
+				
+<span class="nc" id="L218">				double govtCommPwt =0;</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">				if(isGovtTaxDeduct)</span>
+<span class="nc" id="L220">					govtCommPwt = gameMasterLMSBean.getGovtCommPwt();</span>
+				
+				// insert into st_retailer_pwt when comes pwtAmt&lt;Aproval
+				// required
+<span class="nc" id="L224">				String retPwtEntry = &quot;insert into  st_dg_ret_pwt_&quot;</span>
+						+ gameId
+						+ &quot; ( retailer_user_id , &quot;
+						+ &quot; retailer_org_id , draw_id , game_id , transaction_id , pwt_amt , retailer_claim_comm ,&quot;
+						+ &quot; agt_claim_comm,govt_claim_comm, status, panel_id) values ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)&quot;;
+<span class="nc" id="L229">				pstmt = connection.prepareStatement(retPwtEntry);</span>
+<span class="nc" id="L230">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L231">				pstmt.setInt(2, userOrgId);</span>
+<span class="nc" id="L232">				pstmt.setInt(3, drawId);</span>
+<span class="nc" id="L233">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L234">				pstmt.setLong(5, transId);</span>
+<span class="nc" id="L235">				pstmt.setDouble(6, fmtPwtAmt);</span>
+<span class="nc" id="L236">				pstmt.setDouble(7, fmtPwtAmt * .01 * retComm);</span>
+<span class="nc" id="L237">				pstmt.setDouble(8, fmtPwtAmt * .01 * agtComm);</span>
+<span class="nc" id="L238">				pstmt.setDouble(9, fmtPwtAmt * .01 * govtCommPwt);</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">				pstmt.setString(10, isAutoScrap ? &quot;CLAIM_BAL&quot; : &quot;UNCLAIM_BAL&quot;);</span>
+<span class="nc" id="L240">				pstmt.setObject(11, panelId);</span>
+<span class="nc" id="L241">				logger.info(&quot;insert into st_dg_ret_pwt = &quot; + pstmt);</span>
+<span class="nc" id="L242">				pstmt.executeUpdate();</span>
+				
+
+				// insert ticket details into st_dg_pwt_inv_? table
+<span class="nc" id="L246">				String insIntoDGPwtInvQuery = &quot;insert into st_dg_pwt_inv_?(ticket_nbr, draw_id, pwt_amt, &quot;</span>
+						+ &quot; status, retailer_transaction_id, is_direct_plr, panel_id) values (?, ?, ?, ?, ?, ?, ?)&quot;;
+<span class="nc" id="L248">				PreparedStatement insIntoDGPwtInvPstmt = connection</span>
+						.prepareStatement(insIntoDGPwtInvQuery);
+<span class="nc" id="L250">				insIntoDGPwtInvPstmt.setInt(1, gameId);</span>
+<span class="nc" id="L251">				insIntoDGPwtInvPstmt.setString(2, ticketNbr);</span>
+<span class="nc" id="L252">				insIntoDGPwtInvPstmt.setInt(3, drawId);</span>
+<span class="nc" id="L253">				insIntoDGPwtInvPstmt.setDouble(4, fmtPwtAmt);</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">				if (isAgent) {</span>
+<span class="nc" id="L255">					insIntoDGPwtInvPstmt.setString(5, &quot;CLAIM_AGT&quot;);</span>
+				} else {
+<span class="nc bnc" id="L257" title="All 2 branches missed.">					insIntoDGPwtInvPstmt.setString(5,</span>
+							isAutoScrap ? &quot;CLAIM_PLR_RET_CLM&quot;
+									: &quot;CLAIM_PLR_RET_UNCLM&quot;);
+				}
+<span class="nc" id="L261">				insIntoDGPwtInvPstmt.setLong(6, transId);</span>
+<span class="nc" id="L262">				insIntoDGPwtInvPstmt.setString(7, &quot;N&quot;);</span>
+<span class="nc" id="L263">				insIntoDGPwtInvPstmt.setObject(8, panelId);</span>
+<span class="nc" id="L264">				insIntoDGPwtInvPstmt.executeUpdate();</span>
+<span class="nc" id="L265">				logger.debug(&quot;insIntoDGPwtInvPstmt = &quot; + insIntoDGPwtInvPstmt);</span>
+
+				// update retailer UNCLAIM_BAL payment
+<span class="nc bnc" id="L268" title="All 2 branches missed.">				if (isAutoScrap) {</span>
+					// now retailer claimable balance DEBITED
+					
+					//Now make payment updte method only one
+<span class="nc" id="L272">					OrgCreditUpdation.updateOrganizationBalWithValidate(fmtPwtAmt + fmtPwtAmt</span>
+							* .01 * retComm - (fmtPwtAmt
+									* .01 * govtCommPwt), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userOrgId, parentOrgId, &quot;RETAILER&quot;, 0, connection);
+					
+<span class="nc" id="L276">					OrgCreditUpdation.updateOrganizationBalWithValidate(fmtPwtAmt + fmtPwtAmt</span>
+							* .01 * agtComm - (fmtPwtAmt
+									* .01 * govtCommPwt), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, parentOrgId,0, &quot;AGENT&quot;, 0, connection);
+					
+					/*
+					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, fmtPwtAmt + fmtPwtAmt
+							* .01 * retComm, userOrgId, &quot;DEBIT&quot;, connection);
+					// agent claimable balance DEBITED
+					commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, fmtPwtAmt + fmtPwtAmt
+							* .01 * agtComm, parentOrgId, &quot;DEBIT&quot;, connection);*/
+				} else {
+<span class="nc" id="L287">					OrgCreditUpdation.updateOrganizationBalWithValidate(fmtPwtAmt- (fmtPwtAmt</span>
+							* .01 * govtCommPwt), &quot;UNCLAIM_BAL&quot;, &quot;CREDIT&quot;,userOrgId,parentOrgId, &quot;RETAILER&quot;, 0, connection);
+
+					/*commHelper.updateOrgBalance(&quot;UNCLAIM_BAL&quot;, fmtPwtAmt,
+							userOrgId, &quot;CREDIT&quot;, connection);*/
+				}
+
+				// receipt entries are required to be inserted into receipt
+				// table
+<span class="nc" id="L296">				return transId;</span>
+
+			} else {
+<span class="nc" id="L299">				throw new LMSException(</span>
+						&quot;no data insert into main transaction master&quot;);
+			}
+
+<span class="nc" id="L303">		} catch (SQLException e) {</span>
+<span class="nc" id="L304">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L305">			e.printStackTrace();</span>
+<span class="nc" id="L306">			throw new LMSException(e);</span>
+		}
+
+	}
+
+	/*
+	 * public static void main(String[] args) { try { Connection connection =
+	 * DBConnect.getConnection(); connection.setAutoCommit(false);
+	 * RetPWTProcessHelper helper = new RetPWTProcessHelper(); Map dgVirnPwtMap =
+	 * helper.fetchDGPwtDetailsOfRetOrg(171, &quot;RETAILER&quot;, &quot;CLAIM_BAL&quot;,
+	 * connection); logger.debug(&quot;dgVirnPwtMap = &quot;+dgVirnPwtMap);
+	 * if(dgVirnPwtMap!=null &amp;&amp; !dgVirnPwtMap.isEmpty()) {
+	 * logger.debug(&quot;CLAIMABLE for RETAILER&quot;); String dgReceiptId =
+	 * helper.updateClmableBalOfRetOrg(542, 171, 541, 170, dgVirnPwtMap,
+	 * connection); logger.debug(&quot;dgReceiptId = &quot;+dgReceiptId); }
+	 * connection.commit(); }catch (Exception e) { e.printStackTrace(); } }
+	 */
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSPWSaleHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.commercialService.common</a> &gt; <span class="el_source">CSPWSaleHelper.java</span></div><h1>CSPWSaleHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.commercialService.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.camlot.coreEngine.common.CommonSMSHelper;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.CSSaleBean;
+import com.skilrock.lms.beans.PWSaleDataBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.coreEngine.payWorld.common.PayWorldHelper;
+import com.skilrock.lms.embedded.drawGames.common.EmbeddedErrors;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.lms.web.drawGames.common.UtilApplet;
+
+<span class="nc" id="L27">public class CSPWSaleHelper {</span>
+<span class="nc" id="L28">	static Log logger = LogFactory.getLog(CSPWSaleHelper.class);</span>
+	
+	public String pwSaleTransaction(String product, String retailerid, String userName,String operatorcode, String circode, double denomination,   double rechargeAmt, int bulkqty,String narration, String agtid, String agtpwd, String loginstatus,String appver, String cs_isVoucherPrintON, String mobileNum,long lastTransId) throws Exception{
+		
+<span class="nc" id="L32">		CSSaleTransactionsHelper csHelper = new CSSaleTransactionsHelper();</span>
+<span class="nc" id="L33">		CSSaleBean sBean = new CSSaleBean();</span>
+<span class="nc" id="L34">		boolean isFlexi = true;</span>
+<span class="nc" id="L35">		sBean.setProdCode(product);</span>
+<span class="nc" id="L36">		sBean.setRetOrgId(Integer.parseInt(retailerid));</span>
+<span class="nc" id="L37">		sBean.setUserName(userName);</span>
+<span class="nc" id="L38">		sBean.setBalance(0.0);</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">		if(denomination == 0){</span>
+<span class="nc" id="L40">			isFlexi = true;</span>
+<span class="nc" id="L41">			sBean.setUnitPrice(rechargeAmt);</span>
+		}else{
+<span class="nc" id="L43">			isFlexi = false;</span>
+<span class="nc" id="L44">			sBean.setUnitPrice(denomination);</span>
+		}
+<span class="nc" id="L46">		sBean.setMult(bulkqty);</span>
+<span class="nc" id="L47">		sBean.setMrpAmt(sBean.getUnitPrice()*bulkqty);</span>
+<span class="nc" id="L48">		sBean.setRetOrgId(Integer.parseInt(retailerid));</span>
+<span class="nc" id="L49">		sBean.setCSRefTxId(0);</span>
+<span class="nc" id="L50">		sBean.setOperatorCode(operatorcode);</span>
+<span class="nc" id="L51">		sBean.setCircleCode(circode);</span>
+<span class="nc" id="L52">		sBean.setDenomination(denomination);</span>
+		//Check Last Successful Transaction
+
+<span class="nc bnc" id="L55" title="All 2 branches missed.">		if(lastTransId !=0){</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">			if(!(lastTransId+&quot;&quot;).equalsIgnoreCase(CSUtil.fetchLastCSTransId(sBean.getRetOrgId()))){</span>
+<span class="nc" id="L57">				return &quot;ErrorMsg:Reprint last voucher|ErrorCode:02&quot;;</span>
+			}
+		}
+<span class="nc" id="L60">		sBean = csHelper.CommServSaleBalDeduction(sBean);</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">		if(sBean.getErrorCode() != 100){</span>
+<span class="nc" id="L62">			Class name = EmbeddedErrors.class;</span>
+<span class="nc" id="L63">			return &quot;ErrorMsg:&quot;+(String)name.getDeclaredField(&quot;ERROR_&quot;+sBean.getErrorCode()).get(null)+ &quot;|&quot;;</span>
+		}
+<span class="nc" id="L65">		PayWorldHelper helper = new PayWorldHelper();</span>
+<span class="nc" id="L66">		String respData = helper.transactionRequest(agtid,sBean.getRMSRefId(),retailerid,operatorcode, circode, product, denomination, bulkqty, narration, agtpwd, loginstatus, appver);</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">		if(!respData.equalsIgnoreCase(&quot;&quot;)){</span>
+<span class="nc" id="L68">			PWSaleDataBean pwDataBean = new PWSaleDataBean();</span>
+<span class="nc" id="L69">			pwDataBean.setRetailerId(retailerid);</span>
+<span class="nc" id="L70">			pwDataBean.setOrgBalance(sBean.getBalance());</span>
+<span class="nc" id="L71">			pwDataBean.setRMStransId(sBean.getRMSRefId()+&quot;&quot;);</span>
+<span class="nc" id="L72">			pwDataBean.setProdId(sBean.getProdId());</span>
+<span class="nc" id="L73">			pwDataBean.setCategoryId(sBean.getCategoryId());</span>
+<span class="nc" id="L74">			pwDataBean.setOperatorCode(operatorcode);</span>
+<span class="nc" id="L75">			pwDataBean.setCirCode(circode);</span>
+<span class="nc" id="L76">			pwDataBean.setProduct(product);</span>
+<span class="nc" id="L77">			pwDataBean.setDenomination(denomination);</span>
+<span class="nc" id="L78">			pwDataBean.setBulkQty(bulkqty);</span>
+<span class="nc" id="L79">			pwDataBean.setNarration(narration);</span>
+			
+<span class="nc bnc" id="L81" title="All 2 branches missed.">			if(respData.indexOf(&quot;ERROR&quot;) != -1){</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">				if(respData.indexOf(&quot;No Response From Host&quot;) != -1){</span>
+					//return respData+&quot;|TransId:&quot;+sBean.getRMSRefId()+&quot;|DateTime:&quot;+ new java.sql.Date(sBean.getTransTime().getTime()).toString() +&quot;|&quot;; //send RMS Transaction ID in case of No response from host (Transaction can be tracked later)
+<span class="nc" id="L84">					return &quot;ErrorMsg:Transaction Pending|&quot;; //send RMS Transaction ID in case of No response from host (Transaction can be tracked later)</span>
+				}
+				//Generate a saleCancel Request
+<span class="nc" id="L87">				sBean.setCSRefTxIdForRefund(0);</span>
+<span class="nc" id="L88">				sBean.setRMSRefIdForRefund(sBean.getRMSRefId());</span>
+<span class="nc" id="L89">				sBean.setCSRefTxId(0);</span>
+<span class="nc" id="L90">				sBean.setReasonForCancel(&quot;CANCEL_SERVER&quot;);</span>
+<span class="nc" id="L91">				sBean = csHelper.CommServSaleRefund(sBean);</span>
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">				if(sBean.getErrorCode() != 100){</span>
+<span class="nc" id="L94">					Class name = EmbeddedErrors.class;</span>
+<span class="nc" id="L95">					return &quot;ErrorMsg:&quot;+(String)name.getDeclaredField(&quot;ERROR_&quot;+sBean.getErrorCode()).get(null)+ &quot;|&quot;; </span>
+				}
+<span class="nc bnc" id="L97" title="All 2 branches missed.">				if(&quot;NO&quot;.equalsIgnoreCase(cs_isVoucherPrintON)){</span>
+<span class="nc" id="L98">					System.out.println(&quot;SMS Sent to The Mobile Number: &quot;+mobileNum); //SMS API is to be implemented</span>
+<span class="nc" id="L99">					new CommonSMSHelper(mobileNum,helper.formatRespForSMS(respData)).sendSMS(&quot;demoint&quot;, &quot;demoint2010&quot;);</span>
+				}
+<span class="nc" id="L101">				return respData;</span>
+			}else{
+				//updating the cs_ref_transaction_id
+<span class="nc" id="L104">				boolean success = (new PayWorldHelper()).updatePWTransId(pwDataBean.getRMStransId(),respData.split(&quot;%\\$&quot;)[0], pwDataBean.getProdId(), pwDataBean.getCategoryId());</span>
+				//to send response as it is without parsing and removing the $$$ at the end
+				//update CS last sale transaction
+<span class="nc" id="L107">				CSUtil.updateLastCSTransId(sBean.getRetOrgId(), sBean.getRMSRefId());</span>
+				//appending advertisement message data
+<span class="nc" id="L109">				Map&lt;String, List&lt;String&gt;&gt; advMap= Util.getAdvMessage(sBean.getRetOrgId(),	sBean.getCategoryId(), &quot;PLAYER&quot;, &quot;SALE&quot;, &quot;CS&quot;);</span>
+				
+<span class="nc" id="L111">				StringBuilder topMsgsStr = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L112">				StringBuilder bottomMsgsStr = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L113">				String advtMsg = &quot;&quot;;</span>
+
+<span class="nc" id="L115">				UtilApplet.getAdvMsgs(advMap, topMsgsStr,</span>
+						bottomMsgsStr, 10);
+				
+<span class="nc bnc" id="L118" title="All 2 branches missed.">				if (topMsgsStr.length() != 0) {</span>
+<span class="nc" id="L119">					advtMsg = &quot;topAdvMsg:&quot; + topMsgsStr + &quot;|&quot;;</span>
+				}
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">				if (bottomMsgsStr.length() != 0) {</span>
+<span class="nc" id="L123">					advtMsg = advtMsg + &quot;bottomAdvMsg:&quot; + bottomMsgsStr + &quot;|&quot;;</span>
+				}
+				//return sBean.getRMSRefId()+&quot;%$&quot;+FormatNumber.formatNumber(sBean.getBalance())+&quot;%$&quot;+respData.substring(0, respData.length()-3)+&quot;|&quot;+advtMsg+&quot;|&quot;;//helper.getTerminalFormatSaleData(helper.parseSaleResponseData(respData,pwDataBean));
+<span class="nc" id="L126">				return sBean.getRMSRefId()+&quot;%$&quot;+FormatNumber.formatNumber(sBean.getBalance())+&quot;%$&quot;+respData.substring(0, respData.length()-3)+&quot;|%&quot;+advtMsg+&quot;|%&quot;;</span>
+				
+			}
+		}else{
+<span class="nc" id="L130">			return &quot;#ERROR:Your Request is in a queue|&quot;; // we have to implement the logic of request for reprint</span>
+		}
+
+	}
+	
+	public String fetchPWSaleResponse(String cs_isVoucherPrintON)throws Exception{
+<span class="nc" id="L136">		PayWorldHelper helper = new PayWorldHelper();</span>
+		//operator -&gt; circle -&gt; product -&gt; denomination -&gt; detailsMap[Keys]('talktime', 'validity', 'adminFee', 'serviceTax')
+		//Map&lt;String, Map&lt;String, Map&lt;String, Map&lt;String, Map&lt;String, String&gt;&gt;&gt;&gt;&gt; data= helper.fetchServiceDataForTerminal();
+<span class="nc" id="L139">		return helper.getTerminalFormatServiceDataNew(cs_isVoucherPrintON);</span>
+		
+	}
+	
+	public String fetchReprintLastTrans(int retOrgId, String merchantId, String merchantPwd, String loginstatus, String appver, UserInfoBean userBean)throws Exception{
+<span class="nc" id="L144">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L145">		PreparedStatement pstmt1, pstmt2 = null;</span>
+<span class="nc" id="L146">		ResultSet rs1, rs2 = null;</span>
+<span class="nc" id="L147">		PayWorldHelper helper = new PayWorldHelper();</span>
+<span class="nc" id="L148">		String statusData = &quot;&quot;;</span>
+<span class="nc" id="L149">		StringBuilder rtrnData = new StringBuilder();</span>
+<span class="nc" id="L150">		String categoryCode = null;</span>
+<span class="nc" id="L151">		int categoryId=0;</span>
+<span class="nc" id="L152">		Map&lt;String, List&lt;String&gt;&gt; advMap= null;</span>
+<span class="nc" id="L153">		StringBuilder topMsgsStr = null;</span>
+<span class="nc" id="L154">		StringBuilder bottomMsgsStr = null;</span>
+<span class="nc" id="L155">		String advtMsg = &quot;&quot;;</span>
+		try{
+<span class="nc" id="L157">			pstmt1 = con.prepareStatement(&quot;select lrm.transaction_id, lrm.game_id, pm.category_id, pcm.category_code from st_lms_retailer_transaction_master lrm, st_cs_product_master pm, st_cs_product_category_master pcm where retailer_org_id = ? and lrm.transaction_type = 'CS_SALE' and pm.product_id = lrm.game_id and pm.category_id=pcm.category_id order by lrm.transaction_date desc limit 1&quot;);</span>
+<span class="nc" id="L158">			pstmt1.setInt(1, retOrgId);</span>
+<span class="nc" id="L159">			rs1 = pstmt1.executeQuery();</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">			while(rs1.next()){</span>
+<span class="nc" id="L161">				categoryId=rs1.getInt(&quot;category_id&quot;);</span>
+<span class="nc" id="L162">				categoryCode = rs1.getString(&quot;category_code&quot;);</span>
+<span class="nc" id="L163">				pstmt2  = con.prepareStatement(&quot;select cs_ref_transaction_id from st_cs_sale_&quot;+ rs1.getString(&quot;category_id&quot;) +&quot; where transaction_id = &quot;+rs1.getInt(&quot;transaction_id&quot;));</span>
+<span class="nc" id="L164">				rs2 = pstmt2.executeQuery();</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">				while(rs2.next()){</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">					if(rs2.getString(&quot;cs_ref_transaction_id&quot;).equalsIgnoreCase(&quot;0&quot;)){</span>
+<span class="nc" id="L167">						return &quot;#ERROR:Last Transaction is pending|&quot;;</span>
+					}else{
+						//to make the denomination in double
+<span class="nc" id="L170">						statusData = helper.transStatusRequest(&quot;&quot;, rs1.getString(&quot;transaction_id&quot;), merchantId, merchantPwd, loginstatus, &quot;PIN&quot;, appver);</span>
+<span class="nc" id="L171">						String strArr[] = statusData.split(&quot;%\\$&quot;);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">						if(strArr[7].indexOf(&quot;.&quot;) == -1){</span>
+<span class="nc" id="L173">							strArr[7] = strArr[7]+&quot;.00&quot;;</span>
+						}else{
+<span class="nc bnc" id="L175" title="All 2 branches missed.">							if(strArr[7].split(&quot;\\.&quot;)[1].length() == 1){</span>
+<span class="nc" id="L176">								strArr[7] = strArr[7]+&quot;0&quot;;</span>
+							}
+						}
+<span class="nc" id="L179">						strArr[6] = categoryCode;</span>
+						
+<span class="nc bnc" id="L181" title="All 2 branches missed.">						for(String str: strArr){</span>
+<span class="nc" id="L182">							rtrnData.append(str+&quot;%$&quot;);</span>
+						}
+<span class="nc" id="L184">						statusData = rtrnData.substring(0, rtrnData.length()-2);</span>
+<span class="nc" id="L185">					}</span>
+				}
+			}
+			
+<span class="nc" id="L189">			advMap= Util.getAdvMessage(retOrgId,	categoryId, &quot;PLAYER&quot;, &quot;SALE&quot;, &quot;CS&quot;);</span>
+			
+<span class="nc" id="L191">			topMsgsStr = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L192">			bottomMsgsStr = new StringBuilder(&quot;&quot;);</span>
+
+<span class="nc" id="L194">			UtilApplet.getAdvMsgs(advMap, topMsgsStr,</span>
+					bottomMsgsStr, 10);
+			
+<span class="nc bnc" id="L197" title="All 2 branches missed.">			if (topMsgsStr.length() != 0) {</span>
+<span class="nc" id="L198">				advtMsg = &quot;topAdvMsg:&quot; + topMsgsStr + &quot;|&quot;;</span>
+			}
+
+<span class="nc bnc" id="L201" title="All 2 branches missed.">			if (bottomMsgsStr.length() != 0) {</span>
+<span class="nc" id="L202">				advtMsg = advtMsg + &quot;bottomAdvMsg:&quot; + bottomMsgsStr + &quot;|&quot;;</span>
+			}
+			
+<span class="nc" id="L205">		}catch (SQLException e) {</span>
+<span class="nc" id="L206">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L207">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L209">			try {</span>
+<span class="nc bnc" id="L210" title="All 16 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L211">					con.close();</span>
+				}
+<span class="nc" id="L213">			} catch (SQLException e) {</span>
+<span class="nc" id="L214">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L215">				e.printStackTrace();</span>
+<span class="nc" id="L216">				throw new LMSException(e);</span>
+<span class="nc" id="L217">			}</span>
+		}
+<span class="nc bnc" id="L219" title="All 2 branches missed.">		if(statusData.indexOf(&quot;ERROR&quot;) != -1){</span>
+<span class="nc" id="L220">			return statusData;</span>
+		}
+<span class="nc" id="L222">		return new AjaxRequestHelper().getAvlblCreditAmt(userBean).split(&quot;=&quot;)[3]+&quot;%$&quot;+statusData.toString().substring(0,statusData.toString().length()-3)+&quot;|&quot;+advtMsg;</span>
+	}
+	
+	/*public static String fetchLastCSTransId(int retOrgId) throws LMSException{
+		String lastTransId = &quot;&quot;;
+		Connection con = DBConnect.getConnection();
+		PreparedStatement pstmt1 = null;
+		ResultSet rs1 = null;
+		try{
+			pstmt1 = con.prepareStatement(&quot;select CSLastSaleTransId from st_lms_last_sale_transaction where organization_id = ?&quot;);
+			pstmt1.setInt(1, retOrgId);
+			rs1 = pstmt1.executeQuery();
+			if(rs1.next()){
+				lastTransId = rs1.getString(&quot;CSLastSaleTransId&quot;);
+			}
+		}catch(SQLException e) {
+			logger.error(&quot;Exception: &quot; + e);
+			e.printStackTrace();
+		} finally {
+			try {
+				if (con != null &amp;&amp; !con.isClosed()) {
+					con.close();
+				}
+			} catch (SQLException e) {
+				logger.error(&quot;Exception: &quot; + e);
+				e.printStackTrace();
+				throw new LMSException(e);
+			}
+		}
+		return lastTransId;
+	}*/
+	
+	/*public static void updateLastCSTransId(int retOrgId,long newTransId) throws LMSException{
+		Connection con = DBConnect.getConnection();
+		try{
+			Statement stmt = con.createStatement();
+			stmt.executeUpdate(&quot;update st_lms_last_sale_transaction set CSLastSaleTransId = &quot;+ newTransId +&quot; where organization_id = &quot;+ retOrgId);
+		}catch(SQLException e) {
+			logger.error(&quot;Exception: &quot; + e);
+			e.printStackTrace();
+		} finally {
+			try {
+				if (con != null &amp;&amp; !con.isClosed()) {
+					con.close();
+				}
+			} catch (SQLException e) {
+				logger.error(&quot;Exception: &quot; + e);
+				e.printStackTrace();
+				throw new LMSException(e);
+			}
+		}
+	}
+	*/
+	public static void main(String args[]) throws Exception{
+<span class="nc" id="L276">		System.out.println(new CSPWSaleHelper().fetchPWSaleResponse(&quot;&quot;));</span>
+<span class="nc" id="L277">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

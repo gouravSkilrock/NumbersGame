@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SportsBettingGamePlayDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.sportsBetting.playMgmt.daoImpl</a> &gt; <span class="el_source">SportsBettingGamePlayDaoImpl.java</span></div><h1>SportsBettingGamePlayDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.sportsBetting.playMgmt.daoImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.sportsLottery.common.SLEErrors;
+import com.skilrock.lms.coreEngine.sportsLottery.common.SLEException;
+import com.skilrock.lms.rest.services.bean.TPTxRequestBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L21">public class SportsBettingGamePlayDaoImpl {</span>
+<span class="nc" id="L22">	private static Logger logger = LoggerFactory.getLogger(SportsBettingGamePlayDaoImpl.class);</span>
+
+	/**
+	 * 
+	 * @param gamePlayBean
+	 * @param userBean
+	 * @param con
+	 * @return
+	 * @throws SLEException 
+	 * @throws LMSException 
+	 * @throws SQLException 
+	 */
+
+	public static synchronized long sportsBettingPurchaseTicketDaoImpl(TPTxRequestBean gamePlayBean,UserInfoBean userBean,Connection con) throws SLEException, LMSException, SQLException{
+<span class="nc" id="L36">		logger.info(&quot;inside sportsBettingPurchaseTicketDaoImpl...&quot;);</span>
+<span class="nc" id="L37">			double retCommRate = 0.0;</span>
+<span class="nc" id="L38">			double agtCommRate = 0.0;</span>
+<span class="nc" id="L39">			double ticketMrp=gamePlayBean.getTxAmount();</span>
+
+<span class="nc" id="L41">				PreparedStatement pstmt = null;</span>
+<span class="nc" id="L42">				ResultSet rsTrns = null;</span>
+				try{
+<span class="nc bnc" id="L44" title="All 2 branches missed.">				if(gamePlayBean.getTxAmount() &gt; 0) {</span>
+<span class="nc" id="L45">					pstmt = con.prepareStatement(&quot;select (available_credit-claimable_bal) as availbale_sale_bal from st_lms_organization_master where organization_id=?&quot;);</span>
+<span class="nc" id="L46">					pstmt.setInt(1, userBean.getUserOrgId());</span>
+<span class="nc" id="L47">					rsTrns = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">					if (rsTrns.next()) {</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">						if (!(rsTrns.getDouble(&quot;availbale_sale_bal&quot;) &gt;= ticketMrp - ticketMrp * retCommRate * .01)) {</span>
+<span class="nc" id="L50">							logger.info(SLEErrors.RETAILER_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+<span class="nc" id="L51">							throw new SLEException(SLEErrors.RETAILER_BALANCE_INSUFFICIENT_ERROR_CODE,  SLEErrors.RETAILER_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+						}
+					} else {
+<span class="nc" id="L54">						throw new SLEException(SLEErrors.INVALID_USER_NAME_CODE, SLEErrors.INVALID_USER_NAME_MESSAGE);</span>
+					}
+				}
+				}finally{
+<span class="nc" id="L58">					DBConnect.closeConnection(pstmt, rsTrns);</span>
+<span class="nc" id="L59">				}</span>
+<span class="nc" id="L60">				long transId = processTransactionForMasterAndGameTable(gamePlayBean, userBean, con,retCommRate, agtCommRate,  ticketMrp);</span>
+<span class="nc" id="L61">		return transId;</span>
+	}
+
+	private static long processTransactionForMasterAndGameTable(TPTxRequestBean gamePlayBean, UserInfoBean userBean, Connection con,
+		 double retCommRate,
+		double agtCommRate,  double ticketMrp)
+		throws SQLException, LMSException, SLEException {
+<span class="nc" id="L68">		double govt_comm = 0.0;</span>
+<span class="nc" id="L69">		double vat = 0.0;</span>
+<span class="nc" id="L70">		double prize_payout_ratio = 0.0;</span>
+		boolean isValid;
+<span class="nc" id="L72">		PreparedStatement insertPstmt = null;</span>
+<span class="nc" id="L73">		ResultSet insertRs = null;</span>
+<span class="nc" id="L74">		long transId = 0;</span>
+		try{
+<span class="nc" id="L76">			insertPstmt = con.prepareStatement(&quot;INSERT INTO st_lms_transaction_master (user_type, service_code, interface) VALUES (?,?,?)&quot;,PreparedStatement.RETURN_GENERATED_KEYS);</span>
+<span class="nc" id="L77">			insertPstmt.setString(1, userBean.getUserType());</span>
+<span class="nc" id="L78">			insertPstmt.setString(2, gamePlayBean.getServiceCode());</span>
+<span class="nc" id="L79">			insertPstmt.setString(3, gamePlayBean.getInterfaceType());</span>
+<span class="nc" id="L80">			insertPstmt.executeUpdate();</span>
+<span class="nc" id="L81">			insertRs = insertPstmt.getGeneratedKeys();</span>
+				
+<span class="nc bnc" id="L83" title="All 2 branches missed.">			if (insertRs.next()) {</span>
+<span class="nc" id="L84">					transId = insertRs.getLong(1);</span>
+					
+<span class="nc" id="L86">					double saleCommRate = 0.0;</span>
+<span class="nc" id="L87">					double goodCauseAmt=0.0;</span>
+	
+<span class="nc" id="L89">					double vatAmount = CommonMethods.calculateDrawGameVatPlr(ticketMrp, saleCommRate, prize_payout_ratio, govt_comm, vat);</span>
+<span class="nc" id="L90">					double taxableSale = CommonMethods.calTaxableSale(ticketMrp, saleCommRate, prize_payout_ratio, govt_comm, vat);</span>
+	
+<span class="nc" id="L92">					double retNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - CommonMethods.fmtToTwoDecimal(ticketMrp * retCommRate * .01);</span>
+<span class="nc" id="L93">					double agtNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - CommonMethods.fmtToTwoDecimal(ticketMrp * agtCommRate * .01);</span>
+					
+<span class="nc" id="L95">					insertDataToRetailerTransactionMaster(gamePlayBean, userBean, con, transId,&quot;SBS_SALE&quot;);</span>
+					
+					
+<span class="nc" id="L98">					insertPstmt = con.prepareStatement(&quot;insert into st_sbs_ret_sale(transaction_id,engine_tx_id,sports_id,retailer_org_id,ticket_nbr,mrp_amt,retailer_comm_amt,retailer_net_amt,agent_comm_amt,agent_net_amt,good_cause_amt,vat_amt,taxable_sale,player_mob_number,claim_status,transaction_date,is_cancel) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+					
+<span class="nc" id="L100">					insertPstmt.setLong(1, transId);</span>
+<span class="nc" id="L101">					insertPstmt.setLong(2, gamePlayBean.getEngineTxId());</span>
+<span class="nc" id="L102">					insertPstmt.setInt(3, gamePlayBean.getGameId());</span>
+<span class="nc" id="L103">					insertPstmt.setInt(4, userBean.getUserOrgId());</span>
+<span class="nc" id="L104">					insertPstmt.setString(5, gamePlayBean.getTicketNumber());</span>
+<span class="nc" id="L105">					insertPstmt.setDouble(6, CommonMethods.fmtToTwoDecimal(ticketMrp));</span>
+<span class="nc" id="L106">					insertPstmt.setDouble(7,CommonMethods.fmtToTwoDecimal(ticketMrp * retCommRate * .01));</span>
+<span class="nc" id="L107">					insertPstmt.setDouble(8,CommonMethods.fmtToTwoDecimal(retNet));</span>
+<span class="nc" id="L108">					insertPstmt.setDouble(9,CommonMethods.fmtToTwoDecimal(ticketMrp * agtCommRate * .01));</span>
+<span class="nc" id="L109">					insertPstmt.setDouble(10,CommonMethods.fmtToTwoDecimal(agtNet));</span>
+<span class="nc" id="L110">					insertPstmt.setDouble(11,CommonMethods.fmtToTwoDecimal(goodCauseAmt));</span>
+<span class="nc" id="L111">					insertPstmt.setDouble(12,CommonMethods.fmtToTwoDecimal(vatAmount));</span>
+<span class="nc" id="L112">					insertPstmt.setDouble(13,CommonMethods.fmtToTwoDecimal(taxableSale));</span>
+<span class="nc" id="L113">					insertPstmt.setString(14, gamePlayBean.getPlrMobileNumber());</span>
+<span class="nc" id="L114">					insertPstmt.setString(15, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L115">					insertPstmt.setTimestamp(16, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L116">					insertPstmt.setString(17, &quot;N&quot;);</span>
+<span class="nc" id="L117"> 					insertPstmt.executeUpdate();</span>
+	
+					//Now make payment update method only one
+<span class="nc" id="L120">					isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(retNet, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userBean.getUserOrgId(), userBean.getParentOrgId(), &quot;RETAILER&quot;, 0, con);</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">					if(!isValid){</span>
+<span class="nc" id="L122">						throw new SLEException(SLEErrors.RETAILER_BALANCE_INSUFFICIENT_ERROR_CODE,SLEErrors.RETAILER_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+	
+					}
+<span class="nc" id="L125">					isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(agtNet, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userBean.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">					if(!isValid){</span>
+<span class="nc" id="L127">						throw new SLEException(SLEErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_CODE,SLEErrors.AGENT_BALANCE_INSUFFICIENT_ERROR_MESSAGE);</span>
+					}
+<span class="nc" id="L129">				}else{</span>
+<span class="nc" id="L130">					throw new SLEException(SLEErrors.GENERAL_EXCEPTION_ERROR_CODE,SLEErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+				}
+			}finally{
+<span class="nc" id="L133">			DBConnect.closeConnection(insertPstmt, insertRs);</span>
+<span class="nc" id="L134">		}</span>
+<span class="nc" id="L135">		return transId;</span>
+	}
+
+	private static void insertDataToRetailerTransactionMaster(TPTxRequestBean gamePlayBean, UserInfoBean userBean,
+			Connection con, long transId,String transactionType) throws SQLException {
+		PreparedStatement insertPstmt;
+<span class="nc" id="L141">		insertPstmt = con.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L142">		insertPstmt.setLong(1, transId);</span>
+<span class="nc" id="L143">		insertPstmt.setInt(2, userBean.getUserId()); </span>
+<span class="nc" id="L144">		insertPstmt.setInt(3, userBean.getUserOrgId());</span>
+		//insertPstmt.setInt(4, gamePlayBean.getGameId());
+<span class="nc" id="L146">		insertPstmt.setInt(4, gamePlayBean.getGameTypeId());</span>
+<span class="nc" id="L147">		insertPstmt.setTimestamp(5, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L148">		insertPstmt.setString(6, transactionType);</span>
+<span class="nc" id="L149">		insertPstmt.executeUpdate();</span>
+<span class="nc" id="L150">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

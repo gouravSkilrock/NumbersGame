@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateOrgUserHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.userMgmt.common</a> &gt; <span class="el_source">CreateOrgUserHelper.java</span></div><h1>CreateOrgUserHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.userMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Date;
+
+import org.apache.struts2.ServletActionContext;
+
+import com.skilrock.lms.beans.ServicesBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.common.utility.MailSend;
+import com.skilrock.lms.coreEngine.userMgmt.daoImpl.MessageInboxDaoImpl;
+import com.skilrock.lms.sportsLottery.common.NotifySLE;
+import com.skilrock.lms.sportsLottery.common.SLE;
+import com.skilrock.lms.sportsLottery.userMgmt.javaBeans.RoleHeadDataBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.lms.web.loginMgmt.AutoGenerate;
+
+<span class="nc" id="L27">public class CreateOrgUserHelper {</span>
+
+<span class="nc" id="L29">	private static final String projectName = ServletActionContext</span>
+			.getServletContext().getContextPath();
+<span class="nc" id="L31">	private Connection con = null;</span>
+<span class="nc" id="L32">	private PreparedStatement pstmt = null;</span>
+<span class="nc" id="L33">	private ResultSet rs = null;</span>
+<span class="nc" id="L34">	private Statement stmt = null;</span>
+
+	private boolean assignEmailPriviledges(int userId, String orgType,
+			String email, String[] emailPrivId, Connection con)
+			throws SQLException {
+
+		// insert details into st_lms_report_email_user_master
+<span class="nc" id="L41">		String insertEmailQuery = &quot;insert into st_lms_report_email_user_master (&quot;</span>
+				+ &quot; ref_user_id, organization_id, organization_type, first_name, last_name, email_id, mob_no,	registration_date, status)&quot;
+				+ &quot; select  aa.user_id 'ref_user_id', organization_id, organization_type, first_name, last_name,	email_id, phone_nbr, CURRENT_TIMESTAMP, 'ACTIVE'&quot;
+				+ &quot; from st_lms_user_master aa, st_lms_user_contact_details bb&quot;
+				+ &quot; where aa.user_id=bb.user_id and aa.user_id=&quot; + userId;
+<span class="nc" id="L46">		System.out.println(&quot;insertEmailQuery == &quot; + insertEmailQuery);</span>
+<span class="nc" id="L47">		pstmt = con.prepareStatement(insertEmailQuery);</span>
+<span class="nc" id="L48">		int updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L49">		rs = pstmt.getGeneratedKeys();</span>
+
+<span class="nc bnc" id="L51" title="All 2 branches missed.">		if (rs.next()) {</span>
+<span class="nc" id="L52">			int newUserId = rs.getInt(1);</span>
+<span class="nc" id="L53">			System.out</span>
+					.println(&quot;insertion into st_lms_report_email_user_master table is done &amp; user_id is == &quot;
+							+ newUserId);
+<span class="nc" id="L56">			pstmt = con</span>
+					.prepareStatement(&quot;insert into st_lms_report_email_priv_master (user_id, email_pid, status) &quot;
+							+ &quot;select &quot;
+							+ newUserId
+							+ &quot;, email_pid, 'INACTIVE' from st_lms_report_email_priviledge_rep where &quot;
+							+ &quot;priv_owner='&quot; + orgType + &quot;' &quot;);
+<span class="nc" id="L62">			updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L63">			System.out</span>
+					.println(&quot;total row inserted as inactive == &quot; + updateRow);
+
+<span class="nc bnc" id="L66" title="All 4 branches missed.">			if (emailPrivId != null &amp;&amp; emailPrivId.length &gt; 0) {</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">				for (String emailPid : emailPrivId) {</span>
+<span class="nc" id="L68">					pstmt = con</span>
+							.prepareStatement(&quot; update st_lms_report_email_priv_master set status = 'ACTIVE' where user_id = ? and email_pid = ?&quot;);
+<span class="nc" id="L70">					pstmt.setInt(1, newUserId);</span>
+<span class="nc" id="L71">					pstmt.setInt(2, Integer.parseInt(emailPid.trim()));</span>
+<span class="nc" id="L72">					updateRow = pstmt.executeUpdate();</span>
+<span class="nc" id="L73">					System.out.println(&quot;total row active == &quot; + updateRow);</span>
+				}
+			}
+<span class="nc" id="L76">			return true;</span>
+		} else {
+<span class="nc" id="L78">			throw new SQLException(</span>
+					&quot;Key is not generated for email_user_master table.&quot;);
+		}
+
+	}
+
+	public String createBoUser(UserInfoBean userInfoBean, String userName,
+			String status, String secQues, String secAns, String firstName,
+			String lastName, String email, long phone, String idType,
+			String idNo, String roleIdStr, String emailPrivId[], String requestIp)
+			throws LMSException {
+
+		try {
+<span class="nc" id="L91">			con = DBConnect.getConnection();</span>
+
+			// check is 'user_name' already exists in st_lms_user_master table
+<span class="nc" id="L94">			stmt = con.createStatement();</span>
+<span class="nc" id="L95">			String getUsersName = QueryManager.getST3UserName()</span>
+					+ &quot;where user_name= '&quot; + userName.trim() + &quot;'&quot;;
+<span class="nc" id="L97">			rs = stmt.executeQuery(getUsersName);</span>
+<span class="nc bnc" id="L98" title="All 4 branches missed.">			if (&quot;admin&quot;.equalsIgnoreCase(userName) || rs.next()) {</span>
+<span class="nc" id="L99">				System.out.println(&quot;user already exists !!&quot;);</span>
+<span class="nc" id="L100">				return &quot;INPUT&quot;;</span>
+			}
+<span class="nc" id="L102">			rs.close();</span>
+<span class="nc" id="L103">			stmt.close();</span>
+
+			// get the role id from database
+<span class="nc" id="L106">			int roleId = -1;</span>
+<span class="nc" id="L107">			roleId = Integer.parseInt(roleIdStr.trim());</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">			if (roleId &lt;= 0) {</span>
+<span class="nc" id="L109">				new LMSException(&quot;roleId is not in database&quot;);</span>
+			}
+
+			// generate the auto password
+<span class="nc" id="L113">			String autoPass = AutoGenerate.autoPassword();</span>
+
+<span class="nc" id="L115">			con.setAutoCommit(false);</span>
+
+			// insert data into st_lms_user_master table
+<span class="nc" id="L118">			String userReg = QueryManager.insertST3AgentDetails();</span>
+<span class="nc" id="L119">			pstmt = con.prepareStatement(userReg);</span>
+<span class="nc" id="L120">			pstmt.setInt(1, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L121">			pstmt.setInt(2, roleId);</span>
+<span class="nc" id="L122">			pstmt.setString(3, userInfoBean.getUserType());</span>
+<span class="nc" id="L123">			pstmt.setString(4, &quot;1&quot;);</span>
+<span class="nc" id="L124">			pstmt.setString(5, userName.trim().toLowerCase());</span>
+<span class="nc" id="L125">			pstmt.setString(6, MD5Encoder.encode(autoPass));</span>
+<span class="nc" id="L126">			pstmt.setString(7, status);</span>
+<span class="nc" id="L127">			pstmt.setString(8, secQues);</span>
+<span class="nc" id="L128">			pstmt.setString(9, secAns);</span>
+<span class="nc" id="L129">			pstmt</span>
+					.setTimestamp(10, new java.sql.Timestamp(new Date()
+							.getTime()));
+<span class="nc" id="L132">			pstmt.setString(11, &quot;Y&quot;);</span>
+<span class="nc" id="L133">			pstmt.setInt(12, userInfoBean.getUserId());</span>
+<span class="nc" id="L134">			pstmt.setInt(13, userInfoBean.getUserId());</span>
+<span class="nc" id="L135">			pstmt.setString(14, null);</span>
+
+<span class="nc" id="L137">			System.out.println(&quot;bo user created query : &quot; + pstmt);</span>
+<span class="nc" id="L138">			pstmt.executeUpdate();</span>
+
+			// get the generated user_id
+<span class="nc" id="L141">			rs = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L143">				int userId = rs.getInt(1);</span>
+<span class="nc" id="L144">				System.out.println(&quot;bo user created and user id : &quot; + userId);</span>
+
+				// insert data into st_lms_user_contact_details
+<span class="nc" id="L147">				String insertContactDetail = QueryManager</span>
+						.insertST3ContactsDetails();
+<span class="nc" id="L149">				pstmt = con.prepareStatement(insertContactDetail);</span>
+<span class="nc" id="L150">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L151">				pstmt.setString(2, firstName);</span>
+<span class="nc" id="L152">				pstmt.setString(3, lastName);</span>
+<span class="nc" id="L153">				pstmt.setString(4, email);</span>
+<span class="nc" id="L154">				pstmt.setLong(5, phone);</span>
+<span class="nc" id="L155">				pstmt.setString(6, idType);</span>
+<span class="nc" id="L156">				pstmt.setString(7, idNo);</span>
+<span class="nc" id="L157">				pstmt.setLong(8, phone);</span>
+<span class="nc" id="L158">				pstmt.execute();</span>
+
+				// insert password details into st_lms_password_history table
+<span class="nc" id="L161">				String passwordDetails = QueryManager</span>
+						.insertST3PasswordDetails();
+<span class="nc" id="L163">				pstmt = con.prepareStatement(passwordDetails);</span>
+<span class="nc" id="L164">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L165">				pstmt.setString(2, MD5Encoder.encode(autoPass));</span>
+<span class="nc" id="L166">				int passHistoryRows = pstmt.executeUpdate();</span>
+<span class="nc" id="L167">				System.out.println(&quot;total rows update in passHistory table == &quot;</span>
+						+ passHistoryRows);
+<span class="nc" id="L169">				rs.close();</span>
+<span class="nc" id="L170">				pstmt.close();</span>
+
+				//	Insert Data In st_lms_user_ip_time_mapping Table.
+<span class="nc" id="L173">				LoginTimeIPValidationHelper helper = new LoginTimeIPValidationHelper();</span>
+<span class="nc" id="L174">				helper.insertUserTimeLimitData(userId, con);</span>
+
+				// insert into st_st_lms_user_priv_mapping
+<span class="nc" id="L177">				String currentTime = Util.getCurrentTimeString();</span>
+<span class="nc" id="L178">				String insertUserPrivQuery = &quot;insert into st_lms_user_priv_mapping (user_id, role_id, priv_id, service_mapping_id, status, change_date, change_by, request_ip) select &quot;</span>
+						+ userId
+						+ &quot;,&quot;
+						+ roleId
+						+ &quot;, rpm.priv_id,rpm.service_mapping_id,rpm.status, '&quot;+currentTime+&quot;', &quot;+userInfoBean.getUserId()+&quot;, '&quot;+requestIp+&quot;' from st_lms_role_priv_mapping rpm where rpm.role_id = &quot;
+						+ roleId;
+<span class="nc" id="L184">				pstmt = con.prepareStatement(insertUserPrivQuery);</span>
+<span class="nc" id="L185">				int userPrivMasterRows = pstmt.executeUpdate();</span>
+<span class="nc" id="L186">				System.out</span>
+						.println(&quot;total rows = &quot;
+								+ userPrivMasterRows
+								+ &quot; data inserted into st_st_lms_user_priv_mapping query : &quot;
+								+ pstmt);
+
+				// assign privilege to AGENT
+<span class="nc" id="L193">				assignEmailPriviledges(userId, userInfoBean.getUserType(),</span>
+						email, emailPrivId, con);
+
+				//	Insert Registration Messages
+<span class="nc" id="L197">				MessageInboxDaoImpl.getSingleInstance().addRegistrationMessage(userId, userInfoBean.getUserType(), &quot;WEB&quot;, con);</span>
+
+<span class="nc" id="L199">				boolean flag = true;</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">				if(ServicesBean.isSLE()) {</span>
+<span class="nc" id="L201">					flag = false;</span>
+					try {
+<span class="nc" id="L203">						RoleHeadDataBean roleDataBean = new RoleHeadDataBean();</span>
+<span class="nc" id="L204">						roleDataBean.setCreatorUserId(userInfoBean.getUserId());</span>
+<span class="nc" id="L205">						roleDataBean.setRoleId(roleId);</span>
+<span class="nc" id="L206">						roleDataBean.setUserId(userId);</span>
+<span class="nc" id="L207">						roleDataBean.setUserName(userName);</span>
+<span class="nc" id="L208">						roleDataBean.setUserType(&quot;BO&quot;);</span>
+<span class="nc" id="L209">						roleDataBean.setFirstName(firstName);</span>
+<span class="nc" id="L210">						roleDataBean.setLastName(lastName);</span>
+<span class="nc" id="L211">						roleDataBean.setMobileNbr(String.valueOf(phone));</span>
+<span class="nc" id="L212">						roleDataBean.setEmailId(email);</span>
+<span class="nc" id="L213">						roleDataBean.setRequestIp(requestIp);</span>
+<span class="nc" id="L214">						NotifySLE notifySLE = new NotifySLE(SLE.Activity.ROLE_HEAD_REGISTRATION, roleDataBean);</span>
+<span class="nc" id="L215">						notifySLE.asyncCall(notifySLE);</span>
+<span class="nc" id="L216">						flag = true;</span>
+<span class="nc" id="L217">					} catch (Exception ex) {</span>
+<span class="nc" id="L218">						ex.printStackTrace();</span>
+<span class="nc" id="L219">						flag = false;</span>
+<span class="nc" id="L220">					}</span>
+				}
+
+<span class="nc bnc" id="L223" title="All 2 branches missed.">				if(flag) {</span>
+					// send mail to user
+<span class="nc" id="L225">					con.commit();</span>
+
+<span class="nc" id="L227">					String msgFor = &quot;Thanks for registration to our gaming system  Your Login details are&quot;;</span>
+<span class="nc" id="L228">					String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;</span>
+							+ firstName
+							+ &quot; &quot;
+							+ lastName
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;
+							+ msgFor
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;User Name :: &lt;/td&gt;&lt;td&gt;&quot;
+							+ userName.trim()
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;password :: &lt;/td&gt;&lt;td&gt;&quot;
+							+ autoPass.toString()
+							+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;log on &lt;/td&gt;&lt;td&gt;&quot;
+							+ LMSFilterDispatcher.webLink + &quot;/&quot;
+							+ LMSFilterDispatcher.mailProjName
+							+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L242">					MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L243">					mailSend.setDaemon(true);</span>
+<span class="nc" id="L244">					mailSend.start();</span>
+					// MailSend.sendMailToUser(email, autoPass, userName.trim(),
+					// firstName, lastName, msgFor);
+<span class="nc" id="L247">					System.out.println(&quot;mail sent after commit&quot;);</span>
+
+<span class="nc" id="L249">					return &quot;MASSUCCESS&quot;;</span>
+				} else {
+<span class="nc" id="L251">					con.rollback();</span>
+<span class="nc" id="L252">					return &quot;INPUT&quot;;</span>
+				}
+			} else {
+<span class="nc" id="L255">				return &quot;INPUT&quot;;</span>
+			}
+<span class="nc" id="L257">		} catch (SQLException se) {</span>
+<span class="nc" id="L258">			se.printStackTrace();</span>
+<span class="nc" id="L259">			throw new LMSException(&quot;sql exception&quot;, se);</span>
+		} finally {
+<span class="nc" id="L261">			try {</span>
+<span class="nc bnc" id="L262" title="All 10 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L263">					con.close();</span>
+				}
+<span class="nc" id="L265">			} catch (SQLException e) {</span>
+<span class="nc" id="L266">				e.printStackTrace();</span>
+<span class="nc" id="L267">			}</span>
+		}
+	}
+
+	/*
+	 * public String createNewOrgUser(UserInfoBean userInfoBean,
+	 * OrganizationAction orgData, String userName, String status, String
+	 * secQues, String secAns, String firstName, String lastName, String email,
+	 * long phone, String idType, String idNo, String role, String autoScrap,
+	 * String emailPrivId[], Set inActivePrivSet) throws LMSException {
+	 * 
+	 * 
+	 * try { con = DBConnect.getConnection(); con.setAutoCommit(false); //
+	 * check is 'user_name' already exists in st_lms_user_master table
+	 * stmt=con.createStatement(); String
+	 * getUsersName=QueryManager.getST3UserName() + &quot;where user_name= '&quot; +
+	 * userName.trim()+&quot;'&quot;; rs = stmt.executeQuery(getUsersName); if( rs.next()) {
+	 * System.out.println(&quot;user already exists !!&quot;); return &quot;ERROR&quot;; }
+	 * rs.close(); stmt.close(); // get the role id from database String
+	 * getRoleIdQuery = null; if(orgData.getOrgType().equals(&quot;AGENT&quot;)){
+	 * getRoleIdQuery = QueryManager.getST3RoleId() + &quot; where
+	 * role_name='AGT_MAS' &quot; ; } else
+	 * if(orgData.getOrgType().equals(&quot;RETAILER&quot;)) { getRoleIdQuery =
+	 * QueryManager.getST3RoleId() + &quot; where role_name='RET_MAS' &quot; ; }
+	 * stmt=con.createStatement(); rs=stmt.executeQuery(getRoleIdQuery);
+	 * System.out.println(&quot;get the role id from database : &quot;+getRoleIdQuery);
+	 * int roleId = -1; if(rs.next()) {
+	 * roleId=rs.getInt(TableConstants.ROLE_ID); } rs.close(); stmt.close();
+	 * 
+	 * if(roleId == -1) new LMSException(&quot;roleId is not in database&quot;); // get
+	 * the state and country code from DB stmt=con.createStatement(); String
+	 * getCountryStateCode=QueryManager.getCountryAndStateCode()+ &quot; where
+	 * cont.name='&quot;+orgData.getCountry() +&quot; ' and
+	 * stat.country_code=cont.country_code and
+	 * stat.name='&quot;+orgData.getState()+&quot;'&quot;;
+	 * rs=stmt.executeQuery(getCountryStateCode); String countryCode = null;
+	 * String stateCode = null; if(rs.next()) { countryCode=
+	 * rs.getString(TableConstants.COUNTRY_CODE); stateCode=
+	 * rs.getString(TableConstants.STATE_CODE); System.out.println(&quot; countryCode =
+	 * &quot;+countryCode+&quot; state codde = &quot;+stateCode); } // create the new
+	 * organization into DB if(autoScrap==null ||
+	 * &quot;&quot;.equalsIgnoreCase(autoScrap.trim())) autoScrap = &quot;NO&quot;;
+	 * 
+	 * String insertOrg=QueryManager.insertST3OrganizationAgent() + &quot; values (
+	 * '&quot;+ orgData.getOrgType()+ &quot;','&quot; + orgData.getOrgName()+ &quot;',
+	 * '&quot;+userInfoBean.getUserOrgId()+&quot;','&quot;+ orgData.getAddrLine1() + &quot;','&quot;+
+	 * orgData.getAddrLine2()+
+	 * &quot;','&quot;+orgData.getCity()+&quot;',&quot;+orgData.getPin()+&quot;,'&quot;
+	 * +stateCode+&quot;','&quot;+countryCode+&quot;', 0,
+	 * '&quot;+orgData.getCreditLimit()+&quot;','&quot;+orgData.getSecurity()
+	 * +&quot;','&quot;+orgData.getStatusorg()+&quot;',
+	 * '&quot;+orgData.getCreditLimit()+&quot;','&quot;+orgData.getVatRegNo() +&quot;',
+	 * '&quot;+autoScrap+&quot;') &quot;; pstmt = con.prepareStatement(insertOrg); int
+	 * orgCreateRows = pstmt.executeUpdate(); System.out.println(&quot;rows updated =
+	 * &quot;+orgCreateRows+&quot; , org creation query = &quot;+pstmt); ResultSet res =
+	 * pstmt.getGeneratedKeys(); // when organization creation completed
+	 * if(res.next()) {
+	 * 
+	 * int genOrgId=res.getInt(1); // generate the auto password String
+	 * autoPass=AutoGenerate.autoPassword();
+	 * 
+	 * pstmt.close(); // insert data into st_lms_user_master table String
+	 * userReg=QueryManager.insertST3AgentDetails() ; pstmt =
+	 * con.prepareStatement(userReg); pstmt.setInt(1, genOrgId); pstmt.setInt(2,
+	 * roleId); pstmt.setString(3, orgData.getOrgType()); pstmt.setString(4,
+	 * &quot;1&quot;); pstmt.setString(5, userName.trim()); pstmt.setString(6,
+	 * MD5Encoder.encode(autoPass)); pstmt.setString(7, status);
+	 * pstmt.setString(8, secQues); pstmt.setString(9, secAns);
+	 * pstmt.setTimestamp(10, new java.sql.Timestamp( new Date().getTime()));
+	 * pstmt.setString(11, &quot;Y&quot;); pstmt.executeUpdate(); System.out.println(&quot;bo
+	 * user created query : &quot;+pstmt); // get the generated user_id
+	 * rs=pstmt.getGeneratedKeys(); if(rs.next()) { int userId = rs.getInt(1);
+	 * System.out.println(&quot;bo user created and user id : &quot;+userId);
+	 * 
+	 * //insert data into st_lms_user_contact_details String
+	 * insertContactDetail=QueryManager.insertST3ContactsDetails(); pstmt =
+	 * con.prepareStatement(insertContactDetail); pstmt.setInt(1, userId);
+	 * pstmt.setString(2, firstName); pstmt.setString(3, lastName );
+	 * pstmt.setString(4, email); pstmt.setLong(5, phone); pstmt.setString(6,
+	 * idType); pstmt.setString(7, idNo); int contactDetailRows =
+	 * pstmt.executeUpdate(); System.out.println(&quot;total rows update in
+	 * st_lms_user_contact_details table == &quot;+contactDetailRows+&quot; pstmt :
+	 * &quot;+pstmt); // insert password details into st_lms_password_history table
+	 * String passwordDetails=QueryManager.insertST3PasswordDetails(); pstmt =
+	 * con.prepareStatement(passwordDetails); pstmt.setInt(1,userId );
+	 * pstmt.setString(2, MD5Encoder.encode(autoPass)); int passHistoryRows =
+	 * pstmt.executeUpdate(); System.out.println(&quot;total rows update in
+	 * passHistory table == &quot;+passHistoryRows); pstmt.close();
+	 * 
+	 * 
+	 * //insert organization history into st_lms_organization_master_history
+	 * table String insertOrgHistory=QueryManager.insertST3OrganizationHistory() + &quot;
+	 * values( &quot; +userInfoBean.getUserId()+&quot;, &quot;+genOrgId+&quot;,
+	 * '&quot;+orgData.getAddrLine1()+&quot;', '&quot;+orgData.getAddrLine2()+&quot;',
+	 * '&quot;+orgData.getCity()+&quot;', '&quot;+orgData.getPin()+&quot;',
+	 * &quot;+orgData.getCreditLimit()+&quot;, '&quot;+orgData.getStatusorg()+&quot;', '&quot;+new
+	 * java.sql.Timestamp( new Date().getTime())+&quot;',
+	 * &quot;+orgData.getSecurity()+&quot;)&quot;; stmt = con.createStatement(); int
+	 * historyRows = stmt.executeUpdate(insertOrgHistory);
+	 * System.out.println(historyRows+&quot; rows updated and Query to update history :: &quot; +
+	 * insertOrgHistory); // insert into st_st_lms_user_priv_mapping String
+	 * insertUserPrivQuery=&quot;insert into st_lms_user_priv_mapping select
+	 * &quot;+userId+&quot;,&quot;+roleId+&quot;, aa.pid, bb.status from role_privl_mapping aa,
+	 * priviledge_rep bb where aa.pid = bb.pid and aa.role_id = &quot;+roleId; pstmt =
+	 * con.prepareStatement(insertUserPrivQuery); int userPrivMasterRows =
+	 * pstmt.executeUpdate(); System.out.println(&quot;total rows =
+	 * &quot;+userPrivMasterRows+&quot; data inserted into st_st_lms_user_priv_mapping
+	 * query : &quot;+pstmt); // send mail to user
+	 * if((orgData.getOrgType()).equals(&quot;AGENT&quot;)) { // assign privilege to AGENT
+	 * assignEmailPriviledges(userId, orgData.getOrgType(), email, emailPrivId,
+	 * con); }
+	 * 
+	 * con.commit(); if((orgData.getOrgType()).equals(&quot;AGENT&quot;)) { String
+	 * msgFor=&quot;Thanks for registration to our gaming system Your Login details
+	 * are&quot;; String emailMsgTxt=&quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot;+firstName + &quot;
+	 * &quot;+lastName +&quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot;+msgFor+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;User
+	 * Name :: &lt;/td&gt;&lt;td&gt;&quot;+userName.trim()+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;password ::
+	 * &lt;/td&gt;&lt;td&gt;&quot;+autoPass.toString()+&quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;log on &lt;/td&gt;&lt;td&gt;&quot;+LMSFilterDispatcher.webLink+&quot;/&quot;+LMSFilterDispatcher.mailProjName+&quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+	 * MailSend mailSend=new MailSend(email,emailMsgTxt);
+	 * mailSend.setDaemon(true); mailSend.start();
+	 * //MailSend.sendMailToUser(email, autoPass, userName.trim(), firstName,
+	 * lastName, msgFor); System.out.println(&quot;mail sent after commit&quot;); } return
+	 * &quot;SUCCESS&quot;; } else { System.out.println(&quot;user is not created &quot;); return
+	 * &quot;ERROR&quot;; } }else { System.out.println(&quot;organization is not created &quot;);
+	 * return &quot;ERROR&quot;; } }catch(SQLException se){ se.printStackTrace(); throw
+	 * new LMSException(&quot;sql exception&quot;,se); }finally{ try{ if(con!=null)
+	 * con.close(); }catch(SQLException e){ e.printStackTrace(); } } }
+	 * 
+	 */
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

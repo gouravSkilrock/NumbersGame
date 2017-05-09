@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WinningMgmtControllerImplIW.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.controllerImpl</a> &gt; <span class="el_source">WinningMgmtControllerImplIW.java</span></div><h1>WinningMgmtControllerImplIW.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.controllerImpl;
+
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.skilrock.lms.beans.BOMasterApprovalBean;
+import com.skilrock.lms.beans.OrgPwtLimitBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.controller.accMgmtController.WinningMgmtController;
+import com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper;
+import com.skilrock.lms.coreEngine.sportsLottery.beans.DrawTicketDataBean;
+import com.skilrock.lms.dao.WinningMgmtDao;
+import com.skilrock.lms.daoImpl.WinningMgmtDaoImplIW;
+import com.skilrock.lms.instantWin.common.IW;
+import com.skilrock.lms.rest.services.bean.TPPwtRequestBean;
+import com.skilrock.lms.rest.services.bean.TPPwtResponseBean;
+import com.skilrock.lms.rest.services.bean.TPRequestBean;
+import com.skilrock.lms.rest.services.bean.TPResponseBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class WinningMgmtControllerImplIW implements WinningMgmtController {
+<span class="nc" id="L33">	private static Logger logger = LoggerFactory.getLogger(WinningMgmtController.class);</span>
+
+<span class="nc" id="L35">	private volatile static WinningMgmtControllerImplIW winMgmtController = null;</span>
+
+<span class="nc" id="L37">	private WinningMgmtControllerImplIW(){}</span>
+
+	public static WinningMgmtControllerImplIW getInstance() {
+<span class="nc bnc" id="L40" title="All 2 branches missed.">		if (winMgmtController == null) {</span>
+<span class="nc" id="L41">			synchronized (WinningMgmtControllerImplIW.class) {</span>
+<span class="nc bnc" id="L42" title="All 2 branches missed.">				if (winMgmtController == null) {</span>
+<span class="nc" id="L43">					winMgmtController = new WinningMgmtControllerImplIW();</span>
+				}
+<span class="nc" id="L45">			}</span>
+		}
+	
+<span class="nc" id="L48">		return winMgmtController;</span>
+	}
+
+	@Override
+	public String checkTicketPWTStatus(double winningAmount) throws LMSException {
+<span class="nc" id="L53">		double highPrizeAmt = Double.parseDouble(Utility.getPropertyValue(&quot;IW_HIGH_PRIZE_AMT&quot;));</span>
+<span class="nc" id="L54">		double masApproveLimit = Double.parseDouble(Utility.getPropertyValue(&quot;IW_MAS_APPROVE_LIMIT&quot;));</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">		if (highPrizeAmt &gt; winningAmount) {</span>
+<span class="nc" id="L56">			return IW.Status.NORMAL_PAY;</span>
+<span class="nc bnc" id="L57" title="All 4 branches missed.">		} else if (highPrizeAmt &lt;= winningAmount &amp;&amp; winningAmount &lt; masApproveLimit) {</span>
+<span class="nc" id="L58">			return IW.Status.HIGH_PRIZE;</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">		} else if (masApproveLimit &lt;= winningAmount) {</span>
+<span class="nc" id="L60">			return IW.Status.MAS_APPROVAL;</span>
+		} else {
+<span class="nc" id="L62">			return null;</span>
+		}
+	}
+
+	@Override
+	public String checkRetailerClaimStatus(double winningAmount, UserInfoBean userBean) throws LMSException {
+		// boolean claimStatus = false;
+<span class="nc" id="L69">		Connection connection = null;</span>
+<span class="nc" id="L70">		OrgPwtLimitBean limitBean = null;</span>
+<span class="nc" id="L71">		String statusMsg = null;</span>
+		try {
+<span class="nc" id="L73">			double highPrizeAmt = Double.parseDouble(Utility.getPropertyValue(&quot;IW_HIGH_PRIZE_AMT&quot;));</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">			if (highPrizeAmt &gt; winningAmount) {</span>
+<span class="nc" id="L75">				connection = DBConnect.getConnection();</span>
+<span class="nc" id="L76">				limitBean = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userBean.getUserOrgId(), connection);</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">				if (limitBean == null) {</span>
+<span class="nc" id="L78">					throw new LMSException(&quot;PWT Limits Are Not defined Properly!!&quot;);</span>
+				}
+<span class="nc bnc" id="L80" title="All 2 branches missed.">				if (winningAmount &lt;= limitBean.getPayLimit()) {</span>
+					// claimStatus = true;
+<span class="nc" id="L82">					statusMsg = &quot;NORMAL_PAY&quot;;</span>
+				} else {
+<span class="nc" id="L84">					statusMsg = &quot;ORG_LMT_EXCEED&quot;;</span>
+				}
+			} else {
+				// claimStatus = false;
+<span class="nc" id="L88">				statusMsg = &quot;WINNING_EXCEED_HIGH_PRIZE&quot;;</span>
+			}
+<span class="nc" id="L90">		} catch (LMSException le) {</span>
+<span class="nc" id="L91">			throw le;</span>
+<span class="nc" id="L92">		} catch (Exception e) {</span>
+<span class="nc" id="L93">			e.printStackTrace();</span>
+<span class="nc" id="L94">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L96">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L97">		}</span>
+<span class="nc" id="L98">		return statusMsg;</span>
+	}
+
+	@Override
+	public boolean checkPayoutLimits(String ticketNumber, UserInfoBean userBean, double winningAmount) throws LMSException {
+<span class="nc" id="L103">		Connection connection = null;</span>
+<span class="nc" id="L104">		boolean status = false;</span>
+		try {
+<span class="nc" id="L106">			connection = DBConnect.getConnection();</span>
+			
+<span class="nc" id="L108">			Map&lt;String, Integer&gt; ids = WinningMgmtDaoImplIW.getIdDetails(ticketNumber, connection);</span>
+			
+<span class="nc bnc" id="L110" title="All 2 branches missed.">			if(&quot;BO&quot;.equals(userBean.getUserType())) {</span>
+<span class="nc" id="L111">				status = Util.canClaimBO(ids.get(&quot;userId&quot;), connection);</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">			} else if(&quot;AGENT&quot;.equals(userBean.getUserType())) {</span>
+<span class="nc" id="L113">				status = Util.canClaimAgentIW(ids.get(&quot;userId&quot;), userBean.getUserOrgId(), connection);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">			} else if(&quot;RETAILER&quot;.equals(userBean.getUserType())) {</span>
+<span class="nc" id="L115">				status = Util.canClaimRetailerIW(ids.get(&quot;userId&quot;), userBean.getUserOrgId(), userBean.getParentOrgId(), connection);</span>
+
+<span class="nc bnc" id="L117" title="All 2 branches missed.">				if(status) {</span>
+<span class="nc" id="L118">					OrgPwtLimitBean pwtLimitBean = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userBean.getUserOrgId(), connection);</span>
+<span class="nc bnc" id="L119" title="All 4 branches missed.">					if(pwtLimitBean.getMinClaimPerTicket() &lt;= winningAmount &amp;&amp; winningAmount &lt;= pwtLimitBean.getMaxClaimPerTicket())</span>
+<span class="nc" id="L120">						status = true;</span>
+					else
+<span class="nc" id="L122">						status = false;</span>
+				}
+			}
+		}/* catch (LMSException le) {
+			throw le;
+<span class="nc" id="L127">		}*/ catch (Exception e) {</span>
+<span class="nc" id="L128">			e.printStackTrace();</span>
+<span class="nc" id="L129">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L131">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L132">		}</span>
+
+<span class="nc" id="L134">		return status;</span>
+	}
+
+	@Override
+	public TPResponseBean manageWinning(UserInfoBean userBean, TPRequestBean requestBean) throws LMSException {
+<span class="nc" id="L139">		logger.info(&quot;--Inside manageWinning Controller--&quot;);</span>
+<span class="nc" id="L140">		long startTime = System.currentTimeMillis();</span>
+
+<span class="nc" id="L142">		TPResponseBean responseBean = null;</span>
+<span class="nc" id="L143">		List&lt;TPPwtRequestBean&gt; pwtRequestBeans = null;</span>
+<span class="nc" id="L144">		List&lt;TPPwtResponseBean&gt; tpPwtResponseBeans = new ArrayList&lt;TPPwtResponseBean&gt;();</span>
+<span class="nc" id="L145">		TPPwtResponseBean tpPwtResponseBean = null;</span>
+<span class="nc" id="L146">		String actualStatus = null;</span>
+		try {
+<span class="nc" id="L148">			pwtRequestBeans = new Gson().fromJson(requestBean.getRequestData().toString(), new TypeToken&lt;List&lt;TPPwtRequestBean&gt;&gt;() {}.getType());</span>
+
+<span class="nc" id="L150">			WinningMgmtDao winningDao = WinningMgmtDaoImplIW.getInstance();</span>
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">			for (TPPwtRequestBean pwtRequestBean : pwtRequestBeans) {</span>
+				// Hard-Coded as Single Game id will be user for every game
+<span class="nc" id="L154">				pwtRequestBean.setGameId(1);</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">				if (&quot;BO&quot;.equals(userBean.getUserType())) {</span>
+<span class="nc" id="L156">					actualStatus = checkTicketPWTStatus(pwtRequestBean.getTotalAmount());</span>
+					// Hard-Coded For Now
+<span class="nc" id="L158">					actualStatus = IW.Status.NORMAL_PAY;</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">					if (IW.Status.NORMAL_PAY.equals(pwtRequestBean.getPwtType())) {</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">						if (IW.Status.NORMAL_PAY.equals(actualStatus))</span>
+<span class="nc" id="L161">							tpPwtResponseBeans.add(winningDao.boNormalPay(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+						else {
+<span class="nc" id="L163">							tpPwtResponseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L164">							tpPwtResponseBean.setStatus(actualStatus);</span>
+<span class="nc" id="L165">							tpPwtResponseBean.setTicketNumber(pwtRequestBean.getTicketNumber());</span>
+<span class="nc" id="L166">							tpPwtResponseBean.setResponseCode(-1);</span>
+<span class="nc" id="L167">							tpPwtResponseBean.setResponseMsg(&quot;Check PWT Status&quot;);</span>
+<span class="nc" id="L168">							tpPwtResponseBeans.add(tpPwtResponseBean);</span>
+						}
+<span class="nc bnc" id="L170" title="All 2 branches missed.">					} else if (IW.Status.HIGH_PRIZE.equals(pwtRequestBean.getPwtType())) {</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">						if (IW.Status.HIGH_PRIZE.equals(actualStatus))</span>
+<span class="nc" id="L172">							tpPwtResponseBeans.add(winningDao.boHighPrize(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+						else {
+<span class="nc" id="L174">							tpPwtResponseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L175">							tpPwtResponseBean.setStatus(actualStatus);</span>
+<span class="nc" id="L176">							tpPwtResponseBean.setTicketNumber(pwtRequestBean.getTicketNumber());</span>
+<span class="nc" id="L177">							tpPwtResponseBean.setResponseCode(-1);</span>
+<span class="nc" id="L178">							tpPwtResponseBean.setResponseMsg(&quot;Check PWT Status&quot;);</span>
+<span class="nc" id="L179">							tpPwtResponseBeans.add(tpPwtResponseBean);</span>
+						}
+<span class="nc bnc" id="L181" title="All 2 branches missed.">					} else if (IW.Status.MAS_APPROVAL.equals(pwtRequestBean.getPwtType())) {</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">						if (IW.Status.MAS_APPROVAL.equals(actualStatus))</span>
+<span class="nc" id="L183">							tpPwtResponseBeans.add(winningDao.masApprovalInit(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+						else {
+<span class="nc" id="L185">							tpPwtResponseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L186">							tpPwtResponseBean.setStatus(actualStatus);</span>
+<span class="nc" id="L187">							tpPwtResponseBean.setTicketNumber(pwtRequestBean.getTicketNumber());</span>
+<span class="nc" id="L188">							tpPwtResponseBean.setResponseCode(-1);</span>
+<span class="nc" id="L189">							tpPwtResponseBean.setResponseMsg(&quot;Check PWT Status&quot;);</span>
+<span class="nc" id="L190">							tpPwtResponseBeans.add(tpPwtResponseBean);</span>
+						}
+<span class="nc bnc" id="L192" title="All 2 branches missed.">					} else if (IW.Status.MAS_APPROVAL_DONE.equals(pwtRequestBean.getPwtType())) {</span>
+<span class="nc" id="L193">						tpPwtResponseBeans.add(winningDao.masApprovalDone(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+					}
+<span class="nc bnc" id="L195" title="All 2 branches missed.">				} else if (&quot;AGENT&quot;.equals(userBean.getUserType())) {</span>
+<span class="nc" id="L196">					actualStatus = checkTicketPWTStatus(pwtRequestBean.getTotalAmount());</span>
+					// Hard-Coded For Now
+<span class="nc" id="L198">					actualStatus = IW.Status.NORMAL_PAY;</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">					if (IW.Status.NORMAL_PAY.equals(pwtRequestBean.getPwtType())) {</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">						if (IW.Status.NORMAL_PAY.equals(actualStatus))</span>
+<span class="nc" id="L201">							tpPwtResponseBeans.add(winningDao.agentNormalPay(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+						else {
+<span class="nc" id="L203">							tpPwtResponseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L204">							tpPwtResponseBean.setStatus(actualStatus);</span>
+<span class="nc" id="L205">							tpPwtResponseBean.setTicketNumber(pwtRequestBean.getTicketNumber());</span>
+<span class="nc" id="L206">							tpPwtResponseBean.setResponseCode(-1);</span>
+<span class="nc" id="L207">							tpPwtResponseBean.setResponseMsg(&quot;Check PWT Status&quot;);</span>
+<span class="nc" id="L208">							tpPwtResponseBeans.add(tpPwtResponseBean);</span>
+						}
+<span class="nc bnc" id="L210" title="All 2 branches missed.">					} else if (IW.Status.HIGH_PRIZE.equals(pwtRequestBean.getPwtType())) {</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">						if (IW.Status.HIGH_PRIZE.equals(actualStatus))</span>
+<span class="nc" id="L212">							tpPwtResponseBeans.add(winningDao.agentHighPrize(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+						else {
+<span class="nc" id="L214">							tpPwtResponseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L215">							tpPwtResponseBean.setStatus(actualStatus);</span>
+<span class="nc" id="L216">							tpPwtResponseBean.setTicketNumber(pwtRequestBean.getTicketNumber());</span>
+<span class="nc" id="L217">							tpPwtResponseBean.setResponseCode(-1);</span>
+<span class="nc" id="L218">							tpPwtResponseBean.setResponseMsg(&quot;Check PWT Status&quot;);</span>
+<span class="nc" id="L219">							tpPwtResponseBeans.add(tpPwtResponseBean);</span>
+						}
+<span class="nc bnc" id="L221" title="All 2 branches missed.">					} else if (IW.Status.MAS_APPROVAL.equals(pwtRequestBean.getPwtType())) {</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">						if (IW.Status.MAS_APPROVAL.equals(actualStatus))</span>
+<span class="nc" id="L223">							tpPwtResponseBeans.add(winningDao.masApprovalInit(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+						else {
+<span class="nc" id="L225">							tpPwtResponseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L226">							tpPwtResponseBean.setStatus(actualStatus);</span>
+<span class="nc" id="L227">							tpPwtResponseBean.setTicketNumber(pwtRequestBean.getTicketNumber());</span>
+<span class="nc" id="L228">							tpPwtResponseBean.setResponseCode(-1);</span>
+<span class="nc" id="L229">							tpPwtResponseBean.setResponseMsg(&quot;Check PWT Status&quot;);</span>
+<span class="nc" id="L230">							tpPwtResponseBeans.add(tpPwtResponseBean);</span>
+						}
+					}
+<span class="nc bnc" id="L233" title="All 2 branches missed.">				} else if (&quot;RETAILER&quot;.equals(userBean.getUserType())) {</span>
+<span class="nc" id="L234">					actualStatus = checkTicketPWTStatus(pwtRequestBean.getTotalAmount());</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">					if (IW.Status.NORMAL_PAY.equals(actualStatus))</span>
+<span class="nc" id="L236">						tpPwtResponseBeans.add(winningDao.retailerNormalPay(userBean, pwtRequestBean, requestBean.getServiceCode(), requestBean.getInterfaceType()));</span>
+					else {
+<span class="nc" id="L238">						tpPwtResponseBean = new TPPwtResponseBean();</span>
+<span class="nc" id="L239">						tpPwtResponseBean.setStatus(actualStatus);</span>
+<span class="nc" id="L240">						tpPwtResponseBean.setTicketNumber(pwtRequestBean.getTicketNumber());</span>
+<span class="nc" id="L241">						tpPwtResponseBean.setResponseCode(-1);</span>
+<span class="nc" id="L242">						tpPwtResponseBean.setResponseMsg(&quot;Check PWT Status&quot;);</span>
+<span class="nc" id="L243">						tpPwtResponseBeans.add(tpPwtResponseBean);</span>
+					}
+				}
+<span class="nc" id="L246">			}</span>
+<span class="nc" id="L247">			responseBean = new TPResponseBean(0, &quot;SUCCESS&quot;, tpPwtResponseBeans);</span>
+<span class="nc" id="L248">		} catch (LMSException le) {</span>
+<span class="nc" id="L249">			throw le;</span>
+<span class="nc" id="L250">		} catch (Exception e) {</span>
+<span class="nc" id="L251">			e.printStackTrace();</span>
+<span class="nc" id="L252">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L253">		}</span>
+
+<span class="nc" id="L255">		long endTime = System.currentTimeMillis();</span>
+<span class="nc" id="L256">		logger.info(&quot;Time Taken By Controller - &quot; + ((endTime - startTime) / 1000));</span>
+<span class="nc" id="L257">		return responseBean;</span>
+	}
+
+	public List&lt;BOMasterApprovalBean&gt; getMasOrPendingRequests(BOMasterApprovalBean requestBean, String requestType) throws LMSException {
+<span class="nc" id="L261">		logger.info(&quot;--Inside getMasterApprovalRequests Controller--&quot;);</span>
+<span class="nc" id="L262">		Connection connection = null;</span>
+<span class="nc" id="L263">		List&lt;BOMasterApprovalBean&gt; masterApprovalList = null;</span>
+		try {
+<span class="nc" id="L265">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L266">			WinningMgmtDaoImplIW winningDao = WinningMgmtDaoImplIW.getInstance();</span>
+<span class="nc" id="L267">			masterApprovalList = winningDao.getMasOrPendingRequests(requestBean, requestType, connection);</span>
+<span class="nc" id="L268">		} catch (LMSException le) {</span>
+<span class="nc" id="L269">			throw le;</span>
+<span class="nc" id="L270">		} catch (Exception e) {</span>
+<span class="nc" id="L271">			e.printStackTrace();</span>
+<span class="nc" id="L272">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L274">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L275">		}</span>
+
+<span class="nc" id="L277">		return masterApprovalList;</span>
+	}
+
+	public boolean processMasterApproval(int taskId, String processType, int userId, String userType) throws LMSException {
+<span class="nc" id="L281">		logger.info(&quot;--Inside getMasterApprovalRequests Controller--&quot;);</span>
+<span class="nc" id="L282">		Connection connection = null;</span>
+<span class="nc" id="L283">		boolean status = false;</span>
+		try {
+<span class="nc bnc" id="L285" title="All 2 branches missed.">			processType = &quot;APPROVE&quot;.equals(processType) ? &quot;PND_PAY&quot; : &quot;CANCEL&quot;;</span>
+
+<span class="nc" id="L287">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L288">			WinningMgmtDaoImplIW winningDao = WinningMgmtDaoImplIW.getInstance();</span>
+<span class="nc" id="L289">			status = winningDao.processMasterApproval(taskId, processType, userId, userType, connection);</span>
+<span class="nc" id="L290">		} catch (LMSException le) {</span>
+<span class="nc" id="L291">			throw le;</span>
+<span class="nc" id="L292">		} catch (Exception e) {</span>
+<span class="nc" id="L293">			e.printStackTrace();</span>
+<span class="nc" id="L294">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L296">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L297">		}</span>
+
+<span class="nc" id="L299">		return status;</span>
+	}
+
+	public boolean processPaymentRequests(BOMasterApprovalBean approvalBean, String processType, UserInfoBean userBean) throws LMSException {
+<span class="nc" id="L303">		logger.info(&quot;--Inside processPaymentRequests Controller--&quot;);</span>
+<span class="nc" id="L304">		Connection connection = null;</span>
+<span class="nc" id="L305">		boolean status = false;</span>
+		try {
+<span class="nc" id="L307">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L308">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L310">			WinningMgmtDaoImplIW winningDao = WinningMgmtDaoImplIW.getInstance();</span>
+<span class="nc bnc" id="L311" title="All 2 branches missed.">			if(&quot;APPROVE&quot;.equals(processType)) {</span>
+<span class="nc" id="L312">				List&lt;DrawTicketDataBean&gt; drawDataList = new ArrayList&lt;DrawTicketDataBean&gt;();</span>
+<span class="nc" id="L313">				DrawTicketDataBean drawDataBean = new DrawTicketDataBean();</span>
+<span class="nc" id="L314">				drawDataBean.setDrawId(approvalBean.getDrawId());</span>
+<span class="nc" id="L315">				drawDataBean.setTaskId(approvalBean.getTaskId());</span>
+<span class="nc" id="L316">				drawDataBean.setTaxAmt(approvalBean.getTaxAmount());</span>
+<span class="nc" id="L317">				drawDataBean.setNetAmt(approvalBean.getNetAmount());</span>
+<span class="nc" id="L318">				drawDataBean.setWinningAmt(approvalBean.getWinningAmount());</span>
+<span class="nc" id="L319">				drawDataList.add(drawDataBean);</span>
+
+<span class="nc" id="L321">				TPPwtRequestBean requestBean = new TPPwtRequestBean();</span>
+<span class="nc" id="L322">				requestBean.setGameId(approvalBean.getGameId());</span>
+<span class="nc" id="L323">				requestBean.setGameTypeId(approvalBean.getGameTypeId());</span>
+<span class="nc" id="L324">				requestBean.setTicketNumber(approvalBean.getTicketNumber());</span>
+<span class="nc" id="L325">				requestBean.setRemarks(&quot;Approved By BO&quot;);</span>
+<span class="nc" id="L326">				requestBean.setTotalAmount(approvalBean.getWinningAmount());</span>
+<span class="nc" id="L327">				requestBean.setDrawDataList(drawDataList);</span>
+
+<span class="nc" id="L329">				winningDao.masApprovalDone(userBean, requestBean, &quot;IW&quot;, &quot;WEB&quot;);</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">			} else if(&quot;DENY&quot;.equals(processType)) {</span>
+<span class="nc" id="L331">				status = winningDao.processMasterApproval(approvalBean.getTaskId(), &quot;CANCEL&quot;, userBean.getUserId(), userBean.getUserType(), connection);</span>
+			}
+
+<span class="nc" id="L334">			connection.commit();</span>
+<span class="nc" id="L335">		} catch (LMSException le) {</span>
+<span class="nc" id="L336">			throw le;</span>
+<span class="nc" id="L337">		} catch (Exception e) {</span>
+<span class="nc" id="L338">			e.printStackTrace();</span>
+<span class="nc" id="L339">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L341">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L342">		}</span>
+
+<span class="nc" id="L344">		return status;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

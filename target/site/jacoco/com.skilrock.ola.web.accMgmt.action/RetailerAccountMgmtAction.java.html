@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RetailerAccountMgmtAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.ola.web.accMgmt.action</a> &gt; <span class="el_source">RetailerAccountMgmtAction.java</span></div><h1>RetailerAccountMgmtAction.java</h1><pre class="source lang-java linenums">package com.skilrock.ola.web.accMgmt.action;
+
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import net.sf.json.JSONObject;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.exception.GenericException;
+import com.skilrock.lms.common.exception.LMSErrorProperty;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.ola.accMgmt.controllerImpl.OlaRetDepositControllerImpl;
+import com.skilrock.ola.accMgmt.controllerImpl.OlaRetWithdrawlControllerImpl;
+import com.skilrock.ola.accMgmt.javaBeans.OLADepositRequestBean;
+import com.skilrock.ola.accMgmt.javaBeans.OLADepositResponseBean;
+import com.skilrock.ola.accMgmt.javaBeans.OLAWithdrawalRequestBean;
+import com.skilrock.ola.accMgmt.javaBeans.OLAWithdrawalResponseBean;
+import com.skilrock.ola.common.OLAUtility;
+import com.skilrock.ola.commonMethods.controllerImpl.OlaCommonMethodControllerImpl;
+import com.skilrock.ola.javaBeans.OlaWalletBean;
+
+
+<span class="nc" id="L42">public class RetailerAccountMgmtAction extends ActionSupport implements ServletRequestAware,</span>
+		ServletResponseAware {
+	/**
+	 * 
+	 * 
+	 */
+	
+	private static final long serialVersionUID = 1L;
+<span class="nc" id="L50">	static Log logger = LogFactory.getLog(RetailerAccountMgmtAction.class);</span>
+	HttpServletRequest request;
+	HttpServletResponse response;
+	
+	private String walletName;
+	
+	private OLADepositRequestBean depositReqBean;
+	private OLAWithdrawalRequestBean withdrawalReqBean;
+<span class="nc" id="L58">	private Map&lt;Integer, OlaWalletBean&gt; walletDetailsMap=null;</span>
+	private int mobileNumberlimit;
+	private String reqData;
+	
+	public String olaRetailerMenu(){		
+<span class="nc" id="L63">		OlaCommonMethodControllerImpl olaCommonMethodController = new OlaCommonMethodControllerImpl();</span>
+<span class="nc" id="L64">		setWalletDetailsMap(olaCommonMethodController.getWalletDetails());</span>
+<span class="nc" id="L65">		mobileNumberlimit = Integer.parseInt((String)LMSUtility.sc.getAttribute(&quot;OLA_PLAYER_MOBILE_NUMBER_LIMIT&quot;));</span>
+<span class="nc" id="L66">		return SUCCESS;</span>
+	}	
+	
+	public void depositMoney() throws IOException{
+<span class="nc" id="L70">		int walletId=0;</span>
+<span class="nc" id="L71">		PrintWriter out = null;</span>
+<span class="nc" id="L72">		JSONObject jsonResponse = new JSONObject();</span>
+<span class="nc" id="L73">		JsonObject json=null;</span>
+		try{
+<span class="nc" id="L75">			response.setContentType(&quot;application/json&quot;);</span>
+<span class="nc" id="L76">			out = response.getWriter();</span>
+<span class="nc" id="L77">			logger.info(&quot;className: {} OLA Deposit Request Data : {}&quot;+ reqData);</span>
+<span class="nc" id="L78">			json=new JsonParser().parse(reqData).getAsJsonObject();</span>
+<span class="nc" id="L79">			setDepositReqBean(new Gson().fromJson(json, OLADepositRequestBean.class));</span>
+<span class="nc" id="L80">			walletId=OLAUtility.getWalletId(depositReqBean.getWalletDevName());</span>
+<span class="nc" id="L81">			ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L82">			HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L83">			UserInfoBean userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L84">			String depositAnyWhere = (String) sc.getAttribute(&quot;OLA_DEP_ANYWHERE&quot;);</span>
+<span class="nc" id="L85">			double olaMinDepositLimit = OLAUtility.getOlaWalletDataMap().get(walletId).getMinDeposit();</span>
+<span class="nc" id="L86">			logger.info(&quot;depositAnyWhere&quot; + depositAnyWhere+&quot;WalletName :&quot;+depositReqBean.getWalletDevName());</span>
+<span class="nc" id="L87">			OlaRetDepositControllerImpl olaDepositController = new OlaRetDepositControllerImpl();</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">			if (depositReqBean.getDepositAmt() &gt;= olaMinDepositLimit) {</span>
+<span class="nc" id="L89">				depositReqBean.setDepositAnyWhere(depositAnyWhere);</span>
+<span class="nc" id="L90">				depositReqBean.setDeviceType(&quot;WEB&quot;);</span>
+<span class="nc" id="L91">				depositReqBean.setWalletId(walletId);</span>
+<span class="nc" id="L92">				OLADepositResponseBean  depositResBean =olaDepositController.olaRetPlrDeposit(depositReqBean, userBean);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">				if(depositResBean.isSuccess()){</span>
+<span class="nc" id="L94">					jsonResponse.put(&quot;isSuccess&quot;, true);</span>
+<span class="nc" id="L95">					jsonResponse.put(&quot;responseCode&quot;,0);</span>
+<span class="nc" id="L96">					jsonResponse.put(&quot;responseMsg&quot;, &quot;&quot;);</span>
+				}else{
+<span class="nc" id="L98">					jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L99">					jsonResponse.put(&quot;responseCode&quot;, 500);</span>
+<span class="nc" id="L100">					jsonResponse.put(&quot;responseMsg&quot;, depositResBean.getErrorMsg());</span>
+				}					
+<span class="nc" id="L102">			}else{</span>
+<span class="nc" id="L103">				jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L104">				jsonResponse.put(&quot;responseCode&quot;, 500);</span>
+<span class="nc" id="L105">				jsonResponse.put(&quot;responseMsg&quot;, LMSErrors.MIN_DEPOSIT_LIMIT_ERROR_MESSAGE+&quot; &quot;+olaMinDepositLimit);</span>
+			}
+<span class="nc" id="L107">		}catch (LMSException e) {</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">			String errorMessage=e.getErrorCode()==0?e.getErrorMessage():LMSErrorProperty.getPropertyValue(e.getErrorCode());</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">			if(e.getErrorCode() == 10001){</span>
+<span class="nc" id="L110">				errorMessage = errorMessage+&quot; &quot;+e.getErrorMessage()+&quot; ) !!&quot;;</span>
+			}				
+<span class="nc" id="L112">			jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L113">			jsonResponse.put(&quot;responseCode&quot;, e.getErrorCode());</span>
+<span class="nc" id="L114">			jsonResponse.put(&quot;responseMsg&quot;, errorMessage);		</span>
+<span class="nc" id="L115">		}catch (GenericException e){</span>
+<span class="nc" id="L116">			String errorMessage=LMSErrorProperty.getPropertyValue(e.getErrorCode());</span>
+<span class="nc" id="L117">			logger.info(e.getErrorCode()+errorMessage);</span>
+<span class="nc" id="L118">			jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L119">			jsonResponse.put(&quot;responseCode&quot;, e.getErrorCode());</span>
+<span class="nc" id="L120">			jsonResponse.put(&quot;responseMsg&quot;, errorMessage);		</span>
+<span class="nc" id="L121">		}</span>
+<span class="nc" id="L122">		logger.info(&quot;className: {} OLA Deposit Response Data : {}&quot;+ jsonResponse);</span>
+<span class="nc" id="L123">		out.print(jsonResponse);</span>
+<span class="nc" id="L124">		out.flush();</span>
+<span class="nc" id="L125">		out.close();</span>
+<span class="nc" id="L126">	}</span>
+	
+	public void withdrawalMoney() throws LMSException, IOException {
+<span class="nc" id="L129">		PrintWriter out = null;</span>
+<span class="nc" id="L130">		JSONObject jsonResponse = new JSONObject();</span>
+<span class="nc" id="L131">		JsonObject json=null;</span>
+<span class="nc" id="L132">		int walletId=0;</span>
+		try{
+<span class="nc" id="L134">			response.setContentType(&quot;application/json&quot;);</span>
+<span class="nc" id="L135">			out = response.getWriter();</span>
+<span class="nc" id="L136">			logger.info(&quot;className: {} OLA Withdrawal Request Data : {}&quot;+ reqData);</span>
+<span class="nc" id="L137">			json=new JsonParser().parse(reqData).getAsJsonObject();</span>
+<span class="nc" id="L138">			setWithdrawalReqBean(new Gson().fromJson(json, OLAWithdrawalRequestBean.class));</span>
+<span class="nc" id="L139">			HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L140">			UserInfoBean userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L141">			ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L142">			String withdrawlAnyWhere = (String) sc.getAttribute(&quot;OLA_WITHDRAWL_ANYWHERE&quot;);</span>
+<span class="nc" id="L143">			logger.info(&quot;WithdrawlAnyWhere&quot; + withdrawlAnyWhere);</span>
+<span class="nc" id="L144">			walletId=OLAUtility.getWalletId(withdrawalReqBean.getDevWalletName());</span>
+<span class="nc" id="L145">			OlaRetWithdrawlControllerImpl olaWithdrawalController = new OlaRetWithdrawlControllerImpl();</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">			if (withdrawalReqBean.getWithdrawlAmt() &gt; 0) {</span>
+<span class="nc" id="L147">				withdrawalReqBean.setWithdrawlAnyWhere(withdrawlAnyWhere);</span>
+<span class="nc" id="L148">				withdrawalReqBean.setDeviceType(&quot;WEB&quot;);</span>
+<span class="nc" id="L149">				withdrawalReqBean.setWalletId(walletId);</span>
+<span class="nc" id="L150">				OLAWithdrawalResponseBean withdrawalResBean = olaWithdrawalController.olaRetPlrWithdrawal(withdrawalReqBean, userBean);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">				if(withdrawalResBean.isSuccess()){</span>
+<span class="nc" id="L152">					jsonResponse.put(&quot;isSuccess&quot;, true);</span>
+<span class="nc" id="L153">					jsonResponse.put(&quot;responseCode&quot;,0);</span>
+<span class="nc" id="L154">					jsonResponse.put(&quot;responseMsg&quot;, &quot;&quot;);</span>
+				}else{
+<span class="nc" id="L156">					jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L157">					jsonResponse.put(&quot;responseCode&quot;, 500);</span>
+<span class="nc" id="L158">					jsonResponse.put(&quot;responseMsg&quot;, withdrawalResBean.getErrorMsg());</span>
+				}
+			}
+<span class="nc" id="L161">		}catch (LMSException e) {</span>
+<span class="nc" id="L162">			String errorMessage=LMSErrorProperty.getPropertyValue(e.getErrorCode());</span>
+<span class="nc" id="L163">			logger.info(e.getErrorCode()+errorMessage);</span>
+<span class="nc" id="L164">			jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L165">			jsonResponse.put(&quot;responseCode&quot;, e.getErrorCode());</span>
+<span class="nc" id="L166">			jsonResponse.put(&quot;responseMsg&quot;,errorMessage);</span>
+<span class="nc" id="L167">		}catch (GenericException e){</span>
+<span class="nc" id="L168">			String errorMessage=LMSErrorProperty.getPropertyValue(e.getErrorCode());</span>
+<span class="nc" id="L169">			logger.info(e.getErrorCode()+errorMessage);</span>
+<span class="nc" id="L170">			jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L171">			jsonResponse.put(&quot;responseCode&quot;, e.getErrorCode());</span>
+<span class="nc" id="L172">			jsonResponse.put(&quot;responseMsg&quot;,errorMessage);</span>
+<span class="nc" id="L173">		}</span>
+<span class="nc" id="L174">		logger.info(&quot;className: {} OLA withdrawal Response Data : {}&quot;+ jsonResponse);</span>
+<span class="nc" id="L175">		out.print(jsonResponse);</span>
+<span class="nc" id="L176">		out.flush();</span>
+<span class="nc" id="L177">		out.close();</span>
+<span class="nc" id="L178">	}</span>
+	
+
+	
+	public String getWalletName() {
+<span class="nc" id="L183">		return walletName;</span>
+	}
+
+	public void setWalletName(String walletName) {
+<span class="nc" id="L187">		this.walletName = walletName;</span>
+<span class="nc" id="L188">	}</span>
+
+	
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L193">		return request;</span>
+	}
+
+	public void setRequest(HttpServletRequest request) {
+<span class="nc" id="L197">		this.request = request;</span>
+<span class="nc" id="L198">	}</span>
+
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L201">		return response;</span>
+	}
+
+	public void setResponse(HttpServletResponse response) {
+<span class="nc" id="L205">		this.response = response;</span>
+<span class="nc" id="L206">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L209">		this.request = request;</span>
+<span class="nc" id="L210">	}</span>
+
+	public void setServletResponse(HttpServletResponse response) {
+<span class="nc" id="L213">		this.response = response;</span>
+<span class="nc" id="L214">	}</span>
+
+	
+
+	public void setWalletDetailsMap(Map&lt;Integer, OlaWalletBean&gt; walletDetailsMap) {
+<span class="nc" id="L219">		this.walletDetailsMap = walletDetailsMap;</span>
+<span class="nc" id="L220">	}</span>
+
+	public Map&lt;Integer, OlaWalletBean&gt; getWalletDetailsMap() {
+<span class="nc" id="L223">		return walletDetailsMap;</span>
+	}
+	
+	public void setDepositReqBean(OLADepositRequestBean depositReqBean) {
+<span class="nc" id="L227">		this.depositReqBean = depositReqBean;</span>
+<span class="nc" id="L228">	}</span>
+
+	public OLADepositRequestBean getDepositReqBean() {
+<span class="nc" id="L231">		return depositReqBean;</span>
+	}
+
+	public OLAWithdrawalRequestBean getWithdrawalReqBean() {
+<span class="nc" id="L235">		return withdrawalReqBean;</span>
+	}
+
+	public void setWithdrawalReqBean(OLAWithdrawalRequestBean withdrawalReqBean) {
+<span class="nc" id="L239">		this.withdrawalReqBean = withdrawalReqBean;</span>
+<span class="nc" id="L240">	}</span>
+	
+	public int getMobileNumberlimit() {
+<span class="nc" id="L243">		return mobileNumberlimit;</span>
+	}
+
+	public void setMobileNumberlimit(int mobileNumberlimit) {
+<span class="nc" id="L247">		this.mobileNumberlimit = mobileNumberlimit;</span>
+<span class="nc" id="L248">	}</span>
+
+	public String getReqData() {
+<span class="nc" id="L251">		return reqData;</span>
+	}
+
+	public void setReqData(String reqData) {
+<span class="nc" id="L255">		this.reqData = reqData;</span>
+<span class="nc" id="L256">	}</span>
+
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

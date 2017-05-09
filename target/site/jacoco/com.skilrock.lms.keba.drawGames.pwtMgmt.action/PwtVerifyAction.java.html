@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PwtVerifyAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.keba.drawGames.pwtMgmt.action</a> &gt; <span class="el_source">PwtVerifyAction.java</span></div><h1>PwtVerifyAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.keba.drawGames.pwtMgmt.action;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpSession;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+import net.sf.json.JSONSerializer;
+
+import org.apache.struts2.ServletActionContext;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.BaseAction;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.dge.beans.DrawIdBean;
+import com.skilrock.lms.dge.beans.MainPWTDrawBean;
+import com.skilrock.lms.dge.beans.PWTDrawBean;
+import com.skilrock.lms.dge.beans.PanelIdBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class PwtVerifyAction extends BaseAction {
+	private static final long serialVersionUID = 1L;
+
+	public PwtVerifyAction() {
+<span class="nc" id="L34">		super(PwtVerifyAction.class);</span>
+<span class="nc" id="L35">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public void verifyTicket() {
+<span class="nc" id="L39">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L40">		JSONObject responseObject = new JSONObject();</span>
+<span class="nc" id="L41">		JSONArray drawDataArray = new JSONArray();</span>
+<span class="nc" id="L42">		JSONObject drawDataBean = null;</span>
+<span class="nc" id="L43">		PrintWriter out = null;</span>
+		try {
+<span class="nc" id="L45">			logger.info(&quot;Winning Request Data : &quot; + request.getParameter(&quot;requestData&quot;));</span>
+<span class="nc" id="L46">			JSONObject winningRequestData = (JSONObject) JSONSerializer.toJSON(request.getParameter(&quot;requestData&quot;));</span>
+	
+<span class="nc" id="L48">			response.setContentType(&quot;application/json&quot;);</span>
+<span class="nc" id="L49">			out = response.getWriter();</span>
+
+<span class="nc" id="L51">			String userName = winningRequestData.getString(&quot;userName&quot;).trim();</span>
+<span class="nc" id="L52">			String ticketNumber = winningRequestData.getString(&quot;ticketNumber&quot;).trim();</span>
+<span class="nc" id="L53">			long lastTktNo = Long.parseLong(winningRequestData.getString(&quot;lastTktNo&quot;).trim());</span>
+
+<span class="nc" id="L55">			String isDraw = (String) sc.getAttribute(&quot;IS_DRAW&quot;);</span>
+<span class="nc bnc" id="L56" title="All 2 branches missed.">			if (isDraw.equalsIgnoreCase(&quot;NO&quot;)) {</span>
+<span class="nc" id="L57">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L58">				responseObject.put(&quot;errorMsg&quot;, &quot;Draw Game Not Available.&quot;);</span>
+				return;
+			}
+
+			//double beepAmt=Double.parseDouble((String)sc.getAttribute(&quot;AMOUNT_FOR_LONG_BEEP&quot;));
+<span class="nc" id="L63">			UserInfoBean userInfoBean = getUserBean(userName);</span>
+<span class="nc" id="L64">			String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L65">			MainPWTDrawBean mainPwtBean = new MainPWTDrawBean();</span>
+<span class="nc" id="L66">			mainPwtBean.setInpType(Integer.parseInt((String) sc.getAttribute(&quot;InpType&quot;)));</span>
+<span class="nc" id="L67">			mainPwtBean.setTicketNo(String.valueOf(ticketNumber));</span>
+
+<span class="nc" id="L69">			AjaxRequestHelper ajaxRequestHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L70">			ajaxRequestHelper.getAvlblCreditAmt(userInfoBean);</span>
+<span class="nc" id="L71">			double balance1 = userInfoBean.getAvailableCreditLimit() - userInfoBean.getClaimableBal();</span>
+
+<span class="nc" id="L73">			DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L74">			MainPWTDrawBean mainWinningBean = helper.prizeWinningTicket(mainPwtBean, userInfoBean, refMerchantId);</span>
+
+<span class="nc" id="L76">			int autoCancelHoldDays = Integer.parseInt((String) sc.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));</span>
+<span class="nc" id="L77">			long lastPrintedTicket = 0;</span>
+<span class="nc" id="L78">			int gameId = 0;</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">			if(lastTktNo != 0) {</span>
+<span class="nc" id="L80">				lastPrintedTicket = lastTktNo/Util.getDivValueForLastSoldTkt(String.valueOf(lastTktNo).length());</span>
+<span class="nc" id="L81">				gameId = Util.getGameIdFromGameNumber(Util.getGamenoFromTktnumber(String.valueOf(lastTktNo)));</span>
+			}
+<span class="nc" id="L83">			String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L84">			helper.checkLastPrintedTicketStatusAndUpdate(userInfoBean,lastPrintedTicket,&quot;TERMINAL&quot;,refMerchantId,autoCancelHoldDays,actionName, gameId);</span>
+
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if (&quot;ERROR&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L87">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L88">				responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, Invalid PWT.&quot;);</span>
+				return;
+<span class="nc bnc" id="L90" title="All 2 branches missed.">			} else if (&quot;FRAUD&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L91">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L92">				responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, Invalid PWT.&quot;);</span>
+				return;
+<span class="nc bnc" id="L94" title="All 2 branches missed.">			} else if (&quot;ERROR_INVALID&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L95">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L96">				responseObject.put(&quot;errorMsg&quot;, &quot;Invalid Ticket. Device Would be Inactivated.&quot;);</span>
+				return;
+<span class="nc bnc" id="L98" title="All 2 branches missed.">			} else if (&quot;CANCELLED&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L99">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L100">				responseObject.put(&quot;errorMsg&quot;, &quot;Invalid Ticket. Device Would be Inactivated.&quot;);</span>
+				return;
+<span class="nc bnc" id="L102" title="All 2 branches missed.">			} else if (&quot;UN_AUTH&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L103">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L104">				responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, Invalid Sub-Agent.&quot;);</span>
+				return;
+<span class="nc bnc" id="L106" title="All 4 branches missed.">			} else if (mainWinningBean.getStatus() != null &amp;&amp; mainWinningBean.getStatus().equalsIgnoreCase(&quot;OUT_VERIFY_LIMIT&quot;)) {</span>
+<span class="nc" id="L107">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L108">				responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, High Prize.&quot;);</span>
+				return;
+<span class="nc bnc" id="L110" title="All 2 branches missed.">			} else if (&quot;HIGH_PRIZE&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L111">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L112">				responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, High Prize.&quot;);</span>
+				return;
+<span class="nc bnc" id="L114" title="All 2 branches missed.">			} else if (&quot;OUT_PAY_LIMIT&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L115">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L116">				responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, High Prize.&quot;);</span>
+				return;
+<span class="nc bnc" id="L118" title="All 2 branches missed.">			} else if (&quot;TICKET_EXPIRED&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L119">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L120">				responseObject.put(&quot;errorMsg&quot;, &quot;Expired or Invalid Ticket.&quot;);</span>
+				return;
+			}
+
+<span class="nc" id="L124">			double totTktAmt = 0.0;</span>
+<span class="nc" id="L125">			double totalClmPndAmt = 0.0;</span>
+<span class="nc" id="L126">			int totRegister = 0;</span>
+
+			//String raffleData = EmbeddedErrors.RAFFLE_DATA;
+			/*
+			if (mainWinningBean.getPwtTicketType().equalsIgnoreCase(&quot;RAFFLE&quot;)) {
+				double totalRaffleAmount = 0.0;
+				PWTDrawBean pwtwinBean = mainWinningBean.getWinningBeanList().get(0);
+				RaffleDrawIdBean raffleWinningBean = (RaffleDrawIdBean) pwtwinBean.getRaffleDrawIdBeanList().get(0);
+				String dataArr[] = buildPWTRaffleData(raffleWinningBean).split(&quot;RWA*&quot;);
+				String data = dataArr[0];
+				if (dataArr.length &gt; 1) {
+					totalRaffleAmount = Double.parseDouble(dataArr[1]);
+				}
+				raffleData = raffleData + data + &quot;|Total Pay:&quot; + totalRaffleAmount + &quot;|&quot;;
+			} else */
+<span class="nc bnc" id="L141" title="All 2 branches missed.">			if (mainWinningBean.getPwtTicketType().equalsIgnoreCase(&quot;DRAW&quot;)) {</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">				if (&quot;FRAUD&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L143">					responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L144">					responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, Invalid PWT.&quot;);</span>
+					return;
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				} else if (&quot;TICKET_EXPIRED&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L147">					responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L148">					responseObject.put(&quot;errorMsg&quot;, &quot;Expired or Invalid Ticket.&quot;);</span>
+					return;
+<span class="nc bnc" id="L150" title="All 2 branches missed.">				} else if (!mainWinningBean.isValid()) {</span>
+<span class="nc" id="L151">					responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L152">					responseObject.put(&quot;errorMsg&quot;, &quot;Invalid Ticket. Device Would be Inactivated.&quot;);</span>
+					return;
+<span class="nc bnc" id="L154" title="All 4 branches missed.">				} else if (mainWinningBean.getStatus() != null &amp;&amp; mainWinningBean.getStatus().equalsIgnoreCase(&quot;OUT_VERIFY_LIMIT&quot;)) {</span>
+<span class="nc" id="L155">					responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L156">					responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, High Prize.&quot;);</span>
+					return;
+<span class="nc bnc" id="L158" title="All 2 branches missed.">				} else if (&quot;UN_AUTH&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L159">					responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L160">					responseObject.put(&quot;errorMsg&quot;, &quot;Can Not Verify, Invalid Sub-Agent.&quot;);</span>
+					return;
+				}
+
+<span class="nc" id="L164">				double totalRaffleAmount = 0.0;</span>
+<span class="nc" id="L165">				List&lt;PWTDrawBean&gt; pwtWinBeanlist = mainWinningBean.getWinningBeanList();</span>
+				/*
+				for (int i = 0; i &lt; pwtWinBeanlist.size(); i++) {
+					PWTDrawBean pwtwinBean = pwtWinBeanlist.get(i);
+					if (pwtwinBean.getPwtTicketType().equalsIgnoreCase(&quot;RAFFLE&quot;)) {
+						List&lt;RaffleDrawIdBean&gt; raffleDrawIdBeanList = pwtwinBean.getRaffleDrawIdBeanList();
+						if (raffleDrawIdBeanList != null) {
+							for (int j = 0; j &lt; raffleDrawIdBeanList.size(); j++) {
+								if (j &gt; 0) {
+									raffleData = raffleData + &quot;;&quot;;
+								}
+								RaffleDrawIdBean raffleWinningBean = raffleDrawIdBeanList.get(j);
+								String dataArr[] = buildPWTRaffleData(raffleWinningBean).split(&quot;RWA&quot;);
+								String data = dataArr[0];
+								if (dataArr.length &gt; 1)
+									totalRaffleAmount = Double.parseDouble(dataArr[1]);
+
+								raffleData = raffleData + data;
+							}
+						}
+					}
+				}
+				raffleData = raffleData + &quot;#&quot;;
+				*/
+
+<span class="nc bnc" id="L190" title="All 2 branches missed.">				for (int k = 0; k &lt; pwtWinBeanlist.size(); k++) {</span>
+<span class="nc" id="L191">					PWTDrawBean pwtwinBean = pwtWinBeanlist.get(k);</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">					if (pwtwinBean.getPwtTicketType().equalsIgnoreCase(&quot;DRAW&quot;)) {</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">						for (int i = 0; i &lt; pwtwinBean.getDrawWinList().size(); i++) {</span>
+<span class="nc" id="L194">							DrawIdBean drawBean = pwtwinBean.getDrawWinList().get(i);</span>
+
+<span class="nc" id="L196">							int nonWin = 0;</span>
+<span class="nc" id="L197">							int win = 0;</span>
+<span class="nc" id="L198">							int clm = 0;</span>
+<span class="nc" id="L199">							int register = 0;</span>
+<span class="nc" id="L200">							int claim = 0;</span>
+<span class="nc" id="L201">							int outVerify = 0;</span>
+<span class="nc" id="L202">							int pndPay = 0;</span>
+
+<span class="nc" id="L204">							String message = null;</span>
+
+<span class="nc" id="L206">							String drawStatusForTicket = drawBean.getStatus();</span>
+<span class="nc" id="L207">							boolean isResAwaited = false;</span>
+<span class="nc" id="L208">							boolean isExpired = false;</span>
+<span class="nc" id="L209">							boolean isVerPending = false;</span>
+<span class="nc" id="L210">							boolean isClmPending = false;</span>
+<span class="nc" id="L211">							double drawAmt = 0.0;</span>
+<span class="nc" id="L212">							List&lt;PanelIdBean&gt; panelWinList = drawBean.getPanelWinList();</span>
+<span class="nc bnc" id="L213" title="All 4 branches missed.">							if (panelWinList != null &amp;&amp; !drawStatusForTicket.equals(&quot;DRAW_EXPIRED&quot;) ) {</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">								for (int j = 0; j &lt; panelWinList.size(); j++) {</span>
+<span class="nc" id="L215">									PanelIdBean panelBean = panelWinList.get(j);</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">									if (panelBean.getStatus().equals(&quot;NON WIN&quot;)) {</span>
+<span class="nc" id="L217">										nonWin++;</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">									} else if (panelBean.getStatus().equals(&quot;NORMAL_PAY&quot;)) {</span>
+<span class="nc" id="L219">										drawAmt = panelBean.getWinningAmt() + drawAmt;</span>
+<span class="nc" id="L220">										win++;</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">									} else if (panelBean.getStatus().equals(&quot;CLAIMED&quot;)) {</span>
+<span class="nc" id="L222">										claim++;</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">									} else if (panelBean.getStatus().equals(&quot;PND_PAY&quot;)) {</span>
+<span class="nc" id="L224">										pndPay++;</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">									} else if (panelBean.getStatus().equals(&quot;HIGH_PRIZE&quot;)) {</span>
+<span class="nc" id="L226">										register++;</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">									} else if (panelBean.getStatus().equals(&quot;OUT_PAY_LIMIT&quot;)) {</span>
+<span class="nc" id="L228">										register++;</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">									} else if (panelBean.getStatus().equals(&quot;OUT_VERIFY_LIMIT&quot;)) {</span>
+<span class="nc" id="L230">										outVerify++;</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">									} else if (panelBean.getStatus().equals(&quot;CLAIM_PENDING&quot;)) {</span>
+<span class="nc" id="L232">										drawAmt = panelBean.getWinningAmt()+ drawAmt;</span>
+<span class="nc" id="L233">										totalClmPndAmt += panelBean.getWinningAmt();</span>
+<span class="nc" id="L234">										clm++;</span>
+									}
+								}
+<span class="nc bnc" id="L237" title="All 2 branches missed.">							} else if (drawStatusForTicket.equals(&quot;DRAW_EXPIRED&quot;)) {</span>
+<span class="nc" id="L238">								isExpired = true;</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">							} else if (drawStatusForTicket.equals(&quot;VERIFICATION_PENDING&quot;)) {</span>
+<span class="nc" id="L240">								isVerPending = true;</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">							} else if (drawStatusForTicket.equals(&quot;CLAIM_PENDING&quot;)) {</span>
+<span class="nc" id="L242">								isClmPending = true;</span>
+							} else {
+<span class="nc" id="L244">								isResAwaited = true;</span>
+							}
+<span class="nc bnc" id="L246" title="All 2 branches missed.">							totTktAmt = (drawStatusForTicket.equals(&quot;CLAIM_PENDING&quot;)?0.0:drawAmt) + totTktAmt;</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">							if(isExpired){</span>
+								//stBuild.append(&quot;|DrawTime:&quot; + drawTime + &quot;&quot;);
+								//stBuild.append(&quot;,No:0,Message:DRAW EXP&quot;);
+<span class="nc" id="L250">								message = &quot;DRAW EXP&quot;;</span>
+<span class="nc bnc" id="L251" title="All 2 branches missed.">							}else if (isVerPending) {</span>
+								//stBuild.append(&quot;|DrawTime:&quot; + drawTime + &quot;&quot;);
+								//stBuild.append(&quot;,No:0,Message:VER PND&quot;);
+<span class="nc" id="L254">								message = &quot;VER PND&quot;;</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">							}else if (isResAwaited) {</span>
+								//stBuild.append(&quot;|DrawTime:&quot; + drawTime + &quot;&quot;);
+								//stBuild.append(&quot;,No:0,Message:Awaited&quot;);
+<span class="nc" id="L258">								message = &quot;Awaited&quot;;</span>
+							} else {
+								//stBuild.append(&quot;|DrawTime:&quot; + drawTime + &quot;&quot;);
+<span class="nc bnc" id="L261" title="All 2 branches missed.">								if (nonWin != 0) {</span>
+									//stBuild.append(&quot;,No:&quot; + nonWin + &quot;,Message:TRY AGAIN&quot;);
+<span class="nc" id="L263">									message = &quot;TRY AGAIN&quot;;</span>
+								}
+<span class="nc bnc" id="L265" title="All 2 branches missed.">								if (win != 0) {</span>
+									//stBuild.append(&quot;,No:&quot; + win + &quot;,Message:WIN &quot; + Util.getBalInString(drawAmt) + &quot;&quot;);
+<span class="nc" id="L267">									message = &quot;WIN &quot; + Util.getBalInString(drawAmt);</span>
+								}
+<span class="nc bnc" id="L269" title="All 2 branches missed.">								if (register != 0) {</span>
+									//stBuild.append(&quot;,No:&quot; + register + &quot;,Message:REG. REQ.&quot;);
+<span class="nc" id="L271">									message = &quot;REG. REQ.&quot;;</span>
+								}
+<span class="nc bnc" id="L273" title="All 2 branches missed.">								if (claim != 0) {</span>
+									//stBuild.append(&quot;,No:&quot; + claim + &quot;,Message:CLAIMED&quot;);
+<span class="nc" id="L275">									message = &quot;CLAIMED&quot;;</span>
+								}
+<span class="nc bnc" id="L277" title="All 2 branches missed.">								if (pndPay != 0) {</span>
+									//stBuild.append(&quot;,No:&quot; + pndPay + &quot;,Message:IN PROCESS&quot;);
+<span class="nc" id="L279">									message = &quot;IN PROCESS&quot;;</span>
+								}
+<span class="nc bnc" id="L281" title="All 2 branches missed.">								if (outVerify != 0) {</span>
+									//stBuild.append(&quot;,No:&quot; + outVerify + &quot;,Message:OUT OF VERIFY&quot;);
+<span class="nc" id="L283">									message = &quot;OUT OF VERIFY&quot;;</span>
+								}
+<span class="nc bnc" id="L285" title="All 2 branches missed.">								if(clm!=0){</span>
+									//stBuild.append(&quot;,No:&quot; + clm + &quot;,Message:CLM PND &quot;+ Util.getBalInString(drawAmt) );
+<span class="nc" id="L287">									message = &quot;CLM PND &quot;+ Util.getBalInString(drawAmt);</span>
+								}
+							}
+<span class="nc" id="L290">							totRegister = totRegister + register;</span>
+
+<span class="nc" id="L292">							String drawDateTime = drawBean.getDrawDateTime();</span>
+<span class="nc" id="L293">							drawDataBean = new JSONObject();</span>
+<span class="nc" id="L294">							drawDataBean.put(&quot;drawName&quot;, drawBean.getDrawname());</span>
+<span class="nc" id="L295">							drawDataBean.put(&quot;drawDate&quot;, drawDateTime.split(&quot; &quot;)[0]);</span>
+<span class="nc" id="L296">							drawDataBean.put(&quot;drawTime&quot;, drawDateTime.split(&quot; &quot;)[1].split(&quot;\\*&quot;)[0]);</span>
+<span class="nc" id="L297">							drawDataBean.put(&quot;panelWinning&quot;, win);</span>
+<span class="nc" id="L298">							drawDataBean.put(&quot;prizeAmount&quot;, drawAmt);</span>
+<span class="nc" id="L299">							drawDataBean.put(&quot;message&quot;, message);</span>
+<span class="nc" id="L300">							drawDataArray.add(drawDataBean);</span>
+						}
+					}
+				}
+
+<span class="nc" id="L305">				totTktAmt = totTktAmt + totalRaffleAmount;</span>
+
+<span class="nc bnc" id="L307" title="All 2 branches missed.">				if (totRegister != 0) {</span>
+					//stBuild.append(&quot;No:&quot; + totRegister + &quot;,Message:Reg. Req&quot;);
+<span class="nc" id="L309">					drawDataBean = new JSONObject();</span>
+<span class="nc" id="L310">					drawDataBean.put(&quot;message&quot;, &quot;Reg. Req&quot;);</span>
+<span class="nc" id="L311">					drawDataArray.add(drawDataBean);</span>
+				}
+			}
+
+<span class="nc" id="L315">			Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L316">			HttpSession session = (HttpSession) currentUserSessionMap.get(userName);</span>
+<span class="nc" id="L317">			session.setAttribute(&quot;PWT_RES&quot;, mainWinningBean);</span>
+<span class="nc" id="L318">			currentUserSessionMap.put(userName, session);</span>
+
+<span class="nc" id="L320">			ajaxRequestHelper.getAvlblCreditAmt(userInfoBean);</span>
+
+<span class="nc" id="L322">			double balance2 = userInfoBean.getAvailableCreditLimit() - userInfoBean.getClaimableBal();</span>
+<span class="nc" id="L323">			double balance = balance2 - balance1;</span>
+
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			if (!mainWinningBean.isReprint()) {</span>
+<span class="nc" id="L326">				SimpleDateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L327">				SimpleDateFormat timeFormat = new SimpleDateFormat(&quot;HH:mm:ss&quot;);</span>
+<span class="nc" id="L328">				Date currentDate = new Date();</span>
+<span class="nc" id="L329">				responseObject.put(&quot;isSuccess&quot;, true);</span>
+<span class="nc" id="L330">				responseObject.put(&quot;errorMsg&quot;, &quot;&quot;);</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">				if(ticketNumber.length() == 20)</span>
+<span class="nc" id="L332">					ticketNumber = ticketNumber.substring(0, ticketNumber.length()-2);</span>
+<span class="nc" id="L333">				responseObject.put(&quot;ticketNumber&quot;, ticketNumber);</span>
+<span class="nc" id="L334">				responseObject.put(&quot;currentDate&quot;, dateFormat.format(currentDate));</span>
+<span class="nc" id="L335">				responseObject.put(&quot;currentTime&quot;, timeFormat.format(currentDate));</span>
+
+<span class="nc" id="L337">				int gameNo = Util.getGamenoFromTktnumber(String.valueOf(ticketNumber));</span>
+<span class="nc" id="L338">				String gameName = Util.getGameName(Util.getGameIdFromGameNumber(gameNo));</span>
+
+<span class="nc" id="L340">				responseObject.put(&quot;gameName&quot;, gameName);</span>
+<span class="nc" id="L341">				responseObject.put(&quot;totalPay&quot;, totTktAmt);</span>
+<span class="nc" id="L342">				responseObject.put(&quot;totalClaimPending&quot;, totalClmPndAmt);</span>
+<span class="nc" id="L343">				responseObject.put(&quot;balance&quot;, balance2);</span>
+<span class="nc" id="L344">				responseObject.put(&quot;drawDataList&quot;, drawDataArray);</span>
+			}
+<span class="nc" id="L346">		} catch (IOException e) {</span>
+<span class="nc" id="L347">			e.printStackTrace();</span>
+<span class="nc" id="L348">			responseObject.put(&quot;errorMsg&quot;, &quot;IOException Occured.&quot;);</span>
+<span class="nc" id="L349">			responseObject.put(&quot;isSuccess&quot;, false);</span>
+			return;
+<span class="nc" id="L351">		} catch (Exception e) {</span>
+<span class="nc" id="L352">			e.printStackTrace();</span>
+<span class="nc" id="L353">			responseObject.put(&quot;errorMsg&quot;, &quot;Exception Occured.&quot;);</span>
+<span class="nc" id="L354">			responseObject.put(&quot;isSuccess&quot;, false);</span>
+			return;
+		} finally {
+<span class="nc bnc" id="L357" title="All 38 branches missed.">			if (responseObject.isEmpty()) {</span>
+<span class="nc" id="L358">				responseObject.put(&quot;errorMsg&quot;, &quot;Compile Time Error.&quot;);</span>
+<span class="nc" id="L359">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+			}
+<span class="nc" id="L361">			logger.info(&quot;Cancel Response Data : &quot; + responseObject);</span>
+<span class="nc" id="L362">			out.print(responseObject);</span>
+<span class="nc" id="L363">			out.flush();</span>
+<span class="nc" id="L364">			out.close();</span>
+<span class="nc" id="L365">		}</span>
+<span class="nc" id="L366">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

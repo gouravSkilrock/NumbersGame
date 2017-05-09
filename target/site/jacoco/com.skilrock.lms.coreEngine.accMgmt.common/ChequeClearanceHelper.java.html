@@ -1,0 +1,715 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChequeClearanceHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.accMgmt.common</a> &gt; <span class="el_source">ChequeClearanceHelper.java</span></div><h1>ChequeClearanceHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.accMgmt.common;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.AgentReceiptBean;
+import com.skilrock.lms.beans.chequeForClearanceBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.GenerateRecieptNo;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L29">public class ChequeClearanceHelper {</span>
+<span class="nc" id="L30">	static Log logger = LogFactory.getLog(ChequeClearanceHelper.class);</span>
+	public List&lt;AgentReceiptBean&gt; doChequeClear(String[] chequeNbr,
+			Double[] chequeAmt, String[] chequeStatus, Double[] commAmt,
+			String[] agtOrgName, String[] isCleared, String[] draweeBank,
+			Date[] chequeDate, String[] issuingPartyName,
+			Date[] chequeClearanceDate, String userType, String rootPath,
+			String boOrgName, int userOrgID, Date[] clearanceDate, int userId,
+			String[] taskId) throws LMSException {
+
+		 
+		PreparedStatement pstmtBOtrans;
+		PreparedStatement pstmtSaleChq;
+		PreparedStatement pstmtTempChq;
+<span class="nc" id="L43">		PreparedStatement preStateChq3 = null;</span>
+<span class="nc" id="L44">		PreparedStatement preState4 = null;</span>
+<span class="nc" id="L45">		PreparedStatement preState6 = null;</span>
+<span class="nc" id="L46">		PreparedStatement preState7 = null;</span>
+<span class="nc" id="L47">		Connection con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L49">		String query5 = &quot;insert into st_lms_bo_debit_note(transaction_id ,agent_org_id,amount,transaction_type,remarks) values(?,?,?,?,?)&quot;;</span>
+		// String query3=QueryManager.getST5BOReceiptIdQuery();
+		// String queryChq2 = QueryManager.getST5BOReceiptMappingQuery();
+<span class="nc" id="L52">		String queryBOTrans = QueryManager.insertInBOTransactionMaster();</span>
+<span class="nc" id="L53">		String queryLMSTrans = QueryManager.insertInLMSTransactionMaster();</span>
+
+		try {
+
+			AgentReceiptBean agtRcptBean;
+<span class="nc" id="L58">			Set&lt;String&gt; orgNameSet = new TreeSet&lt;String&gt;();</span>
+
+<span class="nc bnc" id="L60" title="All 2 branches missed.">			for (String agentOrgName : agtOrgName) {</span>
+<span class="nc" id="L61">				orgNameSet.add(agentOrgName);</span>
+			}
+
+<span class="nc" id="L64">			List&lt;Long&gt; tranIdListClear = null;</span>
+<span class="nc" id="L65">			List&lt;Long&gt; tranIdListCancel = null;</span>
+<span class="nc" id="L66">			List&lt;AgentReceiptBean&gt; agtReciptbeanlist = new ArrayList&lt;AgentReceiptBean&gt;();</span>
+
+			String newChequeStatus;
+
+<span class="nc" id="L70">			int orgId = 0;</span>
+			//int transId = 0;
+<span class="nc" id="L72">			long transId=0;</span>
+<span class="nc" id="L73">			con.setAutoCommit(false);</span>
+
+<span class="nc bnc" id="L75" title="All 2 branches missed.">			for (String orgAgtName : orgNameSet) {</span>
+
+<span class="nc" id="L77">				double totalChequeAmt = 0.0;</span>
+<span class="nc" id="L78">				double totalDebitedAmt = 0.0;</span>
+
+<span class="nc" id="L80">				int clearanceId = 0;</span>
+<span class="nc" id="L81">				int cancellationId = 0;</span>
+
+<span class="nc" id="L83">				boolean isClear = false;</span>
+<span class="nc" id="L84">				boolean isCancel = false;</span>
+
+<span class="nc" id="L86">				tranIdListClear = new ArrayList&lt;Long&gt;();</span>
+<span class="nc" id="L87">				tranIdListCancel = new ArrayList&lt;Long&gt;();</span>
+
+<span class="nc" id="L89">				agtRcptBean = new AgentReceiptBean();</span>
+<span class="nc" id="L90">				orgId = Integer.parseInt(orgAgtName);//getOrgIdFromOrgName(orgAgtName, con);</span>
+<span class="nc" id="L91">				agtRcptBean.setAgtOrgId(orgId);</span>
+<span class="nc" id="L92">				agtRcptBean.setAgtOrgName(orgAgtName);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">				for (int i = 0; i &lt; chequeNbr.length; i++) {</span>
+
+<span class="nc bnc" id="L95" title="All 2 branches missed.">					if (orgAgtName.equals(agtOrgName[i])) {</span>
+
+<span class="nc" id="L97">						logger.debug(&quot;org id is &quot; + orgId);</span>
+
+<span class="nc bnc" id="L99" title="All 2 branches missed.">						if (isCleared[i].equals(&quot;Cleared&quot;))</span>
+
+						{
+<span class="nc" id="L102">							isClear = true;</span>
+<span class="nc" id="L103">							logger.debug(&quot;inside cleared&quot;);</span>
+<span class="nc" id="L104">							newChequeStatus = &quot;CLEARED&quot;;</span>
+
+							// insert into LMS transaction master
+
+<span class="nc" id="L108">							pstmtBOtrans = con.prepareStatement(queryLMSTrans);</span>
+<span class="nc" id="L109">							pstmtBOtrans.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L110">							pstmtBOtrans.executeUpdate();</span>
+
+<span class="nc" id="L112">							ResultSet rsTransId = pstmtBOtrans</span>
+									.getGeneratedKeys();
+<span class="nc bnc" id="L114" title="All 2 branches missed.">							if (rsTransId.next()) {</span>
+<span class="nc" id="L115">								transId = rsTransId.getLong(1);</span>
+							}
+<span class="nc" id="L117">							tranIdListClear.add(transId); // added to insert</span>
+							// entry into
+							// receipt
+							// tansaction
+							// mapping table
+
+<span class="nc" id="L123">							pstmtBOtrans = con.prepareStatement(queryBOTrans);</span>
+
+<span class="nc" id="L125">							pstmtBOtrans.setLong(1, transId);</span>
+<span class="nc" id="L126">							pstmtBOtrans.setInt(2, userId);</span>
+<span class="nc" id="L127">							pstmtBOtrans.setInt(3, userOrgID);</span>
+<span class="nc" id="L128">							pstmtBOtrans.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L129">							pstmtBOtrans.setInt(5, orgId);</span>
+<span class="nc" id="L130">							pstmtBOtrans.setTimestamp(6,</span>
+									new java.sql.Timestamp(new java.util.Date()
+											.getTime()));
+<span class="nc" id="L133">							pstmtBOtrans.setString(7, &quot;CHEQUE&quot;);</span>
+
+<span class="nc" id="L135">							pstmtBOtrans.executeUpdate();</span>
+
+							// insert into st bo sale cheque table
+
+<span class="nc" id="L139">							String insertSaleCheque = &quot;insert into st_lms_bo_sale_chq(transaction_id,agent_org_id,cheque_nbr,cheque_date,issuing_party_name,drawee_bank,cheque_amt,transaction_type) values(?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L140">							pstmtSaleChq = con</span>
+									.prepareStatement(insertSaleCheque);
+<span class="nc" id="L142">							pstmtSaleChq.setLong(1, transId);</span>
+<span class="nc" id="L143">							pstmtSaleChq.setInt(2, orgId);</span>
+<span class="nc" id="L144">							pstmtSaleChq.setString(3, chequeNbr[i]);</span>
+<span class="nc" id="L145">							pstmtSaleChq.setDate(4, chequeDate[i]);</span>
+<span class="nc" id="L146">							pstmtSaleChq.setString(5, issuingPartyName[i]);</span>
+<span class="nc" id="L147">							pstmtSaleChq.setString(6, draweeBank[i]);</span>
+<span class="nc" id="L148">							pstmtSaleChq.setDouble(7, chequeAmt[i]);</span>
+<span class="nc" id="L149">							pstmtSaleChq.setString(8, &quot;CHEQUE&quot;);</span>
+<span class="nc" id="L150">							pstmtSaleChq.executeUpdate();</span>
+<span class="nc" id="L151">							logger</span>
+									.debug(&quot;ccccccccccccccccccccccccccccccccccccc&quot;);
+
+							// update cheque temporary table
+
+<span class="nc" id="L156">							String updateChqTemp = &quot;update st_lms_bo_cheque_temp_receipt set transaction_id=? , cheque_clearance_date=?,cheque_status=? where cheque_nbr=? and agent_org_id=? and task_id=?&quot;;</span>
+<span class="nc" id="L157">							pstmtTempChq = con.prepareStatement(updateChqTemp);</span>
+<span class="nc" id="L158">							pstmtTempChq.setLong(1, transId);</span>
+<span class="nc" id="L159">							pstmtTempChq.setDate(2, clearanceDate[i]);</span>
+<span class="nc" id="L160">							pstmtTempChq.setString(3, newChequeStatus);</span>
+<span class="nc" id="L161">							pstmtTempChq.setString(4, chequeNbr[i]);</span>
+<span class="nc" id="L162">							pstmtTempChq.setInt(5, orgId);</span>
+<span class="nc" id="L163">							pstmtTempChq.setInt(6, Integer.parseInt(taskId[i]));</span>
+<span class="nc" id="L164">							logger</span>
+									.debug(&quot;query for changing the status is in Cleared cheque:&quot;
+											+ pstmtTempChq);
+<span class="nc" id="L167">							pstmtTempChq.executeUpdate();</span>
+<span class="nc" id="L168">							logger.debug(&quot;rtttttttttttttttttttttttttttttt&quot;);</span>
+
+<span class="nc" id="L170">							totalChequeAmt = totalChequeAmt + chequeAmt[i];</span>
+
+<span class="nc" id="L172">						}</span>
+
+						else {
+<span class="nc" id="L175">							isCancel = true;</span>
+<span class="nc" id="L176">							logger.debug(&quot;inside cancel &quot;);</span>
+<span class="nc" id="L177">							newChequeStatus = &quot;CANCEL&quot;;</span>
+							//int transIdforCheque = 0;
+							//int transIdforBounce = 0;
+<span class="nc" id="L180">								long transIdforCheque=0;</span>
+<span class="nc" id="L181">								long transIdforBounce=0;</span>
+							// insert into LMS transaction master for cheque
+
+							// String queryLMSTrans =
+							// QueryManager.insertInLMSTransactionMaster();
+<span class="nc" id="L186">							pstmtBOtrans = con.prepareStatement(queryLMSTrans);</span>
+<span class="nc" id="L187">							pstmtBOtrans.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L188">							pstmtBOtrans.executeUpdate();</span>
+
+<span class="nc" id="L190">							ResultSet rsTransId = pstmtBOtrans</span>
+									.getGeneratedKeys();
+<span class="nc bnc" id="L192" title="All 2 branches missed.">							if (rsTransId.next()) {</span>
+<span class="nc" id="L193">								transIdforCheque = rsTransId.getLong(1);</span>
+							}
+<span class="nc" id="L195">							tranIdListClear.add(transIdforCheque);</span>
+
+							// insert entry into bo transaction master for
+							// cheque
+
+<span class="nc" id="L200">							pstmtBOtrans = con.prepareStatement(queryBOTrans);</span>
+
+<span class="nc" id="L202">							pstmtBOtrans.setLong(1, transIdforCheque);</span>
+<span class="nc" id="L203">							pstmtBOtrans.setInt(2, userId);</span>
+<span class="nc" id="L204">							pstmtBOtrans.setInt(3, userOrgID);</span>
+<span class="nc" id="L205">							pstmtBOtrans.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L206">							pstmtBOtrans.setInt(5, orgId);</span>
+<span class="nc" id="L207">							pstmtBOtrans.setTimestamp(6,</span>
+									new java.sql.Timestamp(new java.util.Date()
+											.getTime()));
+<span class="nc" id="L210">							pstmtBOtrans.setString(7, &quot;CHEQUE&quot;);</span>
+
+<span class="nc" id="L212">							pstmtBOtrans.executeUpdate();</span>
+<span class="nc" id="L213">							logger</span>
+									.debug(&quot;transaction id for cheque is for cancellation is &quot;
+											+ transIdforCheque);
+
+							// insert into LMS transaction master for cheque
+							// bounce
+
+<span class="nc" id="L220">							pstmtBOtrans = con.prepareStatement(queryLMSTrans);</span>
+<span class="nc" id="L221">							pstmtBOtrans.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L222">							pstmtBOtrans.executeUpdate();</span>
+
+<span class="nc" id="L224">							rsTransId = pstmtBOtrans.getGeneratedKeys();</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">							if (rsTransId.next()) {</span>
+<span class="nc" id="L226">								transIdforBounce = rsTransId.getLong(1);</span>
+							}
+<span class="nc" id="L228">							tranIdListCancel.add(transIdforBounce); // added to</span>
+							// insert
+							// entry
+							// into
+							// receipt
+							// tansaction
+							// mapping
+							// table
+
+							// insert entry into bo transaction master for
+							// cheque bounce
+
+<span class="nc" id="L240">							pstmtBOtrans = con.prepareStatement(queryBOTrans);</span>
+
+<span class="nc" id="L242">							pstmtBOtrans.setLong(1, transIdforBounce);</span>
+<span class="nc" id="L243">							pstmtBOtrans.setInt(2, userId);</span>
+<span class="nc" id="L244">							pstmtBOtrans.setInt(3, userOrgID);</span>
+<span class="nc" id="L245">							pstmtBOtrans.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L246">							pstmtBOtrans.setInt(5, orgId);</span>
+<span class="nc" id="L247">							pstmtBOtrans.setTimestamp(6,</span>
+									new java.sql.Timestamp(new java.util.Date()
+											.getTime()));
+<span class="nc" id="L250">							pstmtBOtrans.setString(7, &quot;CHQ_BOUNCE&quot;);</span>
+
+<span class="nc" id="L252">							pstmtBOtrans.executeUpdate();</span>
+
+							// insert into LMS transaction master for debit note
+
+<span class="nc" id="L256">							pstmtBOtrans = con.prepareStatement(queryLMSTrans);</span>
+<span class="nc" id="L257">							pstmtBOtrans.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L258">							pstmtBOtrans.executeUpdate();</span>
+
+							// insert entry into bo transaction master for debit
+							// note
+
+<span class="nc" id="L263">							rsTransId = pstmtBOtrans.getGeneratedKeys();</span>
+<span class="nc bnc" id="L264" title="All 2 branches missed.">							if (rsTransId.next()) {</span>
+<span class="nc" id="L265">								transId = rsTransId.getLong(1);</span>
+							}
+<span class="nc" id="L267">							tranIdListCancel.add(transId); // added to insert</span>
+							// entry into
+							// receipt
+							// tansaction
+							// mapping table
+
+							// String insertTransMaster=&quot;insert into
+							// st_lms_bo_transaction_master(party_type,party_id,transaction_date,transaction_type)
+							// values(?,?,?,?)&quot;;
+<span class="nc" id="L276">							pstmtBOtrans = con.prepareStatement(queryBOTrans);</span>
+
+<span class="nc" id="L278">							pstmtBOtrans.setLong(1, transId);</span>
+<span class="nc" id="L279">							pstmtBOtrans.setInt(2, userId);</span>
+<span class="nc" id="L280">							pstmtBOtrans.setInt(3, userOrgID);</span>
+<span class="nc" id="L281">							pstmtBOtrans.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L282">							pstmtBOtrans.setInt(5, orgId);</span>
+<span class="nc" id="L283">							pstmtBOtrans.setTimestamp(6,</span>
+									new java.sql.Timestamp(new java.util.Date()
+											.getTime()));
+<span class="nc" id="L286">							pstmtBOtrans.setString(7, &quot;DR_NOTE&quot;);</span>
+
+<span class="nc" id="L288">							pstmtBOtrans.executeUpdate();</span>
+
+							// insert entry into debit note table
+<span class="nc" id="L291">							preState6 = con.prepareStatement(query5);</span>
+<span class="nc" id="L292">							preState6.setLong(1, transId);</span>
+<span class="nc" id="L293">							preState6.setInt(2, orgId);</span>
+<span class="nc" id="L294">							preState6.setDouble(3, commAmt[i]);</span>
+<span class="nc" id="L295">							preState6.setString(4, &quot;DR_NOTE&quot;);</span>
+<span class="nc" id="L296">							preState6.setString(5, &quot;cheque bounce charges(&quot;</span>
+									+ chequeNbr[i] + &quot;)&quot;);
+<span class="nc" id="L298">							preState6.executeUpdate();</span>
+
+							// insert into st bo sale cheque table for CLOSED
+
+<span class="nc" id="L302">							String insertSaleCheque = &quot;insert into st_lms_bo_sale_chq(transaction_id,agent_org_id,cheque_nbr,cheque_date,issuing_party_name,drawee_bank,cheque_amt,transaction_type) values(?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L303">							pstmtSaleChq = con</span>
+									.prepareStatement(insertSaleCheque);
+<span class="nc" id="L305">							pstmtSaleChq.setLong(1, transIdforCheque);</span>
+<span class="nc" id="L306">							pstmtSaleChq.setInt(2, orgId);</span>
+<span class="nc" id="L307">							pstmtSaleChq.setString(3, chequeNbr[i]);</span>
+<span class="nc" id="L308">							pstmtSaleChq.setDate(4, chequeDate[i]);</span>
+<span class="nc" id="L309">							pstmtSaleChq.setString(5, issuingPartyName[i]);</span>
+<span class="nc" id="L310">							pstmtSaleChq.setString(6, draweeBank[i]);</span>
+<span class="nc" id="L311">							pstmtSaleChq.setDouble(7, chequeAmt[i]);</span>
+<span class="nc" id="L312">							pstmtSaleChq.setString(8, &quot;CLOSED&quot;);</span>
+<span class="nc" id="L313">							pstmtSaleChq.executeUpdate();</span>
+<span class="nc" id="L314">							logger</span>
+									.debug(&quot;ccccccccccccccccccccccccccccccccccccc&quot;);
+
+							// insert into st bo sale cheque table for
+							// chque_bounce
+
+							// String insertSaleCheque=&quot;insert into
+							// st_lms_bo_sale_chq(transaction_id,agent_org_id,cheque_nbr,cheque_date,issuing_party_name,drawee_bank,cheque_amt,transaction_type)
+							// values(?,?,?,?,?,?,?,?)&quot;;
+<span class="nc" id="L323">							pstmtSaleChq = con</span>
+									.prepareStatement(insertSaleCheque);
+<span class="nc" id="L325">							pstmtSaleChq.setLong(1, transIdforBounce);</span>
+<span class="nc" id="L326">							pstmtSaleChq.setInt(2, orgId);</span>
+<span class="nc" id="L327">							pstmtSaleChq.setString(3, chequeNbr[i]);</span>
+<span class="nc" id="L328">							pstmtSaleChq.setDate(4, chequeDate[i]);</span>
+<span class="nc" id="L329">							pstmtSaleChq.setString(5, issuingPartyName[i]);</span>
+<span class="nc" id="L330">							pstmtSaleChq.setString(6, draweeBank[i]);</span>
+<span class="nc" id="L331">							pstmtSaleChq.setDouble(7, chequeAmt[i]);</span>
+<span class="nc" id="L332">							pstmtSaleChq.setString(8, &quot;CHQ_BOUNCE&quot;);</span>
+<span class="nc" id="L333">							pstmtSaleChq.executeUpdate();</span>
+<span class="nc" id="L334">							logger</span>
+									.debug(&quot;ccccccccccccccccccccccccccccccccccccc&quot;);
+
+							// update cheque temporary table
+
+<span class="nc" id="L339">							String updateChqTemp = &quot;update st_lms_bo_cheque_temp_receipt set transaction_id=? , cheque_clearance_date=?,cheque_status=? where cheque_nbr=? and agent_org_id=? and task_id=?&quot;;</span>
+<span class="nc" id="L340">							pstmtTempChq = con.prepareStatement(updateChqTemp);</span>
+<span class="nc" id="L341">							pstmtTempChq.setLong(1, transIdforCheque);</span>
+<span class="nc" id="L342">							pstmtTempChq.setDate(2, clearanceDate[i]);</span>
+<span class="nc" id="L343">							pstmtTempChq.setString(3, newChequeStatus);</span>
+<span class="nc" id="L344">							pstmtTempChq.setString(4, chequeNbr[i]);</span>
+<span class="nc" id="L345">							pstmtTempChq.setInt(5, orgId);</span>
+<span class="nc" id="L346">							pstmtTempChq.setInt(6, Integer.parseInt(taskId[i]));</span>
+<span class="nc" id="L347">							logger.debug(&quot;query is :: &quot; + pstmtTempChq);</span>
+<span class="nc" id="L348">							pstmtTempChq.executeUpdate();</span>
+<span class="nc" id="L349">							logger.debug(&quot;rtttttttttttttttttttttttttttttt&quot;);</span>
+
+<span class="nc" id="L351">							totalChequeAmt = totalChequeAmt + chequeAmt[i];</span>
+							// totalCommAmt=totalCommAmt+commAmt[i];
+							// total debited amount
+<span class="nc" id="L354">							totalDebitedAmt = totalDebitedAmt + commAmt[i]</span>
+									+ chequeAmt[i];
+
+						}
+					}
+				}
+
+<span class="nc" id="L361">				String autoGeneRecieptNoCancel = null;</span>
+<span class="nc" id="L362">				String autoGeneRecieptNoChequeCancel = null;</span>
+
+<span class="nc bnc" id="L364" title="All 4 branches missed.">				if (isClear || isCancel) {</span>
+<span class="nc" id="L365">					ResultSet recieptRsCancel = null;</span>
+					// get auto generated receipt numner for cheque while cheque
+					// cancellation
+
+<span class="nc" id="L369">					preState7 = con.prepareStatement(QueryManager</span>
+							.getBOLatestReceiptNb());
+<span class="nc" id="L371">					preState7.setString(1, &quot;RECEIPT&quot;);</span>
+					// preState7.setString(2,&quot;DR_NOTE_CASH&quot;);
+<span class="nc" id="L373">					recieptRsCancel = preState7.executeQuery();</span>
+<span class="nc" id="L374">					String lastRecieptNoGeneratedChequeCancel = null;</span>
+
+<span class="nc bnc" id="L376" title="All 2 branches missed.">					while (recieptRsCancel.next()) {</span>
+<span class="nc" id="L377">						lastRecieptNoGeneratedChequeCancel = recieptRsCancel</span>
+								.getString(&quot;generated_id&quot;);
+					}
+
+<span class="nc" id="L381">					autoGeneRecieptNoChequeCancel = GenerateRecieptNo</span>
+							.getRecieptNo(&quot;RECEIPT&quot;,
+									lastRecieptNoGeneratedChequeCancel,
+									userType);
+					// get auto generated number for debit note while cheque
+					// cancellation
+					// String getLatestRecieptNumberCancel=&quot;SELECT * from
+					// st_bo_receipt_gen_mapping where receipt_type=? or
+					// receipt_type=? ORDER BY generated_id DESC LIMIT 1 &quot;;
+<span class="nc bnc" id="L390" title="All 2 branches missed.">					if (isCancel) {</span>
+<span class="nc" id="L391">						preState7 = con.prepareStatement(QueryManager</span>
+								.getBOLatestDRNoteNb());
+<span class="nc" id="L393">						preState7.setString(1, &quot;DR_NOTE&quot;);</span>
+<span class="nc" id="L394">						preState7.setString(2, &quot;DR_NOTE_CASH&quot;);</span>
+<span class="nc" id="L395">						recieptRsCancel = preState7.executeQuery();</span>
+<span class="nc" id="L396">						String lastRecieptNoGeneratedCancel = null;</span>
+
+<span class="nc bnc" id="L398" title="All 2 branches missed.">						while (recieptRsCancel.next()) {</span>
+<span class="nc" id="L399">							lastRecieptNoGeneratedCancel = recieptRsCancel</span>
+									.getString(&quot;generated_id&quot;);
+						}
+
+<span class="nc" id="L403">						autoGeneRecieptNoCancel = GenerateRecieptNo</span>
+								.getRecieptNo(&quot;DR_NOTE&quot;,
+										lastRecieptNoGeneratedCancel, userType);
+
+					}
+				}
+
+				ResultSet rs1;
+				// insert into reciept table for clearance
+
+				// insert into reciept table for cancellation
+
+<span class="nc bnc" id="L415" title="All 4 branches missed.">				if (isCancel || isClear) {</span>
+					// insert in receipt master for cheque while cancellation
+<span class="nc" id="L417">					preState4 = con.prepareStatement(QueryManager</span>
+							.insertInReceiptMaster());
+<span class="nc" id="L419">					preState4.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L420">					preState4.executeUpdate();</span>
+
+<span class="nc" id="L422">					rs1 = preState4.getGeneratedKeys();</span>
+<span class="nc" id="L423">					rs1.next();</span>
+<span class="nc" id="L424">					clearanceId = rs1.getInt(1);</span>
+<span class="nc" id="L425">					preState4 = con.prepareStatement(QueryManager</span>
+							.insertInBOReceipts());
+
+<span class="nc" id="L428">					preState4.setInt(1, clearanceId);</span>
+<span class="nc" id="L429">					preState4.setString(2, &quot;RECEIPT&quot;);</span>
+<span class="nc" id="L430">					preState4.setInt(3, orgId);</span>
+<span class="nc" id="L431">					preState4.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L432">					preState4.setString(5, autoGeneRecieptNoChequeCancel);</span>
+<span class="nc" id="L433">					preState4.setTimestamp(6, Util.getCurrentTimeStamp());</span>
+					/*
+					 * preState4.setString(1, &quot;DR_NOTE&quot;); preState4.setInt(2,
+					 * orgId);
+					 */
+
+<span class="nc" id="L439">					preState4.executeUpdate();</span>
+
+<span class="nc bnc" id="L441" title="All 2 branches missed.">					if (isCancel) {</span>
+
+						// insert in receipt master for debit note while
+						// cancellation
+<span class="nc" id="L445">						preState4 = con.prepareStatement(QueryManager</span>
+								.insertInReceiptMaster());
+<span class="nc" id="L447">						preState4.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L448">						preState4.executeUpdate();</span>
+
+<span class="nc" id="L450">						rs1 = preState4.getGeneratedKeys();</span>
+<span class="nc" id="L451">						rs1.next();</span>
+<span class="nc" id="L452">						cancellationId = rs1.getInt(1);</span>
+
+<span class="nc" id="L454">						preState4 = con.prepareStatement(QueryManager</span>
+								.insertInBOReceipts());
+
+<span class="nc" id="L457">						preState4.setInt(1, cancellationId);</span>
+<span class="nc" id="L458">						preState4.setString(2, &quot;DR_NOTE&quot;);</span>
+<span class="nc" id="L459">						preState4.setInt(3, orgId);</span>
+<span class="nc" id="L460">						preState4.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L461">						preState4.setString(5, autoGeneRecieptNoCancel);</span>
+<span class="nc" id="L462">						preState4.setTimestamp(6, new java.sql.Timestamp(new java.util.Date().getTime()));</span>
+						/*
+						 * preState4.setString(1, &quot;DR_NOTE&quot;);
+						 * preState4.setInt(2, orgId);
+						 */
+
+<span class="nc" id="L468">						preState4.executeUpdate();</span>
+					}
+				}
+<span class="nc" id="L471">				agtRcptBean.setReceiptIdForCancel(cancellationId);</span>
+<span class="nc" id="L472">				agtRcptBean.setReceiptIdForClear(clearanceId);</span>
+
+				// insert into transaction mapping for clearance
+<span class="nc bnc" id="L475" title="All 4 branches missed.">				if (tranIdListClear != null &amp;&amp; tranIdListClear.size() &gt; 0) {</span>
+<span class="nc bnc" id="L476" title="All 2 branches missed.">					for (int j = 0; j &lt; tranIdListClear.size(); j++) {</span>
+<span class="nc" id="L477">						preStateChq3 = con.prepareStatement(QueryManager</span>
+								.insertBOReceiptTrnMapping());
+<span class="nc" id="L479">						preStateChq3.setInt(1, clearanceId);</span>
+<span class="nc" id="L480">						preStateChq3.setLong(2, tranIdListClear.get(j));</span>
+<span class="nc" id="L481">						preStateChq3.executeUpdate();</span>
+					}
+
+				}
+				// insert into transaction mapping for cancellation
+
+<span class="nc bnc" id="L487" title="All 4 branches missed.">				if (tranIdListCancel != null &amp;&amp; tranIdListCancel.size() &gt; 0) {</span>
+<span class="nc bnc" id="L488" title="All 2 branches missed.">					for (int j = 0; j &lt; tranIdListCancel.size(); j++) {</span>
+<span class="nc" id="L489">						preStateChq3 = con.prepareStatement(QueryManager</span>
+								.insertBOReceiptTrnMapping());
+<span class="nc" id="L491">						preStateChq3.setInt(1, cancellationId);</span>
+<span class="nc" id="L492">						preStateChq3.setLong(2, tranIdListCancel.get(j));</span>
+<span class="nc" id="L493">						preStateChq3.executeUpdate();</span>
+					}
+
+				}
+
+				// agtRcptBean.setTransIdClearList(tranIdListClear);
+				// agtRcptBean.setTransIdCancelList(tranIdListCancel);
+<span class="nc" id="L500">				logger.debug(&quot;debited by &quot; + totalDebitedAmt);</span>
+<span class="nc" id="L501">				agtRcptBean.setAmountCreditedBy(totalChequeAmt);</span>
+<span class="nc" id="L502">				agtRcptBean.setAmountDebitedBy(totalDebitedAmt);</span>
+<span class="nc" id="L503">				agtReciptbeanlist.add(agtRcptBean);</span>
+
+				//Only One Method use for Org Balanace Update
+<span class="nc" id="L506">				boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(totalChequeAmt, &quot;TRANSACTION&quot;, &quot;CHEQUE&quot;, orgId,</span>
+						0, &quot;AGENT&quot;, 0, con);
+<span class="nc bnc" id="L508" title="All 2 branches missed.">				if(isValid){</span>
+<span class="nc" id="L509">					isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(totalDebitedAmt, &quot;TRANSACTION&quot;, &quot;DR_NOTE_CASH&quot;, orgId,</span>
+							0, &quot;AGENT&quot;, 0, con);
+				}
+				
+<span class="nc bnc" id="L513" title="All 2 branches missed.">				if(isValid)</span>
+<span class="nc" id="L514">					con.commit();</span>
+				else
+<span class="nc" id="L516">					throw new LMSException();</span>
+				/*OrgCreditUpdation.updateCreditLimitForAgent(orgId, &quot;CHEQUE&quot;,
+						totalChequeAmt, con);
+
+				OrgCreditUpdation.updateCreditLimitForAgent(orgId,
+						&quot;DR_NOTE_CASH&quot;, totalDebitedAmt, con);*/
+
+<span class="nc" id="L523">			}</span>
+
+			
+
+<span class="nc" id="L527">			return agtReciptbeanlist;</span>
+
+<span class="nc" id="L529">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L531">			e.printStackTrace();</span>
+
+		} finally {
+
+<span class="nc" id="L535">			try {</span>
+<span class="nc bnc" id="L536" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L537">					con.close();</span>
+				}
+<span class="nc" id="L539">			} catch (SQLException se) {</span>
+<span class="nc" id="L540">				se.printStackTrace();</span>
+<span class="nc" id="L541">			}</span>
+
+<span class="nc" id="L543">		}</span>
+
+<span class="nc" id="L545">		return null;</span>
+
+	}
+/**
+ * @deprecated  because of duplicate as getOrganizations in  AgentPaymentChequeHelper
+ * 
+ * @return
+ */
+	public List&lt;String&gt; getAgtOrgList() {
+
+<span class="nc" id="L555">		Connection connection = null;</span>
+<span class="nc" id="L556">		Statement statement = null;</span>
+<span class="nc" id="L557">		ResultSet resultSet = null;</span>
+
+<span class="nc" id="L559">		List&lt;String&gt; orgNameResults = new ArrayList&lt;String&gt;();</span>
+		try {
+			 
+<span class="nc" id="L562">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L563">			statement = connection.createStatement();</span>
+
+<span class="nc" id="L565">			String query = &quot;select name from st_lms_organization_master where organization_type='AGENT' and organization_status!='TERMINATE' order by name&quot;;</span>
+<span class="nc" id="L566">			logger.debug(&quot;-----Query----::&quot; + query);</span>
+<span class="nc" id="L567">			resultSet = statement.executeQuery(query);</span>
+<span class="nc bnc" id="L568" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+
+<span class="nc" id="L570">				orgNameResults.add(resultSet.getString(TableConstants.NAME));</span>
+
+			}
+<span class="nc" id="L573">			return orgNameResults;</span>
+<span class="nc" id="L574">		} catch (SQLException e) {</span>
+<span class="nc" id="L575">			e.printStackTrace();</span>
+
+		} finally {
+<span class="nc" id="L578">			try {</span>
+<span class="nc bnc" id="L579" title="All 6 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L580">					connection.close();</span>
+				}
+<span class="nc" id="L582">			} catch (SQLException se) {</span>
+<span class="nc" id="L583">				logger.error(&quot;Exception: &quot; + se);</span>
+<span class="nc" id="L584">				se.printStackTrace();</span>
+<span class="nc" id="L585">			}</span>
+<span class="nc" id="L586">		}</span>
+<span class="nc" id="L587">		return null;</span>
+	}
+
+	public int getOrgIdFromOrgName(String orgName, Connection conn) {
+
+<span class="nc" id="L592">		int orgId = 0;</span>
+		PreparedStatement pstmtOrg;
+<span class="nc" id="L594">		String queryGetOrgId = &quot;select organization_id from st_lms_organization_master where name=?&quot;;</span>
+		try {
+<span class="nc" id="L596">			pstmtOrg = conn.prepareStatement(queryGetOrgId);</span>
+<span class="nc" id="L597">			pstmtOrg.setString(1, orgName);</span>
+<span class="nc" id="L598">			ResultSet idSet = pstmtOrg.executeQuery();</span>
+<span class="nc bnc" id="L599" title="All 2 branches missed.">			if (idSet.next()) {</span>
+<span class="nc" id="L600">				orgId = idSet.getInt(&quot;organization_id&quot;);</span>
+			}
+
+<span class="nc" id="L603">			return orgId;</span>
+
+<span class="nc" id="L605">		} catch (SQLException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L607">			e.printStackTrace();</span>
+		}
+<span class="nc" id="L609">		return orgId;</span>
+	}
+
+	public List&lt;chequeForClearanceBean&gt; searchPendingCheques(String chkNbr,
+			String draweeBnk, String chqStatus, String agentOrgName) {
+<span class="nc" id="L614">		List&lt;chequeForClearanceBean&gt; pendingChqList = new ArrayList&lt;chequeForClearanceBean&gt;();</span>
+
+		 
+		PreparedStatement pstmtSearchChq;
+<span class="nc" id="L618">		Connection con = DBConnect.getConnection();</span>
+		chequeForClearanceBean chqClearanceBean;
+		try {
+			// get org iD from org name
+<span class="nc" id="L622">			String orgCodeQry = &quot; b.name orgCode &quot;;</span>
+
+			
+<span class="nc bnc" id="L625" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L626">				orgCodeQry = &quot; b.org_code orgCode&quot;;</span>
+	
+
+<span class="nc bnc" id="L629" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L631">				orgCodeQry = &quot; concat(b.org_code,'_',b.name)  orgCode &quot;;</span>
+			
+
+<span class="nc bnc" id="L634" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L636">				orgCodeQry = &quot; concat(b.name,'_',b.org_code)  orgCode&quot;;</span>
+			
+
+			}	
+<span class="nc" id="L640">			int agtOrgId = Integer.parseInt(agentOrgName);//sgetOrgIdFromOrgName(agentOrgName, con);</span>
+
+<span class="nc" id="L642">			StringBuilder searchCheque = new StringBuilder(</span>
+					&quot;select &quot;+orgCodeQry+&quot;,b.organization_id agtOrgId,a.cheque_nbr,a.agent_org_id,a.cheque_amt,a.cheque_date,a.cheque_receiving_date,a.cheque_clearance_date,a.cheque_status,a.drawee_bank,a.issuing_party_name,a.task_id from st_lms_bo_cheque_temp_receipt a,st_lms_organization_master b where b.organization_id=a.agent_org_id &quot;);
+
+<span class="nc bnc" id="L645" title="All 4 branches missed.">			if (chkNbr.trim() != null &amp;&amp; !&quot;&quot;.equals(chkNbr.trim())) {</span>
+<span class="nc" id="L646">				searchCheque.append(&quot;and a.cheque_nbr='&quot; + chkNbr + &quot;' &quot;);</span>
+			}
+
+<span class="nc bnc" id="L649" title="All 4 branches missed.">			if (draweeBnk.trim() != null &amp;&amp; !&quot;&quot;.equals(draweeBnk.trim())) {</span>
+<span class="nc" id="L650">				searchCheque.append(&quot;and a.drawee_bank like '&quot; + draweeBnk</span>
+						+ &quot;%' &quot;);
+			}
+
+<span class="nc bnc" id="L654" title="All 4 branches missed.">			if (chqStatus.trim() != null &amp;&amp; !&quot;&quot;.equals(chqStatus.trim())) {</span>
+<span class="nc" id="L655">				searchCheque.append(&quot;and a.cheque_status='&quot; + chqStatus + &quot;' &quot;);</span>
+			}
+
+<span class="nc" id="L658">			logger.debug(&quot;%%%%%%%%%%%%%%%% agt org name is  &quot;</span>
+					+ agentOrgName.trim());
+
+<span class="nc bnc" id="L661" title="All 6 branches missed.">			if (agentOrgName.trim() != null &amp;&amp; !&quot;&quot;.equals(agentOrgName.trim())</span>
+					&amp;&amp; !agentOrgName.trim().equals(&quot;-1&quot;)) {
+<span class="nc" id="L663">				searchCheque.append(&quot;and a.agent_org_id=&quot; + agtOrgId);</span>
+			}
+
+<span class="nc" id="L666">			logger.debug(&quot;Query is &quot; + searchCheque);</span>
+<span class="nc" id="L667">			pstmtSearchChq = con.prepareStatement(searchCheque.toString());</span>
+<span class="nc" id="L668">			ResultSet rsCheque = pstmtSearchChq.executeQuery();</span>
+<span class="nc bnc" id="L669" title="All 2 branches missed.">			while (rsCheque.next()) {</span>
+
+<span class="nc" id="L671">				chqClearanceBean = new chequeForClearanceBean();</span>
+<span class="nc" id="L672">				chqClearanceBean.setChequeNbr(rsCheque.getString(&quot;cheque_nbr&quot;));</span>
+<span class="nc" id="L673">				chqClearanceBean.setAgtOrgId(rsCheque.getInt(&quot;agent_org_id&quot;));</span>
+<span class="nc" id="L674">				chqClearanceBean.setChequeAmt(rsCheque.getDouble(&quot;cheque_amt&quot;));</span>
+<span class="nc" id="L675">				chqClearanceBean.setChequeDate(rsCheque.getDate(&quot;cheque_date&quot;));</span>
+<span class="nc" id="L676">				chqClearanceBean.setChequeReceivingDate(rsCheque</span>
+						.getDate(&quot;cheque_receiving_date&quot;));
+<span class="nc" id="L678">				chqClearanceBean.setChequeStatus(rsCheque</span>
+						.getString(&quot;cheque_status&quot;));
+<span class="nc" id="L680">				chqClearanceBean.setClearanceDate(rsCheque</span>
+						.getDate(&quot;cheque_clearance_date&quot;));
+<span class="nc" id="L682">				chqClearanceBean.setDraweeBank(rsCheque</span>
+						.getString(&quot;drawee_bank&quot;));
+<span class="nc" id="L684">				chqClearanceBean.setIssuingPartyName(rsCheque</span>
+						.getString(&quot;issuing_party_name&quot;));
+<span class="nc" id="L686">				chqClearanceBean.setAgtOrgName(rsCheque.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L687">				chqClearanceBean.setAgtOrgId(rsCheque.getInt(&quot;agtOrgId&quot;));</span>
+<span class="nc" id="L688">				chqClearanceBean.setTaskId(&quot;&quot; + rsCheque.getInt(&quot;task_id&quot;));</span>
+<span class="nc" id="L689">				logger.debug(&quot;task id for the check&quot;</span>
+						+ rsCheque.getString(&quot;cheque_nbr&quot;) + &quot;is :&quot; + &quot;&quot;
+						+ rsCheque.getInt(&quot;task_id&quot;));
+
+<span class="nc" id="L693">				pendingChqList.add(chqClearanceBean);</span>
+
+			}
+
+<span class="nc" id="L697">			return pendingChqList;</span>
+
+<span class="nc" id="L699">		} catch (SQLException e) {</span>
+<span class="nc" id="L700">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L702">			try {</span>
+<span class="nc bnc" id="L703" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L704">					con.close();</span>
+				}
+<span class="nc" id="L706">			} catch (SQLException se) {</span>
+<span class="nc" id="L707">				se.printStackTrace();</span>
+<span class="nc" id="L708">			}</span>
+<span class="nc" id="L709">		}</span>
+<span class="nc" id="L710">		return null;</span>
+
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

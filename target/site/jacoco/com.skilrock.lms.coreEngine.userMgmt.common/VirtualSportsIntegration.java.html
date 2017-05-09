@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VirtualSportsIntegration.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.userMgmt.common</a> &gt; <span class="el_source">VirtualSportsIntegration.java</span></div><h1>VirtualSportsIntegration.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.userMgmt.common;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.coreEngine.service.ServiceDelegateVS;
+import com.skilrock.lms.coreEngine.virtualSport.beans.VSCommonResponseBean;
+import com.skilrock.lms.coreEngine.virtualSport.beans.VSRequestBean;
+import com.skilrock.lms.coreEngine.virtualSport.beans.VSResponseBean;
+import com.skilrock.lms.coreEngine.virtualSport.common.daoImpl.CommonMethodsDaoImpl;
+
+<span class="nc" id="L24">enum VirtualSportsURL {</span>
+<span class="nc" id="L25">	SESSION_URL(</span>
+			&quot;http://asia-api.golden-race.net/api/?method=auth&amp;uid=7299&amp;hash=72aeb32fe0aebf2f6f67aba298bf442d&amp;key=UepaR6UnUtNKZSrorRc&quot;), 
+<span class="nc" id="L27">	REGISTER_SHOP(</span>
+			&quot;http://asia-api.golden-race.net/api/v2.php?method=admin::add_entity&amp;token=&quot;), 
+<span class="nc" id="L29">	REGISTER_HARDWARE(</span>
+			&quot;http://asia-api.golden-race.net/api/v2.php?method=admin::add_entity&amp;token=&quot;), 
+<span class="nc" id="L31">	REGISTER_RETAILER(</span>
+			&quot;http://asia-api.golden-race.net/api/v2.php?method=admin::add_entity&amp;token=&quot;), 
+<span class="nc" id="L33">	RETAILER_RESET_PASSWORD(</span>
+			&quot;http://asia-api.golden-race.net/api/v2?method=admin::set_staff_hash&amp;token=&quot;), 
+<span class="nc" id="L35">	GET_SALE_TXN_STATUS(</span>
+			&quot;http://asia-api.golden-race.net/api/v2?method=Admin::slw_retry_confirm&amp;transid=&quot;);
+
+	private String value;
+
+<span class="nc" id="L40">	private VirtualSportsURL() {}</span>
+
+<span class="nc" id="L42">	private VirtualSportsURL(String value) {</span>
+<span class="nc" id="L43">		this.value = value;</span>
+<span class="nc" id="L44">	}</span>
+
+	public String getValue() {
+<span class="nc" id="L47">		return value;</span>
+	}
+
+	public void setValue(String value) {
+<span class="nc" id="L51">		this.value = value;</span>
+<span class="nc" id="L52">	}</span>
+}
+
+<span class="nc" id="L55">public class VirtualSportsIntegration {</span>
+	
+<span class="nc" id="L57">	private static final Logger logger = LoggerFactory.getLogger(VirtualSportsIntegration.class);</span>
+	
+<span class="nc" id="L59">	public enum Single {</span>
+<span class="nc" id="L60">		INSTANCE;</span>
+<span class="nc" id="L61">		VirtualSportsIntegration instance = new VirtualSportsIntegration();</span>
+
+		public VirtualSportsIntegration getInstance() {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">			if (instance == null)</span>
+<span class="nc" id="L65">				return new VirtualSportsIntegration();</span>
+			else
+<span class="nc" id="L67">				return instance;</span>
+		}
+	}
+
+	public void registerRetailer(VSRequestBean vsRequestBean) throws LMSException {
+<span class="nc" id="L72">		String url = (String) LMSUtility.sc.getAttribute(&quot;VIRTUAL_BETTING_API_URL&quot;);</span>
+<span class="nc" id="L73">		String sourceId = (String) LMSUtility.sc.getAttribute(&quot;VIRTUAL_BETTING_SOURCE_ID&quot;);</span>
+
+		// Step 1, Create Session
+<span class="nc" id="L76">		VSResponseBean sessionBean = createSession();</span>
+		// Step 2, Open Shop
+<span class="nc" id="L78">		VSResponseBean shopBean = createShop(sessionBean.getVsCommonResponseBean().getSessionToken(), vsRequestBean);</span>
+//		CommonMethodsDaoImpl.getInstance().updateVSShopId(shopBean.getVsCommonResponseBean().getNewEntityId(), orgUserData.getUserId());
+		// Step 3, Register Hardware
+<span class="nc" id="L81">		VSResponseBean hardwareBean = createHardware(sessionBean.getVsCommonResponseBean().getSessionToken(), shopBean.getVsCommonResponseBean().getNewEntityId(), vsRequestBean);</span>
+//		CommonMethodsDaoImpl.getInstance().updateVSPrinterData(hardwareBean.getVsCommonResponseBean().getNewhardWareId(), hardwareBean.getVsCommonResponseBean().getNewEntityId(), orgUserData.getUserId());
+		// Step 4, Register Retailer/Operator
+<span class="nc" id="L84">		VSResponseBean retailerBean = createRetailer(sessionBean.getVsCommonResponseBean().getSessionToken(), hardwareBean.getVsCommonResponseBean().getTargetId(), vsRequestBean);</span>
+//		CommonMethodsDaoImpl.getInstance().updateVsRetailerEntityId(retailerBean.getVsCommonResponseBean().getNewEntityName(), orgUserData.getUserId());
+		// Assign Default Priviledges to the retailer
+<span class="nc" id="L87">		VSResponseBean priviledgeBean = configureDefaultSettings(sessionBean.getVsCommonResponseBean().getSessionToken(), hardwareBean.getVsCommonResponseBean().getNewEntityId(), url, sourceId);</span>
+<span class="nc" id="L88">	}</span>
+	
+	public VSResponseBean resetPassword(VSRequestBean vsRequestBean) throws LMSException {
+<span class="nc" id="L91">		VSResponseBean resetPasswordBean = null;</span>
+		// Step 1, Create Session
+<span class="nc" id="L93">		VSResponseBean sessionBean = createSession();</span>
+		// Step 2, Reset Password
+<span class="nc" id="L95">		String targetId = CommonMethodsDaoImpl.getInstance().fetchVsRetailerEntityId(vsRequestBean.getUserId());</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">		if(targetId != null) {</span>
+<span class="nc" id="L97">			resetPasswordBean = resetPassword(sessionBean.getVsCommonResponseBean().getSessionToken(), targetId, vsRequestBean.getPassword());</span>
+		}
+<span class="nc" id="L99">		return resetPasswordBean;</span>
+	}
+	
+	public VSResponseBean createSession() {
+<span class="nc" id="L103">		VSResponseBean vsResponseBean = null;</span>
+<span class="nc" id="L104">		VSCommonResponseBean vsCommonResponseBean = null;</span>
+<span class="nc" id="L105">		String str = null;</span>
+<span class="nc" id="L106">		InputStream resp = null;</span>
+<span class="nc" id="L107">		NodeList nodeList = null;</span>
+<span class="nc" id="L108">		Node nNode = null;</span>
+		try {
+<span class="nc" id="L110">			str = ServiceDelegateVS.getInstance().getResponseInputStream(VirtualSportsURL.SESSION_URL.getValue());</span>
+<span class="nc" id="L111">			resp = new ByteArrayInputStream(str.getBytes());</span>
+
+<span class="nc bnc" id="L113" title="All 2 branches missed.">			if (resp != null) {</span>
+<span class="nc" id="L114">				vsResponseBean = new VSResponseBean();</span>
+<span class="nc" id="L115">				DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L116">				DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();</span>
+<span class="nc" id="L117">				Document doc = dBuilder.parse(resp);</span>
+<span class="nc" id="L118">				doc.getDocumentElement().normalize();</span>
+
+<span class="nc" id="L120">				nodeList = doc.getElementsByTagName(&quot;xapi_response&quot;);</span>
+<span class="nc" id="L121">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L123">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L124">					vsResponseBean.setMethodName(eElement.getElementsByTagName(&quot;method_called&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L125">					vsResponseBean.setRequestIp(eElement.getElementsByTagName(&quot;request_ip&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L126">					vsResponseBean.setUtcDate(eElement.getElementsByTagName(&quot;utc_date&quot;).item(0).getTextContent());</span>
+				}
+
+<span class="nc" id="L129">				vsCommonResponseBean = new VSCommonResponseBean();</span>
+<span class="nc" id="L130">				nodeList = doc.getElementsByTagName(&quot;response&quot;);</span>
+<span class="nc" id="L131">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L133">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L134">					vsCommonResponseBean.setResult(eElement.getElementsByTagName(&quot;result&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L135">					vsCommonResponseBean.setSessionToken(eElement.getElementsByTagName(&quot;session_token&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L136">					vsResponseBean.setVsCommonResponseBean(vsCommonResponseBean);</span>
+				}
+			}
+<span class="nc" id="L139">		} catch (Exception e) {</span>
+<span class="nc" id="L140">			e.printStackTrace();</span>
+<span class="nc" id="L141">		}</span>
+<span class="nc" id="L142">		System.out.println(vsResponseBean);</span>
+<span class="nc" id="L143">		return vsResponseBean;</span>
+	}
+	
+	public VSResponseBean createShop(String sessionToken, VSRequestBean vsRequestBean) {
+<span class="nc" id="L147">		VSResponseBean vsResponseBean = null;</span>
+<span class="nc" id="L148">		String str = null;</span>
+<span class="nc" id="L149">		InputStream resp = null;</span>
+<span class="nc" id="L150">		VSCommonResponseBean vsCommonResponseBean = null;</span>
+<span class="nc" id="L151">		NodeList nodeList = null;</span>
+<span class="nc" id="L152">		Node nNode = null;</span>
+
+<span class="nc" id="L154">		StringBuilder url = new StringBuilder().append(VirtualSportsURL.REGISTER_SHOP.getValue()).append(sessionToken).append(&quot;&amp;target_id=7297&amp;entity_type=11&amp;entity_name=&quot;).append(vsRequestBean.getOrgName());</span>
+		try {
+<span class="nc" id="L156">			str = ServiceDelegateVS.getInstance().getResponseInputStream(url.toString());</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">			if(str != null) {</span>
+<span class="nc" id="L158">				resp = new ByteArrayInputStream(str.getBytes());</span>
+<span class="nc" id="L159">				vsResponseBean = new VSResponseBean();</span>
+<span class="nc" id="L160">				DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L161">				DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();</span>
+<span class="nc" id="L162">				Document doc = dBuilder.parse(resp);</span>
+<span class="nc" id="L163">				doc.getDocumentElement().normalize();</span>
+
+<span class="nc" id="L165">				nodeList = doc.getElementsByTagName(&quot;xapi_response&quot;);</span>
+<span class="nc" id="L166">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L168">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L169">					vsResponseBean.setMethodName(eElement.getElementsByTagName(&quot;method_called&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L170">					vsResponseBean.setRequestIp(eElement.getElementsByTagName(&quot;request_ip&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L171">					vsResponseBean.setUtcDate(eElement.getElementsByTagName(&quot;utc_date&quot;).item(0).getTextContent());</span>
+				}
+
+<span class="nc" id="L174">				vsCommonResponseBean = new VSCommonResponseBean();</span>
+<span class="nc" id="L175">				nodeList = doc.getElementsByTagName(&quot;response&quot;);</span>
+<span class="nc" id="L176">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L178">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L179">					vsCommonResponseBean.setResult(eElement.getElementsByTagName(&quot;result&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L180">					vsCommonResponseBean.setTargetId(eElement.getElementsByTagName(&quot;target_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L181">					vsCommonResponseBean.setNewEntityId(eElement.getElementsByTagName(&quot;new_entity_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L182">					vsCommonResponseBean.setNewEntityName(eElement.getElementsByTagName(&quot;new_entity_name&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L183">					vsResponseBean.setVsCommonResponseBean(vsCommonResponseBean);</span>
+				}
+				
+<span class="nc" id="L186">				CommonMethodsDaoImpl.getInstance().updateVSShopId(vsResponseBean.getVsCommonResponseBean().getNewEntityId(), vsRequestBean.getUserId());</span>
+			}
+<span class="nc" id="L188">		} catch (Exception e) {</span>
+<span class="nc" id="L189">			e.printStackTrace();</span>
+<span class="nc" id="L190">		}</span>
+<span class="nc" id="L191">		System.out.println(vsResponseBean);</span>
+<span class="nc" id="L192">		return vsResponseBean;</span>
+	}
+
+	public VSResponseBean createHardware(String sessionToken, String entityId, VSRequestBean vsRequestBean) {
+<span class="nc" id="L196">		VSResponseBean vsResponseBean = null;</span>
+<span class="nc" id="L197">		String str = null;</span>
+<span class="nc" id="L198">		InputStream resp = null;</span>
+<span class="nc" id="L199">		VSCommonResponseBean vsCommonResponseBean = null;</span>
+<span class="nc" id="L200">		NodeList nodeList = null;</span>
+<span class="nc" id="L201">		Node nNode = null;</span>
+
+<span class="nc" id="L203">		StringBuilder url = new StringBuilder().append(VirtualSportsURL.REGISTER_HARDWARE.getValue()).append(sessionToken).append(&quot;&amp;target_id=&quot;).append(entityId).append(&quot;&amp;entity_type=16&amp;entity_name=&quot;).append(vsRequestBean.getTerminalId());</span>
+		try {
+<span class="nc" id="L205">			str = ServiceDelegateVS.getInstance().getResponseInputStream(url.toString());</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">			if(str != null) {</span>
+<span class="nc" id="L207">				resp = new ByteArrayInputStream(str.getBytes());</span>
+<span class="nc" id="L208">				vsResponseBean = new VSResponseBean();</span>
+<span class="nc" id="L209">				DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L210">				DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();</span>
+<span class="nc" id="L211">				Document doc = dBuilder.parse(resp);</span>
+<span class="nc" id="L212">				doc.getDocumentElement().normalize();</span>
+
+<span class="nc" id="L214">				nodeList = doc.getElementsByTagName(&quot;xapi_response&quot;);</span>
+<span class="nc" id="L215">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L217">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L218">					vsResponseBean.setMethodName(eElement.getElementsByTagName(&quot;method_called&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L219">					vsResponseBean.setRequestIp(eElement.getElementsByTagName(&quot;request_ip&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L220">					vsResponseBean.setUtcDate(eElement.getElementsByTagName(&quot;utc_date&quot;).item(0).getTextContent());</span>
+				}
+
+<span class="nc" id="L223">				vsCommonResponseBean = new VSCommonResponseBean();</span>
+<span class="nc" id="L224">				nodeList = doc.getElementsByTagName(&quot;response&quot;);</span>
+<span class="nc" id="L225">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L227">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L228">					vsCommonResponseBean.setResult(eElement.getElementsByTagName(&quot;result&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L229">					vsCommonResponseBean.setTargetId(eElement.getElementsByTagName(&quot;target_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L230">					vsCommonResponseBean.setNewEntityId(eElement.getElementsByTagName(&quot;new_entity_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L231">					vsCommonResponseBean.setNewEntityName(eElement.getElementsByTagName(&quot;new_entity_name&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L232">					vsCommonResponseBean.setNewhardWareId(eElement.getElementsByTagName(&quot;new_hardware_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L233">					vsResponseBean.setVsCommonResponseBean(vsCommonResponseBean);</span>
+				}
+<span class="nc" id="L235">				CommonMethodsDaoImpl.getInstance().updateVSPrinterData(vsResponseBean.getVsCommonResponseBean().getNewhardWareId(), vsResponseBean.getVsCommonResponseBean().getNewEntityId(), vsRequestBean.getUserId());</span>
+
+			}
+<span class="nc" id="L238">		} catch (Exception e) {</span>
+<span class="nc" id="L239">			e.printStackTrace();</span>
+<span class="nc" id="L240">		}</span>
+<span class="nc" id="L241">		System.out.println(vsResponseBean);</span>
+<span class="nc" id="L242">		return vsResponseBean;</span>
+	}
+
+	public VSResponseBean createRetailer(String sessionToken, String targetId, VSRequestBean vsRequestBean) {
+<span class="nc" id="L246">		VSResponseBean vsResponseBean = null;</span>
+<span class="nc" id="L247">		String str = null;</span>
+<span class="nc" id="L248">		InputStream resp = null;</span>
+<span class="nc" id="L249">		VSCommonResponseBean vsCommonResponseBean = null;</span>
+<span class="nc" id="L250">		NodeList nodeList = null;</span>
+<span class="nc" id="L251">		Node nNode = null;</span>
+
+<span class="nc" id="L253">		StringBuilder url = new StringBuilder().append(VirtualSportsURL.REGISTER_RETAILER.getValue()).append(sessionToken).append(&quot;&amp;target_id=&quot;).append(targetId).append(&quot;&amp;entity_type=13&amp;entity_name=&quot;).append(vsRequestBean.getUserName());</span>
+		try {
+<span class="nc" id="L255">			str = ServiceDelegateVS.getInstance().getResponseInputStream(url.toString());</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">			if(str != null) {</span>
+<span class="nc" id="L257">				resp = new ByteArrayInputStream(str.getBytes());</span>
+<span class="nc" id="L258">				vsResponseBean = new VSResponseBean();</span>
+<span class="nc" id="L259">				DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L260">				DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();</span>
+<span class="nc" id="L261">				Document doc = dBuilder.parse(resp);</span>
+<span class="nc" id="L262">				doc.getDocumentElement().normalize();</span>
+
+<span class="nc" id="L264">				nodeList = doc.getElementsByTagName(&quot;xapi_response&quot;);</span>
+<span class="nc" id="L265">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L267">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L268">					vsResponseBean.setMethodName(eElement.getElementsByTagName(&quot;method_called&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L269">					vsResponseBean.setRequestIp(eElement.getElementsByTagName(&quot;request_ip&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L270">					vsResponseBean.setUtcDate(eElement.getElementsByTagName(&quot;utc_date&quot;).item(0).getTextContent());</span>
+				}
+
+<span class="nc" id="L273">				vsCommonResponseBean = new VSCommonResponseBean();</span>
+<span class="nc" id="L274">				nodeList = doc.getElementsByTagName(&quot;response&quot;);</span>
+<span class="nc" id="L275">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L277">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L278">					vsCommonResponseBean.setResult(eElement.getElementsByTagName(&quot;result&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L279">					vsCommonResponseBean.setTargetId(eElement.getElementsByTagName(&quot;target_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L280">					vsCommonResponseBean.setNewEntityId(eElement.getElementsByTagName(&quot;new_entity_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L281">					vsCommonResponseBean.setNewEntityName(eElement.getElementsByTagName(&quot;new_entity_name&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L282">					vsResponseBean.setVsCommonResponseBean(vsCommonResponseBean);</span>
+				}
+<span class="nc" id="L284">				CommonMethodsDaoImpl.getInstance().updateVsRetailerEntityId(vsResponseBean.getVsCommonResponseBean().getNewEntityId(), vsRequestBean.getUserId());</span>
+
+			}
+<span class="nc" id="L287">		} catch (Exception e) {</span>
+<span class="nc" id="L288">			e.printStackTrace();</span>
+<span class="nc" id="L289">		}</span>
+<span class="nc" id="L290">		return vsResponseBean;</span>
+	}
+	
+	public VSResponseBean resetPassword(String sessionToken, String targetId, String password) {
+<span class="nc" id="L294">		VSResponseBean vsResponseBean = null;</span>
+<span class="nc" id="L295">		String str = null;</span>
+<span class="nc" id="L296">		InputStream resp = null;</span>
+<span class="nc" id="L297">		VSCommonResponseBean vsCommonResponseBean = null;</span>
+<span class="nc" id="L298">		NodeList nodeList = null;</span>
+<span class="nc" id="L299">		Node nNode = null;</span>
+
+<span class="nc" id="L301">		StringBuilder url = new StringBuilder().append(VirtualSportsURL.RETAILER_RESET_PASSWORD.getValue()).append(sessionToken).append(&quot;&amp;target_id=&quot;).append(targetId).append(&quot;&amp;pin_hash=&quot;).append(password.replaceAll(&quot;==&quot;, &quot;--&quot;));</span>
+		try {
+<span class="nc" id="L303">			str = ServiceDelegateVS.getInstance().getResponseInputStream(url.toString());</span>
+<span class="nc bnc" id="L304" title="All 2 branches missed.">			if (str != null) {</span>
+<span class="nc" id="L305">				resp = new ByteArrayInputStream(str.getBytes());</span>
+<span class="nc" id="L306">				vsResponseBean = new VSResponseBean();</span>
+<span class="nc" id="L307">				DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L308">				DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();</span>
+<span class="nc" id="L309">				Document doc = dBuilder.parse(resp);</span>
+<span class="nc" id="L310">				doc.getDocumentElement().normalize();</span>
+
+<span class="nc" id="L312">				nodeList = doc.getElementsByTagName(&quot;xapi_response&quot;);</span>
+<span class="nc" id="L313">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L315">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L316">					vsResponseBean.setMethodName(eElement.getElementsByTagName(&quot;method_called&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L317">					vsResponseBean.setRequestIp(eElement.getElementsByTagName(&quot;request_ip&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L318">					vsResponseBean.setUtcDate(eElement.getElementsByTagName(&quot;utc_date&quot;).item(0).getTextContent());</span>
+				}
+
+<span class="nc" id="L321">				vsCommonResponseBean = new VSCommonResponseBean();</span>
+<span class="nc" id="L322">				nodeList = doc.getElementsByTagName(&quot;response&quot;);</span>
+<span class="nc" id="L323">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L325">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L326">					vsCommonResponseBean.setResult(eElement.getElementsByTagName(&quot;result&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L327">					vsCommonResponseBean.setTargetId(eElement.getElementsByTagName(&quot;target_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L328">					vsCommonResponseBean.setNewPinHash(eElement.getElementsByTagName(&quot;new_pin_hash&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L329">					vsResponseBean.setVsCommonResponseBean(vsCommonResponseBean);</span>
+				}
+			}
+<span class="nc" id="L332">		} catch (Exception e) {</span>
+<span class="nc" id="L333">			e.printStackTrace();</span>
+<span class="nc" id="L334">		}</span>
+<span class="nc" id="L335">		return vsResponseBean;</span>
+	}
+	
+	public VSResponseBean getSaleTxnStatus(VSRequestBean vsRequestBean) throws LMSException {
+		// Step 1, Create Session
+<span class="nc" id="L340">		VSResponseBean sessionBean = createSession();</span>
+		// Step 2, Reset Password
+<span class="nc" id="L342">		VSResponseBean txnStatusBean = getSaleTxnStatus(sessionBean.getVsCommonResponseBean().getSessionToken(), vsRequestBean.getTxnId());</span>
+<span class="nc" id="L343">		return txnStatusBean;</span>
+	}
+	
+	public VSResponseBean getSaleTxnStatus(String sessionToken, String transId) {
+<span class="nc" id="L347">		VSResponseBean vsResponseBean = null;</span>
+<span class="nc" id="L348">		String str = null;</span>
+<span class="nc" id="L349">		InputStream resp = null;</span>
+<span class="nc" id="L350">		VSCommonResponseBean vsCommonResponseBean = null;</span>
+<span class="nc" id="L351">		NodeList nodeList = null;</span>
+<span class="nc" id="L352">		Node nNode = null;</span>
+
+<span class="nc" id="L354">		StringBuilder url = new StringBuilder().append(VirtualSportsURL.GET_SALE_TXN_STATUS.getValue()).append(transId).append(&quot;&amp;token=&quot;).append(sessionToken);</span>
+		try {
+<span class="nc" id="L356">			str = ServiceDelegateVS.getInstance().getResponseInputStream(url.toString());</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">			if (str != null) {</span>
+<span class="nc" id="L358">				resp = new ByteArrayInputStream(str.getBytes());</span>
+<span class="nc" id="L359">				vsResponseBean = new VSResponseBean();</span>
+<span class="nc" id="L360">				DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L361">				DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();</span>
+<span class="nc" id="L362">				Document doc = dBuilder.parse(resp);</span>
+<span class="nc" id="L363">				doc.getDocumentElement().normalize();</span>
+
+<span class="nc" id="L365">				nodeList = doc.getElementsByTagName(&quot;xapi_response&quot;);</span>
+<span class="nc" id="L366">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L367" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L368">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L369">					vsResponseBean.setMethodName(eElement.getElementsByTagName(&quot;method_called&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L370">					vsResponseBean.setRequestIp(eElement.getElementsByTagName(&quot;request_ip&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L371">					vsResponseBean.setUtcDate(eElement.getElementsByTagName(&quot;utc_date&quot;).item(0).getTextContent());</span>
+				}
+
+<span class="nc" id="L374">				vsCommonResponseBean = new VSCommonResponseBean();</span>
+<span class="nc" id="L375">				nodeList = doc.getElementsByTagName(&quot;response&quot;);</span>
+<span class="nc" id="L376">				nNode = nodeList.item(0);</span>
+<span class="nc" id="L377">				String result = null;</span>
+<span class="nc bnc" id="L378" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L379">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L380">					result = eElement.getElementsByTagName(&quot;result&quot;).item(0).getTextContent();</span>
+<span class="nc" id="L381">					vsCommonResponseBean.setResult(result);</span>
+<span class="nc bnc" id="L382" title="All 2 branches missed.">					if(&quot;success&quot;.equalsIgnoreCase(result))</span>
+<span class="nc" id="L383">						logger.info(eElement.getElementsByTagName(&quot;slw_response&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L384">					vsResponseBean.setVsCommonResponseBean(vsCommonResponseBean);</span>
+				}
+				
+			}
+<span class="nc" id="L388">		} catch (Exception e) {</span>
+<span class="nc" id="L389">			e.printStackTrace();</span>
+<span class="nc" id="L390">		}</span>
+<span class="nc" id="L391">		return vsResponseBean;</span>
+	}
+	
+	public VSResponseBean configureDefaultSettings(String sessionToken, String targetId, String URL, String sourceId) {
+<span class="nc" id="L395">		VSResponseBean vsResponseBean = null;</span>
+<span class="nc" id="L396">		String str = null;</span>
+<span class="nc" id="L397">		InputStream resp = null;</span>
+<span class="nc" id="L398">		VSCommonResponseBean vsCommonResponseBean = null;</span>
+<span class="nc" id="L399">		NodeList nodeList = null;</span>
+<span class="nc" id="L400">		Node nNode = null;</span>
+
+<span class="nc" id="L402">		StringBuilder url = new StringBuilder().append(URL).append(&quot;api/v2.php?method=admin::set_configurator&amp;token=&quot;).append(sessionToken).append(&quot;&amp;source_id=&quot;).append(sourceId).append(&quot;&amp;target_id=&quot;).append(targetId).append(&quot;&amp;target_section=all&quot;);</span>
+		try {
+<span class="nc" id="L404">			str = ServiceDelegateVS.getInstance().getResponseInputStream(url.toString());</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">			if(str != null) {</span>
+<span class="nc" id="L406">				resp = new ByteArrayInputStream(str.getBytes());</span>
+<span class="nc" id="L407">				vsResponseBean = new VSResponseBean();</span>
+<span class="nc" id="L408">				DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L409">				DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();</span>
+<span class="nc" id="L410">				Document doc = dBuilder.parse(resp);</span>
+<span class="nc" id="L411">				doc.getDocumentElement().normalize();</span>
+
+<span class="nc" id="L413">				nodeList = doc.getElementsByTagName(&quot;xapi_response&quot;);</span>
+<span class="nc" id="L414">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L415" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L416">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L417">					vsResponseBean.setMethodName(eElement.getElementsByTagName(&quot;method_called&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L418">					vsResponseBean.setRequestIp(eElement.getElementsByTagName(&quot;request_ip&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L419">					vsResponseBean.setUtcDate(eElement.getElementsByTagName(&quot;utc_date&quot;).item(0).getTextContent());</span>
+				}
+
+<span class="nc" id="L422">				vsCommonResponseBean = new VSCommonResponseBean();</span>
+<span class="nc" id="L423">				nodeList = doc.getElementsByTagName(&quot;response&quot;);</span>
+<span class="nc" id="L424">				nNode = nodeList.item(0);</span>
+<span class="nc bnc" id="L425" title="All 2 branches missed.">				if (nNode.getNodeType() == Node.ELEMENT_NODE) {</span>
+<span class="nc" id="L426">					Element eElement = (Element) nNode;</span>
+<span class="nc" id="L427">					vsCommonResponseBean.setResult(eElement.getElementsByTagName(&quot;result&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L428">					vsCommonResponseBean.setSourceId(eElement.getElementsByTagName(&quot;source_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L429">					vsCommonResponseBean.setTargetId(eElement.getElementsByTagName(&quot;target_id&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L430">					vsCommonResponseBean.setTargetSection(eElement.getElementsByTagName(&quot;target_section&quot;).item(0).getTextContent());</span>
+<span class="nc" id="L431">					vsResponseBean.setVsCommonResponseBean(vsCommonResponseBean);</span>
+				}
+			}
+<span class="nc" id="L434">		} catch (Exception e) {</span>
+<span class="nc" id="L435">			e.printStackTrace();</span>
+<span class="nc" id="L436">		}</span>
+<span class="nc" id="L437">		return vsResponseBean;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

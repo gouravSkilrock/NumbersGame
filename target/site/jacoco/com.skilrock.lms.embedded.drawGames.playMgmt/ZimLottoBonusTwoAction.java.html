@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZimLottoBonusTwoAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.embedded.drawGames.playMgmt</a> &gt; <span class="el_source">ZimLottoBonusTwoAction.java</span></div><h1>ZimLottoBonusTwoAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.embedded.drawGames.playMgmt;
+
+import java.io.IOException;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.ConfigurationVariables;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.coreEngine.drawGames.common.DGErrorMsg;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.dge.beans.LottoPurchaseBean;
+import com.skilrock.lms.dge.beans.RafflePurchaseBean;
+import com.skilrock.lms.dge.gameconstants.ZimLottoBonusTwoConstants;
+import com.skilrock.lms.embedded.drawGames.common.CommonMethods;
+import com.skilrock.lms.embedded.drawGames.common.EmbeddedErrors;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.lms.web.drawGames.common.UtilApplet;
+
+<span class="nc" id="L39">public class ZimLottoBonusTwoAction extends ActionSupport implements</span>
+ServletRequestAware, ServletResponseAware{
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+<span class="nc" id="L45">	private static Log logger =LogFactory.getLog(ZimLottoBonusTwoAction.class);</span>
+	private int betAmountMultiple;
+	private String[] drawIdArr;
+<span class="nc" id="L48">	private int gameId = Util.getGameId(&quot;ZimLottoBonusTwo&quot;);</span>
+	private int isAdvancedPlay;
+	private LottoPurchaseBean lottoPurchaseBean;
+	private int noOfDraws;
+	private String pickedNumbers;
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+	private String totalPurchaseAmt;
+	private String userName;
+	private String playType;
+	private int noPicked;
+    private long LSTktNo;
+    private String plrMobileNumber;
+    
+    public void purchaseTicketProcess(){
+<span class="nc" id="L63">    	ServletContext sc = ServletActionContext.getServletContext();</span>
+    	try{
+<span class="nc" id="L65">			String isDraw = (String) sc.getAttribute(&quot;IS_DRAW&quot;);</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">    		if (isDraw.equalsIgnoreCase(&quot;NO&quot;)) {</span>
+<span class="nc" id="L67">				response.getOutputStream().write((&quot;ErrorMsg:&quot; + EmbeddedErrors.DRAW_GAME_NOT_AVAILABLE).getBytes());</span>
+<span class="nc" id="L68">				return;</span>
+			}
+<span class="nc" id="L70">			Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L71">			HttpSession session = (HttpSession) currentUserSessionMap.get(userName);</span>
+<span class="nc" id="L72">			UserInfoBean userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L73">			List&lt;String&gt; playerPicked = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L74">			String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L75">			int autoCancelHoldDays=Integer.parseInt((String) sc.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;)); </span>
+<span class="nc" id="L76">			Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap = (Map&lt;Integer, Map&lt;Integer, String&gt;&gt;) sc.getAttribute(&quot;drawIdTableMap&quot;);</span>
+			
+<span class="nc" id="L78">			int serviceId = Util.getServiceIdFormCode(request.getAttribute(&quot;code&quot;).toString());</span>
+<span class="nc bnc" id="L79" title="All 4 branches missed.">			if(serviceId==0 || userBean.getCurrentUserMappingId() == 0){</span>
+<span class="nc" id="L80">				throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE ,  LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+			}
+
+<span class="nc" id="L83">			String purchaseChannel = &quot;LMS_Terminal&quot;;</span>
+<span class="nc" id="L84">			String[] picknumbers = pickedNumbers.split(&quot;Nxt&quot;);</span>
+			
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if (!&quot;Perm6&quot;.equals(playType)) {</span>
+<span class="nc" id="L87">				int noOfLines=picknumbers.length;</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">				if(noOfLines &gt; ZimLottoBonusTwoConstants.MAX_LINES_DIRECT6){</span>
+
+<span class="nc" id="L90">					String finalPurchaseData = &quot;ErrorMsg: You can not choose more than &quot;+ZimLottoBonusTwoConstants.MAX_LINES_DIRECT6+&quot; lines|&quot;;</span>
+<span class="nc" id="L91">					System.out.println(&quot;FINAL PURCHASE DATA ZIMLOTTOBonusTwo:&quot; + finalPurchaseData);</span>
+<span class="nc" id="L92">					response.getOutputStream().write(finalPurchaseData.getBytes());</span>
+<span class="nc" id="L93">					return;</span>
+				
+				}
+			}
+			
+<span class="nc" id="L98">			LottoPurchaseBean lottoPurchaseBean = new LottoPurchaseBean();</span>
+<span class="nc" id="L99">			lottoPurchaseBean.setDrawIdTableMap(drawIdTableMap);</span>
+<span class="nc" id="L100">			lottoPurchaseBean.setGame_no(Util.getGameNumberFromGameId(gameId));</span>
+<span class="nc" id="L101">			lottoPurchaseBean.setGameId(gameId);</span>
+<span class="nc" id="L102">			lottoPurchaseBean.setGameDispName(Util.getGameDisplayName(gameId));</span>
+<span class="nc" id="L103">			lottoPurchaseBean.setNoOfDraws(noOfDraws);</span>
+<span class="nc" id="L104">			lottoPurchaseBean.setPartyId(userBean.getUserOrgId());</span>
+<span class="nc" id="L105">			lottoPurchaseBean.setPartyType(userBean.getUserType());</span>
+<span class="nc" id="L106">			lottoPurchaseBean.setUserId(userBean.getUserId());</span>
+<span class="nc" id="L107">			lottoPurchaseBean.setRefMerchantId(refMerchantId);</span>
+<span class="nc" id="L108">			lottoPurchaseBean.setPurchaseChannel(purchaseChannel);</span>
+<span class="nc" id="L109">			lottoPurchaseBean.setIsAdvancedPlay(isAdvancedPlay);</span>
+<span class="nc" id="L110">			lottoPurchaseBean.setPlayType(playType);</span>
+<span class="nc" id="L111">			lottoPurchaseBean.setNoPicked(noPicked);</span>
+<span class="nc" id="L112">			lottoPurchaseBean.setPickedNumbers(pickedNumbers);</span>
+<span class="nc" id="L113">			lottoPurchaseBean.setPlrMobileNumber(plrMobileNumber);</span>
+<span class="nc" id="L114">			lottoPurchaseBean.setUserMappingId(userBean.getCurrentUserMappingId());</span>
+<span class="nc" id="L115">			lottoPurchaseBean.setServiceId(serviceId);</span>
+<span class="nc" id="L116">			String barcodeType = (String)sc.getAttribute(&quot;BARCODE_TYPE&quot;);</span>
+<span class="nc" id="L117">			lottoPurchaseBean.setBarcodeType(barcodeType);</span>
+			
+			
+			
+			
+<span class="nc bnc" id="L122" title="All 2 branches missed.">			if (drawIdArr != null) {</span>
+<span class="nc" id="L123">				lottoPurchaseBean.setDrawDateTime(Arrays.asList(drawIdArr));</span>
+			}
+<span class="nc" id="L125">			lottoPurchaseBean.setPlayerPicked(playerPicked);</span>
+<span class="nc" id="L126">			lottoPurchaseBean.setPicknumbers(picknumbers);</span>
+<span class="nc" id="L127">			String finalPurchaseData = null;</span>
+<span class="nc" id="L128">			long lastPrintedTicket=0;</span>
+<span class="nc" id="L129">			int lstGameId =0;</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">			if(LSTktNo !=0){</span>
+<span class="nc" id="L131">				lastPrintedTicket = LSTktNo/Util.getDivValueForLastSoldTkt(String.valueOf(LSTktNo).length());</span>
+<span class="nc" id="L132">				lstGameId = Util.getGameIdFromGameNumber(Util.getGamenoFromTktnumber(String.valueOf(LSTktNo)));</span>
+			}
+<span class="nc" id="L134">			String actionName=ActionContext.getContext().getName();</span>
+<span class="nc" id="L135">			lottoPurchaseBean.setLastSoldTicketNo(String.valueOf(lastPrintedTicket));</span>
+<span class="nc" id="L136">			lottoPurchaseBean.setActionName(actionName);</span>
+<span class="nc" id="L137">			lottoPurchaseBean.setLastGameId(lstGameId);</span>
+<span class="nc" id="L138">			lottoPurchaseBean.setDeviceType(&quot;TERMINAL&quot;);</span>
+<span class="nc" id="L139">			DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+			//helper.checkLastPrintedTicketStatusAndUpdate(userBean,lastPrintedTicket,&quot;TERMINAL&quot;,refMerchantId,autoCancelHoldDays,actionName,lstGameId);
+<span class="nc bnc" id="L141" title="All 2 branches missed.">			if (picknumbers.length &lt; 1) {</span>
+<span class="nc" id="L142">				lottoPurchaseBean.setSaleStatus(&quot;ERROR&quot;);</span>
+				// return SUCCESS;
+<span class="nc" id="L144">				finalPurchaseData = &quot;ErrorMsg:&quot;+ EmbeddedErrors.PURCHSE_INVALID_DATA;</span>
+<span class="nc" id="L145">				logger.info(&quot;FINAL PURCHASE DATA ZIMLOTTOBonusTwo:&quot; + finalPurchaseData);</span>
+<span class="nc" id="L146">				response.getOutputStream().write(finalPurchaseData.getBytes());</span>
+<span class="nc" id="L147">				return;</span>
+			}
+<span class="nc bnc" id="L149" title="All 2 branches missed.">			for (int i = 0; i &lt; picknumbers.length; i++) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">				if (!&quot;QP&quot;.equals(picknumbers[i])) {</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">					if (!Util.validateNumber(ConfigurationVariables.ZIMLOTTOBONUSTWO_START_RANGE,ConfigurationVariables.ZIMLOTTOBONUSTWO_END_RANGE, picknumbers[i],false)) {</span>
+<span class="nc" id="L152">						lottoPurchaseBean.setSaleStatus(&quot;ERROR&quot;);</span>
+<span class="nc" id="L153">						finalPurchaseData = &quot;ErrorMsg:&quot;+ EmbeddedErrors.PURCHSE_INVALID_DATA;</span>
+<span class="nc" id="L154">						logger.info(&quot;FINAL PURCHASE DATA ZIMLOTTOBONUSTwo:&quot;+ finalPurchaseData);</span>
+<span class="nc" id="L155">						response.getOutputStream().write(finalPurchaseData.getBytes());</span>
+<span class="nc" id="L156">						return;</span>
+					}
+				}
+			}
+<span class="nc" id="L160">			setLottoPurchaseBean(helper.zimLottoBonusTwoPurchaseTicket(userBean,lottoPurchaseBean));</span>
+<span class="nc" id="L161">			lottoPurchaseBean = getLottoPurchaseBean();</span>
+<span class="nc" id="L162">			String saleStatus = getLottoPurchaseBean().getSaleStatus();</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">			if (!&quot;SUCCESS&quot;.equalsIgnoreCase(saleStatus)) {</span>
+<span class="nc" id="L164">				finalPurchaseData = &quot;ErrorMsg:&quot; + DGErrorMsg.buyErrMsg(saleStatus)+ &quot;|&quot;;</span>
+<span class="nc" id="L165">				System.out.println(&quot;FINAL PURCHASE DATA ZIMLOTTOBonusTwo:&quot; + finalPurchaseData);</span>
+<span class="nc" id="L166">				response.getOutputStream().write(finalPurchaseData.getBytes());</span>
+<span class="nc" id="L167">				return;</span>
+			}
+<span class="nc" id="L169">			String time = lottoPurchaseBean.getPurchaseTime()</span>
+			.replace(&quot; &quot;, &quot;|Time:&quot;).replace(&quot;.0&quot;, &quot;&quot;);
+
+	
+<span class="nc" id="L173">			double bal = userBean.getAvailableCreditLimit()- userBean.getClaimableBal();</span>
+<span class="nc" id="L174">			NumberFormat nf = NumberFormat.getInstance();</span>
+<span class="nc" id="L175">			nf.setMinimumFractionDigits(2);</span>
+	
+<span class="nc" id="L177">			String balance = nf.format(bal).replaceAll(&quot;,&quot;, &quot;&quot;);</span>
+<span class="nc" id="L178">			int listSize = lottoPurchaseBean.getDrawDateTime().size();</span>
+<span class="nc" id="L179">			StringBuilder drawTimeBuild = new StringBuilder(&quot;&quot;);</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">			for (int i = 0; i &lt; listSize; i++) {</span>
+<span class="nc" id="L181">					drawTimeBuild.append((&quot;|DrawDate:&quot; + lottoPurchaseBean.getDrawDateTime().get(i)).replaceFirst(&quot; &quot;, &quot;#&quot;).replace(&quot;#&quot;, &quot;|DrawTime:&quot;).replace(&quot;&amp;&quot;, &quot;|DrawId:&quot;).replace(&quot;.0&quot;, &quot;&quot;));</span>
+				}
+<span class="nc" id="L183">			StringBuilder stBuilder = new StringBuilder(&quot;&quot;);</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">			for (int i = 0; i &lt; lottoPurchaseBean.getPlayerPicked().size(); i++) {</span>
+<span class="nc" id="L185">						stBuilder.append(&quot;|Num:&quot;+ lottoPurchaseBean.getPlayerPicked().get(i) + &quot;|QP:&quot;+ lottoPurchaseBean.getIsQuickPick()[i]);</span>
+			}
+
+<span class="nc" id="L188">			StringBuilder topMsgsStr = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L189">			StringBuilder bottomMsgsStr = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L190">			String advtMsg = &quot;&quot;;</span>
+
+<span class="nc" id="L192">			UtilApplet.getAdvMsgs(lottoPurchaseBean.getAdvMsg(), topMsgsStr,bottomMsgsStr, 10);</span>
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">			if (topMsgsStr.length() != 0) {</span>
+<span class="nc" id="L195">					advtMsg = &quot;topAdvMsg:&quot; + topMsgsStr + &quot;|&quot;;</span>
+			}
+
+<span class="nc bnc" id="L198" title="All 2 branches missed.">			if (bottomMsgsStr.length() != 0) {</span>
+<span class="nc" id="L199">					advtMsg = advtMsg + &quot;bottomAdvMsg:&quot; + bottomMsgsStr;</span>
+			}
+
+<span class="nc" id="L202">			List&lt;RafflePurchaseBean&gt; rafflePurchaseBeanList = lottoPurchaseBean.getRafflePurchaseBeanList();</span>
+<span class="nc" id="L203">			String raffleData = CommonMethods.buildRaffleData(rafflePurchaseBeanList);</span>
+
+<span class="nc" id="L205">			String promoData=&quot;&quot;;</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">			if(lottoPurchaseBean.getPromoPurchaseBeanList()!=null){</span>
+<span class="nc" id="L207">				List&lt;LottoPurchaseBean&gt; promoPurchaseBeanList=lottoPurchaseBean.getPromoPurchaseBeanList();</span>
+<span class="nc" id="L208">				promoData=buildSaleDataforZimlottoBonusTwoFree(promoPurchaseBeanList,userBean);</span>
+			}
+<span class="nc bnc" id="L210" title="All 2 branches missed.">	finalPurchaseData = &quot;TicketNo:&quot; + lottoPurchaseBean.getTicket_no()</span>
+			+ lottoPurchaseBean.getReprintCount()+&quot;|brCd:&quot;+lottoPurchaseBean.getTicket_no() + lottoPurchaseBean.getReprintCount()+((ConfigurationVariables.currentTktLen == ConfigurationVariables.tktLenB &amp;&amp; LMSFilterDispatcher.isBarCodeRequired)? lottoPurchaseBean.getBarcodeCount():&quot;&quot;)+&quot;|Date:&quot; + time
+			+ &quot;|PlayType:&quot; + lottoPurchaseBean.getPlayType()
+			+ stBuilder.toString() + &quot;|TicketCost:&quot;
+			+ lottoPurchaseBean.getTotalPurchaseAmt()
+			+ drawTimeBuild.toString() + &quot;|balance:&quot; + balance + &quot;|&quot;
+			+ advtMsg +&quot;|&quot;+ raffleData +promoData;
+
+<span class="nc" id="L218">	logger.info(&quot;FINAL PURCHASE DATA ZIMLOTTOBONUSTWO:&quot; + finalPurchaseData);</span>
+<span class="nc" id="L219">	request.setAttribute(&quot;purchaseData&quot;, finalPurchaseData);</span>
+<span class="nc" id="L220">	String smsData = com.skilrock.lms.common.utility.CommonMethods.prepareSMSData(new String[]{lottoPurchaseBean.getPickedNumbers()}, new String[]{lottoPurchaseBean.getPlayType()}, new StringBuilder(String.valueOf(lottoPurchaseBean.getTotalPurchaseAmt())), new StringBuilder(lottoPurchaseBean.getTicket_no()), lottoPurchaseBean.getDrawDateTime());</span>
+<span class="nc" id="L221">	com.skilrock.lms.common.utility.CommonMethods.sendSMS(smsData);</span>
+<span class="nc" id="L222">	response.getOutputStream().write(finalPurchaseData.getBytes());</span>
+<span class="nc" id="L223">	}catch (LMSException e) {</span>
+<span class="nc" id="L224">		e.printStackTrace();</span>
+		try {
+<span class="nc" id="L226">			response.getOutputStream().write(&quot;ErrorMsg:Error!Try Again&quot;.getBytes());</span>
+<span class="nc" id="L227">		} catch (IOException e1) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L229">			e1.printStackTrace();</span>
+<span class="nc" id="L230">		}</span>
+<span class="nc" id="L231">		return;</span>
+<span class="nc" id="L232">	}catch (Exception e) {</span>
+<span class="nc" id="L233">		logger.info(&quot;FINAL PURCHASE DATA ZIMLOTTOBONUS:Error!Try Again&quot;,e);</span>
+		try {
+<span class="nc" id="L235">			response.getOutputStream().write(&quot;Error!Try Again&quot;.getBytes());</span>
+<span class="nc" id="L236">		} catch (IOException e1) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L238">			logger.info(&quot;IOError&quot;,e1);</span>
+<span class="nc" id="L239">		}</span>
+<span class="nc" id="L240">		return;</span>
+<span class="nc" id="L241">	}</span>
+    	
+    	
+<span class="nc" id="L244">    }</span>
+    
+    public String buildSaleDataforZimlottoBonusTwoFree(List&lt;LottoPurchaseBean&gt; promoPurchaseBeanList,UserInfoBean userBean) {
+<span class="nc" id="L247">         StringBuilder finalPromoData=new StringBuilder();</span>
+         
+<span class="nc bnc" id="L249" title="All 2 branches missed.">		for(int j=0;j&lt;promoPurchaseBeanList.size();j++){</span>
+<span class="nc" id="L250">			LottoPurchaseBean lottoBean=promoPurchaseBeanList.get(j);</span>
+<span class="nc" id="L251">			String time = lottoBean.getPurchaseTime().replace(&quot; &quot;, &quot;|Time:&quot;).replace(&quot;.0&quot;, &quot;&quot;);</span>
+
+<span class="nc" id="L253">			AjaxRequestHelper ajxHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L254">			ajxHelper.getAvlblCreditAmt(userBean);</span>
+<span class="nc" id="L255">			double bal = userBean.getAvailableCreditLimit()- userBean.getClaimableBal();</span>
+<span class="nc" id="L256">			NumberFormat nf = NumberFormat.getInstance();</span>
+<span class="nc" id="L257">			nf.setMinimumFractionDigits(2);</span>
+<span class="nc" id="L258">			String balance = nf.format(bal).replaceAll(&quot;,&quot;, &quot;&quot;);</span>
+<span class="nc" id="L259">			int listSize = lottoBean.getDrawDateTime().size();</span>
+<span class="nc" id="L260">			StringBuilder drawTimeBuild = new StringBuilder(&quot;&quot;);</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">			for (int i = 0; i &lt; listSize; i++) {</span>
+<span class="nc" id="L262">					drawTimeBuild.append((&quot;|DrawDate:&quot; + lottoBean.getDrawDateTime().get(i)).replaceFirst(&quot; &quot;, &quot;#&quot;).replace(&quot;#&quot;, &quot;|DrawTime:&quot;).replace(&quot;&amp;&quot;, &quot;|DrawId:&quot;).replace(&quot;.0&quot;, &quot;&quot;));</span>
+				}
+<span class="nc" id="L264">		StringBuilder stBuilder = new StringBuilder(&quot;&quot;);</span>
+
+<span class="nc bnc" id="L266" title="All 2 branches missed.">		for (int i = 0; i &lt; lottoBean.getPlayerPicked().size(); i++) {</span>
+<span class="nc" id="L267">			stBuilder.append(&quot;|Num:&quot;+ lottoBean.getPlayerPicked().get(i) + &quot;|QP:&quot;+ lottoBean.getIsQuickPick()[i]);</span>
+		}
+
+<span class="nc" id="L270">		List&lt;RafflePurchaseBean&gt; rafflePurchaseBeanList = lottoBean.getRafflePurchaseBeanList();</span>
+<span class="nc" id="L271">		String raffleData = CommonMethods.buildRaffleData(rafflePurchaseBeanList);</span>
+		
+<span class="nc bnc" id="L273" title="All 2 branches missed.">		String finalData = &quot;PromoTkt:TicketNo:&quot;</span>
+				+ lottoBean.getTicket_no() + lottoBean.getReprintCount()
+				+&quot;|brCd:&quot;+lottoBean.getTicket_no() + lottoBean.getReprintCount()+((ConfigurationVariables.currentTktLen == ConfigurationVariables.tktLenB &amp;&amp; LMSFilterDispatcher.isBarCodeRequired)? lottoBean.getBarcodeCount():&quot;&quot;)
+				+ &quot;|Date:&quot; + time 
+				+ &quot;|PlayType:&quot; + lottoBean.getPlayType()
+				+ stBuilder.toString()+ &quot;|TicketCost:&quot;
+				//+ (&quot;Perm6&quot;.equals(lottoBean.getPlayType())?stBuilder.toString():&quot;|PlayType:&quot; + lottoBean.getPlayType()+ stBuilder.toString()) + &quot;|TicketCost:&quot;
+				+ lottoBean.getTotalPurchaseAmt() + drawTimeBuild.toString()
+				+ &quot;|balance:&quot; + balance + &quot;|&quot;
+				+ raffleData;
+<span class="nc" id="L283">		finalPromoData.append(finalData);</span>
+		}
+<span class="nc" id="L285">		return finalPromoData.toString();</span>
+	}
+    
+	public int getBetAmountMultiple() {
+<span class="nc" id="L289">		return betAmountMultiple;</span>
+	}
+	public String[] getDrawIdArr() {
+<span class="nc" id="L292">		return drawIdArr;</span>
+	}
+	public int getGameId() {
+<span class="nc" id="L295">		return gameId;</span>
+	}
+	public int getIsAdvancedPlay() {
+<span class="nc" id="L298">		return isAdvancedPlay;</span>
+	}
+	public LottoPurchaseBean getLottoPurchaseBean() {
+<span class="nc" id="L301">		return lottoPurchaseBean;</span>
+	}
+	public int getNoOfDraws() {
+<span class="nc" id="L304">		return noOfDraws;</span>
+	}
+	public String getPickedNumbers() {
+<span class="nc" id="L307">		return pickedNumbers;</span>
+	}
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L310">		return request;</span>
+	}
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L313">		return response;</span>
+	}
+	public String getTotalPurchaseAmt() {
+<span class="nc" id="L316">		return totalPurchaseAmt;</span>
+	}
+	public String getUserName() {
+<span class="nc" id="L319">		return userName;</span>
+	}
+	public String getPlayType() {
+<span class="nc" id="L322">		return playType;</span>
+	}
+	public int getNoPicked() {
+<span class="nc" id="L325">		return noPicked;</span>
+	}
+	public long getLSTktNo() {
+<span class="nc" id="L328">		return LSTktNo;</span>
+	}
+	public String getPlrMobileNumber() {
+<span class="nc" id="L331">		return plrMobileNumber;</span>
+	}
+	public void setBetAmountMultiple(int betAmountMultiple) {
+<span class="nc" id="L334">		this.betAmountMultiple = betAmountMultiple;</span>
+<span class="nc" id="L335">	}</span>
+	public void setDrawIdArr(String[] drawIdArr) {
+<span class="nc" id="L337">		this.drawIdArr = drawIdArr;</span>
+<span class="nc" id="L338">	}</span>
+	public void setGameId(int gameId) {
+<span class="nc" id="L340">		this.gameId = gameId;</span>
+<span class="nc" id="L341">	}</span>
+	public void setIsAdvancedPlay(int isAdvancedPlay) {
+<span class="nc" id="L343">		this.isAdvancedPlay = isAdvancedPlay;</span>
+<span class="nc" id="L344">	}</span>
+	public void setLottoPurchaseBean(LottoPurchaseBean lottoPurchaseBean) {
+<span class="nc" id="L346">		this.lottoPurchaseBean = lottoPurchaseBean;</span>
+<span class="nc" id="L347">	}</span>
+	public void setNoOfDraws(int noOfDraws) {
+<span class="nc" id="L349">		this.noOfDraws = noOfDraws;</span>
+<span class="nc" id="L350">	}</span>
+	public void setPickedNumbers(String pickedNumbers) {
+<span class="nc" id="L352">		this.pickedNumbers = pickedNumbers;</span>
+<span class="nc" id="L353">	}</span>
+	public void setRequest(HttpServletRequest request) {
+<span class="nc" id="L355">		this.request = request;</span>
+<span class="nc" id="L356">	}</span>
+	public void setResponse(HttpServletResponse response) {
+<span class="nc" id="L358">		this.response = response;</span>
+<span class="nc" id="L359">	}</span>
+	public void setTotalPurchaseAmt(String totalPurchaseAmt) {
+<span class="nc" id="L361">		this.totalPurchaseAmt = totalPurchaseAmt;</span>
+<span class="nc" id="L362">	}</span>
+	public void setUserName(String userName) {
+<span class="nc" id="L364">		this.userName = userName;</span>
+<span class="nc" id="L365">	}              </span>
+	public void setPlayType(String playType) {
+<span class="nc" id="L367">		this.playType = playType;</span>
+<span class="nc" id="L368">	}</span>
+	public void setNoPicked(int noPicked) {
+<span class="nc" id="L370">		this.noPicked = noPicked;</span>
+<span class="nc" id="L371">	}</span>
+	public void setLSTktNo(long lSTktNo) {
+<span class="nc" id="L373">		LSTktNo = lSTktNo;</span>
+<span class="nc" id="L374">	}</span>
+	public void setPlrMobileNumber(String plrMobileNumber) {
+<span class="nc" id="L376">		this.plrMobileNumber = plrMobileNumber;</span>
+<span class="nc" id="L377">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L380">		this.request = request;</span>
+<span class="nc" id="L381">	}</span>
+
+	public void setServletResponse(HttpServletResponse response) {
+<span class="nc" id="L384">		this.response = response;</span>
+
+<span class="nc" id="L386">	}</span>
+    
+    
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,890 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DrawPwtReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.reportMgmt</a> &gt; <span class="el_source">DrawPwtReportHelper.java</span></div><h1>DrawPwtReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.reportMgmt;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.ReportStatusBean;
+import com.skilrock.lms.beans.SalePwtReportsBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.DBConnectReplica;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper;
+
+<span class="nc" id="L25">public class DrawPwtReportHelper implements IDrawPwtReportHelper {</span>
+<span class="nc" id="L26">	Log logger = LogFactory.getLog(DrawPwtReportHelper.class);</span>
+
+	public List&lt;SalePwtReportsBean&gt; drawBODirPlyPwtGameWise(
+			Timestamp startDate, Timestamp endDate) throws SQLException {
+<span class="nc" id="L30">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L31">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L32">		ResultSet rs = null;</span>
+<span class="nc" id="L33">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L34">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc" id="L36">			String pwtQry = &quot;select gm.game_id gameId, game_name gameName,mrpAmt from st_dg_game_master gm,(select game_id,sum(pwt_amt) mrpAmt from st_dg_bo_direct_plr_pwt where transaction_date&gt;=? and transaction_date&lt;=? group by game_id)pwtTlb where gm.game_id=pwtTlb.game_id&quot;;</span>
+<span class="nc" id="L37">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L38">			pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L39">			pstmt.setTimestamp(2, endDate);</span>
+
+<span class="nc" id="L41">			logger.info(&quot;----BO Dircet Ply Pwt Qry---&quot; + pstmt);</span>
+<span class="nc" id="L42">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L44">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L45">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L46">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L47">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L48">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L50">		} catch (Exception e) {</span>
+<span class="nc" id="L51">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L53">			con.close();</span>
+<span class="nc" id="L54">		}</span>
+<span class="nc" id="L55">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawBODirPlyPwtGameWise(
+			Timestamp startDate, Timestamp endDate, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L60">		Connection con = null;</span>
+<span class="nc" id="L61">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L62">		ResultSet rs = null;</span>
+<span class="nc" id="L63">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L64">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L66" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L67">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L69">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L71">			String pwtQry = &quot;select gm.game_id gameId, game_name gameName,mrpAmt from st_dg_game_master gm,(select game_id,sum(pwt_amt) mrpAmt from st_dg_bo_direct_plr_pwt where transaction_date&gt;=? and transaction_date&lt;=? group by game_id)pwtTlb where gm.game_id=pwtTlb.game_id&quot;;</span>
+<span class="nc" id="L72">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L73">			pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L74">			pstmt.setTimestamp(2, endDate);</span>
+
+<span class="nc" id="L76">			logger.info(&quot;----BO Dircet Ply Pwt Qry---&quot; + pstmt);</span>
+<span class="nc" id="L77">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L79">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L80">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L81">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L82">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L83">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L85">		} catch (Exception e) {</span>
+<span class="nc" id="L86">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L88">			con.close();</span>
+<span class="nc" id="L89">		}</span>
+<span class="nc" id="L90">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawAgentDirPlyPwtGameWise(
+			Timestamp startDate, Timestamp endDate, int agtOrgId, ReportStatusBean reportStatusBean)
+			throws SQLException {
+<span class="nc" id="L96">		Connection con = null;</span>
+<span class="nc" id="L97">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L98">		ResultSet rs = null;</span>
+<span class="nc" id="L99">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L100">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L102" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L103">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L105">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L107">			String pwtQry = &quot;select gm.game_id gameId, game_name gameName,mrpAmt from st_dg_game_master gm,(select game_id,sum(pwt_amt) mrpAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;=? and transaction_date&lt;=? and agent_org_id=? group by game_id)pwtTlb where gm.game_id=pwtTlb.game_id&quot;;</span>
+<span class="nc" id="L108">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L109">			pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L110">			pstmt.setTimestamp(2, endDate);</span>
+<span class="nc" id="L111">			pstmt.setInt(3, agtOrgId);</span>
+
+<span class="nc" id="L113">			logger.info(&quot;----Agent Dircet Ply Pwt Qry---&quot; + pstmt);</span>
+<span class="nc" id="L114">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L116">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L117">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L118">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L119">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L120">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L122">		} catch (Exception e) {</span>
+<span class="nc" id="L123">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L125">			con.close();</span>
+<span class="nc" id="L126">		}</span>
+<span class="nc" id="L127">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawBODirPlyPwtGameWiseExpand(
+			Timestamp startDate, Timestamp endDate, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L132">		Connection con = null;</span>
+<span class="nc" id="L133">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L134">		ResultSet rs = null;</span>
+<span class="nc" id="L135">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L136">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L138" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L139">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L141">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L143">			String pwtQry = &quot;select gm.game_id gameId, game_name gameName,priceAmt,noOfTkt,mrpAmt from st_dg_game_master gm,(select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt from st_dg_bo_direct_plr_pwt where transaction_date&gt;=? and transaction_date&lt;=? group by pwt_amt,game_id) pwtTlb where gm.game_id=pwtTlb.game_id order by gm.game_id,priceAmt&quot;;</span>
+<span class="nc" id="L144">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L145">			pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L146">			pstmt.setTimestamp(2, endDate);</span>
+
+<span class="nc" id="L148">			logger.info(&quot;----BO Dircet Ply Pwt Qry---&quot; + pstmt);</span>
+<span class="nc" id="L149">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L151">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L152">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L153">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L154">				reportsBean.setPriceAmt(rs.getDouble(&quot;priceAmt&quot;));</span>
+<span class="nc" id="L155">				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));</span>
+<span class="nc" id="L156">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L157">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L159">		} catch (Exception e) {</span>
+<span class="nc" id="L160">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L162">			con.close();</span>
+<span class="nc" id="L163">		}</span>
+<span class="nc" id="L164">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawAgentDirPlyPwtGameWiseExpand(
+			Timestamp startDate, Timestamp endDate, int agtOrgId, ReportStatusBean reportStatusBean)
+			throws SQLException {
+<span class="nc" id="L170">		Connection con = null;</span>
+<span class="nc" id="L171">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L172">		ResultSet rs = null;</span>
+<span class="nc" id="L173">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L174">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L176" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L177">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L179">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L181">			String pwtQry = &quot;select gm.game_id gameId, game_name gameName,priceAmt,noOfTkt,mrpAmt from st_dg_game_master gm,(select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;=? and transaction_date&lt;=? and agent_org_id=? group by pwt_amt,game_id) pwtTlb where gm.game_id=pwtTlb.game_id order by gm.game_id,priceAmt&quot;;</span>
+<span class="nc" id="L182">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L183">			pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L184">			pstmt.setTimestamp(2, endDate);</span>
+<span class="nc" id="L185">			pstmt.setInt(3, agtOrgId);</span>
+<span class="nc" id="L186">			logger.info(&quot;----BO Dircet Ply Pwt Qry---&quot; + pstmt);</span>
+<span class="nc" id="L187">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L189">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L190">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L191">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L192">				reportsBean.setPriceAmt(rs.getDouble(&quot;priceAmt&quot;));</span>
+<span class="nc" id="L193">				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));</span>
+<span class="nc" id="L194">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L195">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L197">		} catch (Exception e) {</span>
+<span class="nc" id="L198">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L200">			con.close();</span>
+<span class="nc" id="L201">		}</span>
+<span class="nc" id="L202">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtAgentWise(Timestamp startDate,
+			Timestamp endDate, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L207">		Connection con = null;</span>
+<span class="nc" id="L208">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L209">		ResultSet rs = null;</span>
+<span class="nc" id="L210">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L211">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L213" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L214">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L216">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L218">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L220">			String indGameQry = &quot;select retailer_org_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry + &quot; group by retailer_org_id union all &quot;;
+<span class="nc" id="L222">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select &quot;+QueryManager.getOrgCodeQuery()+&quot;,organization_id,mrpAmt,netAmt from st_lms_organization_master om,(select parent_id,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from (select parent_id,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from (&quot;);
+<span class="nc" id="L224">			String gameQry = &quot;select game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L225">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L226">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L228" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L229">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L232">			pwtQry.delete(pwtQry.length() - 10, pwtQry.length());</span>
+<span class="nc" id="L233">			pwtQry</span>
+					.append(&quot;) pwtTlb,(select organization_id,parent_id from  st_lms_organization_master where organization_type='RETAILER') om where retailer_org_id= organization_id group by parent_id union all select agent_org_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+							+ startDate
+							+ &quot;' and transaction_date&lt;='&quot;
+							+ endDate
+							+ &quot;' group by agent_org_id) pwtTlb group by parent_id) pwtTlb where om.organization_id=pwtTlb.parent_id&quot;);
+
+<span class="nc" id="L240">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+
+<span class="nc" id="L242">			logger.info(&quot;----Agent Qry---&quot; + pstmt);</span>
+<span class="nc" id="L243">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L245">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L246">				reportsBean.setGameName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L247">				reportsBean.setGameNo(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L248">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L249">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L250">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L252">			CommonFunctionsHelper.sortListForOrgOrder(beanList);	</span>
+<span class="nc" id="L253">		} catch (Exception e) {</span>
+<span class="nc" id="L254">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L256">			con.close();</span>
+<span class="nc" id="L257">		}</span>
+<span class="nc" id="L258">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtAgentWiseExpand(Timestamp startDate,
+			Timestamp endDate, int agentOrgId, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L263">		Connection con = null;</span>
+<span class="nc" id="L264">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L265">		ResultSet rs = null;</span>
+<span class="nc" id="L266">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L267">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L269" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L270">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L272">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L274">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L276">			String indGameQry = &quot;select game_id,priceAmt,sum(noOfTkt) noOfTkt,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from (select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry
+					+ &quot; and retailer_org_id in (select organization_id from st_lms_organization_master where parent_id=&quot;
+					+ agentOrgId
+					+ &quot;) group by pwt_amt union all select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' and game_id=* and agent_org_id=&quot;
+					+ agentOrgId
+					+ &quot; group by pwt_amt) pwtTlb group by priceAmt union all &quot;;
+<span class="nc" id="L287">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select gm.game_id gameId, game_name gameName,priceAmt,noOfTkt,mrpAmt,netAmt from st_dg_game_master gm,(&quot;);
+<span class="nc" id="L289">			String gameQry = &quot;select game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L290">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L291">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L293" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L294">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L297">			pwtQry.delete(pwtQry.length() - 10, pwtQry.length());</span>
+<span class="nc" id="L298">			pwtQry.append(&quot;) pwtTlb where gm.game_id=pwtTlb.game_id&quot;);</span>
+
+<span class="nc" id="L300">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L301">			logger.info(&quot;----Agent Expand Qry---&quot; + pstmt);</span>
+<span class="nc" id="L302">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L303" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L304">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L305">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L306">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L307">				reportsBean.setPriceAmt(rs.getDouble(&quot;priceAmt&quot;));</span>
+<span class="nc" id="L308">				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));</span>
+<span class="nc" id="L309">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L310">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L311">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L313">		} catch (Exception e) {</span>
+<span class="nc" id="L314">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L316">			con.close();</span>
+<span class="nc" id="L317">		}</span>
+<span class="nc" id="L318">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtGameWise(Timestamp startDate,
+			Timestamp endDate) throws SQLException {
+<span class="nc" id="L323">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L324">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L325">		ResultSet rs = null;</span>
+<span class="nc" id="L326">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L327">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc" id="L329">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L331">			String indGameQry = &quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry + &quot; group by game_id union all &quot;;
+<span class="nc" id="L333">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select game_id gameId, game_name gameName,mrpAmt,netAmt from st_dg_game_master gm,(select game_id,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from(&quot;);
+<span class="nc" id="L335">			String gameQry = &quot;select game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L336">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L337">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L339" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L340">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L343">			pwtQry</span>
+					.append(&quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+							+ startDate
+							+ &quot;' and transaction_date&lt;='&quot;
+							+ endDate
+							+ &quot;' group by game_id union all select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt) netAmt from st_dg_bo_direct_plr_pwt where transaction_date&gt;='&quot;
+							+ startDate
+							+ &quot;' and transaction_date&lt;='&quot;
+							+ endDate
+							+ &quot;' group by game_id) pwtTlb group by game_id) pwtTlb where gm.game_id=pwtTlb.game_id&quot;);
+
+<span class="nc" id="L354">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L355">			logger.info(&quot;----Game Qry---&quot; + pstmt);</span>
+<span class="nc" id="L356">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L357" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L358">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L359">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L360">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L361">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L362">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L363">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L365">		} catch (Exception e) {</span>
+<span class="nc" id="L366">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L368">			con.close();</span>
+<span class="nc" id="L369">		}</span>
+<span class="nc" id="L370">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtGameWise(Timestamp startDate, Timestamp endDate, String stateCode, String cityCode, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L374">		Connection con = null;</span>
+<span class="nc" id="L375">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L376">		ResultSet rs = null;</span>
+<span class="nc" id="L377">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L378">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L380" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L381">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L383">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L385">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L387">			String indGameQry = &quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry + &quot; group by game_id union all &quot;;
+<span class="nc" id="L389">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select game_id gameId, game_name gameName,mrpAmt,netAmt from st_dg_game_master gm,(select game_id,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from(&quot;);
+<span class="nc" id="L391">			String gameQry = &quot;select game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L392">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L393">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L395" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L396">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L399">			pwtQry</span>
+					.append(&quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+							+ startDate
+							+ &quot;' and transaction_date&lt;='&quot;
+							+ endDate
+							+ &quot;' group by game_id union all select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt) netAmt from st_dg_bo_direct_plr_pwt where transaction_date&gt;='&quot;
+							+ startDate
+							+ &quot;' and transaction_date&lt;='&quot;
+							+ endDate
+							+ &quot;' group by game_id) pwtTlb group by game_id) pwtTlb where gm.game_id=pwtTlb.game_id&quot;);
+
+<span class="nc" id="L410">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L411">			logger.info(&quot;----Game Qry---&quot; + pstmt);</span>
+<span class="nc" id="L412">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L413" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L414">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L415">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L416">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L417">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L418">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L419">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L421">		} catch (Exception e) {</span>
+<span class="nc" id="L422">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L424">			con.close();</span>
+<span class="nc" id="L425">		}</span>
+<span class="nc" id="L426">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtGameWiseExpand(Timestamp startDate,
+			Timestamp endDate, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L431">		Connection con = null;</span>
+<span class="nc" id="L432">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L433">		ResultSet rs = null;</span>
+<span class="nc" id="L434">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L435">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L437" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L438">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L440">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L442">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L444">			String indGameQry = &quot;select game_id,priceAmt,sum(noOfTkt) noOfTkt,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from (select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry
+					+ &quot; group by pwt_amt union all select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' and game_id=* group by pwt_amt union all select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt) netAmt from st_dg_bo_direct_plr_pwt where transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' and game_id=* group by pwt_amt) pwtTlb group by priceAmt union all &quot;;
+<span class="nc" id="L455">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select gm.game_id gameId, game_name gameName,priceAmt,noOfTkt,mrpAmt,netAmt from st_dg_game_master gm,(&quot;);
+<span class="nc" id="L457">			String gameQry = &quot;select game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L458">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L459">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L461" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L462">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L465">			pwtQry.delete(pwtQry.length() - 10, pwtQry.length());</span>
+<span class="nc" id="L466">			pwtQry.append(&quot;) pwtTlb where gm.game_id=pwtTlb.game_id&quot;);</span>
+
+<span class="nc" id="L468">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L469">			logger.info(&quot;----Game Expand Qry---&quot; + pstmt);</span>
+<span class="nc" id="L470">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L471" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L472">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L473">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L474">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L475">				reportsBean.setPriceAmt(rs.getDouble(&quot;priceAmt&quot;));</span>
+<span class="nc" id="L476">				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));</span>
+<span class="nc" id="L477">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L478">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L479">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L481">		} catch (Exception e) {</span>
+<span class="nc" id="L482">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L484">			con.close();</span>
+<span class="nc" id="L485">		}</span>
+<span class="nc" id="L486">		return beanList;</span>
+	}
+
+	public String getOrgAdd(int orgId) throws LMSException {
+<span class="nc" id="L490">		String orgAdd = &quot;&quot;;</span>
+<span class="nc" id="L491">		Connection con = null;</span>
+<span class="nc" id="L492">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L493">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L494">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L496">			pstmt = con</span>
+					.prepareStatement(&quot;select addr_line1, addr_line2, city from st_lms_organization_master where organization_id = ?&quot;);
+<span class="nc" id="L498">			pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L499">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L500">			logger.debug(pstmt);</span>
+<span class="nc bnc" id="L501" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L502">				orgAdd = rs.getString(&quot;addr_line1&quot;) + &quot;, &quot;</span>
+						+ rs.getString(&quot;addr_line2&quot;) + &quot;, &quot;
+						+ rs.getString(&quot;city&quot;);
+			}
+<span class="nc" id="L506">		} catch (SQLException e) {</span>
+<span class="nc" id="L507">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L508">			e.printStackTrace();</span>
+<span class="nc" id="L509">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L511">			try {</span>
+<span class="nc bnc" id="L512" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L513">					con.close();</span>
+				}
+<span class="nc" id="L515">			} catch (SQLException e) {</span>
+<span class="nc" id="L516">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L517">				e.printStackTrace();</span>
+<span class="nc" id="L518">				throw new LMSException(e);</span>
+<span class="nc" id="L519">			}</span>
+		}
+<span class="nc" id="L521">		return orgAdd;</span>
+	}
+
+	public Map&lt;Integer, List&lt;String&gt;&gt; fetchOrgAddMap(String orgType,
+			Integer agtOrgId) throws LMSException {
+<span class="nc" id="L526">		Map&lt;Integer, List&lt;String&gt;&gt; map = new TreeMap&lt;Integer, List&lt;String&gt;&gt;();</span>
+<span class="nc" id="L527">		Connection con = null;</span>
+<span class="nc" id="L528">		String orgAdd = &quot;&quot;;</span>
+<span class="nc" id="L529">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L530">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L531">		ResultSet rs = null;</span>
+<span class="nc" id="L532">		List&lt;String&gt; tempList = null;</span>
+		try {
+<span class="nc bnc" id="L534" title="All 2 branches missed.">			if (orgType.equalsIgnoreCase(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L535">				pstmt = con</span>
+						.prepareStatement(&quot;select organization_id, name,addr_line1, addr_line2, city from st_lms_organization_master where organization_type = '&quot;
+								+ orgType + &quot;'&quot;);
+			} else {
+<span class="nc" id="L539">				pstmt = con</span>
+						.prepareStatement(&quot;select organization_id, name,addr_line1, addr_line2, city from st_lms_organization_master where organization_type = '&quot;
+								+ orgType + &quot;' and parent_id = &quot; + agtOrgId);
+			}
+<span class="nc" id="L543">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L544">			logger.debug(pstmt);</span>
+<span class="nc bnc" id="L545" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L546">				tempList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L547">				orgAdd = rs.getString(&quot;addr_line1&quot;) + &quot;, &quot;</span>
+						+ rs.getString(&quot;addr_line2&quot;) + &quot;, &quot;
+						+ rs.getString(&quot;city&quot;);
+<span class="nc" id="L550">				tempList.add(rs.getString(&quot;name&quot;));</span>
+<span class="nc" id="L551">				tempList.add(orgAdd);</span>
+<span class="nc" id="L552">				map.put(rs.getInt(&quot;organization_id&quot;), tempList);</span>
+			}
+<span class="nc" id="L554">		} catch (SQLException e) {</span>
+<span class="nc" id="L555">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L556">			e.printStackTrace();</span>
+<span class="nc" id="L557">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L559">			try {</span>
+<span class="nc bnc" id="L560" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L561">					con.close();</span>
+				}
+<span class="nc" id="L563">			} catch (SQLException e) {</span>
+<span class="nc" id="L564">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L565">				e.printStackTrace();</span>
+<span class="nc" id="L566">				throw new LMSException(e);</span>
+<span class="nc" id="L567">			}</span>
+		}
+<span class="nc" id="L569">		return map;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtRetailerWise(Timestamp startDate,
+			Timestamp endDate, int agtOrgId, ReportStatusBean reportStatusBean) throws SQLException {
+<span class="nc" id="L574">		Connection con = null;</span>
+<span class="nc" id="L575">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L576">		ResultSet rs = null;</span>
+<span class="nc" id="L577">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L578">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L580" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L581">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L583">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L585">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L587">			String indGameQry = &quot;select retailer_org_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+retailer_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry
+					+ &quot; and retailer_org_id in (select organization_id from st_lms_organization_master where parent_id=&quot;
+					+ agtOrgId + &quot;) group by retailer_org_id union all &quot;;
+<span class="nc" id="L591">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select organization_id,&quot;+QueryManager.getOrgCodeQuery()+&quot;,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from st_lms_organization_master om,(&quot;);
+<span class="nc" id="L593">			String gameQry = &quot;select game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L594">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L595">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L597" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L598">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L601">			pwtQry.delete(pwtQry.length() - 10, pwtQry.length());</span>
+<span class="nc" id="L602">			pwtQry</span>
+					.append(&quot;) pwtTlb where om.organization_id=pwtTlb.retailer_org_id group by om.organization_id&quot;);
+
+<span class="nc" id="L605">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+
+<span class="nc" id="L607">			logger.info(&quot;----Retailer Qry---&quot; + pstmt);</span>
+<span class="nc" id="L608">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L609" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L610">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L611">				reportsBean.setGameName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L612">				reportsBean.setGameNo(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L613">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L614">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L615">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L617">			CommonFunctionsHelper.sortListForOrgOrder(beanList);	</span>
+<span class="nc" id="L618">		} catch (Exception e) {</span>
+<span class="nc" id="L619">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L621">			con.close();</span>
+<span class="nc" id="L622">		}</span>
+<span class="nc" id="L623">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtRetailerWiseExpand(
+			Timestamp startDate, Timestamp endDate, int retOrgId, ReportStatusBean reportStatusBean)
+			throws SQLException {
+<span class="nc" id="L629">		Connection con = null;</span>
+<span class="nc" id="L630">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L631">		ResultSet rs = null;</span>
+<span class="nc" id="L632">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L633">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L635" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L636">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L638">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L640">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L642">			String indGameQry = &quot;select game_id,priceAmt,sum(noOfTkt) noOfTkt,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from (select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt+retailer_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry
+					+ &quot; and retailer_org_id=&quot;
+					+ retOrgId
+					+ &quot; group by pwt_amt) pwtTlb group by priceAmt union all &quot;;
+<span class="nc" id="L647">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select gm.game_id gameId, game_name gameName,priceAmt,noOfTkt,mrpAmt,netAmt from st_dg_game_master gm,(&quot;);
+<span class="nc" id="L649">			String gameQry = &quot;select game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L650">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L651">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L653" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L654">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L657">			pwtQry.delete(pwtQry.length() - 10, pwtQry.length());</span>
+<span class="nc" id="L658">			pwtQry.append(&quot;) pwtTlb where  gm.game_id=pwtTlb.game_id&quot;);</span>
+
+<span class="nc" id="L660">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L661">			logger.info(&quot;----Agent Expand Qry---&quot; + pstmt);</span>
+<span class="nc" id="L662">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L663" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L664">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L665">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L666">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L667">				reportsBean.setPriceAmt(rs.getDouble(&quot;priceAmt&quot;));</span>
+<span class="nc" id="L668">				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));</span>
+<span class="nc" id="L669">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L670">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L671">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L673">		} catch (Exception e) {</span>
+<span class="nc" id="L674">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L676">			con.close();</span>
+<span class="nc" id="L677">		}</span>
+<span class="nc" id="L678">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtGameWiseForAgent(
+			Timestamp startDate, Timestamp endDate, int agtOrgId)
+			throws SQLException {
+<span class="nc" id="L684">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L685">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L686">		ResultSet rs = null;</span>
+<span class="nc" id="L687">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L688">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc" id="L690">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L692">			String indGameQry = &quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+retailer_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry
+					+ &quot;  and retailer_org_id in (select organization_id from st_lms_organization_master where parent_id=&quot;
+					+ agtOrgId + &quot;) group by game_id union all &quot;;
+<span class="nc" id="L696">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select  gm.game_id gameId, game_name gameName,mrpAmt,netAmt from st_dg_game_master gm,(select game_id,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from(&quot;);
+<span class="nc" id="L698">			String gameQry = &quot;select  game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L699">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L700">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L702" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L703">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L706">			pwtQry</span>
+					.append(&quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+							+ startDate
+							+ &quot;' and transaction_date&lt;='&quot;
+							+ endDate
+							+ &quot;' and agent_org_id=&quot;
+							+ agtOrgId
+							+ &quot; group by game_id) pwtTlb group by game_id) pwtTlb where  gm.game_id=pwtTlb.game_id&quot;);
+
+<span class="nc" id="L715">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L716">			logger.info(&quot;----Game Qry---&quot; + pstmt);</span>
+<span class="nc" id="L717">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L718" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L719">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L720">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L721">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L722">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L723">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L724">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L726">		} catch (Exception e) {</span>
+<span class="nc" id="L727">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L729">			con.close();</span>
+<span class="nc" id="L730">		}</span>
+<span class="nc" id="L731">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtGameWiseForAgent(
+			Timestamp startDate, Timestamp endDate, int agtOrgId, ReportStatusBean reportStatusBean)
+			throws SQLException {
+<span class="nc" id="L737">		Connection con = null;</span>
+<span class="nc" id="L738">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L739">		ResultSet rs = null;</span>
+<span class="nc" id="L740">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L741">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L743" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L744">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L746">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L748">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L750">			String indGameQry = &quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+retailer_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry
+					+ &quot;  and retailer_org_id in (select organization_id from st_lms_organization_master where parent_id=&quot;
+					+ agtOrgId + &quot;) group by game_id union all &quot;;
+<span class="nc" id="L754">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select  gm.game_id gameId, game_name gameName,mrpAmt,netAmt from st_dg_game_master gm,(select game_id,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from(&quot;);
+<span class="nc" id="L756">			String gameQry = &quot;select  game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L757">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L758">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L760" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L761">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L764">			pwtQry</span>
+					.append(&quot;select game_id,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+							+ startDate
+							+ &quot;' and transaction_date&lt;='&quot;
+							+ endDate
+							+ &quot;' and agent_org_id=&quot;
+							+ agtOrgId
+							+ &quot; group by game_id) pwtTlb group by game_id) pwtTlb where  gm.game_id=pwtTlb.game_id&quot;);
+
+<span class="nc" id="L773">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L774">			logger.info(&quot;----Game Qry---&quot; + pstmt);</span>
+<span class="nc" id="L775">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L776" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L777">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L778">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L779">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L780">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L781">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L782">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L784">		} catch (Exception e) {</span>
+<span class="nc" id="L785">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L787">			con.close();</span>
+<span class="nc" id="L788">		}</span>
+<span class="nc" id="L789">		return beanList;</span>
+	}
+
+	public List&lt;SalePwtReportsBean&gt; drawPwtGameWiseExpandForAgent(
+			Timestamp startDate, Timestamp endDate, int agtOrgId, ReportStatusBean reportStatusBean)
+			throws SQLException {
+<span class="nc" id="L795">		Connection con = null;</span>
+<span class="nc" id="L796">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L797">		ResultSet rs = null;</span>
+<span class="nc" id="L798">		SalePwtReportsBean reportsBean = null;</span>
+<span class="nc" id="L799">		List&lt;SalePwtReportsBean&gt; beanList = new ArrayList&lt;SalePwtReportsBean&gt;();</span>
+		try {
+<span class="nc bnc" id="L801" title="All 4 branches missed.">			if(&quot;NO&quot;.equals(Utility.getPropertyValue(&quot;IS_DATA_FROM_REPLICA&quot;)) || &quot;MAIN_DB&quot;.equals(reportStatusBean.getReportingFrom()))</span>
+<span class="nc" id="L802">				con = DBConnect.getConnection();</span>
+			else
+<span class="nc" id="L804">				con = DBConnectReplica.getConnection();</span>
+
+<span class="nc" id="L806">			String tranQry = &quot;(select transaction_id from st_lms_retailer_transaction_master where transaction_type in('DG_PWT_AUTO','DG_PWT_PLR','DG_PWT') and transaction_date&gt;='&quot;</span>
+					+ startDate + &quot;' and transaction_date&lt;='&quot; + endDate + &quot;')&quot;;
+<span class="nc" id="L808">			String indGameQry = &quot;select game_id,priceAmt,sum(noOfTkt) noOfTkt,sum(mrpAmt) mrpAmt,sum(netAmt) netAmt from (select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt+retailer_claim_comm) netAmt from st_dg_ret_pwt_* where transaction_id in &quot;</span>
+					+ tranQry
+					+ &quot; and retailer_org_id in (select organization_id from st_lms_organization_master where parent_id=&quot;
+					+ agtOrgId
+					+ &quot;) group by pwt_amt union all select game_id,pwt_amt priceAmt,count(pwt_amt) noOfTkt,sum(pwt_amt) mrpAmt,sum(pwt_amt+agt_claim_comm) netAmt from st_dg_agt_direct_plr_pwt where transaction_date&gt;='&quot;
+					+ startDate
+					+ &quot;' and transaction_date&lt;='&quot;
+					+ endDate
+					+ &quot;' and game_id=* and agent_org_id=&quot;
+					+ agtOrgId
+					+ &quot; group by pwt_amt) pwtTlb group by priceAmt union all &quot;;
+<span class="nc" id="L819">			StringBuilder pwtQry = new StringBuilder(</span>
+					&quot;select  gm.game_id gameId, game_name gameName,priceAmt,noOfTkt,mrpAmt,netAmt from st_dg_game_master gm,(&quot;);
+<span class="nc" id="L821">			String gameQry = &quot;select  game_id from st_dg_game_master&quot;;</span>
+<span class="nc" id="L822">			PreparedStatement pstmtGame = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L823">			ResultSet rsGame = pstmtGame.executeQuery();</span>
+
+<span class="nc bnc" id="L825" title="All 2 branches missed.">			while (rsGame.next()) {</span>
+<span class="nc" id="L826">				pwtQry.append(indGameQry.replaceAll(&quot;\\*&quot;, rsGame</span>
+						.getString(&quot;game_id&quot;)));
+			}
+<span class="nc" id="L829">			pwtQry.delete(pwtQry.length() - 10, pwtQry.length());</span>
+<span class="nc" id="L830">			pwtQry.append(&quot;) pwtTlb where  gm.game_id=pwtTlb.game_id&quot;);</span>
+
+<span class="nc" id="L832">			pstmt = con.prepareStatement(pwtQry.toString());</span>
+<span class="nc" id="L833">			logger.info(&quot;----Game Expand Qry---&quot; + pstmt);</span>
+<span class="nc" id="L834">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L835" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L836">				reportsBean = new SalePwtReportsBean();</span>
+<span class="nc" id="L837">				reportsBean.setGameName(rs.getString(&quot;gameName&quot;));</span>
+<span class="nc" id="L838">				reportsBean.setGameNo(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L839">				reportsBean.setPriceAmt(rs.getDouble(&quot;priceAmt&quot;));</span>
+<span class="nc" id="L840">				reportsBean.setNoOfTkt(rs.getInt(&quot;noOfTkt&quot;));</span>
+<span class="nc" id="L841">				reportsBean.setPwtMrpAmt(rs.getDouble(&quot;mrpAmt&quot;));</span>
+<span class="nc" id="L842">				reportsBean.setPwtNetAmt(rs.getDouble(&quot;netAmt&quot;));</span>
+<span class="nc" id="L843">				beanList.add(reportsBean);</span>
+			}
+<span class="nc" id="L845">		} catch (Exception e) {</span>
+<span class="nc" id="L846">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L848">			con.close();</span>
+<span class="nc" id="L849">		}</span>
+<span class="nc" id="L850">		return beanList;</span>
+	}
+
+	@Override
+	public List&lt;SalePwtReportsBean&gt; drawPwtAgentWise(Timestamp startDate,
+			Timestamp endDate, String stateCode, String cityCode,
+			ReportStatusBean reportStatusBean) throws SQLException {
+		// TODO Auto-generated method stub
+<span class="nc" id="L858">		return null;</span>
+	}
+
+	@Override
+	public List&lt;SalePwtReportsBean&gt; drawPwtGameWise(Timestamp startDate,
+			Timestamp endDate, ReportStatusBean reportStatusBean,
+			String cityCode, String stateCode) throws SQLException {
+		// TODO Auto-generated method stub
+<span class="nc" id="L866">		return null;</span>
+	}
+
+	@Override
+	public List&lt;SalePwtReportsBean&gt; drawPwtRetailerWise(Timestamp startDate,
+			Timestamp endDate, String stateCode, String cityCode, int agtOrgId,
+			ReportStatusBean reportStatusBean) throws SQLException {
+		// TODO Auto-generated method stub
+<span class="nc" id="L874">		return null;</span>
+	}
+
+	@Override
+	public List&lt;SalePwtReportsBean&gt; drawPwtRetailerWiseExpand(
+			Timestamp startDate, Timestamp endDate, int retOrgId,
+			ReportStatusBean reportStatusBean, String stateCode, String cityCode)
+			throws SQLException {
+		// TODO Auto-generated method stub
+<span class="nc" id="L883">		return null;</span>
+	}
+
+
+
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

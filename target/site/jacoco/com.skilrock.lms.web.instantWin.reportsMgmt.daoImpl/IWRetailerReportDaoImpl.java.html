@@ -1,0 +1,785 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IWRetailerReportDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.instantWin.reportsMgmt.daoImpl</a> &gt; <span class="el_source">IWRetailerReportDaoImpl.java</span></div><h1>IWRetailerReportDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.instantWin.reportsMgmt.daoImpl;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Map;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.GenericException;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.web.instantWin.reportsMgmt.beans.IWOrgReportRequestBean;
+import com.skilrock.lms.web.instantWin.reportsMgmt.beans.IWOrgReportResponseBean;
+
+<span class="nc" id="L16">public class IWRetailerReportDaoImpl {</span>
+
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchSaleDataSingleRetailer(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L21">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L22">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L23">		Statement stmt = null;</span>
+<span class="nc" id="L24">		ResultSet rs = null;</span>
+<span class="nc" id="L25">		StringBuilder saleQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L27">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc bnc" id="L29" title="All 2 branches missed.">			String parentIdAppenderArch = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot;sgr.organization_id=&quot;+ requestBean.getOrgId()+ &quot; AND&quot;;</span>
+<span class="nc bnc" id="L30" title="All 2 branches missed.">			String parentIdAppender = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot; AND om.organization_id=&quot;+ requestBean.getOrgId();</span>
+<span class="nc" id="L31">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.sale_net) as sale from st_rep_iw_retailer as sgr where &quot;+parentIdAppenderArch+&quot; sgr.finaldate&gt;=date('&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L38">			saleQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L39">			saleQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.sale)as sale from (select organization_id,ifnull(sale,0.0) sale from st_lms_organization_master om left outer join (select srs.retailer_org_id,sum(retailer_net_amt) as sale from st_iw_ret_sale&quot;)
+					// .append(requestBean.getGameId())
+					.append(
+							&quot; srs inner join st_lms_retailer_transaction_master rtm on srs.transaction_id=rtm.transaction_id where rtm.transaction_type in('IW_SALE') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; group by srs.retailer_org_id) sale on om.organization_id=retailer_org_id where om.organization_type='RETAILER'&quot;)
+					.append(parentIdAppender).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L58">			stmt = con.createStatement();</span>
+<span class="nc" id="L59">			rs = stmt.executeQuery(saleQueryBuilder.toString());</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L61">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L62">				responseBean.setSaleAmt(rs.getDouble(&quot;sale&quot;));</span>
+<span class="nc" id="L63">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L65">		} catch (SQLException se) {</span>
+<span class="nc" id="L66">			se.printStackTrace();</span>
+<span class="nc" id="L67">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L68">		} catch (Exception e) {</span>
+<span class="nc" id="L69">			e.printStackTrace();</span>
+<span class="nc" id="L70">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L72">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L73">		}</span>
+
+<span class="nc" id="L75">		return responseBeanMap;</span>
+	}
+
+	/**
+	 * Fetch Sale Data for all game(For all game ID)
+	 * 
+	 * @param1-Request bean containing from date, to date, and organization ID
+	 * @param2-Connection
+	 * @return-data map
+	 * @throws-GenericException Exception
+	 */
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchSaleDataMultipleRetailer(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L89">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L90">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L91">		Statement stmt = null;</span>
+<span class="nc" id="L92">		ResultSet rs = null;</span>
+<span class="nc" id="L93">		StringBuilder saleQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L95">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+
+			// String archiveAppender =
+			// &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.sale_net) as sale from st_rep_iw_retailer as sgr where sgr.game_id=&quot;
+			// + requestBean.getGameId()
+<span class="nc bnc" id="L100" title="All 2 branches missed.">			String parentIdAppenderArch = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot;sgr.parent_id=&quot;+ requestBean.getOrgId()+ &quot; AND&quot;;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">			String parentIdAppender = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot; AND om.parent_id=&quot;+ requestBean.getOrgId();</span>
+<span class="nc" id="L102">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.sale_net) as sale from st_rep_iw_retailer as sgr where &quot;+parentIdAppenderArch+&quot; sgr.finaldate&gt;=date('&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L109">			saleQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L110">			saleQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.sale)as sale from (select organization_id,ifnull(sale,0.0) sale from st_lms_organization_master om left outer join (select srs.retailer_org_id,sum(retailer_net_amt) as sale from st_iw_ret_sale&quot;)
+					// .append(requestBean.getGameId())
+					.append(
+							&quot; srs inner join st_lms_retailer_transaction_master rtm on srs.transaction_id=rtm.transaction_id where rtm.transaction_type in('IW_SALE') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; group by srs.retailer_org_id) sale on om.organization_id=retailer_org_id where om.organization_type='RETAILER'&quot;)
+					.append(parentIdAppender).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L129">			stmt = con.createStatement();</span>
+<span class="nc" id="L130">			rs = stmt.executeQuery(saleQueryBuilder.toString());</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L132">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L133">				responseBean.setSaleAmt(rs.getDouble(&quot;sale&quot;));</span>
+<span class="nc" id="L134">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L136">		} catch (SQLException se) {</span>
+<span class="nc" id="L137">			se.printStackTrace();</span>
+<span class="nc" id="L138">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L139">		} catch (Exception e) {</span>
+<span class="nc" id="L140">			e.printStackTrace();</span>
+<span class="nc" id="L141">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L143">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L144">		}</span>
+
+<span class="nc" id="L146">		return responseBeanMap;</span>
+	}
+
+	/**
+	 * Fetch Sale Data for a given game(For given game ID)
+	 * 
+	 * @param1-Request bean containing from date, to date, organization ID and
+	 *                 game id
+	 * @param2-Connection
+	 * @return-data map
+	 * @throws-GenericException Exception
+	 */
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchSaleDataMultipleRetailerGameWise(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L161">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L162">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L163">		Statement stmt = null;</span>
+<span class="nc" id="L164">		ResultSet rs = null;</span>
+<span class="nc" id="L165">		StringBuilder saleQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L167">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc" id="L169">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.sale_net) as sale from st_rep_iw_retailer as sgr where sgr.game_id=&quot;</span>
+					+ requestBean.getGameId()
+					+ &quot; AND sgr.parent_id=&quot;
+					+ requestBean.getOrgId()
+					+ &quot; AND sgr.finaldate&gt;=date('&quot;
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L180">			saleQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L181">			saleQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.sale)as sale from (select organization_id,ifnull(sale,0.0) sale from st_lms_organization_master om left outer join (select srs.retailer_org_id,sum(retailer_net_amt) as sale from st_iw_ret_sale&quot;)
+					// .append(requestBean.getGameId())
+					.append(
+							&quot; srs inner join st_lms_retailer_transaction_master rtm on srs.transaction_id=rtm.transaction_id where rtm.transaction_type in('IW_SALE') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; group by srs.retailer_org_id) sale on om.organization_id=retailer_org_id where om.organization_type='RETAILER' and om.parent_id=&quot;)
+					.append(requestBean.getOrgId()).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L200">			stmt = con.createStatement();</span>
+<span class="nc" id="L201">			rs = stmt.executeQuery(saleQueryBuilder.toString());</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L203">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L204">				responseBean.setSaleAmt(rs.getDouble(&quot;sale&quot;));</span>
+<span class="nc" id="L205">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L207">		} catch (SQLException se) {</span>
+<span class="nc" id="L208">			se.printStackTrace();</span>
+<span class="nc" id="L209">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L210">		} catch (Exception e) {</span>
+<span class="nc" id="L211">			e.printStackTrace();</span>
+<span class="nc" id="L212">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L214">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L215">		}</span>
+
+<span class="nc" id="L217">		return responseBeanMap;</span>
+	}
+	
+	/**
+	 * Fetch Sale Data for all game Single Retailer Game Wise(For all game ID)
+	 * 
+	 * @param1-Request bean containing from date, to date, and organization ID
+	 * @param2-Connection
+	 * @return-data map
+	 * @throws-GenericException Exception
+	 */
+	public static Map&lt;String, IWOrgReportResponseBean&gt; fetchSaleDataDateWiseSingleRetailerAllGame(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L231">		Map&lt;String, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L232">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L233">		Statement stmt = null;</span>
+<span class="nc" id="L234">		ResultSet rs = null;</span>
+<span class="nc" id="L235">		StringBuilder saleQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L237">			responseBeanMap = new HashMap&lt;String, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc" id="L239">			String archiveAppender = &quot; UNION ALL select finaldate,organization_id,sum(sale_net) as sale from st_rep_iw_retailer where finaldate&gt;='&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;' and finaldate&lt;='&quot;
+					+ requestBean.getToDate()
+					+ &quot;' and organization_id=&quot; 
+					+ requestBean.getOrgId()
+					+ &quot; GROUP BY finaldate&quot;;
+
+<span class="nc" id="L247">			saleQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L248">			saleQueryBuilder</span>
+					.append(&quot;select date(transaction_date) date,retailer_org_id,sum(sale) as sale from ((select retailer_org_id,sum(retailer_net_amt) as sale,transaction_date from st_iw_ret_sale where transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'and transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;' and retailer_org_id=&quot;)
+					.append(requestBean.getOrgId())
+					.append(&quot;  group by date(transaction_date))) saletable group by date(transaction_date)&quot;)
+					.append(archiveAppender);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L261">			stmt = con.createStatement();</span>
+<span class="nc" id="L262">			rs = stmt.executeQuery(saleQueryBuilder.toString());</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L264">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L265">				responseBean.setSaleAmt(rs.getDouble(&quot;sale&quot;));</span>
+<span class="nc" id="L266">				responseBeanMap.put(rs.getString(&quot;date&quot;), responseBean);</span>
+			}
+<span class="nc" id="L268">		} catch (SQLException se) {</span>
+<span class="nc" id="L269">			se.printStackTrace();</span>
+<span class="nc" id="L270">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L271">		} catch (Exception e) {</span>
+<span class="nc" id="L272">			e.printStackTrace();</span>
+<span class="nc" id="L273">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		}  finally {
+<span class="nc" id="L275">		    DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L276">		}</span>
+
+<span class="nc" id="L278">		return responseBeanMap;</span>
+	}
+
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchCancelDataSingleRetailer(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L284">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L285">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L286">		Statement stmt = null;</span>
+<span class="nc" id="L287">		ResultSet rs = null;</span>
+<span class="nc" id="L288">		StringBuilder cancelQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L290">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+			
+<span class="nc bnc" id="L292" title="All 2 branches missed.">			String parentIdAppenderArch = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot;sgr.organization_id=&quot;+ requestBean.getOrgId()+ &quot; AND&quot;;</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">			String parentIdAppender = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot; AND organization_id=&quot;+ requestBean.getOrgId();</span>
+			
+<span class="nc" id="L295">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.ref_net_amt) as cancel from st_rep_iw_retailer as sgr where &quot;+parentIdAppenderArch+&quot; sgr.finaldate&gt;=date('&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L302">			cancelQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L303">			cancelQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.cancel)as cancel from (select organization_id,ifnull(cancel,0.0) cancel from st_lms_organization_master om left outer join (select srr.retailer_org_id,sum(retailer_net_amt) as cancel from st_iw_ret_sale_refund&quot;)
+					.append(
+							&quot; srr inner join st_lms_retailer_transaction_master rtm on srr.transaction_id=rtm.transaction_id where transaction_type in('IW_REFUND_CANCEL','IW_REFUND_FAILED') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; GROUP BY srr.retailer_org_id) cancel on om.organization_id=retailer_org_id where om.organization_type='RETAILER'&quot;)
+					.append(parentIdAppender).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L321">			stmt = con.createStatement();</span>
+<span class="nc" id="L322">			rs = stmt.executeQuery(cancelQueryBuilder.toString());</span>
+<span class="nc bnc" id="L323" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L324">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L325">				responseBean.setCancelAmt(rs.getDouble(&quot;cancel&quot;));</span>
+<span class="nc" id="L326">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L328">		} catch (SQLException se) {</span>
+<span class="nc" id="L329">			se.printStackTrace();</span>
+<span class="nc" id="L330">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L331">		} catch (Exception e) {</span>
+<span class="nc" id="L332">			e.printStackTrace();</span>
+<span class="nc" id="L333">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L335">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L336">		}</span>
+
+<span class="nc" id="L338">		return responseBeanMap;</span>
+	}
+
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchCancelDataMultipleRetailer(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L344">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L345">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L346">		Statement stmt = null;</span>
+<span class="nc" id="L347">		ResultSet rs = null;</span>
+<span class="nc" id="L348">		StringBuilder cancelQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L350">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+			
+<span class="nc bnc" id="L352" title="All 2 branches missed.">			String parentIdAppenderArch = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot;sgr.parent_id=&quot;+ requestBean.getOrgId()+ &quot; AND&quot;;</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">			String parentIdAppender = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot; AND om.parent_id=&quot;+ requestBean.getOrgId();</span>
+			
+<span class="nc" id="L355">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.ref_net_amt) as cancel from st_rep_iw_retailer as sgr where &quot;+parentIdAppenderArch+&quot; sgr.finaldate&gt;=date('&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L362">			cancelQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L363">			cancelQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.cancel)as cancel from (select organization_id,ifnull(cancel,0.0) cancel from st_lms_organization_master om left outer join (select srr.retailer_org_id,sum(retailer_net_amt) as cancel from st_iw_ret_sale_refund&quot;)
+					.append(
+							&quot; srr inner join st_lms_retailer_transaction_master rtm on srr.transaction_id=rtm.transaction_id where transaction_type in('IW_REFUND_CANCEL','IW_REFUND_FAILED') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; GROUP BY srr.retailer_org_id) cancel on om.organization_id=retailer_org_id where om.organization_type='RETAILER'&quot;)
+					.append(parentIdAppender).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L381">			stmt = con.createStatement();</span>
+<span class="nc" id="L382">			rs = stmt.executeQuery(cancelQueryBuilder.toString());</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L384">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L385">				responseBean.setCancelAmt(rs.getDouble(&quot;cancel&quot;));</span>
+<span class="nc" id="L386">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L388">		} catch (SQLException se) {</span>
+<span class="nc" id="L389">			se.printStackTrace();</span>
+<span class="nc" id="L390">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L391">		} catch (Exception e) {</span>
+<span class="nc" id="L392">			e.printStackTrace();</span>
+<span class="nc" id="L393">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L395">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L396">		}</span>
+
+<span class="nc" id="L398">		return responseBeanMap;</span>
+	}
+
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchCancelDataMultipleRetailerGameWise(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L404">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L405">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L406">		Statement stmt = null;</span>
+<span class="nc" id="L407">		ResultSet rs = null;</span>
+<span class="nc" id="L408">		StringBuilder cancelQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L410">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc" id="L412">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.ref_net_amt) as cancel from st_rep_iw_retailer as sgr where sgr.game_id=&quot;</span>
+					+ requestBean.getGameId()
+					+ &quot; AND sgr.parent_id=&quot;
+					+ requestBean.getOrgId()
+					+ &quot; AND sgr.finaldate&gt;=date('&quot;
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L423">			cancelQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L424">			cancelQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.cancel)as cancel from (select organization_id,ifnull(cancel,0.0) cancel from st_lms_organization_master om left outer join (select srr.retailer_org_id,sum(retailer_net_amt) as cancel from st_iw_ret_sale_refund&quot;)
+					// .append(requestBean.getGameId())
+					.append(
+							&quot; srr inner join st_lms_retailer_transaction_master rtm on srr.transaction_id=rtm.transaction_id where srr.game_id=&quot;)
+					.append(requestBean.getGameId())
+					.append(
+							&quot; AND transaction_type in('IW_REFUND_CANCEL','IW_REFUND_FAILED') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; GROUP BY srr.retailer_org_id) cancel on om.organization_id=retailer_org_id where om.organization_type='RETAILER' and om.parent_id=&quot;)
+					.append(requestBean.getOrgId()).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L446">			stmt = con.createStatement();</span>
+<span class="nc" id="L447">			rs = stmt.executeQuery(cancelQueryBuilder.toString());</span>
+<span class="nc bnc" id="L448" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L449">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L450">				responseBean.setCancelAmt(rs.getDouble(&quot;cancel&quot;));</span>
+<span class="nc" id="L451">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L453">		} catch (SQLException se) {</span>
+<span class="nc" id="L454">			se.printStackTrace();</span>
+<span class="nc" id="L455">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L456">		} catch (Exception e) {</span>
+<span class="nc" id="L457">			e.printStackTrace();</span>
+<span class="nc" id="L458">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L460">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L461">		}</span>
+
+<span class="nc" id="L463">		return responseBeanMap;</span>
+	}
+	
+	/**
+	 * Fetch Cancel Data for all game Single Retailer Game Wise(For all game ID)
+	 * 
+	 * @param1-Request bean containing from date, to date, and organization ID
+	 * @param2-Connection
+	 * @return-data map
+	 * @throws-GenericException Exception
+	 */
+	public static Map&lt;String, IWOrgReportResponseBean&gt; fetchCancelDataDateWiseSingleRetailerAllGame(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L477">		Map&lt;String, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L478">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L479">		Statement stmt = null;</span>
+<span class="nc" id="L480">		ResultSet rs = null;</span>
+<span class="nc" id="L481">		StringBuilder cancelQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L483">			responseBeanMap = new HashMap&lt;String, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc" id="L485">			String archiveAppender = &quot; UNION ALL select finaldate,organization_id,sum(ref_net_amt) as cancel from st_rep_iw_retailer where finaldate&gt;='&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;' and finaldate&lt;='&quot;
+					+ requestBean.getToDate()
+					+ &quot;' and organization_id=&quot; 
+					+ requestBean.getOrgId()
+					+ &quot; GROUP BY finaldate&quot;;
+
+<span class="nc" id="L493">			cancelQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L494">			cancelQueryBuilder</span>
+					.append(&quot;select date(transaction_date) date,retailer_org_id,sum(cancel) as cancel from ((select retailer_org_id,sum(retailer_net_amt) as cancel,transaction_date from st_iw_ret_sale_refund where transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'and transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;' and retailer_org_id=&quot;)
+					.append(requestBean.getOrgId())
+					.append(&quot;  group by date(transaction_date))) canceltable group by date(transaction_date)&quot;)
+					.append(archiveAppender);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L507">			stmt = con.createStatement();</span>
+<span class="nc" id="L508">			rs = stmt.executeQuery(cancelQueryBuilder.toString());</span>
+<span class="nc bnc" id="L509" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L510">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L511">				responseBean.setCancelAmt(rs.getDouble(&quot;cancel&quot;));</span>
+<span class="nc" id="L512">				responseBeanMap.put(rs.getString(&quot;date&quot;), responseBean);</span>
+			}
+<span class="nc" id="L514">		} catch (SQLException se) {</span>
+<span class="nc" id="L515">			se.printStackTrace();</span>
+<span class="nc" id="L516">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L517">		} catch (Exception e) {</span>
+<span class="nc" id="L518">			e.printStackTrace();</span>
+<span class="nc" id="L519">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		}  finally {
+<span class="nc" id="L521">		    DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L522">		}</span>
+
+<span class="nc" id="L524">		return responseBeanMap;</span>
+	}
+
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchPWTDataSingleRetailer(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L530">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L531">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L532">		Statement stmt = null;</span>
+<span class="nc" id="L533">		ResultSet rs = null;</span>
+<span class="nc" id="L534">		StringBuilder pwtQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L536">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc bnc" id="L538" title="All 2 branches missed.">			String parentIdAppenderArch = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot;sgr.organization_id=&quot;+ requestBean.getOrgId()+ &quot; AND&quot;;</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">			String parentIdAppender = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot; AND om.organization_id=&quot;+ requestBean.getOrgId();</span>
+			
+			// String archiveAppender =
+			// &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.ref_net_amt) as cancel from st_rep_iw_retailer as sgr where sgr.game_id=&quot;
+			// + requestBean.getGameId()
+			// + &quot; AND sgr.parent_id=&quot;
+<span class="nc" id="L545">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.pwt_net_amt) as pwt from st_rep_iw_retailer as sgr where &quot;+parentIdAppenderArch+&quot; sgr.finaldate&gt;=date('&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L552">			pwtQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L553">			pwtQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.pwt)as pwt from (select organization_id,ifnull(pwt,0.0) pwt from st_lms_organization_master om left outer join (select srp.retailer_org_id,sum(pwt_amt+retailer_claim_comm) as pwt from st_iw_ret_pwt&quot;)
+					// .append(requestBean.getGameId())
+					.append(
+							&quot; srp inner join st_lms_retailer_transaction_master rtm on srp.transaction_id=rtm.transaction_id where transaction_type in('IW_PWT_AUTO','IW_PWT_PLR','IW_PWT') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; GROUP BY srp.retailer_org_id) pwt on om.organization_id=retailer_org_id where om.organization_type='RETAILER'&quot;)
+					.append(
+							parentIdAppender).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L573">			stmt = con.createStatement();</span>
+<span class="nc" id="L574">			rs = stmt.executeQuery(pwtQueryBuilder.toString());</span>
+<span class="nc bnc" id="L575" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L576">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L577">				responseBean.setPwtAmt(rs.getDouble(&quot;pwt&quot;));</span>
+<span class="nc" id="L578">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L580">		} catch (SQLException se) {</span>
+<span class="nc" id="L581">			se.printStackTrace();</span>
+<span class="nc" id="L582">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L583">		} catch (Exception e) {</span>
+<span class="nc" id="L584">			e.printStackTrace();</span>
+<span class="nc" id="L585">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L587">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L588">		}</span>
+
+<span class="nc" id="L590">		return responseBeanMap;</span>
+	}
+
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchPWTDataMultipleRetailer(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L596">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L597">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L598">		Statement stmt = null;</span>
+<span class="nc" id="L599">		ResultSet rs = null;</span>
+<span class="nc" id="L600">		StringBuilder pwtQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L602">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc bnc" id="L604" title="All 2 branches missed.">			String parentIdAppenderArch = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot;sgr.parent_id=&quot;+ requestBean.getOrgId()+ &quot; AND&quot;;</span>
+<span class="nc bnc" id="L605" title="All 2 branches missed.">			String parentIdAppender = requestBean.getOrgId() == 0 ? &quot;&quot; : &quot; AND om.parent_id=&quot;+ requestBean.getOrgId();</span>
+			
+			// String archiveAppender =
+			// &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.ref_net_amt) as cancel from st_rep_iw_retailer as sgr where sgr.game_id=&quot;
+			// + requestBean.getGameId()
+			// + &quot; AND sgr.parent_id=&quot;
+<span class="nc" id="L611">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.pwt_net_amt) as pwt from st_rep_iw_retailer as sgr where &quot;+parentIdAppenderArch+&quot; sgr.finaldate&gt;=date('&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L618">			pwtQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L619">			pwtQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.pwt)as pwt from (select organization_id,ifnull(pwt,0.0) pwt from st_lms_organization_master om left outer join (select srp.retailer_org_id,sum(pwt_amt+retailer_claim_comm) as pwt from st_iw_ret_pwt&quot;)
+					// .append(requestBean.getGameId())
+					.append(
+							&quot; srp inner join st_lms_retailer_transaction_master rtm on srp.transaction_id=rtm.transaction_id where transaction_type in('IW_PWT_AUTO','IW_PWT_PLR','IW_PWT') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; GROUP BY srp.retailer_org_id) pwt on om.organization_id=retailer_org_id where om.organization_type='RETAILER'&quot;)
+					.append(
+							parentIdAppender).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L639">			stmt = con.createStatement();</span>
+<span class="nc" id="L640">			rs = stmt.executeQuery(pwtQueryBuilder.toString());</span>
+<span class="nc bnc" id="L641" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L642">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L643">				responseBean.setPwtAmt(rs.getDouble(&quot;pwt&quot;));</span>
+<span class="nc" id="L644">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L646">		} catch (SQLException se) {</span>
+<span class="nc" id="L647">			se.printStackTrace();</span>
+<span class="nc" id="L648">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L649">		} catch (Exception e) {</span>
+<span class="nc" id="L650">			e.printStackTrace();</span>
+<span class="nc" id="L651">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L653">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L654">		}</span>
+
+<span class="nc" id="L656">		return responseBeanMap;</span>
+	}
+
+	public static Map&lt;Integer, IWOrgReportResponseBean&gt; fetchPWTDataMultipleRetailerGameWise(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L662">		Map&lt;Integer, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L663">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L664">		Statement stmt = null;</span>
+<span class="nc" id="L665">		ResultSet rs = null;</span>
+<span class="nc" id="L666">		StringBuilder pwtQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L668">			responseBeanMap = new HashMap&lt;Integer, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc" id="L670">			String archiveAppender = &quot; UNION ALL select sgr.organization_id as organization_id,sum(sgr.pwt_net_amt) as pwt from st_rep_iw_retailer as sgr where sgr.game_id=&quot;</span>
+					+ requestBean.getGameId()
+					+ &quot; AND sgr.parent_id=&quot;
+					+ requestBean.getOrgId()
+					+ &quot; AND sgr.finaldate&gt;=date('&quot;
+					+ requestBean.getFromDate()
+					+ &quot;')&quot;
+					+ &quot; AND sgr.finaldate&lt;=date('&quot;
+					+ requestBean.getToDate()
+					+ &quot;')&quot; + &quot; GROUP BY sgr.organization_id&quot;;
+
+<span class="nc" id="L681">			pwtQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L682">			pwtQueryBuilder</span>
+					.append(
+							&quot;select main.organization_id,sum(main.pwt)as pwt from (select organization_id,ifnull(pwt,0.0) pwt from st_lms_organization_master om left outer join (select srp.retailer_org_id,sum(pwt_amt+retailer_claim_comm) as pwt from st_iw_ret_pwt&quot;)
+					.append(
+							&quot; srp inner join st_lms_retailer_transaction_master rtm on srp.transaction_id=rtm.transaction_id where srp.game_id=&quot;)
+					.append(requestBean.getGameId())
+					.append(
+							&quot; AND transaction_type in('IW_PWT_AUTO','IW_PWT_PLR','IW_PWT') and rtm.transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'&quot;)
+					.append(&quot; and rtm.transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;'&quot;)
+					.append(
+							&quot; GROUP BY srp.retailer_org_id) pwt on om.organization_id=retailer_org_id where om.organization_type='RETAILER' and om.parent_id=&quot;)
+					.append(requestBean.getOrgId()).append(archiveAppender)
+					.append(&quot;) as main group by main.organization_id&quot;);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L703">			stmt = con.createStatement();</span>
+<span class="nc" id="L704">			rs = stmt.executeQuery(pwtQueryBuilder.toString());</span>
+<span class="nc bnc" id="L705" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L706">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L707">				responseBean.setPwtAmt(rs.getDouble(&quot;pwt&quot;));</span>
+<span class="nc" id="L708">				responseBeanMap.put(rs.getInt(&quot;organization_id&quot;), responseBean);</span>
+			}
+<span class="nc" id="L710">		} catch (SQLException se) {</span>
+<span class="nc" id="L711">			se.printStackTrace();</span>
+<span class="nc" id="L712">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L713">		} catch (Exception e) {</span>
+<span class="nc" id="L714">			e.printStackTrace();</span>
+<span class="nc" id="L715">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		} finally {
+<span class="nc" id="L717">			DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L718">		}</span>
+
+<span class="nc" id="L720">		return responseBeanMap;</span>
+	}
+	
+	/**
+	 * Fetch PWT Data for all game Single Retailer Game Wise(For all game ID)
+	 * 
+	 * @param1-Request bean containing from date, to date, and organization ID
+	 * @param2-Connection
+	 * @return-data map
+	 * @throws-GenericException Exception
+	 */
+	public static Map&lt;String, IWOrgReportResponseBean&gt; fetchPWTDataDateWiseSingleRetailerAllGame(
+			IWOrgReportRequestBean requestBean, Connection con)
+			throws GenericException {
+<span class="nc" id="L734">		Map&lt;String, IWOrgReportResponseBean&gt; responseBeanMap = null;</span>
+<span class="nc" id="L735">		IWOrgReportResponseBean responseBean = null;</span>
+<span class="nc" id="L736">		Statement stmt = null;</span>
+<span class="nc" id="L737">		ResultSet rs = null;</span>
+<span class="nc" id="L738">		StringBuilder pwtQueryBuilder = null;</span>
+		try {
+<span class="nc" id="L740">			responseBeanMap = new HashMap&lt;String, IWOrgReportResponseBean&gt;();</span>
+
+<span class="nc" id="L742">			String archiveAppender = &quot; UNION ALL select finaldate,organization_id,sum(pwt_net_amt) as pwt from st_rep_iw_retailer where finaldate&gt;='&quot;</span>
+					+ requestBean.getFromDate()
+					+ &quot;' and finaldate&lt;='&quot;
+					+ requestBean.getToDate()
+					+ &quot;' and organization_id=&quot; 
+					+ requestBean.getOrgId()
+					+ &quot; GROUP BY finaldate&quot;;
+
+<span class="nc" id="L750">			pwtQueryBuilder = new StringBuilder();</span>
+<span class="nc" id="L751">			pwtQueryBuilder</span>
+					.append(&quot;select date(transaction_date) date,retailer_org_id,sum(pwt) as pwt from ((select retailer_org_id,sum(pwt_amt+retailer_claim_comm) as pwt,transaction_date from st_iw_ret_pwt where transaction_date&gt;='&quot;)
+					.append(requestBean.getFromDate())
+					.append(&quot;'and transaction_date&lt;='&quot;)
+					.append(requestBean.getToDate())
+					.append(&quot;' and retailer_org_id=&quot;)
+					.append(requestBean.getOrgId())
+					.append(&quot; group by date(transaction_date))) pwttable group by date(transaction_date)&quot;)
+					.append(archiveAppender);
+
+			// logger.debug(&quot;fetchDepositDataMultipleAgent - &quot;
+			// + saleQueryBuilder.toString());
+
+<span class="nc" id="L764">			stmt = con.createStatement();</span>
+<span class="nc" id="L765">			rs = stmt.executeQuery(pwtQueryBuilder.toString());</span>
+<span class="nc bnc" id="L766" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L767">				responseBean = new IWOrgReportResponseBean();</span>
+<span class="nc" id="L768">				responseBean.setPwtAmt(rs.getDouble(&quot;pwt&quot;));</span>
+<span class="nc" id="L769">				responseBeanMap.put(rs.getString(&quot;date&quot;), responseBean);</span>
+			}
+<span class="nc" id="L771">		} catch (SQLException se) {</span>
+<span class="nc" id="L772">			se.printStackTrace();</span>
+<span class="nc" id="L773">			throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L774">		} catch (Exception e) {</span>
+<span class="nc" id="L775">			e.printStackTrace();</span>
+<span class="nc" id="L776">			throw new GenericException(LMSErrors.GENERAL_EXCEPTION_CODE, e);</span>
+		}  finally {
+<span class="nc" id="L778">		    DBConnect.closeConnection(stmt, rs);</span>
+<span class="nc" id="L779">		}</span>
+
+<span class="nc" id="L781">		return responseBeanMap;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

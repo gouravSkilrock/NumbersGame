@@ -1,0 +1,536 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KenoFourHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">KenoFourHelper.java</span></div><h1>KenoFourHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.google.gson.Gson;
+import com.skilrock.itg.IDBarcode.IDBarcode;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.common.utility.orgOnLineSaleCreditUpdation;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.dge.beans.KenoPurchaseBean;
+import com.skilrock.lms.dge.beans.KenoRequestBean;
+import com.skilrock.lms.dge.beans.KenoResponseBean;
+import com.skilrock.lms.dge.gameconstants.KenoFourConstants;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L29">public class KenoFourHelper {</span>
+<span class="nc" id="L30">	static Log logger = LogFactory.getLog(KenoFourHelper.class);</span>
+
+	public KenoPurchaseBean commonPurchseProcess(UserInfoBean userBean,
+			KenoPurchaseBean kenoPurchaseBean) throws Exception {
+
+<span class="nc" id="L35">		kenoPurchaseBean.setPromotkt(false);</span>
+<span class="nc" id="L36">		kenoPurchaseBean = kenoFourPurchaseTicket(userBean, kenoPurchaseBean);</span>
+<span class="nc" id="L37">		String saleStatus = kenoPurchaseBean.getSaleStatus();</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">		if (&quot;SUCCESS&quot;.equalsIgnoreCase(saleStatus)) {</span>
+<span class="nc" id="L39">			DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L40">			kenoPurchaseBean = helper.commonPromoPurchaseProcess(</span>
+					kenoPurchaseBean, userBean);
+			// FortunePurchaseBean fortunePurchseben=
+			// kenoPurchaseBean.getFortunePurchaseBean();
+<span class="nc bnc" id="L44" title="All 2 branches missed.">			if (&quot;SUCCESS&quot;.equalsIgnoreCase(kenoPurchaseBean</span>
+					.getPromoSaleStatus())) {
+<span class="nc" id="L46">				return kenoPurchaseBean;</span>
+			} else {
+<span class="nc" id="L48">				helper.cancelTicket(kenoPurchaseBean.getTicket_no()</span>
+						+ kenoPurchaseBean.getReprintCount(), kenoPurchaseBean
+						.getPurchaseChannel(), kenoPurchaseBean
+						.getDrawIdTableMap(), kenoPurchaseBean.getGame_no(),
+						kenoPurchaseBean.getPartyId(), kenoPurchaseBean
+								.getPartyType(), kenoPurchaseBean
+								.getRefMerchantId(), userBean, kenoPurchaseBean
+								.getRefTransId());
+<span class="nc" id="L56">				kenoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+			}
+		}
+<span class="nc" id="L59">		return kenoPurchaseBean;</span>
+
+	}
+
+	private boolean isDrawAvailable(int gameNo) {
+<span class="nc" id="L64">		return Util.drawIdTableMap.get(gameNo).isEmpty();</span>
+	}
+
+	
+	public KenoPurchaseBean kenoFourPurchaseTicket(UserInfoBean userBean,
+			KenoPurchaseBean kenoPurchaseBean) throws Exception {
+<span class="nc" id="L70">		DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+		
+	
+<span class="nc bnc" id="L73" title="All 4 branches missed.">		if (isDrawAvailable(kenoPurchaseBean.getGameId())</span>
+				|| DrawGameRPOSHelper.chkFreezeTimeSale(kenoPurchaseBean
+						.getGameId())) {
+<span class="nc" id="L76">			kenoPurchaseBean.setSaleStatus(&quot;NO_DRAWS&quot;);</span>
+<span class="nc" id="L77">			return kenoPurchaseBean;</span>
+		}
+<span class="nc bnc" id="L79" title="All 2 branches missed.">		if (!kenoFourValidateData(kenoPurchaseBean)) {</span>
+<span class="nc" id="L80">			logger.debug(&quot;Data Validation returned false&quot;);</span>
+<span class="nc" id="L81">			kenoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L82">			return kenoPurchaseBean;</span>
+		}
+		
+		//ServiceResponse sRes = new ServiceResponse();
+<span class="nc" id="L86">		ServiceRequest sReq = new ServiceRequest();</span>
+<span class="nc" id="L87">		sReq.setServiceName(ServiceName.KENOFOUR_MGMT);</span>
+<span class="nc" id="L88">		sReq.setServiceMethod(ServiceMethodName.KENOFOUR_PURCHASE_TICKET);</span>
+<span class="nc" id="L89">		KenoRequestBean kenoRequestBean = new KenoRequestBean();</span>
+<span class="nc" id="L90">		sReq.setServiceData(kenoRequestBean);</span>
+<span class="nc" id="L91">		IServiceDelegate delegate = ServiceDelegate.getInstance();</span>
+<span class="nc" id="L92">		String status = &quot;&quot;;</span>
+<span class="nc" id="L93">		double oldTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L94">		double modifiedTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L95">        Connection con=null;</span>
+<span class="nc" id="L96">		long balDed=0;</span>
+		
+		try {
+			//logger.debug(&quot;Inside Keno FE1*******&quot;);
+			
+<span class="nc" id="L101">		kenoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L102">		double totPurAmt = 0.0;</span>
+<span class="nc" id="L103">		int noOfPanel = kenoPurchaseBean.getNoOfPanel();</span>
+<span class="nc" id="L104">		String playTypeArr[] = kenoPurchaseBean.getPlayType();</span>
+<span class="nc" id="L105">		String[] noPickStr = kenoPurchaseBean.getNoPicked();</span>
+<span class="nc" id="L106">		int noOfLines[] = new int[noOfPanel];</span>
+<span class="nc" id="L107">		int betAmtMulArr[] = kenoPurchaseBean.getBetAmountMultiple();</span>
+<span class="nc" id="L108">		double unitPriceArr[] = new double[noOfPanel];</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">		for (int i = 0; i &lt; noOfPanel; i++) {</span>
+<span class="nc" id="L110">			String playType = playTypeArr[i];</span>
+<span class="nc" id="L111">			String[] noPick = noPickStr[i].split(&quot;,&quot;);</span>
+<span class="nc" id="L112">			int[] n = new int[noPick.length];</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">			for (int j = 0; j &lt; noPick.length; j++) {</span>
+<span class="nc" id="L114">				n[j] = Integer.parseInt(noPick[j]);</span>
+			}
+<span class="nc bnc" id="L116" title="All 2 branches missed.">			if (playType.contains(&quot;Direct&quot;)) {</span>
+<span class="nc" id="L117">				noOfLines[i] = 1;</span>
+<span class="nc bnc" id="L118" title="All 12 branches missed.">			} else if (playType.equalsIgnoreCase(&quot;perm2&quot;) || playType.equalsIgnoreCase(&quot;DC-Perm2&quot;) || playType.equalsIgnoreCase(&quot;MN-Perm2&quot;) || playType.equalsIgnoreCase(&quot;4By90-Perm2&quot;) || playType.equalsIgnoreCase(&quot;3By90-Perm2&quot;) || playType.equalsIgnoreCase(&quot;2By90-Perm2&quot;)) {</span>
+<span class="nc" id="L119">				noOfLines[i] = n[0] * (n[0] - 1) / 2;</span>
+<span class="nc bnc" id="L120" title="All 6 branches missed.">			} else if (playType.equalsIgnoreCase(&quot;perm3&quot;) || playType.equalsIgnoreCase(&quot;DC-Perm3&quot;) || playType.equalsIgnoreCase(&quot;MN-Perm3&quot;)) {</span>
+<span class="nc" id="L121">				noOfLines[i] = n[0] * (n[0] - 1) * (n[0] - 2) / 6;</span>
+<span class="nc bnc" id="L122" title="All 4 branches missed.">			} else if (playType.equalsIgnoreCase(&quot;Banker1AgainstAll&quot;) || playType.equalsIgnoreCase(&quot;MN-Banker1AgainstAll&quot;)) {</span>
+<span class="nc" id="L123">				noOfLines[i] = 89;</span>
+<span class="nc bnc" id="L124" title="All 4 branches missed.">			} else if (playType.equalsIgnoreCase(&quot;banker&quot;)|| playType.equalsIgnoreCase(&quot;MN-banker&quot;)) {</span>
+<span class="nc" id="L125">				noOfLines[i] = n[0] * n[1];</span>
+			}
+
+<span class="nc" id="L128">			unitPriceArr[i] = Util.getUnitPrice(kenoPurchaseBean.getGameId(),</span>
+					playTypeArr[i]);
+			//logger.debug(&quot;----unitPrice--&quot; + unitPriceArr[i]);
+			//logger.debug(&quot;----playTypeArr--&quot; + playTypeArr[i]);
+<span class="nc" id="L132">			totPurAmt += noOfLines[i] * unitPriceArr[i]</span>
+					* kenoPurchaseBean.getNoOfDraws() * betAmtMulArr[i];
+		}
+
+<span class="nc" id="L136">		kenoPurchaseBean.setUnitPrice(unitPriceArr);</span>
+
+<span class="nc" id="L138">		kenoPurchaseBean.setNoOfLines(noOfLines);</span>
+
+		//logger.debug(&quot;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!&quot;+ totPurAmt);
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">		if (totPurAmt &lt;= 0) {</span>
+<span class="nc" id="L143">			kenoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error Draw</span>
+<span class="nc" id="L144">			return kenoPurchaseBean;</span>
+		}
+<span class="nc" id="L146">		kenoPurchaseBean.setTotalPurchaseAmt(totPurAmt);</span>
+
+<span class="nc" id="L148">		con=DBConnect.getConnection();</span>
+<span class="nc" id="L149">		con.setAutoCommit(false);</span>
+<span class="nc" id="L150">		int autoCancelHoldDays=Integer.parseInt(Utility.getPropertyValue(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;)); </span>
+
+<span class="nc" id="L152">		helper.checkLastPrintedTicketStatusAndUpdate(userBean,Long.parseLong(kenoPurchaseBean.getLastSoldTicketNo()),&quot;TERMINAL&quot;,kenoPurchaseBean.getRefMerchantId(),autoCancelHoldDays,kenoPurchaseBean.getActionName(), kenoPurchaseBean.getLastGameId(),con);</span>
+
+<span class="nc" id="L154">		logger.debug(&quot;SALE_AUTO_CANCEL_LOGS:SALE Continue for the new ticket&quot;);</span>
+		/*if (kenoPurchaseBean.getLastSoldTicketNo() != null) {
+			if (!&quot;0&quot;.equalsIgnoreCase(kenoPurchaseBean.getLastSoldTicketNo())) {
+				Util.insertLastSoldTicketTeminal(kenoPurchaseBean.getUserId(),
+						kenoPurchaseBean.getLastSoldTicketNo(),kenoPurchaseBean.getGameId(),con);
+			}
+		}*/
+			// rg calling
+<span class="nc" id="L162">			boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;DG_SALE&quot;,</span>
+					totPurAmt + &quot;&quot;,con);
+<span class="nc bnc" id="L164" title="All 2 branches missed.">			if (!isFraud) {</span>
+<span class="nc" id="L165">				 balDed = orgOnLineSaleCreditUpdation</span>
+						.drawTcketSaleBalDeduction(userBean, kenoPurchaseBean
+								.getGameId(), kenoPurchaseBean
+								.getTotalPurchaseAmt(), kenoPurchaseBean
+								.getPlrMobileNumber(),con);
+<span class="nc" id="L170">				oldTotalPurchaseAmt = kenoPurchaseBean.getTotalPurchaseAmt();</span>
+				/*logger
+						.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper Just Before  getting Success :&quot;
+								+ oldTotalPurchaseAmt);*/
+<span class="nc bnc" id="L174" title="All 2 branches missed.">				if (balDed &gt; 0) {</span>
+					//logger.debug(&quot;in keno if----------------&quot;);
+<span class="nc" id="L176">					kenoPurchaseBean.setRefTransId(balDed + &quot;&quot;);</span>
+<span class="nc" id="L177">					con.commit();</span>
+				}else {
+
+<span class="nc bnc" id="L180" title="All 2 branches missed.">					if (balDed == -1) {</span>
+<span class="nc" id="L181">						status = &quot;AGT_INS_BAL&quot;;// Agent has insufficient</span>
+						// Balance
+<span class="nc bnc" id="L183" title="All 2 branches missed.">					} else if (balDed == -2) {</span>
+<span class="nc" id="L184">						status = &quot;FAILED&quot;;// Error LMS</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">					} else if (balDed == 0) {</span>
+<span class="nc" id="L186">						status = &quot;RET_INS_BAL&quot;;// Retailer has insufficient</span>
+						// Balance
+					}
+<span class="nc" id="L189">					kenoPurchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L190">					return kenoPurchaseBean;</span>
+				}
+			} else {
+<span class="nc" id="L193">				logger.debug(&quot;Responsing Gaming not allowed to sale&quot;);</span>
+<span class="nc" id="L194">				kenoPurchaseBean.setSaleStatus(&quot;FRAUD&quot;);</span>
+<span class="nc" id="L195">				return kenoPurchaseBean;</span>
+			}
+<span class="nc" id="L197">		} catch (SQLException se) {</span>
+<span class="nc" id="L198">			se.printStackTrace();</span>
+<span class="nc" id="L199">		}catch (Exception e) {</span>
+<span class="nc" id="L200">			e.printStackTrace();</span>
+		}finally{
+<span class="nc" id="L202">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L203">		}</span>
+				
+				try{
+<span class="nc" id="L206">					kenoRequestBean.setBetAmountMultiple(kenoPurchaseBean.getBetAmountMultiple());</span>
+<span class="nc" id="L207">					kenoRequestBean.setDrawIdTableMap(kenoPurchaseBean.getDrawIdTableMap());</span>
+<span class="nc" id="L208">					kenoRequestBean.setDrawDateTime(kenoPurchaseBean.getDrawDateTime());</span>
+<span class="nc" id="L209">					kenoRequestBean.setGame_no(kenoPurchaseBean.getGame_no());</span>
+<span class="nc" id="L210">					kenoRequestBean.setGameId(kenoPurchaseBean.getGameId());</span>
+<span class="nc" id="L211">					kenoRequestBean.setIsAdvancedPlay(kenoPurchaseBean.getIsAdvancedPlay());</span>
+<span class="nc" id="L212">					kenoRequestBean.setIsQuickPick(kenoPurchaseBean.getIsQuickPick());</span>
+<span class="nc" id="L213">					kenoRequestBean.setNoOfDraws(kenoPurchaseBean.getNoOfDraws());</span>
+<span class="nc" id="L214">					kenoRequestBean.setNoPicked(kenoPurchaseBean.getNoPicked());</span>
+<span class="nc" id="L215">					kenoRequestBean.setPartyId(kenoPurchaseBean.getPartyId());</span>
+<span class="nc" id="L216">					kenoRequestBean.setPartyType(kenoPurchaseBean.getPartyType());</span>
+<span class="nc" id="L217">					kenoRequestBean.setPlayerData(kenoPurchaseBean.getPlayerData());</span>
+<span class="nc" id="L218">					kenoRequestBean.setPlayType(kenoPurchaseBean.getPlayType());</span>
+<span class="nc" id="L219">					kenoRequestBean.setPurchaseChannel(kenoPurchaseBean.getPurchaseChannel());</span>
+<span class="nc" id="L220">					kenoRequestBean.setRefMerchantId(kenoPurchaseBean.getRefMerchantId());</span>
+<span class="nc" id="L221">					kenoRequestBean.setRefTransId(kenoPurchaseBean.getRefTransId());</span>
+<span class="nc" id="L222">					kenoRequestBean.setUserId(kenoPurchaseBean.getUserId());</span>
+<span class="nc" id="L223">					kenoRequestBean.setUserMappingId(kenoPurchaseBean.getUserMappingId());</span>
+<span class="nc" id="L224">					kenoRequestBean.setServiceId(kenoPurchaseBean.getServiceId());</span>
+<span class="nc" id="L225">					kenoRequestBean.setPromotkt(kenoPurchaseBean.isPromotkt());</span>
+<span class="nc" id="L226">					kenoRequestBean.setUnitPrice(kenoPurchaseBean.getUnitPrice());</span>
+<span class="nc" id="L227">					kenoRequestBean.setTotalPurchaseAmt(kenoPurchaseBean.getTotalPurchaseAmt());</span>
+
+					//logger.debug(&quot;in keno if----------------&quot;);
+
+					//logger.info(TransactionManager.getAuditId()+&quot;dgcall&quot;);
+					//sRes = delegate.getResponse(sReq);
+<span class="nc" id="L233">					String responseString = delegate.getResponseString(sReq);</span>
+					//long t1 = System.currentTimeMillis();
+					//Type elementType = new TypeToken&lt;KenoResponseBean&gt;(){}.getType();
+<span class="nc" id="L236">					KenoResponseBean kenoResponseBean = new Gson().fromJson(responseString, KenoResponseBean.class);</span>
+					
+<span class="nc bnc" id="L238" title="All 2 branches missed.">					if (kenoResponseBean.getIsSuccess()) {</span>
+<span class="nc" id="L239">						kenoPurchaseBean.setSaleStatus(kenoResponseBean.getSaleStatus());</span>
+<span class="nc" id="L240">						kenoPurchaseBean.setTicket_no(kenoResponseBean.getTicketNo());</span>
+<span class="nc" id="L241">						kenoPurchaseBean.setBarcodeCount(kenoResponseBean.getBarcodeCount());</span>
+<span class="nc" id="L242">						kenoPurchaseBean.setNoOfDraws(kenoResponseBean.getNoOfDraws());</span>
+<span class="nc" id="L243">						kenoPurchaseBean.setPurchaseTime(kenoResponseBean.getPurchaseTime());</span>
+<span class="nc" id="L244">						kenoPurchaseBean.setReprintCount(kenoResponseBean.getReprintCount());</span>
+<span class="nc" id="L245">						kenoPurchaseBean.setPlayerData(kenoResponseBean.getPlayerData());</span>
+<span class="nc" id="L246">						kenoPurchaseBean.setTotalPurchaseAmt(kenoResponseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L247">						kenoPurchaseBean.setDrawDateTime(kenoResponseBean.getDrawDateTime());</span>
+						//logger.info(&quot;Time for Parse Keno Response Bean (LMS) - &quot;+(System.currentTimeMillis()-t1));
+						//kenoPurchaseBean.setDrawNameList(kenoResponseBean.getDrawNameList());
+						//kenoPurchaseBean = new Gson().fromJson(responseString, elementType);
+
+					
+						//logger.info(TransactionManager.getAuditId()+&quot;dgcall end&quot;);
+<span class="nc" id="L254">						modifiedTotalPurchaseAmt = kenoPurchaseBean</span>
+								.getTotalPurchaseAmt();
+						//logger.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper After getting Success :&quot;+ modifiedTotalPurchaseAmt);
+<span class="nc" id="L257">                         con=DBConnect.getConnection();</span>
+<span class="nc" id="L258">                         con.setAutoCommit(false);</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">						if (oldTotalPurchaseAmt != modifiedTotalPurchaseAmt) {</span>
+<span class="nc" id="L260">							balDed = orgOnLineSaleCreditUpdation</span>
+									.drawTcketSaleBalDedUpdate(userBean,
+											kenoPurchaseBean.getGameId(),
+											modifiedTotalPurchaseAmt,
+											oldTotalPurchaseAmt, balDed,con);
+
+						}
+
+<span class="nc" id="L268">						int tickUpd = orgOnLineSaleCreditUpdation</span>
+								.drawTicketSaleTicketUpdate(balDed,
+										kenoPurchaseBean.getTicket_no(),
+										kenoPurchaseBean.getGameId(),
+										userBean, kenoPurchaseBean
+												.getPurchaseChannel(),con);
+
+<span class="nc bnc" id="L275" title="All 2 branches missed.">						if (tickUpd == 1) {</span>
+
+<span class="nc" id="L277">							status = &quot;SUCCESS&quot;;</span>
+							/*AjaxRequestHelper ajxHelper = new AjaxRequestHelper();
+							ajxHelper.getAvlblCreditAmt(userBean,con);*/
+							
+<span class="nc" id="L281">							AjaxRequestHelper.getLiveAmt(userBean, con);</span>
+							//logger.info(TransactionManager.getAuditId()+&quot;update ticke done&quot;);
+<span class="nc" id="L283">							kenoPurchaseBean.setAdvMsg(Util.getDGSaleAdvMessage(userBean.getUserOrgId(), kenoPurchaseBean.getGameId()));</span>
+<span class="nc" id="L284">							kenoPurchaseBean.setSaleStatus(status);</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">							if (!kenoPurchaseBean.getBarcodeType().equals(&quot;applet&quot;)) {</span>
+<span class="nc" id="L286">								 IDBarcode.getBarcode(kenoPurchaseBean</span>
+										.getTicket_no()
+										+ kenoPurchaseBean.getReprintCount());
+							}
+<span class="nc" id="L290">							con.commit();</span>
+							//logger.info(TransactionManager.getAuditId()+&quot;con commit&quot;);
+<span class="nc" id="L292">							return kenoPurchaseBean;</span>
+						} else {
+<span class="nc" id="L294">							status = &quot;FAILED&quot;;</span>
+<span class="nc" id="L295">							kenoPurchaseBean.setSaleStatus(status);</span>
+							// Code for cancelling the Ticket to be send to Draw
+							// Game Engine
+<span class="nc" id="L298">							helper.cancelTicket(kenoPurchaseBean.getTicket_no()</span>
+									+ kenoPurchaseBean.getReprintCount(),
+									kenoPurchaseBean.getPurchaseChannel(),
+									kenoPurchaseBean.getDrawIdTableMap(),
+									kenoPurchaseBean.getGame_no(),
+									kenoPurchaseBean.getPartyId(),
+									kenoPurchaseBean.getPartyType(),
+									kenoPurchaseBean.getRefMerchantId(),
+									userBean, kenoPurchaseBean.getRefTransId());
+
+<span class="nc" id="L308">							return kenoPurchaseBean;</span>
+						}
+					} else {
+<span class="nc" id="L311">						kenoPurchaseBean.setSaleStatus(kenoResponseBean.getSaleStatus());</span>
+
+<span class="nc bnc" id="L313" title="All 2 branches missed.">						if (kenoPurchaseBean.getSaleStatus() == null) {</span>
+<span class="nc" id="L314">							kenoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+<span class="nc" id="L315">							orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+									userBean, kenoPurchaseBean.getGame_no(),
+									&quot;FAILED&quot;, balDed);
+<span class="nc" id="L318">							return kenoPurchaseBean;</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">						} else if (&quot;ERROR_TICKET_LIMIT&quot;</span>
+								.equalsIgnoreCase(kenoPurchaseBean
+										.getSaleStatus())) {
+<span class="nc" id="L322">							orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+									userBean, kenoPurchaseBean.getGame_no(),
+									&quot;FAILED&quot;, balDed);
+<span class="nc" id="L325">							return kenoPurchaseBean;</span>
+						} else {
+<span class="nc" id="L327">							orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+									userBean, kenoPurchaseBean.getGame_no(),
+									&quot;FAILED&quot;, balDed);
+<span class="nc" id="L330">							return kenoPurchaseBean;</span>
+						}
+					}
+<span class="nc" id="L333">			}catch (Exception e) {</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">				if (kenoPurchaseBean.getSaleStatus() == null) {</span>
+<span class="nc" id="L335">					kenoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+<span class="nc" id="L336">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+							userBean, kenoPurchaseBean.getGame_no(),
+							&quot;FAILED&quot;, balDed);
+				}else {
+<span class="nc" id="L340">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+							userBean, kenoPurchaseBean.getGame_no(),
+							&quot;FAILED&quot;, balDed);
+				}
+			}finally{
+<span class="nc" id="L345">				DBConnect.closeCon(con);</span>
+<span class="nc" id="L346">			}</span>
+<span class="nc" id="L347">		return kenoPurchaseBean;</span>
+	}
+
+	public boolean kenoFourValidateData(KenoPurchaseBean kenoPurchaseBean) {
+<span class="nc bnc" id="L351" title="All 2 branches missed.">		if (kenoPurchaseBean != null) {</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">			if (kenoPurchaseBean.getNoOfDraws() &lt; 1) {</span>
+<span class="nc" id="L353">				logger.debug(&quot;insufficient no of draws&quot;);</span>
+<span class="nc" id="L354">				return false;</span>
+			}
+<span class="nc bnc" id="L356" title="All 2 branches missed.">			if (kenoPurchaseBean.getNoOfPanel() &lt; 1) {</span>
+<span class="nc" id="L357">				logger.debug(&quot;insufficient no of panels&quot;);</span>
+<span class="nc" id="L358">				return false;</span>
+			}
+
+<span class="nc" id="L361">			boolean isKenya = &quot;Kenya&quot;.equalsIgnoreCase((String) LMSUtility.sc</span>
+					.getAttribute(&quot;COUNTRY_DEPLOYED&quot;));
+<span class="nc" id="L363">			int noOfPanel = kenoPurchaseBean.getNoOfPanel();</span>
+<span class="nc" id="L364">			String playTypeArr[] = kenoPurchaseBean.getPlayType();</span>
+<span class="nc" id="L365">			String[] noPickStr = kenoPurchaseBean.getNoPicked();</span>
+<span class="nc" id="L366">			String[] pickedNumbers = kenoPurchaseBean.getPlayerData();</span>
+<span class="nc" id="L367">			int[] qp = kenoPurchaseBean.getIsQuickPick();</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">			for (int i = 0; i &lt; noOfPanel; i++) {</span>
+<span class="nc" id="L369">				String playType = playTypeArr[i];</span>
+<span class="nc" id="L370">				String[] noPick = noPickStr[i].split(&quot;,&quot;);</span>
+<span class="nc" id="L371">				int[] n = new int[noPick.length];</span>
+<span class="nc bnc" id="L372" title="All 2 branches missed.">				for (int j = 0; j &lt; noPick.length; j++) {</span>
+<span class="nc" id="L373">					n[j] = Integer.parseInt(noPick[j]);</span>
+				}
+<span class="nc bnc" id="L375" title="All 2 branches missed.">				if (!&quot;QP&quot;.equalsIgnoreCase(pickedNumbers[i])) {</span>
+<span class="nc bnc" id="L376" title="All 4 branches missed.">					if (playType.contains(&quot;Direct1&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct1&quot;)) {</span>
+<span class="nc bnc" id="L377" title="All 6 branches missed.">						if (n[0] != 1 || qp[i] != 2</span>
+								|| pickedNumbers[i].split(&quot;,&quot;).length != 1) {
+<span class="nc" id="L379">							return false;</span>
+						}
+<span class="nc bnc" id="L381" title="All 10 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct2&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct2&quot;)</span>
+							|| playType.equalsIgnoreCase(&quot;4By90-Direct2&quot;) || playType.equalsIgnoreCase(&quot;3By90-Direct2&quot;)
+							|| playType.equalsIgnoreCase(&quot;2By90-Direct2&quot;)) {
+<span class="nc bnc" id="L384" title="All 6 branches missed.">						if (n[0] != 2 || qp[i] != 2</span>
+								|| pickedNumbers[i].split(&quot;,&quot;).length != 2) {
+<span class="nc" id="L386">							return false;</span>
+						}
+<span class="nc bnc" id="L388" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct3&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct3&quot;)) {</span>
+<span class="nc bnc" id="L389" title="All 6 branches missed.">						if (n[0] != 3 || qp[i] != 2</span>
+								|| pickedNumbers[i].split(&quot;,&quot;).length != 3) {
+<span class="nc" id="L391">							return false;</span>
+						}
+<span class="nc bnc" id="L393" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct4&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct4&quot;)) {</span>
+<span class="nc bnc" id="L394" title="All 6 branches missed.">						if (n[0] != 4 || qp[i] != 2</span>
+								|| pickedNumbers[i].split(&quot;,&quot;).length != 4) {
+<span class="nc" id="L396">							return false;</span>
+						}
+
+<span class="nc bnc" id="L399" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct5&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct5&quot;)) {</span>
+<span class="nc bnc" id="L400" title="All 6 branches missed.">						if (n[0] != 5 || qp[i] != 2</span>
+								|| pickedNumbers[i].split(&quot;,&quot;).length != 5) {
+<span class="nc" id="L402">							return false;</span>
+						}
+
+<span class="nc bnc" id="L405" title="All 10 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Perm2&quot;)  || playType.equalsIgnoreCase(&quot;DC-Perm2&quot;)</span>
+							|| playType.equalsIgnoreCase(&quot;4By90-Perm2&quot;) || playType.equalsIgnoreCase(&quot;3By90-Perm2&quot;)
+							|| playType.equalsIgnoreCase(&quot;2By90-Perm2&quot;)) {
+<span class="nc bnc" id="L408" title="All 2 branches missed.">						if (!isKenya) {</span>
+<span class="nc bnc" id="L409" title="All 6 branches missed.">							if (n[0] &lt; 3 || qp[i] != 2</span>
+									|| pickedNumbers[i].split(&quot;,&quot;).length &lt; 3) {
+<span class="nc" id="L411">								return false;</span>
+							}
+						}
+<span class="nc bnc" id="L414" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Perm3&quot;) || playType.equalsIgnoreCase(&quot;DC-Perm3&quot;)) {</span>
+<span class="nc bnc" id="L415" title="All 6 branches missed.">						if (n[0] &lt; 4 || qp[i] != 2</span>
+								|| pickedNumbers[i].split(&quot;,&quot;).length &lt; 4) {
+<span class="nc" id="L417">							return false;</span>
+						}
+
+					}
+				} else {
+<span class="nc bnc" id="L422" title="All 4 branches missed.">					if (playType.contains(&quot;Direct1&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct1&quot;)) {</span>
+<span class="nc bnc" id="L423" title="All 4 branches missed.">						if (n[0] != 1 || qp[i] != 1) {</span>
+<span class="nc" id="L424">							return false;</span>
+						}
+<span class="nc bnc" id="L426" title="All 10 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct2&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct2&quot;)</span>
+							|| playType.equalsIgnoreCase(&quot;4By90-Direct2&quot;) || playType.equalsIgnoreCase(&quot;3By90-Direct2&quot;)
+							|| playType.equalsIgnoreCase(&quot;2By90-Direct2&quot;)) {
+<span class="nc bnc" id="L429" title="All 4 branches missed.">						if (n[0] != 2 || qp[i] != 1) {</span>
+<span class="nc" id="L430">							return false;</span>
+						}
+<span class="nc bnc" id="L432" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct3&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct3&quot;)) {</span>
+<span class="nc bnc" id="L433" title="All 4 branches missed.">						if (n[0] != 3 || qp[i] != 1) {</span>
+<span class="nc" id="L434">							return false;</span>
+						}
+<span class="nc bnc" id="L436" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct4&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct4&quot;)) {</span>
+<span class="nc bnc" id="L437" title="All 4 branches missed.">						if (n[0] != 4 || qp[i] != 1) {</span>
+<span class="nc" id="L438">							return false;</span>
+						}
+
+<span class="nc bnc" id="L441" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Direct5&quot;) || playType.equalsIgnoreCase(&quot;DC-Direct5&quot;)) {</span>
+<span class="nc bnc" id="L442" title="All 4 branches missed.">						if (n[0] != 5 || qp[i] != 1) {</span>
+<span class="nc" id="L443">							return false;</span>
+						}
+
+<span class="nc bnc" id="L446" title="All 10 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Perm2&quot;) || playType.equalsIgnoreCase(&quot;DC-Perm2&quot;)</span>
+							|| playType.equalsIgnoreCase(&quot;4By90-Perm2&quot;) || playType.equalsIgnoreCase(&quot;3By90-Perm2&quot;)
+							|| playType.equalsIgnoreCase(&quot;2By90-Perm2&quot;)) {
+<span class="nc bnc" id="L449" title="All 4 branches missed.">						if (n[0] &lt; 3 || qp[i] != 1) {</span>
+<span class="nc" id="L450">							return false;</span>
+						}
+
+<span class="nc bnc" id="L453" title="All 4 branches missed.">					} else if (playType.equalsIgnoreCase(&quot;Perm3&quot;) || playType.equalsIgnoreCase(&quot;DC-Perm3&quot;)) {</span>
+<span class="nc bnc" id="L454" title="All 4 branches missed.">						if (n[0] &lt; 4 || qp[i] != 1) {</span>
+<span class="nc" id="L455">							return false;</span>
+						}
+
+					}
+				}
+
+			}
+
+<span class="nc" id="L463">			boolean isValid = true;</span>
+<span class="nc" id="L464">			String[] pickedNumbersArr = kenoPurchaseBean.getPlayerData();</span>
+			// int noOfPanel = pickedNumbersArr.length;
+<span class="nc" id="L466">			String[] noPickedArr = kenoPurchaseBean.getNoPicked();</span>
+<span class="nc bnc" id="L467" title="All 2 branches missed.">			for (int i = 0; i &lt; noOfPanel; i++) {</span>
+<span class="nc" id="L468">				String pickValue = KenoFourConstants.BET_TYPE_MAP</span>
+						.get(playTypeArr[i]);
+<span class="nc" id="L470">				String playerData = pickedNumbersArr[i];</span>
+<span class="nc bnc" id="L471" title="All 4 branches missed.">				if (playTypeArr[i].contains(&quot;Direct&quot;)</span>
+						|| &quot;Banker1AgainstAll&quot;.equals(playTypeArr[i])) {
+<span class="nc" id="L473">					isValid = noPickedArr[i].equals(pickValue);</span>
+					//logger.debug(&quot;-Direct---&quot; + playTypeArr[i] + &quot;---&quot;+ noPickedArr[i]);
+<span class="nc bnc" id="L475" title="All 2 branches missed.">					if (!isValid) {</span>
+<span class="nc" id="L476">						break;</span>
+					}
+<span class="nc bnc" id="L478" title="All 2 branches missed.">				} else if (playTypeArr[i].contains(&quot;Perm&quot;)) {</span>
+<span class="nc" id="L479">					String defPick[] = pickValue.split(&quot;,&quot;);</span>
+<span class="nc" id="L480">					String selPick = noPickedArr[i];</span>
+				//	logger.debug(&quot;-Perm---&quot; + playTypeArr[i] + &quot;---&quot;+ noPickedArr[i]);
+<span class="nc bnc" id="L482" title="All 4 branches missed.">					if (Integer.parseInt(defPick[0]) &gt; Integer</span>
+							.parseInt(selPick)
+							|| Integer.parseInt(defPick[1]) &lt; Integer
+									.parseInt(selPick)) {
+<span class="nc" id="L486">						isValid = false;</span>
+<span class="nc" id="L487">						break;</span>
+					}
+<span class="nc bnc" id="L489" title="All 2 branches missed.">				} else if (&quot;Banker&quot;.equals(playTypeArr[i])) {</span>
+					//logger.debug(&quot;-Banker---&quot; + playTypeArr[i] + &quot;---&quot;	+ noPickedArr[i]);
+<span class="nc" id="L491">					String defPick[] = pickValue.split(&quot;,&quot;);</span>
+<span class="nc" id="L492">					String selPick[] = noPickedArr[i].split(&quot;,&quot;);</span>
+					// for upper line &amp; below line
+<span class="nc bnc" id="L494" title="All 8 branches missed.">					if (Integer.parseInt(defPick[0]) &gt; Integer</span>
+							.parseInt(selPick[0])
+							|| Integer.parseInt(defPick[1]) &lt; Integer
+									.parseInt(selPick[0])
+							|| Integer.parseInt(defPick[2]) &gt; Integer
+									.parseInt(selPick[1])
+							|| Integer.parseInt(defPick[3]) &lt; Integer
+									.parseInt(selPick[1])) {
+<span class="nc" id="L502">						isValid = false;</span>
+<span class="nc" id="L503">						break;</span>
+					}
+				}
+<span class="nc bnc" id="L506" title="All 2 branches missed.">				if (!&quot;QP&quot;.equals(playerData)) {</span>
+<span class="nc" id="L507">					isValid = Util.validateNumber(</span>
+							KenoFourConstants.START_RANGE,
+							KenoFourConstants.END_RANGE, playerData.replace(
+									&quot;,UL,&quot;, &quot;,&quot;).replace(&quot;,BL&quot;, &quot;&quot;), false);
+					//logger.debug(&quot;-Data---&quot; + playTypeArr[i] + &quot;---&quot;+ noPickedArr[i] + &quot;---&quot; + playerData);
+<span class="nc bnc" id="L512" title="All 2 branches missed.">					if (!isValid) {</span>
+<span class="nc" id="L513">						break;</span>
+					}
+				}
+			}
+
+<span class="nc bnc" id="L518" title="All 2 branches missed.">			if (!isValid) {</span>
+<span class="nc" id="L519">				kenoPurchaseBean.setSaleStatus(&quot;INVALID_INPUT&quot;);// Error Draw</span>
+				// setKenoPurchaseBean(kenoPurchaseBean);
+<span class="nc" id="L521">				logger</span>
+						.error(&quot;-----------Keno Validation Error-------------------&quot;
+								+ kenoPurchaseBean.getSaleStatus());
+<span class="nc" id="L524">				return false;</span>
+			}
+
+<span class="nc" id="L527">		} else {</span>
+<span class="nc" id="L528">			logger.debug(&quot;keno bean null&quot;);</span>
+<span class="nc" id="L529">			return false;</span>
+		}
+<span class="nc" id="L531">		return true;</span>
+
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

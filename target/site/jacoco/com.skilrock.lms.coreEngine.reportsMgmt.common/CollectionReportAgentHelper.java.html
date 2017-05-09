@@ -1,0 +1,603 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CollectionReportAgentHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">CollectionReportAgentHelper.java</span></div><h1>CollectionReportAgentHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.DecimalFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.CollectionReportBean;
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.FormatNumber;
+
+public class CollectionReportAgentHelper {
+
+<span class="nc" id="L32">	private static Log logger = LogFactory</span>
+			.getLog(CollectionReportAgentHelper.class);
+
+	public static String formatDate(Date date) {
+<span class="nc" id="L36">		String datestr = new SimpleDateFormat(&quot;dd/MM/yyyy&quot;).format(date);</span>
+<span class="nc" id="L37">		System.out.println(datestr);</span>
+
+<span class="nc" id="L39">		return datestr;</span>
+	}
+
+	public static void main(String[] args) {
+<span class="nc" id="L43">		(new CollectionReportAgentHelper(null, null)).getRetailerOrgId();</span>
+<span class="nc" id="L44">	}</span>
+
+	private int agentOrgId;
+	private int agentUserId;
+<span class="nc" id="L48">	private Connection con = null;</span>
+	private DateBeans dateBean;
+
+	private java.sql.Date end;
+<span class="nc" id="L52">	public Map&lt;String, String&gt; lastRowMap = new TreeMap&lt;String, String&gt;();</span>
+
+<span class="nc" id="L54">	private PreparedStatement pstmt = null;</span>
+
+	private java.sql.Date start;
+
+	private String totalOpenBal;
+
+	public CollectionReportAgentHelper(UserInfoBean infoBean,
+<span class="nc" id="L61">			DateBeans dateBeans) {</span>
+<span class="nc" id="L62">		this.dateBean = dateBeans;</span>
+<span class="nc" id="L63">		this.start = new java.sql.Date(dateBeans.getFirstdate().getTime());</span>
+<span class="nc" id="L64">		this.end = new java.sql.Date(dateBeans.getLastdate().getTime());</span>
+<span class="nc" id="L65">		this.agentUserId = infoBean.getUserId();</span>
+<span class="nc" id="L66">		this.agentOrgId = infoBean.getUserOrgId();</span>
+<span class="nc" id="L67">		System.out.println(dateBeans.getFirstdate() + &quot;  &quot;</span>
+				+ dateBeans.getLastdate() + &quot; userId &quot; + agentUserId
+				+ &quot; agentOrgId &quot; + agentOrgId);
+<span class="nc" id="L70">	}</span>
+
+	public List&lt;CollectionReportBean&gt; getAgentCollectionDetail(
+			Map&lt;String, Integer&gt; partyIdMap, boolean isDraw, boolean isScratch,
+			boolean isOla,boolean isCS,boolean forOpenBal) throws ParseException {
+<span class="nc" id="L75">		List&lt;CollectionReportBean&gt; list = new ArrayList&lt;CollectionReportBean&gt;();</span>
+<span class="nc" id="L76">		CollectionReportBean collectionBean = null;</span>
+<span class="nc" id="L77">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L78">		ResultSet rs = null, rs1 = null, rs2 = null, rs3 = null, rs4=null;</span>
+<span class="nc" id="L79">		System.out.println(con + &quot;size of report list &quot; + partyIdMap.size());</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">		if (!forOpenBal) {</span>
+<span class="nc" id="L81">			this.start = new java.sql.Date(dateBean.getFirstdate().getTime());</span>
+<span class="nc" id="L82">			this.end = new java.sql.Date(dateBean.getLastdate().getTime());</span>
+		}
+		// used to add a row of total player pwt amount
+		// PwtReportBean totalPlayerPwt=getPlayerPwtDetail(con);
+		// if(totalPlayerPwt!=null) list.add(totalPlayerPwt);
+<span class="nc" id="L87">		Set&lt;String&gt; partyIdlist = partyIdMap.keySet();</span>
+<span class="nc" id="L88">		DecimalFormat df = new DecimalFormat(&quot;##.## &quot;);</span>
+		try {
+
+<span class="nc" id="L91">			double totalSaleRet = 0.0;</span>
+<span class="nc" id="L92">			double totalCash = 0.0;</span>
+<span class="nc" id="L93">			double totalChq = 0.0;</span>
+<span class="nc" id="L94">			double totalChqRet = 0.0;</span>
+<span class="nc" id="L95">			double totalCredit = 0.0;</span>
+<span class="nc" id="L96">			double totalDebit = 0.0;</span>
+<span class="nc" id="L97">			double totalDrawSale = 0.0;</span>
+<span class="nc" id="L98">			double totalDrawSaleRefund = 0.0;</span>
+<span class="nc" id="L99">			double totalDrawPwt = 0.0;</span>
+<span class="nc" id="L100">			double totalScratchSale = 0.0;</span>
+<span class="nc" id="L101">			double totalScratchPwt = 0.0;</span>
+<span class="nc" id="L102">			double totalRecTotal = 0.0;</span>
+<span class="nc" id="L103">			double totalScratchTotal = 0.0;</span>
+<span class="nc" id="L104">			double totalDrawTotal = 0.0;</span>
+<span class="nc" id="L105">			double totalolaTotal = 0.0;</span>
+
+<span class="nc" id="L107">			double totalGrandTotal = 0.0;</span>
+<span class="nc" id="L108">			int count = 1;</span>
+
+<span class="nc" id="L110">			double totalRetailerDeposit = 0.0;</span>
+<span class="nc" id="L111">			double totalRetailerWithdraw = 0.0;</span>
+<span class="nc" id="L112">			double totalNetGaming = 0.0;</span>
+<span class="nc" id="L113">			double totalRetailerCsSale=0.0;</span>
+<span class="nc" id="L114">			double totalRetailerCsSaleRefund=0.0;</span>
+<span class="nc" id="L115">			double totalCsTotal=0.0;</span>
+			
+			
+<span class="nc" id="L118">			System.out</span>
+					.println(&quot;I AM IN THE collection report agent helper in getAgentCollectionDetail method&quot;);
+<span class="nc bnc" id="L120" title="All 2 branches missed.">			for (String nameKey : partyIdlist) {</span>
+<span class="nc" id="L121">				int partyid = partyIdMap.get(nameKey);</span>
+<span class="nc" id="L122">				pstmt = con.prepareStatement(QueryManager</span>
+						.getST_COLLECTION_DETAILS_FOR_AGENT());
+<span class="nc" id="L124">				pstmt.setInt(1, agentOrgId);</span>
+<span class="nc" id="L125">				pstmt.setInt(2, partyid);</span>
+<span class="nc" id="L126">				pstmt.setDate(3, start);</span>
+<span class="nc" id="L127">				pstmt.setDate(4, end);</span>
+
+<span class="nc" id="L129">				pstmt.setInt(5, agentOrgId);</span>
+<span class="nc" id="L130">				pstmt.setInt(6, partyid);</span>
+<span class="nc" id="L131">				pstmt.setDate(7, start);</span>
+<span class="nc" id="L132">				pstmt.setDate(8, end);</span>
+
+<span class="nc" id="L134">				pstmt.setInt(9, agentOrgId);</span>
+<span class="nc" id="L135">				pstmt.setInt(10, partyid);</span>
+<span class="nc" id="L136">				pstmt.setDate(11, start);</span>
+<span class="nc" id="L137">				pstmt.setDate(12, end);</span>
+
+<span class="nc" id="L139">				pstmt.setInt(13, agentOrgId);</span>
+<span class="nc" id="L140">				pstmt.setInt(14, partyid);</span>
+<span class="nc" id="L141">				pstmt.setDate(15, start);</span>
+<span class="nc" id="L142">				pstmt.setDate(16, end);</span>
+
+<span class="nc" id="L144">				pstmt.setInt(17, agentOrgId);</span>
+<span class="nc" id="L145">				pstmt.setInt(18, partyid);</span>
+<span class="nc" id="L146">				pstmt.setDate(19, start);</span>
+<span class="nc" id="L147">				pstmt.setDate(20, end);</span>
+
+<span class="nc" id="L149">				rs = pstmt.executeQuery();</span>
+<span class="nc" id="L150">				logger</span>
+						.debug(&quot;get Agent accounts collections details query- ==== -&quot;
+								+ pstmt);
+
+<span class="nc bnc" id="L154" title="All 2 branches missed.">				if (isScratch) {</span>
+<span class="nc" id="L155">					pstmt = con.prepareStatement(QueryManager</span>
+							.getST_COLLECTION_DETAILS_FOR_AGENT_SE());
+<span class="nc" id="L157">					pstmt.setInt(1, agentOrgId);</span>
+<span class="nc" id="L158">					pstmt.setInt(2, partyid);</span>
+<span class="nc" id="L159">					pstmt.setDate(3, start);</span>
+<span class="nc" id="L160">					pstmt.setDate(4, end);</span>
+
+<span class="nc" id="L162">					pstmt.setInt(5, agentOrgId);</span>
+<span class="nc" id="L163">					pstmt.setInt(6, partyid);</span>
+<span class="nc" id="L164">					pstmt.setDate(7, start);</span>
+<span class="nc" id="L165">					pstmt.setDate(8, end);</span>
+
+<span class="nc" id="L167">					pstmt.setInt(9, agentOrgId);</span>
+<span class="nc" id="L168">					pstmt.setInt(10, partyid);</span>
+<span class="nc" id="L169">					pstmt.setDate(11, start);</span>
+<span class="nc" id="L170">					pstmt.setDate(12, end);</span>
+					
+<span class="nc" id="L172">					pstmt.setInt(13, agentOrgId);</span>
+<span class="nc" id="L173">					pstmt.setInt(14, partyid);</span>
+<span class="nc" id="L174">					pstmt.setDate(15, start);</span>
+<span class="nc" id="L175">					pstmt.setDate(16, end);</span>
+
+<span class="nc" id="L177">					pstmt.setInt(17, agentOrgId);</span>
+<span class="nc" id="L178">					pstmt.setInt(18, partyid);</span>
+<span class="nc" id="L179">					pstmt.setDate(19, start);</span>
+<span class="nc" id="L180">					pstmt.setDate(20, end);</span>
+					
+<span class="nc" id="L182">					logger</span>
+							.debug(&quot;get Agent scratch collections details query- ==== -&quot;
+									+ pstmt);
+<span class="nc" id="L185">					rs1 = pstmt.executeQuery();</span>
+				}
+<span class="nc bnc" id="L187" title="All 2 branches missed.">				if (isDraw) {</span>
+<span class="nc" id="L188">					pstmt = con.prepareStatement(QueryManager</span>
+							.getST_COLLECTION_DETAILS_FOR_AGENT_DG());
+<span class="nc" id="L190">					pstmt.setInt(1, agentOrgId);</span>
+<span class="nc" id="L191">					pstmt.setInt(2, partyid);</span>
+<span class="nc" id="L192">					pstmt.setDate(3, start);</span>
+<span class="nc" id="L193">					pstmt.setDate(4, end);</span>
+
+<span class="nc" id="L195">					pstmt.setInt(5, agentOrgId);</span>
+<span class="nc" id="L196">					pstmt.setInt(6, partyid);</span>
+<span class="nc" id="L197">					pstmt.setDate(7, start);</span>
+<span class="nc" id="L198">					pstmt.setDate(8, end);</span>
+
+<span class="nc" id="L200">					pstmt.setInt(9, agentOrgId);</span>
+<span class="nc" id="L201">					pstmt.setInt(10, partyid);</span>
+<span class="nc" id="L202">					pstmt.setDate(11, start);</span>
+<span class="nc" id="L203">					pstmt.setDate(12, end);</span>
+<span class="nc" id="L204">					logger</span>
+							.debug(&quot; get Agent draw collections details query- ==== -&quot;
+									+ pstmt);
+<span class="nc" id="L207">					rs2 = pstmt.executeQuery();</span>
+
+				}
+
+<span class="nc bnc" id="L211" title="All 2 branches missed.">				if (isOla) {</span>
+<span class="nc" id="L212">					System.out</span>
+							.println(&quot;Inside OLA Block to execute The Query......&quot;);
+<span class="nc" id="L214">					pstmt = con.prepareStatement(QueryManager</span>
+							.getST_COLLECTION_DETAILS_FOR_AGENT_OLA1());
+
+<span class="nc" id="L217">					pstmt.setDate(1, start);</span>
+<span class="nc" id="L218">					pstmt.setDate(2, end);</span>
+<span class="nc" id="L219">					pstmt.setInt(3, partyid);</span>
+
+<span class="nc" id="L221">					pstmt.setDate(4, start);</span>
+<span class="nc" id="L222">					pstmt.setDate(5, end);</span>
+<span class="nc" id="L223">					pstmt.setInt(6, partyid);</span>
+
+<span class="nc" id="L225">					pstmt.setDate(7, start);</span>
+<span class="nc" id="L226">					pstmt.setDate(8, end);</span>
+<span class="nc" id="L227">					pstmt.setInt(9, partyid);</span>
+
+<span class="nc" id="L229">					pstmt.setDate(10, start);</span>
+<span class="nc" id="L230">					pstmt.setDate(11, end);</span>
+<span class="nc" id="L231">					pstmt.setInt(12, partyid);</span>
+
+<span class="nc" id="L233">					pstmt.setDate(13, start);</span>
+<span class="nc" id="L234">					pstmt.setDate(14, end);</span>
+<span class="nc" id="L235">					pstmt.setInt(15, agentOrgId);</span>
+
+<span class="nc" id="L237">					pstmt.setInt(16, partyid);</span>
+
+<span class="nc" id="L239">					logger</span>
+							.debug(&quot; get OLA DETAILS ON THe AGENT SIDE ..........- ==== -&quot;
+									+ pstmt);
+<span class="nc" id="L242">					rs3 = pstmt.executeQuery();</span>
+
+				}
+				
+				
+								
+<span class="nc bnc" id="L248" title="All 2 branches missed.">				if(isCS){</span>
+					
+<span class="nc" id="L250">					System.out</span>
+					.println(&quot;Inside CS Block to execute The Query......&quot;);
+<span class="nc" id="L252">			pstmt = con.prepareStatement(QueryManager</span>
+					.getST_COLLECTION_DETAILS_FOR_AGENT_CS());
+			
+
+<span class="nc" id="L256">			System.out.println(start);</span>
+<span class="nc" id="L257">			System.out.println(end);</span>
+
+<span class="nc" id="L259">			pstmt.setInt(1, agentOrgId);</span>
+<span class="nc" id="L260">			pstmt.setDate(2, start);</span>
+<span class="nc" id="L261">			pstmt.setDate(3, end);</span>
+<span class="nc" id="L262">			pstmt.setInt(4, partyid);</span>
+			
+<span class="nc" id="L264">			pstmt.setInt(5, agentOrgId);</span>
+<span class="nc" id="L265">			pstmt.setDate(6, start);</span>
+<span class="nc" id="L266">			pstmt.setDate(7, end);</span>
+<span class="nc" id="L267">			pstmt.setInt(8, partyid);</span>
+			
+<span class="nc" id="L269">			logger</span>
+			.debug(&quot; get CS DETAILS ON THe AGENT SIDE ..........- ==== -&quot;
+					+ pstmt);
+<span class="nc" id="L272">			rs4 = pstmt.executeQuery();</span>
+			
+				}
+				
+				
+
+<span class="nc" id="L278">				double recTotal = 0.0;</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">				if (rs.next()) {</span>
+<span class="nc" id="L280">					collectionBean = new CollectionReportBean();</span>
+<span class="nc" id="L281">					collectionBean.setSrNo(count);</span>
+<span class="nc" id="L282">					collectionBean.setName(nameKey);</span>
+<span class="nc" id="L283">					collectionBean.setOrgId(partyid);</span>
+
+<span class="nc" id="L285">					double cash = rs.getDouble(&quot;cash&quot;);</span>
+<span class="nc" id="L286">					collectionBean.setCash(FormatNumber.formatNumber(cash));</span>
+<span class="nc" id="L287">					double cheque = rs.getDouble(&quot;cheque&quot;);</span>
+<span class="nc" id="L288">					collectionBean.setChq(FormatNumber.formatNumber(cheque));</span>
+<span class="nc" id="L289">					double credit = rs.getDouble(&quot;credit&quot;);</span>
+<span class="nc" id="L290">					collectionBean.setCredit(FormatNumber.formatNumber(credit));</span>
+<span class="nc" id="L291">					double debit = rs.getDouble(&quot;debit&quot;);</span>
+<span class="nc" id="L292">					collectionBean.setDebit(FormatNumber.formatNumber(debit));</span>
+<span class="nc" id="L293">					double chqRet = rs.getDouble(&quot;cheque_ret&quot;);</span>
+<span class="nc" id="L294">					collectionBean.setChqRet(FormatNumber.formatNumber(chqRet));</span>
+
+<span class="nc" id="L296">					recTotal = cash + cheque + credit - debit - chqRet;</span>
+<span class="nc" id="L297">					collectionBean.setRecTotal(FormatNumber</span>
+							.formatNumber(recTotal));
+<span class="nc" id="L299">					totalCash += cash;</span>
+<span class="nc" id="L300">					totalChq += cheque;</span>
+<span class="nc" id="L301">					totalCredit += credit;</span>
+<span class="nc" id="L302">					totalDebit += debit;</span>
+<span class="nc" id="L303">					totalChqRet += chqRet;</span>
+<span class="nc" id="L304">					totalRecTotal += recTotal;</span>
+				}
+<span class="nc" id="L306">				double scratchTotal = 0.0;</span>
+<span class="nc" id="L307">				double drawTotal = 0.0;</span>
+<span class="nc" id="L308">				double olaTotal = 0.0;</span>
+<span class="nc" id="L309">				double csTotal=0.0;</span>
+
+<span class="nc bnc" id="L311" title="All 2 branches missed.">				if (rs2 != null) {</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">					if (rs2.next()) {</span>
+<span class="nc" id="L313">						collectionBean.setIsDraw(true);</span>
+<span class="nc" id="L314">						double dgSale = rs2.getDouble(&quot;dg_sale&quot;);</span>
+<span class="nc" id="L315">						collectionBean.setDrawSale(FormatNumber</span>
+								.formatNumber(dgSale));
+<span class="nc" id="L317">						double dgSaleRefund = rs2.getDouble(&quot;dg_sale_refund&quot;);</span>
+<span class="nc" id="L318">						collectionBean.setDrawSaleRefund(FormatNumber</span>
+								.formatNumber(dgSaleRefund));
+<span class="nc" id="L320">						double dgPwt = rs2.getDouble(&quot;dg_pwt&quot;);</span>
+<span class="nc" id="L321">						collectionBean.setDrawPwt(FormatNumber</span>
+								.formatNumber(dgPwt));
+<span class="nc" id="L323">						totalDrawSale += dgSale;</span>
+<span class="nc" id="L324">						totalDrawSaleRefund += dgSaleRefund;</span>
+<span class="nc" id="L325">						totalDrawPwt += dgPwt;</span>
+<span class="nc" id="L326">						drawTotal = dgSale - dgSaleRefund - dgPwt;</span>
+<span class="nc" id="L327">						totalDrawTotal += drawTotal;</span>
+<span class="nc" id="L328">						collectionBean.setDrawTotal(FormatNumber</span>
+								.formatNumber(drawTotal));
+					}
+				}
+<span class="nc bnc" id="L332" title="All 2 branches missed.">				if (rs1 != null) {</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">					if (rs1.next()) {</span>
+<span class="nc" id="L334">						collectionBean.setIsScratch(true);</span>
+<span class="nc" id="L335">						double seSale = rs1.getDouble(&quot;se_sale&quot;);</span>
+<span class="nc" id="L336">						collectionBean.setScratchSale(FormatNumber</span>
+								.formatNumber(seSale));
+<span class="nc" id="L338">						double sePwt = rs1.getDouble(&quot;se_pwt&quot;);</span>
+<span class="nc" id="L339">						collectionBean.setScratchPwt(FormatNumber</span>
+								.formatNumber(sePwt));
+<span class="nc" id="L341">						double seSaleRet = rs1.getDouble(&quot;se_sale_ret&quot;);</span>
+<span class="nc" id="L342">						collectionBean.setSaleRet(FormatNumber</span>
+								.formatNumber(seSaleRet));
+<span class="nc" id="L344">						totalScratchSale += seSale;</span>
+<span class="nc" id="L345">						totalSaleRet += seSaleRet;</span>
+<span class="nc" id="L346">						totalScratchPwt += sePwt;</span>
+<span class="nc" id="L347">						scratchTotal = seSale - seSaleRet - sePwt;</span>
+<span class="nc" id="L348">						totalScratchTotal += scratchTotal;</span>
+<span class="nc" id="L349">						collectionBean.setScratchTotal(FormatNumber</span>
+								.formatNumber(scratchTotal));
+					}
+				}
+
+<span class="nc bnc" id="L354" title="All 2 branches missed.">				if (rs3 != null) {</span>
+<span class="nc bnc" id="L355" title="All 2 branches missed.">					if (rs3.next()) {</span>
+<span class="nc" id="L356">						collectionBean.setIsOla(true);</span>
+<span class="nc" id="L357">						double deposit = rs3.getDouble(1);</span>
+<span class="nc" id="L358">						System.out.println(&quot;DEPOSIT VALUE...&quot; + deposit);</span>
+<span class="nc" id="L359">						collectionBean.setOlaDeposit(Double.parseDouble(df</span>
+								.format(deposit)));
+<span class="nc" id="L361">						double withdraw = rs3.getDouble(2);</span>
+<span class="nc" id="L362">						System.out.println(&quot;WithDraw VALUE...&quot; + withdraw);</span>
+<span class="nc" id="L363">						collectionBean.setOlaWithdraw(Double.parseDouble(df</span>
+								.format(withdraw)));
+<span class="nc" id="L365">						double netGaming = rs3.getDouble(3);</span>
+<span class="nc" id="L366">						System.out.println(&quot;NET GAME VALUE...&quot; + netGaming);</span>
+<span class="nc" id="L367">						collectionBean.setRetailerNetGaming(Double</span>
+								.parseDouble(df.format(netGaming)));
+
+<span class="nc" id="L370">						totalRetailerDeposit += deposit;</span>
+<span class="nc" id="L371">						totalRetailerWithdraw += withdraw;</span>
+<span class="nc" id="L372">						totalNetGaming += netGaming;</span>
+<span class="nc" id="L373">						olaTotal = deposit - withdraw - netGaming;</span>
+<span class="nc" id="L374">						System.out.println(&quot;TOTAL...&quot; + olaTotal);</span>
+<span class="nc" id="L375">						totalolaTotal += olaTotal;</span>
+<span class="nc" id="L376">						collectionBean.setOlaRetailerWiseTotal(Double</span>
+								.parseDouble(df.format(olaTotal)));
+<span class="nc" id="L378">						System.out.println(&quot;olaTotal......&quot; + totalolaTotal);</span>
+
+					}
+				}
+				
+<span class="nc bnc" id="L383" title="All 2 branches missed.">				if (rs4 != null) {</span>
+<span class="nc bnc" id="L384" title="All 2 branches missed.">					if (rs4.next()) {</span>
+<span class="nc" id="L385">						collectionBean.setIsCS(true);</span>
+						
+<span class="nc" id="L387">						double csSale=rs4.getDouble(2);</span>
+<span class="nc" id="L388">						collectionBean.setCsSale(Double.parseDouble(df</span>
+								.format(csSale)));
+<span class="nc" id="L390">						System.out.println(&quot;csSale VALUE...&quot; + csSale);</span>
+<span class="nc" id="L391">						double csSaleRefund=rs4.getDouble(3);</span>
+<span class="nc" id="L392">						collectionBean.setCsSaleRefund(Double.parseDouble(df</span>
+								.format(csSaleRefund)));
+<span class="nc" id="L394">						System.out.println(&quot;csSaleRefund VALUE...&quot; + csSaleRefund);</span>
+<span class="nc" id="L395">						csTotal=rs4.getDouble(4);</span>
+<span class="nc" id="L396">						collectionBean.setCsRetailerWiseTotal(Double.parseDouble(df</span>
+								.format(csTotal)));
+<span class="nc" id="L398">						System.out.println(&quot;csTotal VALUE...&quot; + csTotal);</span>
+<span class="nc" id="L399">						totalRetailerCsSale=+csSale;</span>
+<span class="nc" id="L400">						totalRetailerCsSaleRefund=+csSaleRefund;</span>
+<span class="nc" id="L401">						totalCsTotal=+csTotal;</span>
+					}
+					
+				}
+<span class="nc" id="L405">				double grandTotal = drawTotal + scratchTotal + olaTotal + csTotal</span>
+						- recTotal;
+
+<span class="nc bnc" id="L408" title="All 2 branches missed.">				if (forOpenBal) {</span>
+<span class="nc" id="L409">					collectionBean.setOpenBal(FormatNumber</span>
+							.formatNumber(grandTotal));
+				}
+<span class="nc" id="L412">				collectionBean.setGrandTotal(FormatNumber</span>
+						.formatNumber(grandTotal));
+
+<span class="nc" id="L415">				totalGrandTotal += grandTotal;</span>
+<span class="nc" id="L416">				logger.debug(&quot;this is a shit: &quot; + totalGrandTotal);</span>
+<span class="nc" id="L417">				logger.debug(&quot;this is a shit2: &quot; + grandTotal);</span>
+<span class="nc" id="L418">				list.add(collectionBean);</span>
+<span class="nc" id="L419">				count += 1;</span>
+
+<span class="nc" id="L421">			}</span>
+<span class="nc" id="L422">			System.out.println(&quot;totalGrandTotal........&quot; + totalGrandTotal);</span>
+
+<span class="nc bnc" id="L424" title="All 2 branches missed.">			if (totalOpenBal != null) {</span>
+<span class="nc" id="L425">				totalGrandTotal += Double.parseDouble(totalOpenBal);</span>
+			}
+			// create the map for the last row (TOTALS)
+<span class="nc bnc" id="L428" title="All 2 branches missed.">			if (!forOpenBal) {</span>
+<span class="nc" id="L429">				lastRowMap.put(&quot;totalOpenBal&quot;, FormatNumber</span>
+						.formatNumber(totalOpenBal));
+<span class="nc" id="L431">				lastRowMap.put(&quot;totalCash&quot;, FormatNumber</span>
+						.formatNumber(totalCash));
+<span class="nc" id="L433">				lastRowMap.put(&quot;totalChq&quot;, FormatNumber.formatNumber(totalChq));</span>
+<span class="nc" id="L434">				lastRowMap.put(&quot;totalChqRet&quot;, FormatNumber</span>
+						.formatNumber(totalChqRet));
+<span class="nc" id="L436">				lastRowMap.put(&quot;totalCredit&quot;, FormatNumber</span>
+						.formatNumber(totalCredit));
+<span class="nc" id="L438">				lastRowMap.put(&quot;totalDebit&quot;, FormatNumber</span>
+						.formatNumber(totalDebit));
+<span class="nc" id="L440">				lastRowMap.put(&quot;totalDrawSale&quot;, FormatNumber</span>
+						.formatNumber(totalDrawSale));
+<span class="nc" id="L442">				lastRowMap.put(&quot;totalDrawSaleRefund&quot;, FormatNumber</span>
+						.formatNumber(totalDrawSaleRefund));
+<span class="nc" id="L444">				lastRowMap.put(&quot;totalDrawPwt&quot;, FormatNumber</span>
+						.formatNumber(totalDrawPwt));
+<span class="nc" id="L446">				lastRowMap.put(&quot;totalScratchSale&quot;, FormatNumber</span>
+						.formatNumber(totalScratchSale));
+<span class="nc" id="L448">				lastRowMap.put(&quot;totalSaleRet&quot;, FormatNumber</span>
+						.formatNumber(totalSaleRet));
+<span class="nc" id="L450">				lastRowMap.put(&quot;totalScratchPwt&quot;, FormatNumber</span>
+						.formatNumber(totalScratchPwt));
+<span class="nc" id="L452">				lastRowMap.put(&quot;totalRecTotal&quot;, FormatNumber</span>
+						.formatNumber(totalRecTotal));
+<span class="nc" id="L454">				lastRowMap.put(&quot;totalDrawTotal&quot;, FormatNumber</span>
+						.formatNumber(totalDrawTotal));
+<span class="nc" id="L456">				lastRowMap.put(&quot;totalScratchTotal&quot;, FormatNumber</span>
+						.formatNumber(totalScratchTotal));
+
+<span class="nc" id="L459">				lastRowMap.put(&quot;totalRetailerDeposit&quot;, FormatNumber</span>
+						.formatNumber(totalRetailerDeposit));
+<span class="nc" id="L461">				lastRowMap.put(&quot;totalRetailerWithdraw&quot;, FormatNumber</span>
+						.formatNumber(totalRetailerWithdraw));
+<span class="nc" id="L463">				lastRowMap.put(&quot;totalNetGaming&quot;, FormatNumber</span>
+						.formatNumber(totalNetGaming));
+<span class="nc" id="L465">				lastRowMap.put(&quot;totalolaTotal&quot;, FormatNumber</span>
+						.formatNumber(totalolaTotal));
+<span class="nc" id="L467">				lastRowMap.put(&quot;totalRetailerCsSale&quot;, FormatNumber</span>
+						.formatNumber(totalRetailerCsSale));
+<span class="nc" id="L469">				lastRowMap.put(&quot;totalRetailerCsSaleRefund&quot;, FormatNumber</span>
+						.formatNumber(totalRetailerCsSaleRefund));
+<span class="nc" id="L471">				lastRowMap.put(&quot;totalCsTotal&quot;, FormatNumber</span>
+						.formatNumber(totalCsTotal));
+
+<span class="nc" id="L474">				lastRowMap.put(&quot;totalGrandTotal&quot;, FormatNumber</span>
+						.formatNumber(totalGrandTotal));
+			}
+
+<span class="nc" id="L478">		} catch (SQLException e) {</span>
+<span class="nc" id="L479">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L481">			try {</span>
+<span class="nc bnc" id="L482" title="All 6 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L483">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L485" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L486">					con.close();</span>
+				}
+<span class="nc" id="L488">			} catch (SQLException e) {</span>
+<span class="nc" id="L489">				e.printStackTrace();</span>
+<span class="nc" id="L490">			}</span>
+<span class="nc" id="L491">		}</span>
+
+<span class="nc" id="L493">		return list;</span>
+	}
+
+	public int getAgentOrgId() {
+<span class="nc" id="L497">		return agentOrgId;</span>
+	}
+
+	public Map&lt;Integer, Double&gt; getRetailerOpeningBalance(
+			Map&lt;String, Integer&gt; partyIdMap, boolean isDraw, boolean isScratch,
+			boolean isOla,boolean isCS, Timestamp deployDate) throws ParseException {
+<span class="nc" id="L503">		Map&lt;Integer, Double&gt; myMap = new TreeMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L504">		this.end = new java.sql.Date(start.getTime());</span>
+<span class="nc" id="L505">		this.start = new java.sql.Date(deployDate.getTime());</span>
+<span class="nc" id="L506">		List&lt;CollectionReportBean&gt; tempBeanList = getAgentCollectionDetail(</span>
+				partyIdMap, isDraw, isScratch, isOla,isCS, true);
+<span class="nc" id="L508">		double tempOpenBalTot = 0.0;</span>
+<span class="nc" id="L509">		Iterator&lt;CollectionReportBean&gt; it = tempBeanList.iterator();</span>
+<span class="nc bnc" id="L510" title="All 2 branches missed.">		while (it.hasNext()) {</span>
+<span class="nc" id="L511">			CollectionReportBean tempBean = it.next();</span>
+<span class="nc" id="L512">			myMap.put(new Integer(tempBean.getOrgId()), Double</span>
+					.parseDouble(tempBean.getOpenBal()));
+<span class="nc" id="L514">			tempOpenBalTot += Double.parseDouble(tempBean.getOpenBal());</span>
+<span class="nc" id="L515">		}</span>
+<span class="nc" id="L516">		totalOpenBal = FormatNumber.formatNumber(tempOpenBalTot);</span>
+<span class="nc" id="L517">		return myMap;</span>
+	}
+
+	/**
+	 * Retrieve the retailer details (key-name &amp; value-organization id) from the
+	 * database
+	 * 
+	 * @return map&lt;String, Integer&gt; retailer details
+	 */
+	public Map&lt;String, Integer&gt; getRetailerOrgId() {
+<span class="nc" id="L527">		Map&lt;String, Integer&gt; map = new TreeMap&lt;String, Integer&gt;();</span>
+
+		try {
+<span class="nc" id="L530">			con = DBConnect.getConnection(); </span>
+<span class="nc" id="L531">			String orgCodeQry = &quot; name orgCode &quot;;</span>
+
+			
+<span class="nc bnc" id="L534" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L535">				orgCodeQry = &quot;	org_code orgCode  &quot;;</span>
+	
+
+<span class="nc bnc" id="L538" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L540">				orgCodeQry = &quot; concat(org_code,'_',name)  orgCode &quot;;</span>
+			
+
+<span class="nc bnc" id="L543" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L545">				orgCodeQry = &quot; concat(name,'_',org_code)  orgCode &quot;;</span>
+			
+
+			}
+<span class="nc" id="L549">			pstmt = con</span>
+					.prepareStatement(&quot;select &quot;+orgCodeQry+&quot;, organization_id from st_lms_organization_master where organization_type='RETAILER' and parent_id=? order by &quot;+QueryManager.getAppendOrgOrder());
+<span class="nc" id="L551">			pstmt.setInt(1, this.agentOrgId);</span>
+<span class="nc" id="L552">			ResultSet rss = pstmt.executeQuery();</span>
+<span class="nc" id="L553">			logger.debug(&quot;get agent org id query :  &quot; + pstmt);</span>
+<span class="nc bnc" id="L554" title="All 2 branches missed.">			while (rss.next()) {</span>
+<span class="nc" id="L555">				int id = rss.getInt(&quot;organization_id&quot;);</span>
+<span class="nc" id="L556">				String name = rss.getString(&quot;orgCode&quot;);</span>
+<span class="nc" id="L557">				map.put(name, id);</span>
+<span class="nc" id="L558">			}</span>
+<span class="nc" id="L559">			System.out.println(map);</span>
+<span class="nc" id="L560">			rss.close();</span>
+<span class="nc" id="L561">			pstmt.close();</span>
+<span class="nc" id="L562">		} catch (SQLException e) {</span>
+<span class="nc" id="L563">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L565">			try {</span>
+<span class="nc bnc" id="L566" title="All 6 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L567">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L569" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L570">					con.close();</span>
+				}
+<span class="nc" id="L572">			} catch (SQLException e) {</span>
+<span class="nc" id="L573">				e.printStackTrace();</span>
+<span class="nc" id="L574">			}</span>
+<span class="nc" id="L575">		}</span>
+
+<span class="nc" id="L577">		return map;</span>
+	}
+
+	public List&lt;CollectionReportBean&gt; MergeOpenBal(
+			List&lt;CollectionReportBean&gt; list, Map&lt;Integer, Double&gt; map) {
+<span class="nc" id="L582">		Iterator&lt;CollectionReportBean&gt; it = list.iterator();</span>
+<span class="nc bnc" id="L583" title="All 2 branches missed.">		while (it.hasNext()) {</span>
+<span class="nc" id="L584">			CollectionReportBean tempBean = it.next();</span>
+<span class="nc bnc" id="L585" title="All 2 branches missed.">			if (map.containsKey(tempBean.getOrgId())) {</span>
+<span class="nc" id="L586">				tempBean.setOpenBal(map.get(tempBean.getOrgId()) + &quot;&quot;);</span>
+<span class="nc" id="L587">				Double grndTotal = Double.parseDouble(tempBean.getGrandTotal());</span>
+<span class="nc" id="L588">				tempBean.setGrandTotal(Double</span>
+						.parseDouble(tempBean.getOpenBal())
+						+ grndTotal + &quot;&quot;);
+<span class="nc" id="L591">				logger.debug(&quot;the opening bal of org_id &quot; + tempBean.getOrgId()</span>
+						+ &quot; is &quot; + tempBean.getOpenBal());
+			}
+<span class="nc" id="L594">		}</span>
+<span class="nc" id="L595">		return list;</span>
+	}
+
+	public void setAgentOrgId(int agentOrgId) {
+<span class="nc" id="L599">		this.agentOrgId = agentOrgId;</span>
+<span class="nc" id="L600">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

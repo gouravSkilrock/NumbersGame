@@ -1,0 +1,1609 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AjaxRequestHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.ajax</a> &gt; <span class="el_source">AjaxRequestHelper.java</span></div><h1>AjaxRequestHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.ajax;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+
+import com.skilrock.lms.beans.OrgBean;
+import com.skilrock.lms.beans.OrganizationBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.FormatNumber;
+
+
+<span class="fc" id="L37">public class AjaxRequestHelper {</span>
+<span class="fc" id="L38">	static Log logger = LogFactory.getLog(AjaxRequestHelper.class);</span>
+
+	public static int getOrgUserId(String orgName) {
+<span class="nc" id="L41">		int orgUser = 0;</span>
+<span class="nc" id="L42">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L43">		Statement stmt = null;</span>
+<span class="nc" id="L44">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L46">			stmt = con.createStatement();</span>
+<span class="nc" id="L47">			rs = stmt</span>
+					.executeQuery(&quot;select organization_id from st_lms_organization_master where name = '&quot;
+							+ orgName + &quot;'&quot;);
+<span class="nc bnc" id="L50" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L51">				orgUser = rs.getInt(&quot;organization_id&quot;);</span>
+			}
+<span class="nc" id="L53">			System.out.println(&quot;orgList-------&quot; + orgUser);</span>
+<span class="nc" id="L54">		} catch (Exception e) {</span>
+<span class="nc" id="L55">			e.printStackTrace();</span>
+			// throw new LMSException(e);
+		} finally {
+<span class="nc" id="L58">			try {</span>
+<span class="nc bnc" id="L59" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L60">					con.close();</span>
+				}
+<span class="nc" id="L62">			} catch (Exception e) {</span>
+<span class="nc" id="L63">				e.printStackTrace();</span>
+<span class="nc" id="L64">			}</span>
+<span class="nc" id="L65">		}</span>
+<span class="nc" id="L66">		return orgUser;</span>
+	}
+
+	public String fetchChildOrgNGamenFmtSale(int agtOrgId, String ownerType,String shiftGameStatus)
+			throws LMSException {
+<span class="nc" id="L71">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L72">		StringBuilder nbrFormat = new StringBuilder();</span>
+<span class="nc" id="L73">		Statement stmt1 = null;</span>
+<span class="nc" id="L74">		PreparedStatement statement = null;</span>
+<span class="nc" id="L75">		Connection con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L77">		ResultSet rs = null;</span>
+<span class="nc" id="L78">		ResultSet rs2 = null;</span>
+<span class="nc" id="L79">		String appender=&quot;&quot;;</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">		if(shiftGameStatus==null)</span>
+<span class="nc" id="L81">			appender=&quot; and a.game_status='OPEN' &quot;;</span>
+		try {
+<span class="nc" id="L83">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L84">			String detQuery = &quot;select a.game_id,a.game_name,a.game_nbr,b.pack_nbr_digits,b.book_nbr_digits,b.ticket_nbr_digits,b.game_nbr_digits from st_se_game_master a ,st_se_game_ticket_nbr_format b where a.game_id in (select  distinct game_id from st_se_game_inv_status where current_owner = '&quot;</span>
+					+ ownerType.trim()
+					+ &quot;' and current_owner_id = &quot;
+					+ agtOrgId
+					+ &quot;) &quot;+appender+&quot; and a.game_id=b.game_id&quot;;
+<span class="nc" id="L89">			logger.debug(detQuery);</span>
+<span class="nc" id="L90">			rs = stmt1.executeQuery(detQuery);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L92">				nbrFormat.append(rs.getString(&quot;game_name&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L93">				nbrFormat.append(rs.getString(&quot;game_nbr&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L94">				nbrFormat.append(rs.getInt(&quot;pack_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L95">				nbrFormat.append(rs.getInt(&quot;book_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L96">				nbrFormat.append(rs.getInt(&quot;ticket_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L97">				nbrFormat.append(rs.getInt(&quot;game_nbr_digits&quot;) + &quot;Nx*&quot;);</span>
+
+			}
+<span class="nc" id="L100">			String query = null;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">			if (&quot;BO&quot;.equalsIgnoreCase(ownerType.trim())) {</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">				if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L103">					query = &quot;select so.organization_id as orgId, so.org_code as name,so.organization_type,su.user_id,so.available_credit,so.claimable_bal from st_lms_organization_master so,st_lms_user_master su,st_lms_role_master sr, st_lms_tier_master tm where so.organization_type = 'AGENT' and so.organization_status='ACTIVE' and so.organization_id = su.organization_id and su.isrolehead = 'Y' and   su.role_id = sr.role_id  and tm.tier_id = su.role_id and sr.is_master = 'Y'   and so.parent_id = ?  order by name&quot;;</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">				} else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE_NAME&quot;)) {</span>
+<span class="nc" id="L105">					query = &quot;select so.organization_id as orgId, concat(so.org_code,'_',so.name) as name,so.organization_type,su.user_id,so.available_credit,so.claimable_bal from st_lms_organization_master so,st_lms_user_master su,st_lms_role_master sr, st_lms_tier_master tm where so.organization_type = 'AGENT' and so.organization_status='ACTIVE' and so.organization_id = su.organization_id and su.isrolehead = 'Y' and   su.role_id = sr.role_id  and tm.tier_id = su.role_id and sr.is_master = 'Y'   and so.parent_id = ?  order by name&quot;;</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">				}else if((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;NAME_CODE&quot;)){</span>
+<span class="nc" id="L107">					query = &quot;select so.organization_id as orgId, concat(so.name,'_',so.org_code) as name,so.organization_type,su.user_id,so.available_credit,so.claimable_bal from st_lms_organization_master so,st_lms_user_master su,st_lms_role_master sr, st_lms_tier_master tm where so.organization_type = 'AGENT' and so.organization_status='ACTIVE' and so.organization_id = su.organization_id and su.isrolehead = 'Y' and   su.role_id = sr.role_id  and tm.tier_id = su.role_id and sr.is_master = 'Y'   and so.parent_id = ?  order by name&quot;;</span>
+				}else {
+<span class="nc" id="L109">					query = QueryManager.getST1_AGENT_ORG_ACTIVE();</span>
+				}
+			} else {
+				// query = QueryManager.getST1RetOrgActiveQuery();// +&quot; order by
+				// name&quot;;
+<span class="nc bnc" id="L114" title="All 2 branches missed.">				if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L115">					query = &quot;select so.organization_id as orgId,sso.org_code as name,so.organization_type,su.user_id,so.available_credit,so.claimable_bal from st_lms_organization_master so,st_lms_user_master su where so.organization_type = 'RETAILER' and so.organization_status='ACTIVE' and so.organization_id = su.organization_id and su.isrolehead = 'Y'   and so.parent_id = ?  order by name&quot;;</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">				} else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE_NAME&quot;)) {</span>
+<span class="nc" id="L117">					query = &quot;select so.organization_id as orgId,concat(so.org_code,'_',so.name) as name,so.organization_type,su.user_id,so.available_credit,so.claimable_bal from st_lms_organization_master so,st_lms_user_master su where so.organization_type = 'RETAILER' and so.organization_status='ACTIVE' and so.organization_id = su.organization_id and su.isrolehead = 'Y'   and so.parent_id = ?  order by name&quot;;</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">				}else if((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;NAME_CODE&quot;)){</span>
+<span class="nc" id="L119">					query = &quot;select so.organization_id as orgId,concat(so.name,'_',so.org_code) as name,so.organization_type,su.user_id,so.available_credit,so.claimable_bal from st_lms_organization_master so,st_lms_user_master su where so.organization_type = 'RETAILER' and so.organization_status='ACTIVE' and so.organization_id = su.organization_id and su.isrolehead = 'Y'   and so.parent_id = ?  order by name&quot;;</span>
+				}else {
+<span class="nc" id="L121">					query = &quot;select so.organization_id as orgId,so.name as name,so.organization_type,su.user_id,so.available_credit,so.claimable_bal from st_lms_organization_master so,st_lms_user_master su where so.organization_type = 'RETAILER' and so.organization_status='ACTIVE' and so.organization_id = su.organization_id and su.isrolehead = 'Y'   and so.parent_id = ?  order by name&quot;;</span>
+				}
+			}
+<span class="nc" id="L124">			statement = con.prepareStatement(query);</span>
+<span class="nc" id="L125">			statement.setInt(1, agtOrgId);</span>
+<span class="nc" id="L126">			rs2 = statement.executeQuery();</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">			while (rs2.next()) {</span>
+<span class="nc" id="L128">				nbrFormat.append(rs2.getString(&quot;name&quot;) +&quot;|&quot;+ rs2.getString(&quot;orgId&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L129">				nbrFormat.append(FormatNumber.formatNumberForJSP(rs2</span>
+						.getString(&quot;available_credit&quot;))
+						+ &quot;:&quot;);
+<span class="nc" id="L132">				nbrFormat.append(FormatNumber.formatNumberForJSP(rs2</span>
+						.getString(&quot;claimable_bal&quot;))
+						+ &quot;Rt*&quot;);
+			}
+<span class="nc" id="L136">			stmt1.close();</span>
+<span class="nc" id="L137">			con.close();</span>
+<span class="nc" id="L138">			logger.debug(nbrFormat.toString()</span>
+					+ &quot;*****PWT Ticket And VIRN***********&quot;);
+<span class="nc" id="L140">			return nbrFormat.toString();</span>
+
+		}
+
+<span class="nc" id="L144">		catch (SQLException se) {</span>
+<span class="nc" id="L145">			se.printStackTrace();</span>
+<span class="nc" id="L146">			throw new LMSException(se);</span>
+
+		}
+	}
+
+	public Map&lt;Integer, String&gt; fetchOrganizationListMap(String listType,
+			UserInfoBean userInfo) throws LMSException {
+
+<span class="nc" id="L154">		Connection connection = null;</span>
+<span class="nc" id="L155">		PreparedStatement statement = null;</span>
+<span class="nc" id="L156">		ResultSet resultSet = null;</span>
+
+		try {
+<span class="nc" id="L159">			OrgBean agentOrgBean = null;</span>
+<span class="nc" id="L160">			Map&lt;Integer, String&gt; searchResults = new HashMap&lt;Integer, String&gt;();</span>
+
+			// create database connection
+			 
+<span class="nc" id="L164">			connection = DBConnect.getConnection();</span>
+
+<span class="nc" id="L166">			String query = null;</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">			if (listType.equalsIgnoreCase(&quot;agent&quot;)) {</span>
+<span class="nc" id="L168">				query = QueryManager.getST1AgtOrgQuery();// +&quot; group by</span>
+				// name&quot;;
+<span class="nc bnc" id="L170" title="All 2 branches missed.">			} else if (listType.equalsIgnoreCase(&quot;agentPwt&quot;)) {</span>
+<span class="nc" id="L171">				query = QueryManager.getST1AgtOrgQueryPwt();// +&quot; group by</span>
+				// name&quot;;
+			}
+<span class="nc" id="L174">			statement = connection.prepareStatement(query);</span>
+<span class="nc" id="L175">			statement.setInt(1, userInfo.getUserOrgId());</span>
+<span class="nc" id="L176">			resultSet = statement.executeQuery();</span>
+
+<span class="nc bnc" id="L178" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L179">				searchResults.put(resultSet.getInt(TableConstants.SOM_ORG_ID),</span>
+						resultSet.getString(TableConstants.SOM_ORG_NAME));
+			}
+<span class="nc" id="L182">			return searchResults;</span>
+
+<span class="nc" id="L184">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L186">			e.printStackTrace();</span>
+<span class="nc" id="L187">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L189">			try {</span>
+<span class="nc bnc" id="L190" title="All 4 branches missed.">				if (statement != null) {</span>
+<span class="nc" id="L191">					statement.close();</span>
+				}
+<span class="nc bnc" id="L193" title="All 4 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L194">					connection.close();</span>
+				}
+<span class="nc" id="L196">			} catch (SQLException se) {</span>
+<span class="nc" id="L197">				se.printStackTrace();</span>
+<span class="nc" id="L198">			}</span>
+		}
+	}
+
+	public String fetchRetailerNameList(int userOrgId, String retType)
+			throws LMSException {
+<span class="nc" id="L204">		StringBuilder retNameList = new StringBuilder();</span>
+<span class="nc" id="L205">		Connection con = null;</span>
+<span class="nc" id="L206">		String retTypeQuery = &quot;&quot;;</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">		if (!&quot;ALL&quot;.equalsIgnoreCase(retType.trim())) {</span>
+<span class="nc" id="L208">			retTypeQuery = &quot;and status = '&quot; + retType.trim() + &quot;'&quot;;</span>
+		}
+		try {
+<span class="nc" id="L211">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L212">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select organization_id, name, organization_type from  st_lms_organization_master where organization_type='RETAILER' and parent_id = ?&quot;
+							+ retTypeQuery + &quot; order by name&quot;);
+<span class="nc" id="L215">			pstmt.setInt(1, userOrgId);</span>
+<span class="nc" id="L216">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L217">			logger.debug(&quot;retrieve the Retailer Name List query ==== &quot; + pstmt);</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L219">				int orgId = rs.getInt(&quot;organization_id&quot;);</span>
+<span class="nc" id="L220">				String Name = rs.getString(&quot;name&quot;);</span>
+<span class="nc" id="L221">				retNameList.append(&quot;,&quot; + orgId + &quot;=&quot; + Name);</span>
+<span class="nc" id="L222">			}</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">			if (retNameList.length() &gt; 0) {</span>
+<span class="nc" id="L224">				retNameList.delete(0, 1);</span>
+			}
+
+<span class="nc" id="L227">		} catch (SQLException e) {</span>
+<span class="nc" id="L228">			e.printStackTrace();</span>
+<span class="nc" id="L229">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L231">			try {</span>
+<span class="nc bnc" id="L232" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L233">					con.close();</span>
+				}
+<span class="nc" id="L235">			} catch (SQLException e) {</span>
+<span class="nc" id="L236">				e.printStackTrace();</span>
+<span class="nc" id="L237">			}</span>
+<span class="nc" id="L238">		}</span>
+<span class="nc" id="L239">		logger.debug(&quot;game name list === &quot; + retNameList);</span>
+
+<span class="nc" id="L241">		return retNameList.toString();</span>
+	}
+
+	public String fetchRetailernGameFmt(int agtOrgId) throws LMSException {
+<span class="nc" id="L245">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L246">		StringBuilder nbrFormat = new StringBuilder();</span>
+<span class="nc" id="L247">		Statement stmt1 = null;</span>
+<span class="nc" id="L248">		PreparedStatement statement = null;</span>
+<span class="nc" id="L249">		Connection con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L251">		ResultSet rs = null;</span>
+<span class="nc" id="L252">		ResultSet rs2 = null;</span>
+
+		try {
+<span class="nc" id="L255">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L256">			rs = stmt1</span>
+					.executeQuery(&quot;select res.game_name,res.game_nbr,res.game_id,sgtnf.pack_nbr_digits,sgtnf.book_nbr_digits,sgtnf.ticket_nbr_digits,sgtnf.game_nbr_digits,sgtnf.game_virn_digits from st_se_game_ticket_nbr_format sgtnf,(select game_name,game_nbr,game_id from st_se_game_master where game_status='OPEN' OR game_status='SALE_CLOSE' OR game_status='SALE_HOLD') res where sgtnf.game_id = res.game_id&quot;);
+<span class="nc bnc" id="L258" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L259">				nbrFormat.append(rs.getString(&quot;game_name&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L260">				nbrFormat.append(rs.getString(&quot;game_nbr&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L261">				nbrFormat.append(rs.getInt(&quot;pack_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L262">				nbrFormat.append(rs.getInt(&quot;book_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L263">				nbrFormat.append(rs.getInt(&quot;ticket_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L264">				nbrFormat.append(rs.getInt(&quot;game_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L265">				nbrFormat.append(rs.getInt(&quot;game_virn_digits&quot;) + &quot;Nx*&quot;);</span>
+			}
+			// String query = QueryManager.getST1RetOrgQuery();// +&quot; order by
+			// name&quot;;
+
+<span class="nc" id="L270">			String query = &quot;select so.organization_id,so.name,so.organization_type,su.user_id,so.available_credit from st_lms_organization_master so,st_lms_user_master su where so.organization_type = 'RETAILER' and (so.organization_status='ACTIVE' or so.organization_status='INACTIVE') and so.organization_id = su.organization_id and su.isrolehead = 'Y' and so.parent_id = ?  order by name&quot;;</span>
+<span class="nc" id="L271">			statement = con.prepareStatement(query);</span>
+<span class="nc" id="L272">			statement.setInt(1, agtOrgId);</span>
+<span class="nc" id="L273">			rs2 = statement.executeQuery();</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">			while (rs2.next()) {</span>
+<span class="nc" id="L275">				nbrFormat.append(rs2.getInt(&quot;organization_id&quot;) + &quot;;&quot;</span>
+						+ rs2.getString(&quot;name&quot;) + &quot;:&quot;);
+			}
+<span class="nc" id="L278">			stmt1.close();</span>
+<span class="nc" id="L279">			con.close();</span>
+<span class="nc" id="L280">			logger.debug(nbrFormat.toString()</span>
+					+ &quot;*****PWT Ticket And VIRN***********&quot;);
+<span class="nc" id="L282">			return nbrFormat.toString();</span>
+
+		}
+
+<span class="nc" id="L286">		catch (SQLException se) {</span>
+<span class="nc" id="L287">			se.printStackTrace();</span>
+<span class="nc" id="L288">			throw new LMSException(se);</span>
+
+		}
+	}
+
+	public Map fetchRoles() throws LMSException {
+<span class="nc" id="L294">		Map roleMap = new TreeMap();</span>
+
+<span class="nc" id="L296">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L297">		Statement stmt = null;</span>
+		try {
+
+<span class="nc" id="L300">			stmt = con.createStatement();</span>
+			// ResultSet rs = stmt.executeQuery(&quot;select role_id,role_name from
+			// st_lms_role_master where role_owner='BO'and is_master='N' order
+			// by role_name&quot;);
+<span class="nc" id="L304">			ResultSet rs = stmt</span>
+					.executeQuery(&quot;select role_id,role_name from st_lms_role_master where tier_id = &quot;
+							+ &quot;(select tier_id from st_lms_tier_master where tier_code = 'BO')and is_master='N' order by role_name&quot;);
+<span class="nc bnc" id="L307" title="All 2 branches missed.">			while (rs.next()) {</span>
+
+<span class="nc" id="L309">				roleMap.put(rs.getInt(&quot;role_id&quot;), rs.getString(&quot;role_name&quot;));</span>
+			}
+<span class="nc" id="L311">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L312">		} catch (Exception e) {</span>
+<span class="nc" id="L313">			throw new LMSException(e);</span>
+<span class="nc" id="L314">		}</span>
+<span class="nc" id="L315">		return roleMap;</span>
+	}
+
+	public List getAgents(String listType, UserInfoBean userInfo)
+			throws LMSException {
+
+<span class="nc" id="L321">		Connection connection = null;</span>
+<span class="nc" id="L322">		PreparedStatement statement = null;</span>
+<span class="nc" id="L323">		ResultSet resultSet = null;</span>
+
+		try {
+<span class="nc" id="L326">			OrgBean agentOrgBean = null;</span>
+<span class="nc" id="L327">			List searchResults = new ArrayList();</span>
+
+			// create database connection
+			 
+<span class="nc" id="L331">			connection = DBConnect.getConnection();</span>
+
+<span class="nc" id="L333">			String query = null;</span>
+<span class="nc bnc" id="L334" title="All 2 branches missed.">			if (listType.equalsIgnoreCase(&quot;agent&quot;)) {</span>
+<span class="nc" id="L335">				query = CommonMethods.appendRoleAgentMappingQuery(QueryManager.getST1AgtOrgQueryWithoutSort(), &quot;so.organization_id&quot;,userInfo.getRoleId());// +&quot; group by</span>
+				// name&quot;;
+<span class="nc bnc" id="L337" title="All 2 branches missed.">			} else if (listType.equalsIgnoreCase(&quot;agentPwt&quot;)) {</span>
+<span class="nc" id="L338">				query = QueryManager.getST1AgtOrgQueryPwt();// +&quot; group by</span>
+				// name&quot;;
+			}
+<span class="nc" id="L341">			statement = connection.prepareStatement(query);</span>
+<span class="nc" id="L342">			statement.setInt(1, userInfo.getUserOrgId());</span>
+<span class="nc" id="L343">			resultSet = statement.executeQuery();</span>
+
+<span class="nc bnc" id="L345" title="All 2 branches missed.">			while (resultSet.next()) {</span>
+<span class="nc" id="L346">				searchResults.add(resultSet</span>
+						.getString(TableConstants.SOM_ORG_NAME));
+			}
+<span class="nc" id="L349">			return searchResults;</span>
+
+<span class="nc" id="L351">		} catch (SQLException e) {</span>
+
+<span class="nc" id="L353">			e.printStackTrace();</span>
+<span class="nc" id="L354">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L356">			try {</span>
+<span class="nc bnc" id="L357" title="All 4 branches missed.">				if (statement != null) {</span>
+<span class="nc" id="L358">					statement.close();</span>
+				}
+<span class="nc bnc" id="L360" title="All 4 branches missed.">				if (connection != null) {</span>
+<span class="nc" id="L361">					connection.close();</span>
+				}
+<span class="nc" id="L363">			} catch (SQLException se) {</span>
+<span class="nc" id="L364">				se.printStackTrace();</span>
+<span class="nc" id="L365">			}</span>
+		}
+	}
+
+	public String getAvlblCreditAmt(UserInfoBean bean) {
+<span class="nc" id="L370">		Connection con=null;</span>
+<span class="nc" id="L371">		 String avlCredit=null;</span>
+		try {
+<span class="nc" id="L373">		 con = DBConnect.getConnection();</span>
+<span class="nc" id="L374">		  avlCredit = getAvlblCreditAmt(bean, con);</span>
+		 
+		
+<span class="nc" id="L377">		} catch (Exception e) {</span>
+<span class="nc" id="L378">			e.printStackTrace();</span>
+			
+		} finally {
+<span class="nc" id="L381">			try {</span>
+<span class="nc bnc" id="L382" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L383">					con.close();</span>
+				}
+<span class="nc" id="L385">			} catch (SQLException se) {</span>
+<span class="nc" id="L386">				se.printStackTrace();</span>
+<span class="nc" id="L387">			}</span>
+<span class="nc" id="L388">		}</span>
+<span class="nc" id="L389">		return avlCredit;</span>
+	}
+
+	
+	public String getAvlblCreditAmt(UserInfoBean bean,Connection con) {
+<span class="fc" id="L394">		UserInfoBean userBean = bean;</span>
+<span class="fc" id="L395">		String avlCredit = &quot;N&quot;;</span>
+<span class="fc" id="L396">		int userOrgId = userBean.getUserOrgId();</span>
+<span class="fc" id="L397">		Double availableCredit = null;// userBean.getAvailableCreditLimit();'</span>
+<span class="fc" id="L398">		Double unClmBal = 0.00;// akhil</span>
+<span class="fc" id="L399">		Double clmBal = 0.00;</span>
+<span class="fc" id="L400">		Double ext_credit_limit = null;</span>
+<span class="fc" id="L401">		Double credit_limit = null;</span>
+<span class="fc" id="L402">		Date ext_credit_limit_date = null;</span>
+		  // /akhil
+		//logger.info(&quot;asdhjfhfhsjkhjdfhjhk&quot;);
+		//Calendar cal = Calendar.getInstance();
+<span class="fc" id="L406">		long current_date = 0;</span>
+<span class="fc" id="L407">		long extended_date = 0;</span>
+<span class="fc" id="L408">		int remaining_days = 0;</span>
+		
+		try {
+<span class="fc" id="L411">			Statement stmt = con.createStatement();</span>
+
+<span class="fc" id="L413">			String getACtDetails = &quot;select available_credit, claimable_bal, unclaimable_bal,extended_credit_limit,credit_limit,extends_credit_limit_upto from st_lms_organization_master where organization_type!='BO' and organization_id = &quot;</span>
+					+ userOrgId;
+<span class="nc" id="L415">			ResultSet result = stmt.executeQuery(getACtDetails);</span>
+
+<span class="nc bnc" id="L417" title="All 2 branches missed.">			if (result.next()) {</span>
+<span class="nc" id="L418">				availableCredit = result.getDouble(&quot;available_credit&quot;);</span>
+<span class="nc" id="L419">				unClmBal = result.getDouble(&quot;unclaimable_bal&quot;);</span>
+<span class="nc" id="L420">				clmBal = result.getDouble(&quot;claimable_bal&quot;);</span>
+<span class="nc" id="L421">				ext_credit_limit = result.getDouble(&quot;extended_credit_limit&quot;);</span>
+<span class="nc" id="L422">				credit_limit = result.getDouble(&quot;credit_limit&quot;);</span>
+<span class="nc" id="L423">				ext_credit_limit_date = result</span>
+						.getDate(&quot;extends_credit_limit_upto&quot;);
+
+				// logger.debug(&quot;***$$$clm balance&quot;+clmBal);
+				//logger.info(&quot;date is akhil &quot; + ext_credit_limit_date);
+
+<span class="nc" id="L429">				current_date = new java.sql.Date(new java.util.Date().getTime())</span>
+						.getTime();
+<span class="nc bnc" id="L431" title="All 4 branches missed.">				if (ext_credit_limit_date != null</span>
+						&amp;&amp; !ext_credit_limit_date.toString().equals(&quot;&quot;)) {
+
+<span class="nc" id="L434">					extended_date = ext_credit_limit_date.getTime();</span>
+<span class="nc" id="L435">					logger.info(&quot;extended date&quot; + extended_date);</span>
+<span class="nc" id="L436">					remaining_days = (int) ((extended_date - current_date) / (1000 * 60 * 60 * 24)) + 1;</span>
+
+					//logger.info(&quot;Remaining no of days&quot; + remaining_days);
+
+				}
+
+<span class="nc" id="L442">				avlCredit = FormatNumber.formatNumber(availableCredit) + &quot;=&quot;</span>
+						+ FormatNumber.formatNumber(clmBal) + &quot;=&quot;
+						+ FormatNumber.formatNumber(unClmBal) + &quot;=&quot;
+						+ FormatNumber.formatNumber(availableCredit - clmBal)
+						+ &quot;=&quot; + FormatNumber.formatNumber(ext_credit_limit)
+						+ &quot;=&quot; + FormatNumber.formatNumber(remaining_days)
+						+ &quot;=&quot; + FormatNumber.formatNumber(credit_limit);
+			}
+
+<span class="nc" id="L451">			userBean.setAvailableCreditLimit(availableCredit);</span>
+<span class="nc" id="L452">			userBean.setClaimableBal(clmBal);</span>
+<span class="nc" id="L453">			userBean.setUnclaimableBal(unClmBal);</span>
+
+			//logger.info(avlCredit + &quot;****---------********&quot;);
+<span class="fc" id="L456">		} catch (Exception e) {</span>
+<span class="fc" id="L457">			logger.error(&quot;Exception &quot;,e);</span>
+			 //e.printStackTrace();
+<span class="nc" id="L459">		} </span>
+<span class="fc" id="L460">		return avlCredit;</span>
+	}
+
+	public static void getLiveAmt(UserInfoBean userBean,Connection con) {
+				
+		try {
+<span class="nc" id="L466">			Statement stmt = con.createStatement();</span>
+
+<span class="nc" id="L468">			String getACtDetails = &quot;select available_credit,claimable_bal from st_lms_organization_master where organization_id = &quot;</span>
+					+ userBean.getUserOrgId();
+<span class="nc" id="L470">			ResultSet result = stmt.executeQuery(getACtDetails);</span>
+
+<span class="nc bnc" id="L472" title="All 2 branches missed.">			if (result.next()) {</span>
+<span class="nc" id="L473">				userBean.setAvailableCreditLimit(result.getDouble(&quot;available_credit&quot;));</span>
+<span class="nc" id="L474">				userBean.setClaimableBal(result.getDouble(&quot;claimable_bal&quot;));</span>
+				}
+		
+<span class="nc" id="L477">		} catch (Exception e) {</span>
+<span class="nc" id="L478">			logger.error(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L479">		} </span>
+		
+<span class="nc" id="L481">	}</span>
+	
+	public List getCountry() throws LMSException {
+<span class="nc" id="L484">		List countryList = new ArrayList();</span>
+<span class="nc" id="L485">		Statement stmt1 = null;</span>
+<span class="nc" id="L486">		Connection con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L488">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L491">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L492">			String countryNames = QueryManager.getST3Country();</span>
+<span class="nc" id="L493">			rs = stmt1.executeQuery(countryNames);</span>
+<span class="nc bnc" id="L494" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L495">				countryList.add(rs.getString(TableConstants.SOM_ORG_NAME));</span>
+			}
+<span class="nc" id="L497">			stmt1.close();</span>
+<span class="nc" id="L498">			con.close();</span>
+<span class="nc" id="L499">			return countryList;</span>
+
+		}
+
+<span class="nc" id="L503">		catch (SQLException se) {</span>
+<span class="nc" id="L504">			se.printStackTrace();</span>
+<span class="nc" id="L505">			throw new LMSException(se);</span>
+
+		}
+
+	}
+
+	public List&lt;String&gt; getGameDetailForCommVar(String gameName,
+			String agentOrgName) throws LMSException {
+<span class="nc" id="L513">		List&lt;String&gt; gameNameList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L514">		String[] game = gameName.split(&quot;-&quot;);</span>
+<span class="nc" id="L515">		Connection con = null;</span>
+<span class="nc" id="L516">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L517">		ResultSet rs = null;</span>
+<span class="nc" id="L518">		con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L520">			pstmt = con</span>
+					.prepareStatement(&quot;select game_nbr, game_name, game_status from st_se_game_master where (game_status like ? and game_status!='TERMINATE')&quot;);
+<span class="nc bnc" id="L522" title="All 2 branches missed.">			if (&quot;ALL&quot;.equalsIgnoreCase(gameName.trim())) {</span>
+<span class="nc" id="L523">				pstmt.setString(1, &quot;%&quot;);</span>
+			} else {
+<span class="nc" id="L525">				pstmt.setString(1, game[0].trim());</span>
+			}
+<span class="nc" id="L527">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L528">			System.out</span>
+					.println(&quot;retrieve the game detail for agent comm variance query ==== &quot;
+							+ pstmt);
+<span class="nc bnc" id="L531" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L532">				String gameNbr = String.valueOf(rs.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L533">				String Name = rs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L534">				gameNameList.add(gameNbr + &quot;-&quot; + Name);</span>
+<span class="nc" id="L535">			}</span>
+
+<span class="nc" id="L537">		} catch (SQLException e) {</span>
+<span class="nc" id="L538">			e.printStackTrace();</span>
+<span class="nc" id="L539">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L541">			try {</span>
+<span class="nc bnc" id="L542" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L543">					rs.close();</span>
+				}
+<span class="nc bnc" id="L545" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L546">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L548" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L549">					con.close();</span>
+				}
+<span class="nc" id="L551">			} catch (SQLException e) {</span>
+<span class="nc" id="L552">				e.printStackTrace();</span>
+<span class="nc" id="L553">			}</span>
+<span class="nc" id="L554">		}</span>
+<span class="nc" id="L555">		logger.debug(&quot;game name list === &quot; + gameNameList);</span>
+
+<span class="nc" id="L557">		return gameNameList;</span>
+	}
+
+	public List getGameList(String game_type) throws LMSException {
+<span class="nc" id="L561">		List gameList = new ArrayList();</span>
+<span class="nc" id="L562">		Statement stmt1 = null;</span>
+<span class="nc" id="L563">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L564">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L567">			stmt1 = con.createStatement();</span>
+
+<span class="nc" id="L569">			String gmdetail = QueryManager.getGameDetails() + &quot;'&quot; + game_type</span>
+					+ &quot;' and add_inv_status='F'&quot;;
+<span class="nc" id="L571">			rs = stmt1.executeQuery(gmdetail);</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L573">				gameList.add(rs.getString(TableConstants.GAME_NAME));</span>
+			}
+<span class="nc" id="L575">			stmt1.close();</span>
+<span class="nc" id="L576">			con.close();</span>
+<span class="nc" id="L577">			return gameList;</span>
+
+		}
+
+<span class="nc" id="L581">		catch (SQLException se) {</span>
+<span class="nc" id="L582">			se.printStackTrace();</span>
+<span class="nc" id="L583">			throw new LMSException(se);</span>
+
+		}
+
+	}
+
+	public String getGameListing(String serviceCode) {
+<span class="nc" id="L590">		String result = &quot;&quot;;</span>
+<span class="nc" id="L591">		Connection con = null;</span>
+<span class="nc" id="L592">		ResultSet rs = null;</span>
+<span class="nc" id="L593">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L595">			con = DBConnect.getConnection();</span>
+<span class="nc bnc" id="L596" title="All 2 branches missed.">			if (&quot;SE&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L597">				pstmt = con</span>
+						.prepareStatement(&quot;select game_id, concat(game_nbr, concat('-',game_name)) 'game_name', govt_comm_rate  from st_se_game_master where game_status !='TERMINATE'&quot;);
+<span class="nc bnc" id="L599" title="All 2 branches missed.">			} else if (&quot;DG&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L600">				pstmt = con</span>
+						.prepareStatement(&quot;select game_id, concat(game_nbr, concat('-',game_name)) 'game_name', govt_comm, govt_comm_pwt from st_dg_game_master where game_status !='TERMINATE' order by display_order&quot;);
+<span class="nc bnc" id="L602" title="All 2 branches missed.">			} else if (&quot;IW&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L603">				pstmt = con.prepareStatement(&quot;select game_id, concat(game_no, concat('-',game_disp_name)) 'game_name', gov_comm_rate  from st_iw_game_master where game_status !='TERMINATE' order by display_order&quot;);</span>
+<span class="nc bnc" id="L604" title="All 2 branches missed.">			} else if (&quot;VS&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L605">				pstmt = con.prepareStatement(&quot;select game_id, concat(game_no, concat('-',game_disp_name)) 'game_name', gov_comm_rate, govt_comm_pwt_rate from st_vs_game_master where game_status !='TERMINATE' order by display_order&quot;);</span>
+<span class="nc bnc" id="L606" title="All 2 branches missed.">			} else if (&quot;SLE&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L607">				pstmt = con.prepareStatement(&quot;SELECT SQL_CACHE game_type_id, CONCAT(game_type_id, CONCAT('-',type_disp_name)) 'game_name', gov_comm_rate, govt_pwt_comm_rate FROM st_sle_game_type_master WHERE type_status!='TERMINATE' ORDER BY display_order;&quot;);</span>
+			}
+<span class="nc" id="L609">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L610">			logger.debug(&quot;getgameList&quot;);</span>
+<span class="nc bnc" id="L611" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L612">				String gameIdAmt = &quot;&quot;;</span>
+<span class="nc bnc" id="L613" title="All 2 branches missed.">				if (serviceCode.equalsIgnoreCase(&quot;SE&quot;)) {</span>
+<span class="nc" id="L614">					gameIdAmt = rs.getInt(&quot;game_id&quot;) + &quot;:&quot;</span>
+							+ rs.getDouble(&quot;govt_comm_rate&quot;);
+<span class="nc bnc" id="L616" title="All 2 branches missed.">				} else if (serviceCode.equalsIgnoreCase(&quot;DG&quot;)) {</span>
+<span class="nc" id="L617">					gameIdAmt = rs.getInt(&quot;game_id&quot;) + &quot;:&quot; + rs.getDouble(&quot;govt_comm&quot;) + &quot;_&quot; + rs.getDouble(&quot;govt_comm_pwt&quot;);</span>
+<span class="nc bnc" id="L618" title="All 2 branches missed.">				} else if (&quot;IW&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L619">					gameIdAmt = rs.getInt(&quot;game_id&quot;) + &quot;:&quot; + rs.getDouble(&quot;gov_comm_rate&quot;);</span>
+<span class="nc bnc" id="L620" title="All 2 branches missed.">				} else if (&quot;VS&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L621">					gameIdAmt = rs.getInt(&quot;game_id&quot;) + &quot;:&quot; + rs.getDouble(&quot;gov_comm_rate&quot;)+ &quot;_&quot; + rs.getDouble(&quot;govt_comm_pwt_rate&quot;);</span>
+<span class="nc bnc" id="L622" title="All 2 branches missed.">				} else if (serviceCode.equalsIgnoreCase(&quot;SLE&quot;)) {</span>
+<span class="nc" id="L623">					gameIdAmt = rs.getInt(&quot;game_type_id&quot;) + &quot;:&quot; + rs.getDouble(&quot;gov_comm_rate&quot;) + &quot;_&quot; + rs.getDouble(&quot;govt_pwt_comm_rate&quot;);</span>
+				}
+<span class="nc" id="L625">				String gameName = rs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L626">				result += gameIdAmt + &quot;||&quot; + gameName + &quot;|:&quot;;</span>
+				// gameMap.put(gameIdAmt, gameName);
+<span class="nc" id="L628">			}</span>
+<span class="nc" id="L629">			logger.debug(&quot;result1 &quot; + result);</span>
+<span class="nc bnc" id="L630" title="All 2 branches missed.">			if (!result.equals(&quot;&quot;)) {</span>
+<span class="nc" id="L631">				result = result.substring(0, result.length() - 2);</span>
+			}
+<span class="nc" id="L633">			logger.debug(&quot;result2 &quot; + result);</span>
+<span class="nc" id="L634">		} catch (SQLException e) {</span>
+<span class="nc" id="L635">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L637">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L638">		}</span>
+<span class="nc" id="L639">		return result;</span>
+	}
+
+	public String getGameNameList(String gameStatus) throws LMSException {
+
+<span class="nc" id="L644">		StringBuilder gameNameList = new StringBuilder();</span>
+<span class="nc" id="L645">		Connection con = null;</span>
+		try {
+<span class="nc" id="L647">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L648">			PreparedStatement pstmt = con</span>
+					.prepareStatement(&quot;select game_id, game_nbr, game_name, game_status from st_se_game_master where game_status = ?&quot;);
+<span class="nc" id="L650">			pstmt.setString(1, gameStatus.trim());</span>
+<span class="nc" id="L651">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L652">			System.out</span>
+					.println(&quot;retrieve the game detail for agent comm variance query ==== &quot;
+							+ pstmt);
+<span class="nc bnc" id="L655" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L656">				String gameNbr = String.valueOf(rs.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L657">				String Name = rs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L658">				gameNameList.append(&quot;,&quot; + rs.getInt(&quot;game_id&quot;) + &quot;=&quot; + gameNbr</span>
+						+ &quot;-&quot; + Name);
+<span class="nc" id="L660">			}</span>
+<span class="nc bnc" id="L661" title="All 2 branches missed.">			if (gameNameList.length() &gt; 0) {</span>
+<span class="nc" id="L662">				gameNameList.delete(0, 1);</span>
+			}
+
+<span class="nc" id="L665">		} catch (SQLException e) {</span>
+<span class="nc" id="L666">			e.printStackTrace();</span>
+<span class="nc" id="L667">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L669">			try {</span>
+<span class="nc bnc" id="L670" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L671">					con.close();</span>
+				}
+<span class="nc" id="L673">			} catch (SQLException e) {</span>
+<span class="nc" id="L674">				e.printStackTrace();</span>
+<span class="nc" id="L675">			}</span>
+<span class="nc" id="L676">		}</span>
+<span class="nc" id="L677">		logger.debug(&quot;game name list === &quot; + gameNameList);</span>
+
+<span class="nc" id="L679">		return gameNameList.toString();</span>
+	}
+
+	public List&lt;String&gt; getGameNameListForCommVar(String gameType)
+			throws LMSException {
+<span class="nc" id="L684">		List&lt;String&gt; gameNameList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L685">		Connection con = null;</span>
+<span class="nc" id="L686">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L687">		ResultSet rs = null;</span>
+<span class="nc" id="L688">		con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L690">			pstmt = con</span>
+					.prepareStatement(&quot;select game_nbr, game_name, game_status from st_se_game_master where (game_status like ? and game_status!='TERMINATE')&quot;);
+<span class="nc bnc" id="L692" title="All 2 branches missed.">			if (&quot;ALL&quot;.equalsIgnoreCase(gameType.trim())) {</span>
+<span class="nc" id="L693">				pstmt.setString(1, &quot;%&quot;);</span>
+			} else {
+<span class="nc" id="L695">				pstmt.setString(1, gameType.trim());</span>
+			}
+<span class="nc" id="L697">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L698">			System.out</span>
+					.println(&quot;retrieve the game detail for agent comm variance query ==== &quot;
+							+ pstmt);
+<span class="nc bnc" id="L701" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L702">				String gameNbr = String.valueOf(rs.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L703">				String gameName = rs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L704">				gameNameList.add(gameNbr + &quot;-&quot; + gameName);</span>
+<span class="nc" id="L705">			}</span>
+
+<span class="nc" id="L707">		} catch (SQLException e) {</span>
+<span class="nc" id="L708">			e.printStackTrace();</span>
+<span class="nc" id="L709">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L711">			try {</span>
+<span class="nc bnc" id="L712" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L713">					rs.close();</span>
+				}
+<span class="nc bnc" id="L715" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L716">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L718" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L719">					con.close();</span>
+				}
+<span class="nc" id="L721">			} catch (SQLException e) {</span>
+<span class="nc" id="L722">				e.printStackTrace();</span>
+<span class="nc" id="L723">			}</span>
+<span class="nc" id="L724">		}</span>
+<span class="nc" id="L725">		logger.debug(&quot;game name list === &quot; + gameNameList);</span>
+
+<span class="nc" id="L727">		return gameNameList;</span>
+	}
+
+	public String getGameNbrFormat(String game_name) throws LMSException {
+<span class="nc" id="L731">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L732">		StringBuilder nbrFormat = new StringBuilder();</span>
+<span class="nc" id="L733">		Statement stmt1 = null;</span>
+<span class="nc" id="L734">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L735">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L738">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L739">			rs = stmt1</span>
+					.executeQuery(&quot;select * from st_se_game_ticket_nbr_format where game_id=(select game_id from st_se_game_master where game_name='&quot;
+							+ game_name + &quot;' )&quot;);
+<span class="nc bnc" id="L742" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L743">				nbrFormat.append(rs.getInt(&quot;pack_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L744">				nbrFormat.append(rs.getInt(&quot;book_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L745">				nbrFormat.append(rs.getInt(&quot;ticket_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L746">				nbrFormat.append(rs.getInt(&quot;game_nbr_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L747">				nbrFormat.append(rs.getInt(&quot;game_rank_digits&quot;) + &quot;:&quot;);</span>
+<span class="nc" id="L748">				nbrFormat.append(rs.getInt(&quot;game_virn_digits&quot;) + &quot;:&quot;);</span>
+			}
+<span class="nc" id="L750">			stmt1.close();</span>
+<span class="nc" id="L751">			con.close();</span>
+
+<span class="nc" id="L753">			return nbrFormat.toString();</span>
+
+		}
+
+<span class="nc" id="L757">		catch (SQLException se) {</span>
+<span class="nc" id="L758">			se.printStackTrace();</span>
+<span class="nc" id="L759">			throw new LMSException(se);</span>
+
+		}
+
+	}
+
+	public String getGamePrizeList(String game_name) throws LMSException {
+<span class="nc" id="L766">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L767">		StringBuilder przAmt = new StringBuilder();</span>
+<span class="nc" id="L768">		Statement stmt1 = null;</span>
+<span class="nc" id="L769">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L770">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L773">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L774">			rs = stmt1</span>
+					.executeQuery(&quot;select distinct(prize_amt) from st_se_rank_master where game_id=(select game_id from st_se_game_master where game_name='&quot;
+							+ game_name
+							+ &quot;' ) and prize_amt &lt;= &quot;
+							+ sc.getAttribute(&quot;HIGH_PRIZE_AMT&quot;)
+							+ &quot; order by prize_amt&quot;);
+<span class="nc bnc" id="L780" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L781">				przAmt.append(FormatNumber.formatNumberForJSP(rs</span>
+						.getDouble(&quot;prize_amt&quot;))
+						+ &quot;:&quot;);
+			}
+<span class="nc" id="L785">			stmt1.close();</span>
+<span class="nc" id="L786">			con.close();</span>
+<span class="nc" id="L787">			return przAmt.toString();</span>
+
+		}
+
+<span class="nc" id="L791">		catch (SQLException se) {</span>
+<span class="nc" id="L792">			se.printStackTrace();</span>
+<span class="nc" id="L793">			throw new LMSException(se);</span>
+
+		}
+
+	}
+
+	public List getOrganization(UserInfoBean bean) throws LMSException {
+<span class="nc" id="L800">		List OrganizationList = new ArrayList();</span>
+<span class="nc" id="L801">		Statement stmt1 = null;</span>
+<span class="nc" id="L802">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L803">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L806">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L807">			String userType = bean.getUserType();</span>
+<span class="nc" id="L808">			String roleName = bean.getRoleName();</span>
+<span class="nc" id="L809">			String orgCodeQry = &quot; name orgCode  &quot;;</span>
+
+			
+<span class="nc bnc" id="L812" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L813">				orgCodeQry = &quot; org_code orgCode  &quot;;</span>
+	
+
+<span class="nc bnc" id="L816" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L818">				orgCodeQry = &quot; concat(org_code,'_',name)  orgCode &quot;;</span>
+			
+
+<span class="nc bnc" id="L821" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L823">				orgCodeQry = &quot; concat(name,'_',org_code)  orgCode  &quot;;</span>
+			
+
+			}
+<span class="nc bnc" id="L827" title="All 2 branches missed.">			if (userType.equals(&quot;BO&quot;)) {</span>
+<span class="nc bnc" id="L828" title="All 4 branches missed.">				if (bean.getIsMasterRole().equals(&quot;Y&quot;)</span>
+						&amp;&amp; bean.getIsRoleHeadUser().equals(&quot;Y&quot;)) {
+<span class="nc" id="L830">					logger.debug(&quot;role name is BO MAS&quot;);</span>
+<span class="nc" id="L831">					rs = stmt1</span>
+							.executeQuery(&quot;select &quot;+orgCodeQry+&quot;,organization_type,organization_id  from st_lms_organization_master where organization_type='BO'&quot;);
+				} else {
+<span class="nc" id="L834">					rs = stmt1</span>
+							.executeQuery(&quot;select &quot;+orgCodeQry+&quot;,organization_type,organization_id  from st_lms_organization_master where organization_type='AGENT'&quot;);
+				}
+
+			}
+<span class="nc bnc" id="L839" title="All 2 branches missed.">			if (userType.equals(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L840">				rs = stmt1</span>
+						.executeQuery(&quot;select &quot;+orgCodeQry+&quot;,organization_type,organization_id  from st_lms_organization_master where organization_type='RETAILER'&quot;);
+
+			}
+<span class="nc bnc" id="L844" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L845">				OrganizationList.add(rs.getString(&quot;orgCode&quot;));</span>
+			}
+<span class="nc" id="L847">			stmt1.close();</span>
+<span class="nc" id="L848">			con.close();</span>
+<span class="nc" id="L849">			return OrganizationList;</span>
+
+		}
+
+<span class="nc" id="L853">		catch (SQLException se) {</span>
+<span class="nc" id="L854">			se.printStackTrace();</span>
+<span class="nc" id="L855">			throw new LMSException(se);</span>
+
+		}
+
+	}
+/**
+ * New Common method to get orgList 
+ * @param userOrgId
+ * @param orgType
+ * @return
+ * @throws LMSException
+ */
+	public String getOrgIdList(int userOrgId, String orgType)
+			throws LMSException {
+<span class="nc" id="L869">		StringBuilder orgList = new StringBuilder();</span>
+<span class="nc" id="L870">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L871">		Statement stmt =null;</span>
+<span class="nc" id="L872">		ResultSet rs = null;</span>
+<span class="nc" id="L873">		String query=null;</span>
+		
+		try {
+		
+			
+<span class="nc" id="L878">			query =QueryManager.getOrgInfoQry(userOrgId,orgType);</span>
+<span class="nc" id="L879">			stmt=con.createStatement();</span>
+<span class="nc" id="L880">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L881" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L882">				orgList.append(rs.getString(&quot;orgCode&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;organization_id&quot;)).append(&quot;:&quot;); </span>
+			}
+			//logger.info(&quot;orgList-------&quot; + orgList.toString());
+<span class="nc" id="L885">		} catch (Exception e) {</span>
+<span class="nc" id="L886">			e.printStackTrace();</span>
+<span class="nc" id="L887">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L889">			try {</span>
+<span class="nc bnc" id="L890" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L891">					con.close();</span>
+				}
+<span class="nc" id="L893">			} catch (Exception e) {</span>
+<span class="nc" id="L894">				e.printStackTrace();</span>
+<span class="nc" id="L895">			}</span>
+<span class="nc" id="L896">		}</span>
+<span class="nc" id="L897">		return orgList.toString();</span>
+	}
+	
+	public static Map&lt;String, String&gt; getOrgIdMap(int userOrgId, String orgType) throws LMSException {
+<span class="nc" id="L901">		Map&lt;String, String&gt; orgMap = new LinkedHashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L902">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L903">		Statement stmt =null;</span>
+<span class="nc" id="L904">		ResultSet rs = null;</span>
+<span class="nc" id="L905">		String query=null;</span>
+		try {
+<span class="nc" id="L907">				query =QueryManager.getOrgInfoQry(userOrgId,orgType);</span>
+<span class="nc" id="L908">				stmt=con.createStatement();</span>
+<span class="nc" id="L909">				rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L910" title="All 2 branches missed.">				while (rs.next()) {					</span>
+<span class="nc" id="L911">					orgMap.put(rs.getString(&quot;organization_id&quot;),rs.getString(&quot;orgCode&quot;));</span>
+				}
+<span class="nc" id="L913">			} catch (Exception e) {</span>
+<span class="nc" id="L914">				e.printStackTrace();</span>
+<span class="nc" id="L915">				throw new LMSException(e);</span>
+			} finally {
+<span class="nc" id="L917">				DBConnect.closeConnection(con, stmt, rs);</span>
+<span class="nc" id="L918">			}</span>
+<span class="nc" id="L919">		return orgMap;</span>
+	}
+
+	public String getAllOrgIdList(int userOrgId, String orgType)
+			throws LMSException {
+<span class="nc" id="L924">		StringBuilder orgList = new StringBuilder();</span>
+<span class="nc" id="L925">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L926">		Statement stmt =null;</span>
+<span class="nc" id="L927">		ResultSet rs = null;</span>
+<span class="nc" id="L928">		String query=null;</span>
+		
+		try {
+		
+			
+<span class="nc" id="L933">			query =QueryManager.getAllOrgInfoQry(userOrgId,orgType);</span>
+<span class="nc" id="L934">			stmt=con.createStatement();</span>
+<span class="nc" id="L935">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L936" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L937">				orgList.append(rs.getString(&quot;orgCode&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;organization_id&quot;)).append(&quot;:&quot;); </span>
+			}
+			//logger.info(&quot;orgList-------&quot; + orgList.toString());
+<span class="nc" id="L940">		} catch (Exception e) {</span>
+<span class="nc" id="L941">			e.printStackTrace();</span>
+<span class="nc" id="L942">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L944">			try {</span>
+<span class="nc bnc" id="L945" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L946">					con.close();</span>
+				}
+<span class="nc" id="L948">			} catch (Exception e) {</span>
+<span class="nc" id="L949">				e.printStackTrace();</span>
+<span class="nc" id="L950">			}</span>
+<span class="nc" id="L951">		}</span>
+<span class="nc" id="L952">		return orgList.toString();</span>
+	}
+	
+	public String getOrgList(int userOrgId, String orgType) throws LMSException {
+<span class="nc" id="L956">		String orgList = &quot;&quot;;</span>
+<span class="nc" id="L957">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L958">		Statement stmt = null;</span>
+<span class="nc" id="L959">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L961">			stmt = con.createStatement();</span>
+<span class="nc" id="L962">			logger</span>
+					.debug(&quot;Query:--- select name from st_lms_organization_master where organization_type='&quot;
+							+ orgType + &quot;' and parent_id='&quot; + userOrgId + &quot;' order by name&quot;);
+<span class="nc" id="L965">			rs = stmt</span>
+					.executeQuery(&quot;select name from st_lms_organization_master where organization_type='&quot;
+							+ orgType + &quot;' and parent_id='&quot; + userOrgId + &quot;' order by name&quot;);
+<span class="nc bnc" id="L968" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L969">				orgList += rs.getString(&quot;name&quot;) + &quot;|:&quot;;</span>
+			}
+
+<span class="nc bnc" id="L972" title="All 2 branches missed.">			if (!orgList.equals(&quot;&quot;)) {</span>
+<span class="nc" id="L973">				orgList = orgList.substring(0, orgList.length() - 2);</span>
+			}
+
+<span class="nc" id="L976">			logger.debug(&quot;orgList-------&quot; + orgList);</span>
+<span class="nc" id="L977">		} catch (Exception e) {</span>
+<span class="nc" id="L978">			e.printStackTrace();</span>
+<span class="nc" id="L979">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L981">			try {</span>
+<span class="nc bnc" id="L982" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L983">					con.close();</span>
+				}
+<span class="nc" id="L985">			} catch (Exception e) {</span>
+<span class="nc" id="L986">				e.printStackTrace();</span>
+<span class="nc" id="L987">			}</span>
+<span class="nc" id="L988">		}</span>
+<span class="nc" id="L989">		return orgList;</span>
+	}
+
+	public String getUserIdList(int orgId) {
+		
+		
+
+<span class="nc" id="L996">		StringBuilder orgList = new StringBuilder();</span>
+<span class="nc" id="L997">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L998">		PreparedStatement pstmt =null;</span>
+<span class="nc" id="L999">		ResultSet rs = null;</span>
+<span class="nc" id="L1000">		String query=null;</span>
+	try {
+<span class="nc" id="L1002">			String appendOrder =QueryManager.getAppendOrgOrder();</span>
+			
+<span class="nc bnc" id="L1004" title="All 2 branches missed.">			if((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;) ){</span>
+				
+				
+<span class="nc" id="L1007">				query =&quot;select org_code orgCode,organization_id from st_lms_organization_master where parent_id=?  order by   &quot;+appendOrder;</span>
+			
+<span class="nc bnc" id="L1009" title="All 2 branches missed.">			}else if((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE_NAME&quot;) ){</span>
+				
+<span class="nc" id="L1011">				query =&quot;select concat(org_code,'_',name) orgCode,organization_id from st_lms_organization_master where parent_id=?  order by  &quot;+appendOrder;</span>
+			
+					
+			
+<span class="nc bnc" id="L1015" title="All 2 branches missed.">			}else if((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;NAME_CODE&quot;)){</span>
+				
+				
+<span class="nc" id="L1018">				query =&quot;select concat(name,'_',org_code) orgCode,organization_id from st_lms_organization_master where parent_id=?  order by   &quot;+appendOrder;</span>
+			
+				
+				
+			}else {
+				
+				
+<span class="nc" id="L1025">				query =&quot;select name orgCode,organization_id from st_lms_organization_master where  parent_id=?  order by  &quot;+appendOrder;</span>
+				
+			
+				
+			}
+	
+<span class="nc" id="L1031">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1032">			pstmt.setInt(1,orgId);</span>
+<span class="nc" id="L1033">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1034" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1035">				orgList.append(rs.getString(&quot;orgCode&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;organization_id&quot;)).append(&quot;:&quot;); </span>
+			}
+<span class="nc" id="L1037">			logger.info(&quot;orgList-------&quot; + orgList.toString());</span>
+<span class="nc" id="L1038">		} catch (Exception e) {</span>
+<span class="nc" id="L1039">			e.printStackTrace();</span>
+	
+		} finally {
+<span class="nc" id="L1042">			try {</span>
+<span class="nc bnc" id="L1043" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1044">					con.close();</span>
+				}
+<span class="nc" id="L1046">			} catch (Exception e) {</span>
+<span class="nc" id="L1047">				e.printStackTrace();</span>
+<span class="nc" id="L1048">			}</span>
+<span class="nc" id="L1049">		}</span>
+<span class="nc" id="L1050">		return orgList.toString();</span>
+	
+		
+		
+		
+	}
+	public String getOrgUserIdList(int orgId) {
+<span class="nc" id="L1057">		String orgUserList = &quot;&quot;;</span>
+<span class="nc" id="L1058">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1059">		Statement stmt = null;</span>
+<span class="nc" id="L1060">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L1062">			stmt = con.createStatement();</span>
+<span class="nc" id="L1063">			rs = stmt</span>
+					.executeQuery(&quot;select user_id, user_name from st_lms_user_master where organization_id = &quot;
+							+ orgId + &quot; order by user_name&quot;);
+<span class="nc bnc" id="L1066" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1067">				orgUserList += rs.getString(&quot;user_name&quot;) + &quot;|&quot;</span>
+						+ rs.getString(&quot;user_id&quot;) + &quot;:&quot;;
+			}
+<span class="nc" id="L1070">			logger.debug(&quot;orgList-------&quot; + orgUserList);</span>
+<span class="nc" id="L1071">		} catch (Exception e) {</span>
+<span class="nc" id="L1072">			e.printStackTrace();</span>
+			// throw new LMSException(e);
+		} finally {
+<span class="nc" id="L1075">			try {</span>
+<span class="nc bnc" id="L1076" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1077">					con.close();</span>
+				}
+<span class="nc" id="L1079">			} catch (Exception e) {</span>
+<span class="nc" id="L1080">				e.printStackTrace();</span>
+<span class="nc" id="L1081">			}</span>
+<span class="nc" id="L1082">		}</span>
+<span class="nc" id="L1083">		return orgUserList;</span>
+	}
+
+	public static ArrayList&lt;Integer&gt; getUserIdList(int orgId , boolean isRetailer) {
+		
+<span class="nc" id="L1088">		Connection con = null;</span>
+<span class="nc" id="L1089">		Statement stmt = null;</span>
+<span class="nc" id="L1090">		ResultSet rs = null;</span>
+<span class="nc" id="L1091">		ArrayList&lt;Integer&gt; orgUserList = null;</span>
+<span class="nc" id="L1092">		String searchUserId = null;</span>
+		try {
+<span class="nc bnc" id="L1094" title="All 2 branches missed.">			if(isRetailer){</span>
+<span class="nc" id="L1095">				searchUserId = &quot;select user_id from st_lms_user_master where organization_id = &quot;+orgId;</span>
+			}else{
+<span class="nc" id="L1097">				searchUserId = &quot;select user_id from st_lms_user_master where parent_user_id = (select user_id from st_lms_user_master where organization_id = &quot;+orgId+&quot;)&quot;;</span>
+			}
+<span class="nc" id="L1099">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L1100">			stmt = con.createStatement();</span>
+<span class="nc" id="L1101">			rs = stmt.executeQuery(searchUserId);</span>
+<span class="nc" id="L1102">			orgUserList = new ArrayList&lt;Integer&gt;();</span>
+<span class="nc bnc" id="L1103" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1104">				orgUserList.add(rs.getInt(&quot;user_id&quot;));</span>
+			}
+<span class="nc" id="L1106">			logger.debug(&quot;orgList-------&quot; + orgUserList);</span>
+<span class="nc" id="L1107">		} catch (Exception e) {</span>
+<span class="nc" id="L1108">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1110">			DBConnect.closeConnection(con, stmt, rs);</span>
+<span class="nc" id="L1111">		}</span>
+<span class="nc bnc" id="L1112" title="All 2 branches missed.">		if(orgUserList != null)</span>
+<span class="nc" id="L1113">			orgUserList.trimToSize();</span>
+<span class="nc" id="L1114">		return orgUserList;</span>
+	}
+
+	public String getPacknBookList(String agentOrgId, String gameName) {
+
+<span class="nc" id="L1119">		Connection con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L1121">		Statement stmt = null;</span>
+<span class="nc" id="L1122">		Statement stmt1 = null;</span>
+
+<span class="nc" id="L1124">		ResultSet rs = null;</span>
+<span class="nc" id="L1125">		ResultSet rs1 = null;</span>
+
+<span class="nc" id="L1127">		StringBuilder packNbook = new StringBuilder();</span>
+		try {
+<span class="nc" id="L1129">			stmt = con.createStatement();</span>
+<span class="nc" id="L1130">			stmt1 = con.createStatement();</span>
+
+<span class="nc" id="L1132">			String packNumQuery = &quot;select pack_nbr from (select nbr_of_books_per_pack from st_se_game_master where game_name='&quot;</span>
+					+ gameName
+					+ &quot;')res1 ,(select distinct pack_nbr,count(*) no_of_books from st_se_game_inv_status where current_owner_id=&quot;
+					+ agentOrgId
+					+ &quot; and game_id=(select game_id from st_se_game_master where game_name='&quot;
+					+ gameName
+					+ &quot;') and (book_status!='MISSING' and book_status!='CLAIMED') group by pack_nbr) res2 where res1.nbr_of_books_per_pack = res2.no_of_books&quot;;
+
+<span class="nc" id="L1140">			String bookNumQuery = &quot;select distinct book_nbr from st_se_game_inv_status where current_owner_id=&quot;</span>
+					+ agentOrgId
+					+ &quot; and game_id=(select game_id from st_se_game_master where game_name='&quot;
+					+ gameName
+					+ &quot;') and (book_status!='MISSING' and book_status!='CLAIMED')&quot;;
+
+<span class="nc" id="L1146">			rs = stmt.executeQuery(packNumQuery);</span>
+
+<span class="nc bnc" id="L1148" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1149">				packNbook.append(rs.getString(&quot;pack_nbr&quot;) + &quot;:&quot;);</span>
+
+			}
+<span class="nc" id="L1152">			packNbook.append(&quot;book_nbr&quot;);</span>
+<span class="nc" id="L1153">			rs1 = stmt1.executeQuery(bookNumQuery);</span>
+
+<span class="nc bnc" id="L1155" title="All 2 branches missed.">			while (rs1.next()) {</span>
+<span class="nc" id="L1156">				packNbook.append(rs1.getString(&quot;book_nbr&quot;) + &quot;:&quot;);</span>
+
+			}
+<span class="nc" id="L1159">		} catch (SQLException e) {</span>
+<span class="nc" id="L1160">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1162">			try {</span>
+<span class="nc bnc" id="L1163" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L1164">					con.close();</span>
+				}
+<span class="nc" id="L1166">			} catch (SQLException se) {</span>
+<span class="nc" id="L1167">				se.printStackTrace();</span>
+<span class="nc" id="L1168">			}</span>
+<span class="nc" id="L1169">		}</span>
+
+<span class="nc" id="L1171">		return packNbook.toString();</span>
+	}
+
+	public String getQrgNameHeadUserId(int userOrgId, String orgType)
+			throws LMSException {
+<span class="nc" id="L1176">		String orgList = &quot;&quot;;</span>
+<span class="nc" id="L1177">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1178">		Statement stmt = null;</span>
+<span class="nc" id="L1179">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L1181">			stmt = con.createStatement();</span>
+<span class="nc" id="L1182">			rs = stmt</span>
+					.executeQuery(&quot;select om.name,om.organization_id,um.user_id from st_lms_organization_master om,st_lms_user_master um where om.organization_type='&quot;
+							+ orgType
+							+ &quot;' and om.parent_id='&quot;
+							+ userOrgId
+							+ &quot;' and um.isrolehead='Y' and om.organization_type=um.organization_type and om.organization_id=um.organization_id&quot;);
+<span class="nc bnc" id="L1188" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1189">				orgList += rs.getString(&quot;name&quot;) + &quot;|&quot;</span>
+						+ rs.getString(&quot;organization_id&quot;) + &quot;|&quot;
+						+ rs.getString(&quot;user_id&quot;) + &quot;:&quot;;
+			}
+<span class="nc" id="L1193">			logger.debug(&quot;orgList-------&quot; + orgList);</span>
+<span class="nc" id="L1194">		} catch (Exception e) {</span>
+<span class="nc" id="L1195">			e.printStackTrace();</span>
+<span class="nc" id="L1196">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1198">			try {</span>
+<span class="nc bnc" id="L1199" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1200">					con.close();</span>
+				}
+<span class="nc" id="L1202">			} catch (Exception e) {</span>
+<span class="nc" id="L1203">				e.printStackTrace();</span>
+<span class="nc" id="L1204">			}</span>
+<span class="nc" id="L1205">		}</span>
+<span class="nc" id="L1206">		return orgList;</span>
+	}
+
+	public List getSupplier() throws LMSException {
+<span class="nc" id="L1210">		List supplierList = new ArrayList();</span>
+<span class="nc" id="L1211">		Statement stmt1 = null;</span>
+<span class="nc" id="L1212">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1213">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L1216">			stmt1 = con.createStatement();</span>
+<span class="nc" id="L1217">			rs = stmt1.executeQuery(&quot;select name from st_se_supplier_master&quot;);</span>
+<span class="nc bnc" id="L1218" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1219">				supplierList.add(rs.getString(&quot;name&quot;));</span>
+			}
+<span class="nc" id="L1221">			stmt1.close();</span>
+<span class="nc" id="L1222">			con.close();</span>
+<span class="nc" id="L1223">			return supplierList;</span>
+
+		}
+
+<span class="nc" id="L1227">		catch (SQLException se) {</span>
+<span class="nc" id="L1228">			se.printStackTrace();</span>
+<span class="nc" id="L1229">			throw new LMSException(se);</span>
+
+		}
+
+	}
+
+	public static String getOrgNameFromUserId(int userId, String orgType) {
+<span class="nc" id="L1236">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1237">		String orgName = null;</span>
+		try {
+<span class="nc" id="L1239">			String query = null;</span>
+<span class="nc bnc" id="L1240" title="All 2 branches missed.">			if (&quot;RETAILER&quot;.equalsIgnoreCase(orgType)) {</span>
+<span class="nc" id="L1241">				query = &quot;select om.name from st_lms_organization_master om, st_lms_user_master um where om.organization_id = um.organization_id and um.user_id = ?&quot;;</span>
+<span class="nc bnc" id="L1242" title="All 2 branches missed.">			} else if (&quot;AGENT&quot;.equalsIgnoreCase(orgType)) {</span>
+<span class="nc" id="L1243">				query = &quot;select name from st_lms_organization_master where organization_id = (select organization_id from st_lms_user_master where user_id=(select parent_user_id from st_lms_user_master where user_id = ?))&quot;;</span>
+			}
+
+<span class="nc" id="L1246">			PreparedStatement pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1247">			pstmt.setInt(1, userId);</span>
+<span class="nc" id="L1248">			logger.debug(&quot;***pstmt*****&quot; + pstmt + &quot;****&quot;);</span>
+<span class="nc" id="L1249">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1250" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L1251">				orgName = rs.getString(&quot;name&quot;);</span>
+			}
+<span class="nc" id="L1253">		} catch (Exception e) {</span>
+<span class="nc" id="L1254">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1256">			try {</span>
+<span class="nc bnc" id="L1257" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1258">					con.close();</span>
+				}
+<span class="nc" id="L1260">			} catch (Exception e) {</span>
+<span class="nc" id="L1261">				e.printStackTrace();</span>
+<span class="nc" id="L1262">			}</span>
+<span class="nc" id="L1263">		}</span>
+<span class="nc" id="L1264">		return orgName;</span>
+	}
+
+	public String getOrgListForAll(String orgType) throws LMSException
+	{
+<span class="nc" id="L1269">		StringBuilder orgList = new StringBuilder();</span>
+<span class="nc" id="L1270">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1271">		PreparedStatement pstmt =null;</span>
+<span class="nc" id="L1272">		ResultSet rs = null;</span>
+
+		try {
+			
+			
+			
+<span class="nc" id="L1278">			pstmt = con.prepareStatement(&quot;select organization_id, &quot;+QueryManager.getOrgCodeQuery()+&quot; from st_lms_organization_master where organization_type=? order by &quot;+QueryManager.getAppendOrgOrder());</span>
+<span class="nc" id="L1279">			pstmt.setString(1,orgType);</span>
+<span class="nc" id="L1280">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1281" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1282">				orgList.append(rs.getString(&quot;organization_id&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;orgCode&quot;)).append(&quot;:&quot;); </span>
+			}
+<span class="nc" id="L1284">			logger.info(&quot;orgList-------&quot; + orgList.toString());</span>
+<span class="nc" id="L1285">		} catch (Exception e) {</span>
+<span class="nc" id="L1286">			e.printStackTrace();</span>
+<span class="nc" id="L1287">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1289">			try {</span>
+<span class="nc bnc" id="L1290" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1291">					con.close();</span>
+				}
+<span class="nc" id="L1293">			} catch (Exception e) {</span>
+<span class="nc" id="L1294">				e.printStackTrace();</span>
+<span class="nc" id="L1295">			}</span>
+<span class="nc" id="L1296">		}</span>
+<span class="nc" id="L1297">		return orgList.toString();</span>
+	}
+
+	public List&lt;OrganizationBean&gt; getBoAgtList(String orgType) {
+<span class="nc" id="L1301">		Connection con = null;</span>
+<span class="nc" id="L1302">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1303">		ResultSet rs = null;</span>
+<span class="nc" id="L1304">		List&lt;OrganizationBean&gt; organizationList = new ArrayList&lt;OrganizationBean&gt;();</span>
+<span class="nc" id="L1305">		OrganizationBean organizationBean = null;</span>
+
+<span class="nc" id="L1307">		String query = &quot;&quot;;</span>
+<span class="nc bnc" id="L1308" title="All 2 branches missed.">		if(orgType.equals(&quot;BO&quot;)) {</span>
+<span class="nc" id="L1309">			String orgCodeQry = &quot; user_name orgCode  &quot;;</span>
+<span class="nc bnc" id="L1310" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;))</span>
+<span class="nc" id="L1311">				orgCodeQry = &quot; org_code orgCode &quot;;</span>
+<span class="nc bnc" id="L1312" title="All 2 branches missed.">			else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE_NAME&quot;))</span>
+<span class="nc" id="L1313">				orgCodeQry = &quot; concat(org_code,'_',user_name)  orgCode &quot;;</span>
+<span class="nc bnc" id="L1314" title="All 2 branches missed.">			else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;NAME_CODE&quot;))</span>
+<span class="nc" id="L1315">				orgCodeQry = &quot; concat(user_name,'_',org_code)  orgCode &quot;;</span>
+<span class="nc" id="L1316">			query = &quot;SELECT user_id AS userId, &quot;+orgCodeQry+&quot; FROM st_lms_user_master u INNER JOIN st_lms_organization_master o ON o.organization_id=u.organization_id WHERE u.organization_type='BO' ORDER BY &quot;+QueryManager.getAppendOrgOrder();</span>
+<span class="nc" id="L1317">		} else {</span>
+			//query = &quot;SELECT user_id, user_name FROM st_lms_user_master WHERE organization_type='AGENT' AND isrolehead='y' ORDER BY user_name;&quot;;
+<span class="nc" id="L1319">			query = &quot;SELECT u.user_id as userId, u.user_name as userName, &quot;+QueryManager.getOrgCodeQuery()+&quot; FROM st_lms_user_master u INNER JOIN st_lms_organization_master o ON u.organization_id=o.organization_id WHERE u.organization_type='AGENT' AND u.isrolehead='y' and o.organization_status !='TERMINATE'  ORDER BY &quot;+QueryManager.getAppendOrgOrder();</span>
+		}
+
+		try {
+<span class="nc" id="L1323">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L1324">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1325">			logger.info(&quot;getBoAgtList - &quot; + pstmt);</span>
+<span class="nc" id="L1326">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1327" title="All 2 branches missed.">			while (rs.next()) {</span>
+				//orgUserList += rs.getString(&quot;userId&quot;) + &quot;|&quot; + rs.getString(&quot;orgCode&quot;) + &quot;:&quot;;
+<span class="nc" id="L1329">				organizationBean = new OrganizationBean();</span>
+<span class="nc" id="L1330">				organizationBean.setOrgId(rs.getInt(&quot;userId&quot;));</span>
+<span class="nc" id="L1331">				organizationBean.setOrgName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L1332">				organizationList.add(organizationBean);</span>
+			}
+<span class="nc" id="L1334">		} catch (Exception e) {</span>
+<span class="nc" id="L1335">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L1337">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L1338">		}</span>
+
+<span class="nc" id="L1340">		return organizationList;</span>
+	}
+
+	public static String getCountryListWithCode() {
+<span class="nc" id="L1344">		StringBuilder listWithCode = new StringBuilder();</span>
+<span class="nc" id="L1345">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1346">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1347">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L1349">			pstmt = con.prepareStatement(QueryManager.getST3Country());</span>
+<span class="nc" id="L1350">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1351" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1352">				listWithCode.append(rs.getString(&quot;country_code&quot;) + &quot;:&quot;</span>
+						+ rs.getString(&quot;name&quot;)+&quot;|&quot;);
+
+			}
+
+<span class="nc" id="L1357">		} catch (Exception e) {</span>
+<span class="nc" id="L1358">			e.printStackTrace();</span>
+
+		} finally {
+
+<span class="nc" id="L1362">			try {</span>
+<span class="nc bnc" id="L1363" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L1364">					con.close();</span>
+				}
+<span class="nc bnc" id="L1366" title="All 6 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L1367">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L1369" title="All 6 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L1370">					rs.close();</span>
+
+				}
+<span class="nc" id="L1373">			} catch (Exception e) {</span>
+<span class="nc" id="L1374">				e.printStackTrace();</span>
+<span class="nc" id="L1375">			}</span>
+
+<span class="nc" id="L1377">		}</span>
+
+<span class="nc" id="L1379">		return listWithCode.toString();</span>
+}	
+	
+	public static String getCityAndStateBuilder(){
+
+<span class="nc" id="L1384">		ResultSet rs= null;</span>
+<span class="nc" id="L1385"> 		Connection con= null;</span>
+<span class="nc" id="L1386">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1387">		TreeMap&lt;String, String&gt; map = null;</span>
+		try {
+<span class="nc" id="L1389">			con =  DBConnect.getConnection();</span>
+<span class="nc" id="L1390">			pstmt =  con.prepareStatement(&quot;select sm.state_code ,city_code, name state_name, city_name from st_lms_state_master sm inner join st_lms_city_master cm on sm.state_code=cm.state_code order by state_code&quot;);</span>
+<span class="nc" id="L1391">			rs =  pstmt.executeQuery();</span>
+<span class="nc" id="L1392">			map = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc bnc" id="L1393" title="All 2 branches missed.">			while(rs.next())</span>
+			{
+<span class="nc" id="L1395">				String cityBuilder = &quot;&quot;;</span>
+<span class="nc bnc" id="L1396" title="All 2 branches missed.">					if(map.containsKey(rs.getString(&quot;state_name&quot;))){</span>
+<span class="nc" id="L1397">						cityBuilder += map.get(rs.getString(&quot;state_name&quot;))+rs.getString(&quot;city_name&quot;)+&quot;-&quot;+rs.getString(&quot;city_code&quot;)+&quot;,&quot; ;</span>
+<span class="nc" id="L1398">						map.put(rs.getString(&quot;state_name&quot;), cityBuilder);</span>
+					}else{
+<span class="nc" id="L1400">						map.put(rs.getString(&quot;state_name&quot;), rs.getString(&quot;city_name&quot;)+&quot;-&quot;+rs.getString(&quot;city_code&quot;)+&quot;,&quot;);</span>
+					}
+<span class="nc" id="L1402">			}</span>
+<span class="nc" id="L1403">		} catch (Exception e) {</span>
+<span class="nc" id="L1404">			logger.error(&quot;Exception :&quot; , e);</span>
+		}finally{
+<span class="nc" id="L1406">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L1407">		}</span>
+<span class="nc" id="L1408">		return map.toString().replace(&quot;,,&quot;, &quot;|&quot;).replace(&quot;{&quot;,&quot;&quot;).replace(&quot;}&quot;, &quot;&quot;);</span>
+	}
+	
+	public static String getZoneAndCodeBuilder(String cityName){
+
+<span class="nc" id="L1413">		ResultSet rs= null;</span>
+<span class="nc" id="L1414"> 		Connection con= null;</span>
+<span class="nc" id="L1415">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1416">		TreeMap&lt;String, String&gt; map = null;</span>
+		try {
+<span class="nc" id="L1418">			con =  DBConnect.getConnection();</span>
+<span class="nc" id="L1419">			pstmt =  con.prepareStatement(&quot;select area_name,area_code from st_lms_area_master  where city_code=? order by area_name&quot;);</span>
+<span class="nc" id="L1420">			pstmt.setString(1, cityName);</span>
+<span class="nc" id="L1421">			rs =  pstmt.executeQuery();</span>
+<span class="nc" id="L1422">			map = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc bnc" id="L1423" title="All 2 branches missed.">			while(rs.next())</span>
+			{
+<span class="nc" id="L1425">				String cityBuilder = &quot;&quot;;</span>
+<span class="nc bnc" id="L1426" title="All 2 branches missed.">					if(map.containsKey(rs.getString(&quot;area_name&quot;))){</span>
+<span class="nc" id="L1427">						cityBuilder += map.get(rs.getString(&quot;area_name&quot;))+rs.getString(&quot;area_code&quot;)+&quot;,&quot; ;</span>
+<span class="nc" id="L1428">						map.put(rs.getString(&quot;area_name&quot;), cityBuilder);</span>
+					}else{
+<span class="nc" id="L1430">						map.put(rs.getString(&quot;area_name&quot;), rs.getString(&quot;area_code&quot;)+&quot;,&quot;);</span>
+					}
+<span class="nc" id="L1432">			}</span>
+<span class="nc" id="L1433">		} catch (Exception e) {</span>
+<span class="nc" id="L1434">			logger.error(&quot;Exception :&quot; , e);</span>
+		}finally{
+<span class="nc" id="L1436">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L1437">		}</span>
+<span class="nc" id="L1438">		return map.toString().replace(&quot;,,&quot;, &quot;|&quot;).replace(&quot;{&quot;,&quot;&quot;).replace(&quot;}&quot;, &quot;&quot;);</span>
+	}
+	public String getOrgListForArea(String orgType,String state,String  city,String  area) throws LMSException
+	{
+<span class="nc" id="L1442">		StringBuilder orgList = new StringBuilder();</span>
+<span class="nc" id="L1443">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1444">		PreparedStatement pstmt =null;</span>
+<span class="nc" id="L1445">		ResultSet rs = null;</span>
+
+		try {
+			
+<span class="nc" id="L1449">			StringBuilder sb = new StringBuilder();</span>
+<span class="nc bnc" id="L1450" title="All 4 branches missed.">			if(state!=null&amp;&amp;!state.equalsIgnoreCase(&quot;-1&quot;)){</span>
+<span class="nc" id="L1451">				sb.append(&quot; and state_code='&quot;+state.trim()+&quot;' &quot;);</span>
+			}
+<span class="nc bnc" id="L1453" title="All 4 branches missed.">			if(city!=null&amp;&amp;!city.equalsIgnoreCase(&quot;-1&quot;)){</span>
+<span class="nc" id="L1454">				sb.append(&quot; and city='&quot;+city.trim()+&quot;'&quot;);</span>
+			}
+<span class="nc bnc" id="L1456" title="All 4 branches missed.">			if(area!=null&amp;&amp;!area.equalsIgnoreCase(&quot;-1&quot;)){</span>
+<span class="nc" id="L1457">				sb.append(&quot; and find_in_set(area_code,'&quot;+area.trim()+&quot;')&quot;);</span>
+				
+			}
+			
+<span class="nc" id="L1461">			pstmt = con.prepareStatement(&quot;select organization_id, &quot;+QueryManager.getOrgCodeQuery()+&quot; from st_lms_organization_master where organization_type=? &quot;+sb.toString()+&quot; order by &quot;+QueryManager.getAppendOrgOrder());</span>
+<span class="nc" id="L1462">			pstmt.setString(1,orgType);</span>
+<span class="nc" id="L1463">			logger.debug(&quot;orgList Query&quot; + pstmt);</span>
+<span class="nc" id="L1464">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1465" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1466">				orgList.append(rs.getString(&quot;organization_id&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;orgCode&quot;)).append(&quot;:&quot;); </span>
+			}
+			
+<span class="nc" id="L1469">		} catch (Exception e) {</span>
+<span class="nc" id="L1470">			logger.error(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L1471">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L1473">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L1474">			DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L1475">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L1476">		}</span>
+<span class="nc" id="L1477">		return orgList.toString();</span>
+	}
+	
+	public static Map&lt;String, String&gt; getUserIdOgrCodeMap(boolean isAll , int agentOrgId) {
+
+<span class="nc" id="L1482">		Connection con = null;</span>
+<span class="nc" id="L1483">		ResultSet rs = null;</span>
+<span class="nc" id="L1484">		Statement stmt = null;</span>
+<span class="nc" id="L1485">		Map&lt;String, String&gt; userMap = null;</span>
+		try {
+<span class="nc" id="L1487">			String orgCodeQry = &quot; a.name orgCode  &quot;;</span>
+<span class="nc bnc" id="L1488" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L1489">				orgCodeQry = &quot; a.org_code orgCode &quot;;</span>
+<span class="nc bnc" id="L1490" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE_NAME&quot;)) {</span>
+<span class="nc" id="L1491">				orgCodeQry = &quot; concat(a.org_code,'_',a.name)  orgCode &quot;;</span>
+<span class="nc bnc" id="L1492" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;NAME_CODE&quot;)) {</span>
+<span class="nc" id="L1493">				orgCodeQry = &quot; concat(a.name,'_',a.org_code)  orgCode &quot;;</span>
+			}
+			
+<span class="nc" id="L1496">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L1497">			userMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc bnc" id="L1498" title="All 2 branches missed.">			String query = &quot;select b.user_id user_id ,&quot;</span>
+					+ orgCodeQry
+					+ &quot; from st_lms_organization_master a, st_lms_user_master b  where a.organization_type='RETAILER' and a.organization_id=b.organization_id &quot;+(!isAll ? &quot;and a.parent_id  = &quot;+agentOrgId:&quot;&quot;);
+<span class="nc" id="L1501">			stmt = con.createStatement();</span>
+<span class="nc" id="L1502">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L1503" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1504">				userMap.put(rs.getString(&quot;user_id&quot;), rs.getString(&quot;orgCode&quot;));</span>
+			}
+<span class="nc" id="L1506">		} catch (Exception e) {</span>
+<span class="nc" id="L1507">			e.printStackTrace();</span>
+		}finally{
+<span class="nc" id="L1509">			DBConnect.closeConnection(con, stmt, rs);</span>
+<span class="nc" id="L1510">		}</span>
+<span class="nc" id="L1511">		return userMap;</span>
+	}
+	
+	public String getOrgIdListStateAndCityWise(int userOrgId, String orgType, String state, String city) throws LMSException {
+<span class="nc" id="L1515">		StringBuilder orgList = new StringBuilder();</span>
+<span class="nc" id="L1516">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1517">		Statement stmt = null;</span>
+<span class="nc" id="L1518">		ResultSet rs = null;</span>
+<span class="nc" id="L1519">		String query = null;</span>
+
+		try {
+<span class="nc" id="L1522">			query = QueryManager.getOrgInfoQryStateAndCityWise(userOrgId, orgType, state, city);</span>
+<span class="nc" id="L1523">			stmt = con.createStatement();</span>
+<span class="nc" id="L1524">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L1525" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1526">				orgList.append(rs.getString(&quot;orgCode&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;organization_id&quot;)).append(&quot;:&quot;);</span>
+			}
+<span class="nc" id="L1528">		} catch (Exception e) {</span>
+<span class="nc" id="L1529">			e.printStackTrace();</span>
+<span class="nc" id="L1530">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1532">			try {</span>
+<span class="nc bnc" id="L1533" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1534">					con.close();</span>
+				}
+<span class="nc" id="L1536">			} catch (Exception e) {</span>
+<span class="nc" id="L1537">				e.printStackTrace();</span>
+<span class="nc" id="L1538">			}</span>
+<span class="nc" id="L1539">		}</span>
+<span class="nc" id="L1540">		return orgList.toString();</span>
+	}
+
+
+	
+	
+	public static int getAgentOrgIdByRetailerOrgId(int retId) {
+<span class="nc" id="L1547">		int orgUser = 0;</span>
+<span class="nc" id="L1548">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1549">		Statement stmt = null;</span>
+<span class="nc" id="L1550">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L1552">			stmt = con.createStatement();</span>
+<span class="nc" id="L1553">			rs = stmt</span>
+					.executeQuery(&quot;select b.organization_id from st_lms_user_master a inner join st_lms_user_master b on a.parent_user_id = b.user_id where a.organization_id = '&quot; + retId+ &quot;';&quot;);
+<span class="nc bnc" id="L1555" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1556">				orgUser = rs.getInt(&quot;organization_id&quot;);</span>
+			}
+<span class="nc" id="L1558">			System.out.println(&quot;orgList-------&quot; + orgUser);</span>
+<span class="nc" id="L1559">		} catch (Exception e) {</span>
+<span class="nc" id="L1560">			e.printStackTrace();</span>
+			// throw new LMSException(e);
+		} finally {
+<span class="nc" id="L1563">			try {</span>
+<span class="nc bnc" id="L1564" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1565">					con.close();</span>
+				}
+<span class="nc" id="L1567">			} catch (Exception e) {</span>
+<span class="nc" id="L1568">				e.printStackTrace();</span>
+<span class="nc" id="L1569">			}</span>
+<span class="nc" id="L1570">		}</span>
+<span class="nc" id="L1571">		return orgUser;</span>
+	}
+	
+	/**
+	 * New Common method to get orgList for Debit Note in safaribet
+	 * @param userOrgId
+	 * @param orgType
+	 * @return
+	 * @throws LMSException
+	 */
+		public String getOrgIdList(int userOrgId, String orgType,int roleId) throws LMSException {
+<span class="nc" id="L1582">			StringBuilder orgList = new StringBuilder();</span>
+<span class="nc" id="L1583">			Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L1584">			Statement stmt =null;</span>
+<span class="nc" id="L1585">			ResultSet rs = null;</span>
+<span class="nc" id="L1586">			String query=null;</span>
+			try {
+<span class="nc bnc" id="L1588" title="All 2 branches missed.">				if(&quot;RETAILER&quot;.equalsIgnoreCase(orgType)){</span>
+<span class="nc" id="L1589">					query=QueryManager.getOrgInfoQry(userOrgId,orgType);</span>
+				}else{
+<span class="nc" id="L1591">					query = CommonMethods.appendRoleAgentMappingQuery(QueryManager.getOrgInfoQryWithoutSort(userOrgId,orgType),&quot;organization_id&quot;,roleId)+ &quot;order by orgCode ASC &quot;;	</span>
+				}
+<span class="nc" id="L1593">				logger.info(&quot;getOrgIdList method with :- :&quot; + query);</span>
+<span class="nc" id="L1594">				stmt=con.createStatement();</span>
+<span class="nc" id="L1595">				rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L1596" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L1597">					orgList.append(rs.getString(&quot;orgCode&quot;)).append(&quot;|&quot;).append(rs.getString(&quot;organization_id&quot;)).append(&quot;:&quot;); </span>
+				}
+<span class="nc" id="L1599">			} catch (Exception e) {</span>
+<span class="nc" id="L1600">				logger.error(e);</span>
+<span class="nc" id="L1601">				throw new LMSException(e);</span>
+			} finally {
+<span class="nc" id="L1603">				DBConnect.closeResource(con,stmt,rs);</span>
+<span class="nc" id="L1604">			}</span>
+<span class="nc" id="L1605">			return orgList.toString();</span>
+		}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

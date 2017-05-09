@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ICSManagementHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.admin.common</a> &gt; <span class="el_source">ICSManagementHelper.java</span></div><h1>ICSManagementHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.admin.common;
+
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.ICSDailyQueryStatusBean;
+import com.skilrock.lms.beans.ICSQueryMasterBean;
+import com.skilrock.lms.beans.ICSQueryStatusReportBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.MailSend;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L26">public class ICSManagementHelper {</span>
+<span class="nc" id="L27">	private static final Log logger = LogFactory.getLog(ICSManagementHelper.class);</span>
+
+	public List&lt;ICSQueryStatusReportBean&gt; getIcsQueryStatusData(Timestamp startTime, Timestamp endTime) throws LMSException {
+<span class="nc" id="L30">		Connection connection = null;</span>
+<span class="nc" id="L31">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L32">		ResultSet rs = null;</span>
+<span class="nc" id="L33">		SimpleDateFormat dateFormat = null;</span>
+<span class="nc" id="L34">		List&lt;ICSQueryStatusReportBean&gt; icsReportList = new ArrayList&lt;ICSQueryStatusReportBean&gt;();</span>
+<span class="nc" id="L35">		ICSQueryStatusReportBean icsReportBean = null;</span>
+		try {
+<span class="nc" id="L37">			dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L38">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L39">			pstmt = connection.prepareStatement(&quot;SELECT qs.query_id, query_title, qurey_description, expected_result, actual_result, ics_run_date, run_by &quot; +</span>
+					&quot;FROM st_ics_daily_query_status qs INNER JOIN st_ics_query_master qm ON qs.query_id=qm.query_id &quot; +
+					&quot;AND ics_run_date&gt;=? AND ics_run_date&lt;=? AND is_success='NO';&quot;);
+<span class="nc" id="L42">			pstmt.setTimestamp(1, startTime);</span>
+<span class="nc" id="L43">			pstmt.setTimestamp(2, endTime);</span>
+<span class="nc" id="L44">			logger.info(&quot;ICS Query Status Data Query - &quot;+pstmt);</span>
+<span class="nc" id="L45">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L47">				icsReportBean = new ICSQueryStatusReportBean();</span>
+<span class="nc" id="L48">				icsReportBean.setQueryId(rs.getInt(&quot;query_id&quot;));</span>
+<span class="nc" id="L49">				icsReportBean.setQueryTitle(rs.getString(&quot;query_title&quot;));</span>
+<span class="nc" id="L50">				icsReportBean.setQueryDescription(rs.getString(&quot;qurey_description&quot;));</span>
+<span class="nc" id="L51">				icsReportBean.setExpectedResult(rs.getString(&quot;expected_result&quot;));</span>
+<span class="nc" id="L52">				icsReportBean.setActualResult(rs.getString(&quot;actual_result&quot;));</span>
+<span class="nc" id="L53">				icsReportBean.setIcsRunDate(dateFormat.format(rs.getTimestamp(&quot;ics_run_date&quot;)));</span>
+<span class="nc" id="L54">				icsReportBean.setRunBy(rs.getString(&quot;run_by&quot;));</span>
+<span class="nc" id="L55">				icsReportList.add(icsReportBean);</span>
+			}
+<span class="nc" id="L57">		} catch (SQLException e) {</span>
+<span class="nc" id="L58">			e.printStackTrace();</span>
+		} finally{
+<span class="nc" id="L60">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L61">		}</span>
+
+<span class="nc" id="L63">		return icsReportList;</span>
+	}
+
+	public List&lt;ICSQueryMasterBean&gt; getAllQueries() throws LMSException {
+<span class="nc" id="L67">		Connection connection = null;</span>
+<span class="nc" id="L68">		Statement stmt = null;</span>
+<span class="nc" id="L69">		ResultSet rs = null;</span>
+<span class="nc" id="L70">		List&lt;ICSQueryMasterBean&gt; icsReportList = new ArrayList&lt;ICSQueryMasterBean&gt;();</span>
+<span class="nc" id="L71">		ICSQueryMasterBean icsBean = null;</span>
+		try {
+<span class="nc" id="L73">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L74">			stmt = connection.createStatement();</span>
+<span class="nc" id="L75">			String query = &quot;SELECT query_id, query_title, is_sp, is_date_req, last_successful_date, query_result, qurey_description, &quot; +</span>
+					&quot;related_to, tier_type, error_msg, is_critical, query_status, last_updated_date, updated_by &quot; +
+					&quot;FROM st_ics_query_master;&quot;;
+<span class="nc" id="L78">			logger.info(&quot;ICS All Queries - &quot;+query);</span>
+<span class="nc" id="L79">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L81">				icsBean = new ICSQueryMasterBean();</span>
+<span class="nc" id="L82">				icsBean.setQueryId(rs.getInt(&quot;query_id&quot;));</span>
+<span class="nc" id="L83">				icsBean.setQueryTitle(rs.getString(&quot;query_title&quot;).trim());</span>
+<span class="nc" id="L84">				icsBean.setIsSP(rs.getString(&quot;is_sp&quot;));</span>
+<span class="nc" id="L85">				icsBean.setIsDateRequired(rs.getString(&quot;is_date_req&quot;));</span>
+<span class="nc" id="L86">				String lastSuccessDate = null;</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">				if(rs.getTimestamp(&quot;last_successful_date&quot;) == null)</span>
+<span class="nc" id="L88">					lastSuccessDate = &quot;&quot;;</span>
+				else
+<span class="nc" id="L90">					lastSuccessDate =Util.getDateTimeFormat(rs.getTimestamp(&quot;last_successful_date&quot;));</span>
+<span class="nc" id="L91">				icsBean.setLastSuccessfulDate(lastSuccessDate);</span>
+<span class="nc" id="L92">				icsBean.setQueryResult(rs.getString(&quot;query_result&quot;));</span>
+<span class="nc" id="L93">				icsBean.setQueryDescription(rs.getString(&quot;qurey_description&quot;).trim());</span>
+<span class="nc" id="L94">				icsBean.setRelatedTo(rs.getString(&quot;related_to&quot;));</span>
+<span class="nc" id="L95">				icsBean.setTierType(rs.getString(&quot;tier_type&quot;));</span>
+<span class="nc" id="L96">				icsBean.setErrorMessage(rs.getString(&quot;error_msg&quot;));</span>
+<span class="nc" id="L97">				icsBean.setIsCritical(rs.getString(&quot;is_critical&quot;));</span>
+<span class="nc" id="L98">				icsBean.setQueryStatus(rs.getString(&quot;query_status&quot;));</span>
+<span class="nc" id="L99">				icsBean.setLastUpdatedDate(rs.getString(&quot;last_updated_date&quot;));</span>
+<span class="nc" id="L100">				icsBean.setUpdatedBy(rs.getString(&quot;updated_by&quot;));</span>
+<span class="nc" id="L101">				icsReportList.add(icsBean);</span>
+<span class="nc" id="L102">			}</span>
+<span class="nc" id="L103">		} catch (SQLException e) {</span>
+<span class="nc" id="L104">			e.printStackTrace();</span>
+		} finally{
+<span class="nc" id="L106">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L107">		}</span>
+
+<span class="nc" id="L109">		return icsReportList;</span>
+	}
+
+	public List&lt;ICSQueryMasterBean&gt; fetchICSQueryMasterData(String queryIds, Connection connection) {
+<span class="nc" id="L113">		List&lt;ICSQueryMasterBean&gt; beans = new ArrayList&lt;ICSQueryMasterBean&gt;();</span>
+<span class="nc" id="L114">		ICSQueryMasterBean queryMasterBean = null;</span>
+<span class="nc" id="L115">		Statement statement = null;</span>
+<span class="nc" id="L116">		ResultSet set = null;</span>
+<span class="nc" id="L117">		String appender = &quot;&quot;;</span>
+		try {
+<span class="nc bnc" id="L119" title="All 2 branches missed.">			if(queryIds != null) {</span>
+<span class="nc" id="L120">				appender = &quot; AND query_id IN (&quot;+queryIds+&quot;)&quot;;</span>
+			}
+<span class="nc" id="L122">			statement = connection.createStatement();</span>
+<span class="nc" id="L123">			set = statement.executeQuery(&quot;SELECT query_id, query_title, main_query, is_sp, query_result, qurey_description, related_to, tier_type, error_msg, is_critical, query_status &quot; +</span>
+					&quot;FROM st_ics_query_master WHERE query_status='ACTIVE'&quot;+appender+&quot; AND related_to NOT IN (SELECT service_code FROM st_lms_service_master WHERE STATUS='INACTIVE');&quot;);
+<span class="nc bnc" id="L125" title="All 2 branches missed.">			while(set.next())</span>
+			{
+<span class="nc" id="L127">				queryMasterBean = new ICSQueryMasterBean();</span>
+<span class="nc" id="L128">				queryMasterBean.setQueryId(set.getInt(&quot;query_id&quot;));</span>
+<span class="nc" id="L129">				queryMasterBean.setQueryTitle(set.getString(&quot;query_title&quot;));</span>
+<span class="nc" id="L130">				queryMasterBean.setMainQuery(set.getString(&quot;main_query&quot;));</span>
+<span class="nc" id="L131">				queryMasterBean.setIsSP(set.getString(&quot;is_sp&quot;));</span>
+<span class="nc" id="L132">				queryMasterBean.setQueryResult(set.getString(&quot;query_result&quot;));</span>
+<span class="nc" id="L133">				queryMasterBean.setQueryDescription(set.getString(&quot;qurey_description&quot;));</span>
+<span class="nc" id="L134">				queryMasterBean.setRelatedTo(set.getString(&quot;related_to&quot;));</span>
+<span class="nc" id="L135">				queryMasterBean.setTierType(set.getString(&quot;tier_type&quot;));</span>
+<span class="nc" id="L136">				queryMasterBean.setErrorMessage(set.getString(&quot;error_msg&quot;));</span>
+<span class="nc" id="L137">				queryMasterBean.setIsCritical(set.getString(&quot;is_critical&quot;));</span>
+<span class="nc" id="L138">				queryMasterBean.setQueryStatus(set.getString(&quot;query_status&quot;));</span>
+
+<span class="nc" id="L140">				beans.add(queryMasterBean);</span>
+			}
+<span class="nc" id="L142">		} catch (SQLException e) {</span>
+<span class="nc" id="L143">			e.printStackTrace();</span>
+<span class="nc" id="L144">		}</span>
+
+<span class="nc" id="L146">		return beans;</span>
+	}
+
+	public List&lt;ICSDailyQueryStatusBean&gt; executeICSQuery(String queryIdString, String runBy) throws LMSException {
+<span class="nc" id="L150">		SimpleDateFormat simpleDateFormat = null;</span>
+<span class="nc" id="L151">		List&lt;ICSQueryMasterBean&gt; queryMasterList = null;</span>
+<span class="nc" id="L152">		List&lt;ICSDailyQueryStatusBean&gt; beans = new ArrayList&lt;ICSDailyQueryStatusBean&gt;();</span>
+<span class="nc" id="L153">		ICSDailyQueryStatusBean dailyQueryStatusBean = null;</span>
+
+<span class="nc" id="L155">		Connection connection = null;</span>
+<span class="nc" id="L156">		Statement statement = null;</span>
+<span class="nc" id="L157">		PreparedStatement pstmtQM = null;</span>
+<span class="nc" id="L158">		PreparedStatement pstmtQS = null;</span>
+<span class="nc" id="L159">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L160">		CallableStatement callableStatement = null;</span>
+<span class="nc" id="L161">		ResultSet set = null;</span>
+
+<span class="nc" id="L163">		Date icsStartTime = null;</span>
+<span class="nc" id="L164">		Date queryStartTime = null;</span>
+<span class="nc" id="L165">		Date queryEndTime = null;</span>
+<span class="nc" id="L166">		Date icsEndTime = null;</span>
+<span class="nc" id="L167">		long queryExecutionTime = 0L;</span>
+		try {
+<span class="nc" id="L169">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L170">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L172">			queryMasterList = fetchICSQueryMasterData(queryIdString, connection);</span>
+
+<span class="nc" id="L174">			statement = connection.createStatement();</span>
+<span class="nc" id="L175">			pstmtQM = connection.prepareStatement(&quot;UPDATE st_ics_query_master SET last_successful_date=? WHERE query_id=?;&quot;);</span>
+<span class="nc" id="L176">			pstmtQS = connection.prepareStatement(&quot;INSERT INTO st_ics_daily_query_status (query_id, expected_result, actual_result, ics_run_date, query_execution_time, is_success, run_by) VALUES (?,?,?,?,?,?,?);&quot;);</span>
+
+<span class="nc" id="L178">			icsStartTime = new Date();</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">			for(ICSQueryMasterBean queryMasterBean : queryMasterList) {</span>
+<span class="nc" id="L180">				dailyQueryStatusBean = new ICSDailyQueryStatusBean();</span>
+<span class="nc" id="L181">				dailyQueryStatusBean.setQueryId(queryMasterBean.getQueryId());</span>
+<span class="nc" id="L182">				dailyQueryStatusBean.setQueryTitle(queryMasterBean.getQueryTitle());</span>
+<span class="nc" id="L183">				dailyQueryStatusBean.setQueryDescription(queryMasterBean.getQueryDescription());</span>
+<span class="nc" id="L184">				dailyQueryStatusBean.setExpectedResult(queryMasterBean.getQueryResult());</span>
+<span class="nc" id="L185">				dailyQueryStatusBean.setIcsRunDate(Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L186">				dailyQueryStatusBean.setIsCritical(queryMasterBean.getIsCritical());</span>
+
+<span class="nc bnc" id="L188" title="All 2 branches missed.">				if(&quot;YES&quot;.equals(queryMasterBean.getIsSP())) {</span>
+<span class="nc" id="L189">					callableStatement = connection.prepareCall(&quot;CALL &quot;+queryMasterBean.getMainQuery()+&quot;(?);&quot;);</span>
+<span class="nc" id="L190">					callableStatement.setInt(1, queryMasterBean.getQueryId());</span>
+<span class="nc" id="L191">					queryStartTime = new Date();</span>
+<span class="nc" id="L192">					callableStatement.executeQuery();</span>
+<span class="nc" id="L193">					queryEndTime = new Date();</span>
+<span class="nc" id="L194">					queryExecutionTime = (queryEndTime.getTime()-queryStartTime.getTime());</span>
+<span class="nc" id="L195">					logger.info(&quot;Query Execution Time (&quot;+dailyQueryStatusBean.getQueryId()+&quot;) - &quot;+queryExecutionTime);</span>
+<span class="nc" id="L196">					dailyQueryStatusBean.setQueryExecutionTime(queryExecutionTime);</span>
+
+<span class="nc" id="L198">					int id = 0;</span>
+<span class="nc" id="L199">					pstmt = connection.prepareStatement(&quot;SELECT id, actual_result FROM st_ics_daily_query_status WHERE query_id=&quot;+queryMasterBean.getQueryId()+&quot; ORDER BY id DESC LIMIT 1;&quot;);</span>
+<span class="nc" id="L200">					set = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">					if(set.next()) {</span>
+<span class="nc" id="L202">						id = set.getInt(&quot;id&quot;);</span>
+<span class="nc" id="L203">						dailyQueryStatusBean.setActualResult(set.getString(&quot;actual_result&quot;));</span>
+					}
+
+<span class="nc" id="L206">					pstmt = connection.prepareStatement(&quot;UPDATE st_ics_daily_query_status SET query_execution_time=?, run_by=? WHERE id=?;&quot;);</span>
+<span class="nc" id="L207">					pstmt.setLong(1, queryExecutionTime);</span>
+<span class="nc" id="L208">					pstmt.setString(2, runBy);</span>
+<span class="nc" id="L209">					pstmt.setInt(3, id);</span>
+<span class="nc" id="L210">					pstmt.executeUpdate();</span>
+
+<span class="nc bnc" id="L212" title="All 2 branches missed.">					if((Long.parseLong(dailyQueryStatusBean.getExpectedResult().replaceAll(&quot;\\.&quot;, &quot;&quot;))) == Long.parseLong((dailyQueryStatusBean.getActualResult().replaceAll(&quot;\\.&quot;, &quot;&quot;)))) {</span>
+<span class="nc" id="L213">						dailyQueryStatusBean.setIsSuccess(&quot;YES&quot;);</span>
+<span class="nc" id="L214">						pstmtQM.setTimestamp(1, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L215">						pstmtQM.setInt(2, dailyQueryStatusBean.getQueryId());</span>
+<span class="nc" id="L216">						pstmtQM.addBatch();</span>
+					} else {
+<span class="nc" id="L218">						dailyQueryStatusBean.setIsSuccess(&quot;NO&quot;);</span>
+					}
+<span class="nc" id="L220">				}</span>
+				else {
+<span class="nc" id="L222">					queryStartTime = new Date();</span>
+<span class="nc" id="L223">					set = statement.executeQuery(queryMasterBean.getMainQuery());</span>
+<span class="nc" id="L224">					queryEndTime = new Date();</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">					if (set.next())</span>
+<span class="nc" id="L226">						dailyQueryStatusBean.setActualResult(set.getString(1));</span>
+
+<span class="nc" id="L228">					queryExecutionTime = (queryEndTime.getTime()-queryStartTime.getTime());</span>
+<span class="nc" id="L229">					logger.info(&quot;Query Execution Time (&quot;+dailyQueryStatusBean.getQueryId()+&quot;) - &quot;+queryExecutionTime);</span>
+<span class="nc" id="L230">					dailyQueryStatusBean.setQueryExecutionTime(queryExecutionTime);</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">					if((Long.parseLong(dailyQueryStatusBean.getExpectedResult().replaceAll(&quot;\\.&quot;, &quot;&quot;))) == Long.parseLong((dailyQueryStatusBean.getActualResult().replaceAll(&quot;\\.&quot;, &quot;&quot;)))) {</span>
+<span class="nc" id="L233">						dailyQueryStatusBean.setIsSuccess(&quot;YES&quot;);</span>
+<span class="nc" id="L234">						pstmtQM.setTimestamp(1, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L235">						pstmtQM.setInt(2, dailyQueryStatusBean.getQueryId());</span>
+<span class="nc" id="L236">						pstmtQM.addBatch();</span>
+					} else {
+<span class="nc" id="L238">						dailyQueryStatusBean.setIsSuccess(&quot;NO&quot;);</span>
+					}
+
+<span class="nc" id="L241">					pstmtQS.setInt(1, dailyQueryStatusBean.getQueryId());</span>
+<span class="nc" id="L242">					pstmtQS.setString(2, dailyQueryStatusBean.getExpectedResult());</span>
+<span class="nc" id="L243">					pstmtQS.setString(3, dailyQueryStatusBean.getActualResult());</span>
+<span class="nc" id="L244">					pstmtQS.setTimestamp(4, dailyQueryStatusBean.getIcsRunDate());</span>
+<span class="nc" id="L245">					pstmtQS.setLong(5, dailyQueryStatusBean.getQueryExecutionTime());</span>
+<span class="nc" id="L246">					pstmtQS.setString(6, dailyQueryStatusBean.getIsSuccess());</span>
+<span class="nc" id="L247">					pstmtQS.setString(7, runBy);</span>
+<span class="nc" id="L248">					pstmtQS.executeUpdate();</span>
+				}
+
+<span class="nc" id="L251">				beans.add(dailyQueryStatusBean);</span>
+<span class="nc" id="L252">			}</span>
+<span class="nc" id="L253">			pstmtQM.executeBatch();</span>
+
+<span class="nc" id="L255">			icsEndTime = new Date();</span>
+<span class="nc" id="L256">			long icsExecutionTime = (icsEndTime.getTime()-icsStartTime.getTime());</span>
+<span class="nc" id="L257">			logger.info(&quot;ICS Execution Time - &quot;+icsExecutionTime);</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">			if(&quot;AUTO&quot;.equals(runBy)) {</span>
+<span class="nc" id="L259">				simpleDateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L260">				pstmt = connection.prepareStatement(&quot;INSERT INTO st_ics_daily_status (ics_datetime, ics_execution_time, is_success) VALUES &quot; +</span>
+						&quot;(?,?,(SELECT IF(COUNT(*)&gt;0,'NO','YES') AS is_success FROM st_ics_daily_query_status qs INNER JOIN st_ics_query_master qm ON qs.query_id=qm.query_id &quot; +
+						&quot;WHERE is_success='NO' AND is_critical='YES' AND DATE(ics_run_date)=? AND run_by='AUTO'));&quot;);
+<span class="nc" id="L263">				pstmt.setTimestamp(1, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L264">				pstmt.setLong(2, icsExecutionTime);</span>
+<span class="nc" id="L265">				pstmt.setString(3, simpleDateFormat.format(Util.getCurrentTimeStamp().getTime()));</span>
+<span class="nc" id="L266">				pstmt.executeUpdate();</span>
+			}
+
+<span class="nc" id="L269">			connection.commit();</span>
+
+			/*	Mail Send to Long Queries	*/
+<span class="nc" id="L272">			long maxExecutionTime = Long.parseLong(getPropertyValue(&quot;MAX_EXECUTION_TIME&quot;));</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">			if(icsExecutionTime &gt; maxExecutionTime) {</span>
+<span class="nc" id="L274">				String messageText = &quot;ICS Total Execution time taken is &lt;b&gt;&quot;+icsExecutionTime+&quot;&lt;/b&gt;ms.&quot;;</span>
+<span class="nc" id="L275">				String mailToString = new ICSManagementHelper().getPropertyValue(&quot;MAIL_TO&quot;);</span>
+<span class="nc" id="L276">				String[] mailToArray = mailToString.split(&quot;,&quot;);</span>
+<span class="nc" id="L277">				MailSend mailSend = null;</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">				for(String mailTo : mailToArray) {</span>
+<span class="nc" id="L279">					mailSend = new MailSend(mailTo.trim(), messageText);</span>
+<span class="nc" id="L280">					mailSend.start();</span>
+				}
+			}
+<span class="nc" id="L283">		} catch (SQLException e) {</span>
+<span class="nc" id="L284">			logger.info(&quot;SQL Exception &quot;,e);</span>
+<span class="nc" id="L285">			throw new LMSException(&quot;SQL Exception &quot;+e.getMessage());</span>
+<span class="nc" id="L286">		}catch (Exception e) {</span>
+<span class="nc" id="L287">			logger.info(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L288">			throw new LMSException(&quot;Exception&quot;+e.getMessage());</span>
+		} finally {
+<span class="nc" id="L290">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L291">		}</span>
+
+<span class="nc" id="L293">		return beans;</span>
+	}
+
+	public void updateIcsQueries(int queryId, String queryDescription, String errorMessage, String isCritical, String status, int userId) throws LMSException {
+<span class="nc" id="L297">		Connection connection = null;</span>
+<span class="nc" id="L298">		PreparedStatement pstmt = null;</span>
+		try {
+<span class="nc" id="L300">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L301">			pstmt = connection.prepareStatement(&quot;UPDATE st_ics_query_master SET qurey_description=?, error_msg=?, is_critical=?, query_status=?, last_updated_date=?, updated_by=? WHERE query_id=?;&quot;);</span>
+<span class="nc" id="L302">			pstmt.setString(1, queryDescription);</span>
+<span class="nc" id="L303">			pstmt.setString(2, errorMessage);</span>
+<span class="nc" id="L304">			pstmt.setString(3, isCritical);</span>
+<span class="nc" id="L305">			pstmt.setString(4, status);</span>
+<span class="nc" id="L306">			pstmt.setTimestamp(5, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L307">			pstmt.setInt(6, userId);</span>
+<span class="nc" id="L308">			pstmt.setInt(7, queryId);</span>
+<span class="nc" id="L309">			logger.info(&quot;Update ICS Queries - &quot;+pstmt);</span>
+<span class="nc" id="L310">			pstmt.executeUpdate();</span>
+<span class="nc" id="L311">		} catch (Exception ex) {</span>
+<span class="nc" id="L312">			ex.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L314">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L315">		}</span>
+<span class="nc" id="L316">	}</span>
+
+	public String getPropertyValue(String propertyDevName) throws LMSException {
+<span class="nc" id="L319">		Connection connection = null;</span>
+<span class="nc" id="L320">		Statement stmt = null;</span>
+<span class="nc" id="L321">		ResultSet rs = null;</span>
+<span class="nc" id="L322">		String value = null;</span>
+		try {
+<span class="nc" id="L324">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L325">			stmt = connection.createStatement();</span>
+<span class="nc" id="L326">			String query = &quot;SELECT value FROM st_ics_property_master WHERE property_dev_name='&quot;+propertyDevName+&quot;' AND status='ACTIVE';&quot;;</span>
+<span class="nc" id="L327">			logger.info(&quot;getPropertyValue Query - &quot;+query);</span>
+<span class="nc" id="L328">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L329" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L330">				value = rs.getString(&quot;value&quot;);</span>
+			}
+<span class="nc" id="L332">		} catch (Exception ex) {</span>
+<span class="nc" id="L333">			ex.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L335">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L336">		}</span>
+
+<span class="nc" id="L338">		return value;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

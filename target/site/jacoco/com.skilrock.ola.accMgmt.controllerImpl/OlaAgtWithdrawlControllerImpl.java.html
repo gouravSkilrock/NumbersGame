@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaAgtWithdrawlControllerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.ola.accMgmt.controllerImpl</a> &gt; <span class="el_source">OlaAgtWithdrawlControllerImpl.java</span></div><h1>OlaAgtWithdrawlControllerImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.ola.accMgmt.controllerImpl;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.OlaPTResponseBean;
+import com.skilrock.lms.beans.OrgPwtLimitBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.GenericException;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.ola.OlaHelper;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.ola.accMgmt.common.AccountMgmtCommonFunction;
+import com.skilrock.ola.accMgmt.javaBeans.OLAWithdrawalRequestBean;
+import com.skilrock.ola.accMgmt.javaBeans.OLAWithdrawalResponseBean;
+import com.skilrock.ola.api.PlayerLotteryIntegration;
+import com.skilrock.ola.common.OLAUtility;
+import com.skilrock.ola.commonMethods.controllerImpl.OlaCommonMethodControllerImpl;
+
+<span class="nc" id="L31">public class OlaAgtWithdrawlControllerImpl {</span>
+	
+<span class="nc" id="L33">static Log logger = LogFactory.getLog(OlaAgtWithdrawlControllerImpl.class);</span>
+	
+	public 	OLAWithdrawalResponseBean  olaAgtPlrWithdrawal(OLAWithdrawalRequestBean reqBean, UserInfoBean userBean) throws LMSException, GenericException {
+		
+<span class="nc" id="L37">		Connection con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L39">		double agentComm = 0;</span>
+<span class="nc" id="L40">		double agentNetAmt = 0;</span>
+<span class="nc" id="L41">		long tempTransactionId = 0;</span>
+<span class="nc" id="L42">		OLAWithdrawalResponseBean resBean = null;</span>
+<span class="nc" id="L43">		OlaPTResponseBean respBean = null;</span>
+<span class="nc" id="L44">		boolean isValid = false;</span>
+<span class="nc" id="L45">		StringBuilder userName=new StringBuilder();</span>
+		try {
+<span class="nc" id="L47">				int playerId=OlaCommonMethodControllerImpl.fetchPlayerIdFromRefCode(reqBean.getRefCode(), reqBean.getWalletId(), con,userName);</span>
+<span class="nc" id="L48">				reqBean.setPlayerId(playerId);				</span>
+<span class="nc" id="L49">				con.setAutoCommit(false);</span>
+				
+<span class="nc" id="L51">				int agentOrgId = userBean.getUserOrgId();</span>
+				
+<span class="nc" id="L53">				agentComm = OlaCommonMethodControllerImpl.fetchOLACommOfOrganization(reqBean.getWalletId(), agentOrgId, &quot;WITHDRAWAL&quot;, &quot;AGENT&quot;, con);</span>
+<span class="nc" id="L54">				agentNetAmt = (reqBean.getWithdrawlAmt() + ((reqBean.getWithdrawlAmt() * agentComm) / 100));				</span>
+<span class="nc" id="L55">				OrgPwtLimitBean orgPwtLimit = OlaCommonMethodControllerImpl.fetchPwtLimitsOfOrgnization(agentOrgId, con);</span>
+				
+<span class="nc" id="L57">				double olaWithdrawlLimit = orgPwtLimit.getOlaWithdrawlLimit();</span>
+<span class="nc" id="L58">				logger.info(&quot;olaWithdrawalLimit&quot;+olaWithdrawlLimit+&quot;ola Withdrawal money&quot;+reqBean.getWithdrawlAmt());				</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">				if (reqBean.getWithdrawlAmt() &gt; olaWithdrawlLimit) {				</span>
+<span class="nc" id="L60">					throw new LMSException(LMSErrors.EXCEED_WITHDRAWL_LIMIT_ERROR_CODE);</span>
+				}
+				
+<span class="nc" id="L63">				boolean isPlayerBind = OlaCommonMethodControllerImpl.affiliatePlrBinding(userName.toString(),&quot;WITHDRAWAL&quot;,reqBean.getWithdrawlAnyWhere(),reqBean.getPlayerId(), userBean,reqBean.getWalletId(),con); </span>
+<span class="nc" id="L64">				logger.info(&quot;isBinding :&quot;+isPlayerBind);</span>
+				// insert withdrawal details in st_ola_withdrawal_temp
+<span class="nc" id="L66">				tempTransactionId=AccountMgmtCommonFunction.withdrawlRequestIntiated(reqBean, userBean, con);</span>
+					
+<span class="nc" id="L68">				con.commit(); // here commit the data before sending the request</span>
+					
+<span class="nc" id="L70">				con.close();</span>
+						
+<span class="nc" id="L72">					reqBean.setTxnId(tempTransactionId);</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">					if(&quot;PLAYER_LOTTERY&quot;.equals(reqBean.getDevWalletName())){</span>
+<span class="nc" id="L74">						respBean = PlayerLotteryIntegration.checkWithdrawalRequest(reqBean);// validate withdrawal request</span>
+<span class="nc bnc" id="L75" title="All 6 branches missed.">					}else if(&quot;TabletGaming&quot;.equals(reqBean.getDevWalletName()) || &quot;GroupRummy&quot;.equals(reqBean.getDevWalletName()) || &quot;KhelPlayRummy&quot;.equals(reqBean.getDevWalletName())){</span>
+<span class="nc" id="L76">						 Map&lt;String, String&gt; withResMap=OlaHelper.verifyWithdrawalAtKpRummy(reqBean.getWalletId(), userName.toString(), reqBean.getWithdrawlAmt(), tempTransactionId, reqBean.getAuthenticationCode());</span>
+<span class="nc" id="L77">						 logger.info(&quot;Khelplay withdrawal response&quot;+withResMap.toString());</span>
+<span class="nc" id="L78">						 respBean=new OlaPTResponseBean();</span>
+<span class="nc bnc" id="L79" title="All 6 branches missed.">							if(withResMap != null &amp;&amp; withResMap.get(&quot;respMsg&quot;) != null &amp;&amp; withResMap.get(&quot;withTxnId&quot;)!=null){</span>
+<span class="nc" id="L80">								respBean.setSuccess(true);</span>
+<span class="nc" id="L81">								respBean.setImsWithdrawalTransactionId(Long.parseLong(withResMap.get(&quot;withTxnId&quot;)));</span>
+							}else{
+<span class="nc" id="L83">								respBean.setSuccess(false);</span>
+							}
+					}
+<span class="nc" id="L86">					boolean isIMSSuccess = respBean.isSuccess();</span>
+					
+<span class="nc bnc" id="L88" title="All 2 branches missed.">					if(isIMSSuccess){</span>
+<span class="nc" id="L89">						con = DBConnect.getConnection();</span>
+<span class="nc" id="L90">						con.setAutoCommit(false);</span>
+<span class="nc" id="L91">						PreparedStatement updateTemp = con.prepareStatement(&quot;update st_ola_withdrawl_temp set status=? where task_id=?&quot;);</span>
+<span class="nc" id="L92">						updateTemp.setString(1, &quot;PROCESSED&quot;);</span>
+<span class="nc" id="L93">						updateTemp.setLong(2,tempTransactionId);</span>
+<span class="nc" id="L94">						updateTemp.executeUpdate();						</span>
+<span class="nc" id="L95">						updateTemp.clearParameters();</span>
+<span class="nc" id="L96">						String insertInLMS = QueryManager.insertInLMSTransactionMaster();</span>
+<span class="nc" id="L97">						PreparedStatement pstmt1 = con.prepareStatement(insertInLMS);</span>
+<span class="nc" id="L98">						pstmt1.setString(1, &quot;AGENT&quot;);</span>
+<span class="nc" id="L99">						long transactionId = 0;</span>
+<span class="nc" id="L100">						pstmt1.executeUpdate();</span>
+<span class="nc" id="L101">						ResultSet rs1 = pstmt1.getGeneratedKeys();	</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">						if (rs1.next()) {</span>
+<span class="nc" id="L103">							transactionId = rs1.getLong(1);</span>
+<span class="nc" id="L104">							pstmt1 = con</span>
+									.prepareStatement(&quot;INSERT INTO st_lms_agent_transaction_master (transaction_id,user_id,user_org_id,party_type,party_id,transaction_type,transaction_date) VALUES (?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L106">							pstmt1.setLong(1, transactionId);</span>
+<span class="nc" id="L107">							pstmt1.setInt(2,userBean.getUserId());</span>
+<span class="nc" id="L108">							pstmt1.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L109">							pstmt1.setString(4, &quot;PLAYER&quot;);</span>
+<span class="nc" id="L110">							pstmt1.setInt(5, playerId);</span>
+<span class="nc" id="L111">							pstmt1.setString(6, &quot;OLA_WITHDRAWL_PLR&quot;);</span>
+<span class="nc" id="L112">							Timestamp tmp = Util.getCurrentTimeStamp();</span>
+<span class="nc" id="L113">							pstmt1.setTimestamp(7, tmp);</span>
+<span class="nc" id="L114">							logger.info(&quot;Query &quot;+pstmt1);</span>
+<span class="nc" id="L115">							int updated =pstmt1.executeUpdate();</span>
+<span class="nc" id="L116">							logger.info(&quot;insertd in st_lms_agent_transaction_master &quot;+updated);</span>
+							
+							
+<span class="nc" id="L119">							String insertQry = &quot;insert into st_ola_agt_direct_plr_withdrawl(transaction_id,agent_user_id,agent_org_id,wallet_id,plr_id,withdrawl_amt,net_amt,withdrawl_claim_status,agt_claim_comm,ims_ref_transaction_id)values(?,?,?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L120">							PreparedStatement pstmtUpdate = con.prepareStatement(insertQry);</span>
+<span class="nc" id="L121">							pstmtUpdate.setLong(1, transactionId);</span>
+<span class="nc" id="L122">							pstmtUpdate.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L123">							pstmtUpdate.setInt(3, userBean.getUserOrgId());</span>
+							
+<span class="nc" id="L125">							pstmtUpdate.setInt(4, reqBean.getWalletId());</span>
+<span class="nc" id="L126">							pstmtUpdate.setInt(5,playerId);</span>
+<span class="nc" id="L127">							pstmtUpdate.setDouble(6, reqBean.getWithdrawlAmt());</span>
+<span class="nc" id="L128">							pstmtUpdate.setDouble(7, agentNetAmt);</span>
+<span class="nc" id="L129">							pstmtUpdate.setString(8, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L130">							pstmtUpdate.setDouble(9, agentComm);</span>
+<span class="nc" id="L131">							pstmtUpdate.setLong(10, respBean.getImsWithdrawalTransactionId());</span>
+							
+<span class="nc" id="L133">							pstmtUpdate.executeUpdate();</span>
+						
+							
+							
+<span class="nc" id="L137">							isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(agentNetAmt, &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userBean</span>
+									.getUserOrgId(),0, &quot;AGENT&quot;, 0, con);
+<span class="nc bnc" id="L139" title="All 2 branches missed.">							if(!isValid){</span>
+<span class="nc" id="L140">								throw new LMSException(LMSErrors.INVALID_AGENT_ERROR_CODE);</span>
+							}				
+<span class="nc" id="L142">							logger.info(&quot;withdrawl amount successfully&quot;);</span>
+							
+							// Update temp
+<span class="nc" id="L145">							updateTemp = con.prepareStatement(&quot;update st_ola_withdrawl_temp set status=?,ref_transaction_id=?,ims_ref_transaction_id=? where task_id=?&quot;);</span>
+<span class="nc" id="L146">							updateTemp.setString(1, &quot;DONE&quot;);</span>
+<span class="nc" id="L147">							updateTemp.setLong(2,transactionId);</span>
+<span class="nc" id="L148">							updateTemp.setLong(3,respBean.getImsWithdrawalTransactionId());</span>
+<span class="nc" id="L149">							updateTemp.setLong(4,tempTransactionId);</span>
+<span class="nc" id="L150">							updateTemp.executeUpdate();</span>
+							// Updating st_lms_ret_offline_master After Getting Success...
+							//Util.setHeartBeatAndSaleTime(userBean.getUserOrgId(),&quot;OLA_WITH&quot;,con);
+							
+<span class="nc" id="L154">							con.commit(); </span>
+<span class="nc" id="L155">							resBean = new OLAWithdrawalResponseBean();</span>
+<span class="nc" id="L156">							resBean.setTxnId(transactionId);</span>
+<span class="nc" id="L157">							resBean.setTxnDate(tmp);</span>
+<span class="nc" id="L158">							resBean.setSuccess(true);</span>
+<span class="nc" id="L159">						} else {							</span>
+							
+<span class="nc" id="L161">							AccountMgmtCommonFunction.updateWithdrawlTmpStatus(&quot;FAILED&quot;, respBean.getImsWithdrawalTransactionId(), tempTransactionId, con);</span>
+<span class="nc" id="L162">							con.commit();</span>
+<span class="nc" id="L163">							throw new LMSException(LMSErrors.MONEY_WITHDRAWL_ERROR_CODE);</span>
+						}
+<span class="nc" id="L165">					} else {</span>
+<span class="nc" id="L166">						con = DBConnect.getConnection();</span>
+<span class="nc" id="L167">						AccountMgmtCommonFunction.updateWithdrawlTmpStatus(&quot;FAILED&quot;, respBean.getImsWithdrawalTransactionId(), tempTransactionId, con);						</span>
+<span class="nc" id="L168">						throw new LMSException(LMSErrors.RMS_WITHDRAWL_ERROR_CODE);</span>
+					}
+				
+<span class="nc" id="L171">		}catch(LMSException le){</span>
+<span class="nc" id="L172">			le.printStackTrace();</span>
+<span class="nc bnc" id="L173" title="All 6 branches missed.">			if(le.getErrorCode() == 10015 || le.getErrorCode() == 10028 || le.getErrorCode() == 10031){</span>
+			try{
+<span class="nc" id="L175">				con = DBConnect.getConnection();</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">				if(respBean == null){</span>
+<span class="nc" id="L177">					AccountMgmtCommonFunction.updateWithdrawlTmpStatus(&quot;DENIED&quot;, 0, tempTransactionId, con);</span>
+				}else{
+<span class="nc" id="L179">					AccountMgmtCommonFunction.updateWithdrawlTmpStatus(&quot;DENIED&quot;, respBean.getImsWithdrawalTransactionId(), tempTransactionId, con);</span>
+				}						
+<span class="nc" id="L181">			}catch(SQLException se){</span>
+<span class="nc" id="L182">				throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE,se);</span>
+<span class="nc" id="L183">			}</span>
+		}			
+<span class="nc bnc" id="L185" title="All 2 branches missed.">			if(le.getErrorCode() == 10014){</span>
+				try{
+<span class="nc" id="L187">					con = DBConnect.getConnection();</span>
+<span class="nc" id="L188">					AccountMgmtCommonFunction.updateWithdrawlTmpStatus(&quot;FAILED&quot;, 0, tempTransactionId, con);</span>
+<span class="nc" id="L189">				}catch(SQLException se){</span>
+<span class="nc" id="L190">					se.printStackTrace();</span>
+<span class="nc" id="L191">					throw new GenericException(LMSErrors.SQL_EXCEPTION_CODE, se);</span>
+<span class="nc" id="L192">				}</span>
+			}
+<span class="nc" id="L194">			throw le;</span>
+<span class="nc" id="L195">		}catch (Exception e) {</span>
+<span class="nc" id="L196">			throw new LMSException(LMSErrors.WITHDRAWL_ERROR_CODE);</span>
+		} finally {
+<span class="nc" id="L198">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L199">		}</span>
+<span class="nc" id="L200">		return resBean;		</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

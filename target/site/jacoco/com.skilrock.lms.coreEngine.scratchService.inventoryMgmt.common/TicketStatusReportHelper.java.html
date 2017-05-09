@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TicketStatusReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common</a> &gt; <span class="el_source">TicketStatusReportHelper.java</span></div><h1>TicketStatusReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.ScratchTicketDetailStatusBean;
+import com.skilrock.lms.beans.ScratchTicketStatusBean;
+import com.skilrock.lms.common.db.DBConnect;
+
+<span class="nc" id="L19">public class TicketStatusReportHelper {</span>
+
+<span class="nc" id="L21">	static Log logger = LogFactory.getLog(TicketStatusReportHelper.class);</span>
+
+	public static List&lt;ScratchTicketStatusBean&gt; fetchTicketStatus(int retOrgId, int gameId, int parentOrgId) {
+<span class="nc" id="L24">		Connection con = null;</span>
+
+		try {
+<span class="nc" id="L27">			StringBuilder appendQuery = new StringBuilder();</span>
+
+<span class="nc" id="L29">			StringBuilder appendQueryInvStatus = new StringBuilder();</span>
+
+<span class="nc bnc" id="L31" title="All 2 branches missed.">			if (retOrgId == -1) {</span>
+<span class="nc" id="L32">				appendQuery.append(&quot; WHERE parent_id =&quot; + parentOrgId);</span>
+<span class="nc" id="L33">				appendQueryInvStatus.append(&quot; and parent_id =&quot; + parentOrgId);</span>
+			} else {
+<span class="nc" id="L35">				appendQuery.append(&quot; where ret_org_id=&quot; + retOrgId);</span>
+<span class="nc" id="L36">				appendQueryInvStatus.append(&quot; and current_owner_id =&quot; + retOrgId);</span>
+
+			}
+<span class="nc bnc" id="L39" title="All 2 branches missed.">			if (gameId != -1) {</span>
+<span class="nc" id="L40">				appendQuery.append(&quot; AND sm.game_id=&quot; + gameId);</span>
+<span class="nc" id="L41">				appendQuery.append(&quot; AND sm.game_id=&quot; + gameId);</span>
+			}
+<span class="nc" id="L43">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L44">			String query = &quot;SELECT NAME,game_name,soldToday,(nbr_of_tickets_per_book-sold)  total_ticket, ret_org_id,gameNumber,bookNumber FROM (SELECT NAME,game_name,SUM(IF(DATE(sale_time)=DATE(NOW()), (soldTickets- unsoldTickets) , 0))     soldToday ,  SUM(   IF(DATE(sale_time)!=DATE(NOW()), (soldTickets-unsoldTickets) ,0) ) sold,  nbr_of_tickets_per_book  ,ret_org_id,gameNumber,bookNumber    FROM(SELECT SUBSTRING_INDEX(ticket_nbr, '-', 2) bookNumber,SUBSTRING_INDEX(ticket_nbr, '-', 1) gameNumber,NAME,game_name ,SUM(IF(ticket_status='SOLD',1,0) ) soldTickets,SUM( IF(ticket_status='UNSOLD',1,0)) unsoldTickets ,nbr_of_tickets_per_book,ret_org_id ,sale_time  FROM st_se_ticket_by_ticket_sale_txn INNER JOIN st_se_game_master sm ON game_nbr =SUBSTRING_INDEX(ticket_nbr, '-', 1) INNER JOIN  st_lms_organization_master ON  ret_org_id=organization_id &quot;</span>
+					+ appendQuery.toString()
+					+ &quot; GROUP BY SUBSTRING_INDEX(ticket_nbr, '-', 2) ,DATE(sale_time)) main GROUP BY ret_org_id,bookNumber) fulldata &quot;
+					+ &quot; union  SELECT  NAME,game_name, 0 soldToday,nbr_of_tickets_per_book total_ticket, organization_id,game_nbr gameNumber,book_nbr bookNumber FROM st_se_game_inv_status   invs INNER JOIN st_lms_organization_master  ON  current_owner_id=organization_id INNER JOIN st_se_game_master sm ON sm.game_id =invs.game_id    WHERE     book_status='ACTIVE'  and book_nbr NOT IN (SELECT book_nbr FROM st_se_ticket_by_ticket_sale_txn ) &quot;
+					+ appendQueryInvStatus.toString();
+<span class="nc" id="L49">			System.out.println(&quot;query&quot; + query);</span>
+<span class="nc" id="L50">			Statement ticketStatus = con.createStatement();</span>
+<span class="nc" id="L51">			ResultSet ticketStatusList = ticketStatus.executeQuery(query);</span>
+<span class="nc" id="L52">			List&lt;ScratchTicketStatusBean&gt; ticketStatusBeanList = new ArrayList&lt;ScratchTicketStatusBean&gt;();</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">			while (ticketStatusList.next()) {</span>
+<span class="nc" id="L54">				ScratchTicketStatusBean statusBean = new ScratchTicketStatusBean();</span>
+<span class="nc" id="L55">				statusBean.setBookNumber(ticketStatusList.getString(&quot;bookNumber&quot;));</span>
+<span class="nc" id="L56">				statusBean.setGameName(ticketStatusList.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L57">				statusBean.setRetailerOrgName(ticketStatusList.getString(&quot;NAME&quot;));</span>
+<span class="nc" id="L58">				statusBean.setTicketsSold(ticketStatusList.getInt(&quot;soldToday&quot;));</span>
+<span class="nc" id="L59">				statusBean.setTotalTickets(ticketStatusList.getInt(&quot;total_ticket&quot;));</span>
+<span class="nc" id="L60">				int remainingTicket = statusBean.getTotalTickets() - statusBean.getTicketsSold();</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">				statusBean.setTicketsRemaining(remainingTicket &lt; 0 ? 0 : remainingTicket);</span>
+<span class="nc" id="L62">				ticketStatusBeanList.add(statusBean);</span>
+<span class="nc" id="L63">			}</span>
+
+<span class="nc" id="L65">			return ticketStatusBeanList;</span>
+
+<span class="nc" id="L67">		} catch (Exception e) {</span>
+<span class="nc" id="L68">			logger.error(&quot;Execption&quot;, e);</span>
+		}
+
+<span class="nc" id="L71">		return null;</span>
+
+	}
+
+	public static List&lt;ScratchTicketDetailStatusBean&gt; fetchTicketDetailStatus(String bookNo, String is_remain) {
+<span class="nc" id="L76">		List&lt;ScratchTicketDetailStatusBean&gt; ticketDetailStatusBeanList = null;</span>
+<span class="nc" id="L77">		Map&lt;String, ScratchTicketDetailStatusBean&gt; ticketMap = new TreeMap&lt;String, ScratchTicketDetailStatusBean&gt;();</span>
+<span class="nc" id="L78">		String[] noOfZeroArr = null;</span>
+<span class="nc" id="L79">		Connection con = null;</span>
+		try {
+<span class="nc" id="L81">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L82">			String query = &quot;SELECT nbr_of_tickets_per_book FROM st_se_game_master WHERE game_nbr=&quot;</span>
+					+ bookNo.split(&quot;-&quot;)[0];
+<span class="nc" id="L84">			ResultSet rs = con.prepareStatement(query).executeQuery();</span>
+<span class="nc" id="L85">			int totalTicket = 0;</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if (rs.next())</span>
+<span class="nc" id="L87">				totalTicket = rs.getInt(&quot;nbr_of_tickets_per_book&quot;);</span>
+<span class="nc" id="L88">			int noOfDigit = (totalTicket + &quot;&quot;).length();</span>
+<span class="nc" id="L89">			noOfZeroArr = new String[noOfDigit];</span>
+<span class="nc" id="L90">			String temp = &quot;-&quot;;</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			for (int i = noOfDigit - 1; i &gt;= 0; i--) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">				if (i != noOfDigit - 1)</span>
+<span class="nc" id="L93">					temp = temp + &quot;0&quot;;</span>
+<span class="nc" id="L94">				noOfZeroArr[i] = temp;</span>
+			}
+
+<span class="nc bnc" id="L97" title="All 2 branches missed.">			for (int i = 1; i &lt;= totalTicket; i++) {</span>
+<span class="nc" id="L98">				int digits = (i + &quot;&quot;).length() - 1;</span>
+<span class="nc" id="L99">				String tkt = bookNo + noOfZeroArr[digits] + i;</span>
+<span class="nc" id="L100">				ScratchTicketDetailStatusBean statusBean = new ScratchTicketDetailStatusBean();</span>
+<span class="nc" id="L101">				statusBean.setTicketNumber(tkt);</span>
+<span class="nc" id="L102">				statusBean.setStatus(&quot;UNSOLD&quot;);</span>
+<span class="nc" id="L103">				ticketMap.put(tkt, statusBean);</span>
+			}
+			
+<span class="nc" id="L106">			query = &quot;SELECT ticket_nbr, sale_time, ticket_status FROM (SELECT ticket_nbr, sale_time, ticket_status FROM st_se_ticket_by_ticket_sale_txn &quot;</span>
+					+ &quot;where ticket_nbr LIKE '&quot;+ bookNo + &quot;-%' ORDER BY sale_time desc) txn GROUP BY ticket_nbr&quot;;
+<span class="nc" id="L108">			logger.debug(&quot;query &quot; + query);</span>
+<span class="nc" id="L109">			Statement ticketStatus = con.createStatement();</span>
+<span class="nc" id="L110">			ResultSet ticketStatusList = ticketStatus.executeQuery(query);</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">			while (ticketStatusList.next()) {</span>
+<span class="nc" id="L112">				String ticket_nbr = ticketStatusList.getString(&quot;ticket_nbr&quot;);</span>
+<span class="nc" id="L113">				String status = ticketStatusList.getString(&quot;ticket_status&quot;);</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">				if (&quot;Y&quot;.equals(is_remain)){</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">					if(&quot;SOLD&quot;.equals(status))</span>
+<span class="nc" id="L116">						ticketMap.remove(ticket_nbr);					</span>
+				}
+				else {
+<span class="nc" id="L119">					ScratchTicketDetailStatusBean statusBean = ticketMap.get(ticket_nbr);					</span>
+<span class="nc" id="L120">					statusBean.setStatus(status);</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">					if(&quot;SOLD&quot;.equals(status))</span>
+<span class="nc" id="L122">						statusBean.setSoldTime(ticketStatusList.getString(&quot;sale_time&quot;).replace(&quot;.0&quot;,&quot;&quot;));</span>
+				}
+<span class="nc" id="L124">			}</span>
+<span class="nc" id="L125">			ticketDetailStatusBeanList = new ArrayList&lt;ScratchTicketDetailStatusBean&gt;(ticketMap.values());</span>
+			
+<span class="nc" id="L127">			return ticketDetailStatusBeanList;</span>
+<span class="nc" id="L128">		} catch (Exception e) {</span>
+<span class="nc" id="L129">			logger.error(&quot;Execption&quot;, e);</span>
+		}
+<span class="nc" id="L131">		return null;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

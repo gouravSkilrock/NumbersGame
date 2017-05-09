@@ -1,0 +1,731 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OfflineRetSaleHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">OfflineRetSaleHelper.java</span></div><h1>OfflineRetSaleHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.skilrock.lms.beans.OrgPwtLimitBean;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.ServiceResponse;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.ConfigurationVariables;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.MailSender;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.dge.beans.FileUploadBean;
+import com.skilrock.lms.dge.beans.GameMasterLMSBean;
+import com.skilrock.lms.dge.beans.OfflineTicketBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L40">public class OfflineRetSaleHelper {</span>
+
+	public String processOfflineFile(List&lt;FileUploadBean&gt; beanList,
+			UserInfoBean userInfoBean,
+			Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap, int uploadedBy,
+			String refMarId, String purChannel) {
+
+<span class="nc" id="L47">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L48">		ServiceResponse sRes = new ServiceResponse();</span>
+<span class="nc" id="L49">		ServiceRequest sReq = new ServiceRequest();</span>
+<span class="nc" id="L50">		sReq.setServiceName(ServiceName.DRAWGAME);</span>
+<span class="nc" id="L51">		IServiceDelegate delegate = ServiceDelegate.getInstance();</span>
+<span class="nc" id="L52">		StringBuilder result = new StringBuilder(&quot;&quot;);</span>
+
+		try {
+<span class="nc" id="L55">			con.setAutoCommit(false);</span>
+<span class="nc" id="L56">			uploadTktFile(beanList, drawIdTableMap, uploadedBy);</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">			for (int i = 0; i &lt; beanList.size(); i++) {</span>
+<span class="nc" id="L58">				FileUploadBean fileUploadBean = beanList.get(i);</span>
+<span class="nc" id="L59">				String fileStatus = fileUploadBean.getStatus();</span>
+<span class="nc" id="L60">				int gameNo = fileUploadBean.getGameNo();</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">				if (!LMSFilterDispatcher.isOfflineFileApproval) {</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">					if (&quot;UPLOADED&quot;.equalsIgnoreCase(fileStatus)) {</span>
+
+						// Sale Balance Deduct
+<span class="nc" id="L65">						Connection newCon = DBConnect.getConnection();</span>
+<span class="nc" id="L66">						newCon.setAutoCommit(false);</span>
+<span class="nc" id="L67">						saleBalDeductionOffline(userInfoBean, gameNo,</span>
+								fileUploadBean.getTicketBeanList(), newCon);
+
+<span class="nc" id="L70">						List&lt;Object&gt; offDgeData = new ArrayList&lt;Object&gt;();</span>
+<span class="nc" id="L71">						offDgeData.add(gameNo);</span>
+<span class="nc" id="L72">						offDgeData.add(fileUploadBean.getTicketBeanList());</span>
+<span class="nc" id="L73">						offDgeData.add(userInfoBean.getUserOrgId() + &quot;,&quot;</span>
+								+ userInfoBean.getUserId() + &quot;,'&quot;
+								+ userInfoBean.getUserType() + &quot;'&quot;);
+<span class="nc" id="L76">						offDgeData.add(&quot;'&quot; + refMarId + &quot;','&quot; + purChannel</span>
+								+ &quot;'&quot;);
+<span class="nc" id="L78">						sReq</span>
+								.setServiceMethod(ServiceMethodName.INSERT_QUERY_DGE);
+<span class="nc" id="L80">						sReq.setServiceData(offDgeData);</span>
+
+<span class="nc" id="L82">						delegate = ServiceDelegate.getInstance();</span>
+<span class="nc" id="L83">						sRes = delegate.getResponse(sReq);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">						if (sRes.getIsSuccess()) {</span>
+<span class="nc" id="L85">							fileUploadBean.setStatus(&quot;SUCCESS&quot;);</span>
+<span class="nc" id="L86">							newCon.commit();</span>
+<span class="nc" id="L87">							newCon.close();</span>
+						} else {
+<span class="nc" id="L89">							fileUploadBean.setStatus(&quot;ERROR&quot;);</span>
+<span class="nc" id="L90">							newCon.rollback();</span>
+<span class="nc" id="L91">							newCon.close();</span>
+							// System.out.println(&quot;Mail for upload: ERROR&quot;);
+<span class="nc" id="L93">							sendMailToBo(fileUploadBean.getFile(), &quot;&quot;</span>
+									+ fileUploadBean.getStatus(),
+									fileUploadBean.getFileName());
+						}
+<span class="nc bnc" id="L97" title="All 2 branches missed.">					} else if (&quot;LATE_UPLOAD&quot;.equalsIgnoreCase(fileStatus)) {</span>
+						// System.out.println(&quot;Mail for upload: LATE_UPLOAD&quot;);
+<span class="nc" id="L99">						sendMailToBo(fileUploadBean.getFile(), fileUploadBean</span>
+								.getStatus(), fileUploadBean.getFileName());
+					}
+				}
+<span class="nc" id="L103">				String updateQuery = &quot;update st_dg_offline_files_? set status='&quot;</span>
+						+ fileUploadBean.getStatus() + &quot;' where reference_no=?&quot;;
+<span class="nc" id="L105">				PreparedStatement pstmt = con.prepareStatement(updateQuery);</span>
+<span class="nc" id="L106">				pstmt.setInt(1, gameNo);</span>
+<span class="nc" id="L107">				pstmt.setString(2, fileUploadBean.getRefNo());</span>
+<span class="nc" id="L108">				pstmt.executeUpdate();</span>
+
+<span class="nc" id="L110">				result.append(fileUploadBean.getFileName());</span>
+<span class="nc" id="L111">				result.append(&quot;:&quot;);</span>
+<span class="nc" id="L112">				result.append(fileUploadBean.getRefNo());</span>
+<span class="nc" id="L113">				result.append(&quot;:&quot;);</span>
+<span class="nc" id="L114">				result.append(fileUploadBean.getStatus());</span>
+<span class="nc" id="L115">				result.append(&quot;|&quot;);</span>
+<span class="nc" id="L116">				con.commit();</span>
+			}
+
+<span class="nc" id="L119">		} catch (Exception e) {</span>
+<span class="nc" id="L120">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L122">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L123">		}</span>
+<span class="nc" id="L124">		return result.toString();</span>
+	}
+
+	public static synchronized void saleBalDeductionOffline(
+			UserInfoBean userInfoBean, int gameNo,
+			List&lt;OfflineTicketBean&gt; ticketBeanList, Connection con) {
+<span class="nc" id="L130">		double retCommRate = 0.0;</span>
+<span class="nc" id="L131">		double agtCommRate = 0.0;</span>
+<span class="nc" id="L132">		double levyRate = 0.0;</span>
+<span class="nc" id="L133">		double agtLevyRate = 0.0;</span>
+<span class="nc" id="L134">		double secDepRate = 0.0;</span>
+<span class="nc" id="L135">		double govt_comm = 0.0;</span>
+<span class="nc" id="L136">		double vat = 0.0;</span>
+<span class="nc" id="L137">		double prize_payout_ratio = 0.0;</span>
+<span class="nc" id="L138">		double totalRetNet = 0.0;</span>
+<span class="nc" id="L139">		double totalAgtNet = 0.0;</span>
+<span class="nc" id="L140">		int gameId = 0;</span>
+<span class="nc" id="L141">		OfflineTicketBean ticketBean = null;</span>
+<span class="nc" id="L142">		List&lt;OfflineTicketBean&gt; promoTktBean = new ArrayList&lt;OfflineTicketBean&gt;();</span>
+<span class="nc" id="L143">		Map&lt;String, String&gt; promoTktNoMap = new HashMap&lt;String, String&gt;();</span>
+		try {
+<span class="nc" id="L145">			PreparedStatement pstmt = null;</span>
+
+<span class="nc" id="L147">			GameMasterLMSBean gameMasterLMSBean = Util</span>
+					.getGameMasterLMSBean(gameNo);
+<span class="nc bnc" id="L149" title="All 2 branches missed.">			if (gameMasterLMSBean != null) {</span>
+<span class="nc" id="L150">				retCommRate = gameMasterLMSBean.getRetSaleCommRate();</span>
+<span class="nc" id="L151">				agtCommRate = gameMasterLMSBean.getAgentSaleCommRate();</span>
+<span class="nc" id="L152">				govt_comm = gameMasterLMSBean.getGovtComm();</span>
+<span class="nc" id="L153">				vat = gameMasterLMSBean.getVatAmount();</span>
+<span class="nc" id="L154">				prize_payout_ratio = gameMasterLMSBean.getPrizePayoutRatio();</span>
+<span class="nc" id="L155">				gameId = gameMasterLMSBean.getGameId();</span>
+			} else {
+<span class="nc" id="L157">				pstmt = con</span>
+						.prepareStatement(&quot;select * from st_dg_game_master where game_nbr=&quot;
+								+ gameNo);
+<span class="nc" id="L160">				ResultSet gameDetails = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L162" title="All 2 branches missed.">				if (gameDetails.next()) {</span>
+<span class="nc" id="L163">					retCommRate = gameDetails</span>
+							.getDouble(&quot;retailer_sale_comm_rate&quot;);
+<span class="nc" id="L165">					agtCommRate = gameDetails.getDouble(&quot;agent_sale_comm_rate&quot;);</span>
+<span class="nc" id="L166">					govt_comm = gameDetails.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L167">					vat = gameDetails.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L168">					prize_payout_ratio = gameDetails</span>
+							.getDouble(&quot;prize_payout_ratio&quot;);
+<span class="nc" id="L170">					gameId = gameDetails.getInt(&quot;game_id&quot;);</span>
+				}
+			}
+
+			// get sale comm variance from util
+<span class="nc" id="L175">			retCommRate = Util.getSaleCommVariance(userInfoBean.getUserOrgId(),</span>
+					gameId);
+<span class="nc" id="L177">			agtCommRate = Util.getSaleCommVariance(userInfoBean</span>
+					.getParentOrgId(), gameId);
+
+<span class="nc" id="L180">			StringBuilder insTranMas = new StringBuilder(</span>
+					&quot;insert into st_lms_transaction_master(user_type,service_code,interface)values &quot;);
+<span class="nc bnc" id="L182" title="All 2 branches missed.">			for (int i = 0, j = ticketBeanList.size(); i &lt; j; i++) {</span>
+<span class="nc" id="L183">				insTranMas.append(&quot;('RETAILER', 'DG', 'TERMINAL'),&quot;);</span>
+			}
+<span class="nc" id="L185">			insTranMas.deleteCharAt(insTranMas.length() - 1);</span>
+<span class="nc" id="L186">			pstmt = con.prepareStatement(insTranMas.toString());</span>
+			// System.out.println(&quot;*********1**********&quot; + pstmt);
+<span class="nc" id="L188">			pstmt.executeUpdate();</span>
+<span class="nc" id="L189">			ResultSet rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc" id="L190">			StringBuilder insRetTranMas = new StringBuilder(</span>
+					&quot;insert into st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) values&quot;);
+<span class="nc" id="L192">			StringBuilder retSaleTlb = new StringBuilder(</span>
+					&quot;insert into st_dg_ret_sale_?(transaction_id,mrp_amt,retailer_comm,net_amt,agent_comm,agent_net_amt,retailer_org_id,claim_status,good_cause_amt,vat_amt,taxable_sale,game_id,ticket_nbr,ret_sd_amt,agt_vat_amt) values&quot;);
+<span class="nc" id="L194">			String retTrxMas = &quot;,&quot; + userInfoBean.getUserId() + &quot;,&quot;</span>
+					+ userInfoBean.getUserOrgId() + &quot;,&quot; + gameId + &quot;,'&quot;
+					+ new Timestamp(new Date().getTime())
+					+ &quot;','DG_SALE_OFFLINE'),&quot;;
+<span class="nc bnc" id="L198" title="All 4 branches missed.">			for (int i = 0, j = ticketBeanList.size(); i &lt; j &amp;&amp; rsTrns.next(); i++) {</span>
+<span class="nc" id="L199">				int transId = rsTrns.getInt(1);</span>
+<span class="nc" id="L200">				insRetTranMas.append(&quot;(&quot; + transId + retTrxMas);</span>
+<span class="nc" id="L201">				ticketBean = ticketBeanList.get(i);</span>
+<span class="nc" id="L202">				ticketBean.setSaleTrxId(transId);</span>
+<span class="nc" id="L203">				double retNet = 0.0;</span>
+<span class="nc" id="L204">				double agtNet = 0.0;</span>
+<span class="nc" id="L205">				double retSdAmt = 0.0;</span>
+<span class="nc" id="L206">				double vatAmount = 0.0;</span>
+<span class="nc" id="L207">				double agtVatAmt = 0.0;</span>
+<span class="nc" id="L208">				double ticketMrp = ticketBean.getTktCost();</span>
+<span class="nc" id="L209">				double retComm = 0.0;</span>
+<span class="nc" id="L210">				double agtComm = 0.0;</span>
+<span class="nc" id="L211">				double goodCauseAmt=0.0;</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">				if(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L213">					OrgPwtLimitBean orgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getUserOrgId(),con);</span>
+<span class="nc" id="L214">					OrgPwtLimitBean parentOrgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getParentOrgId(),con);</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">					if(orgLimit != null){</span>
+<span class="nc" id="L216">						levyRate = orgLimit.getLevyRate();</span>
+<span class="nc" id="L217">						secDepRate = orgLimit.getSecurityDepositRate();</span>
+					}
+<span class="nc bnc" id="L219" title="All 2 branches missed.">					if(parentOrgLimit != null){</span>
+<span class="nc" id="L220">						agtLevyRate = parentOrgLimit.getLevyRate();</span>
+					}
+<span class="nc" id="L222">					goodCauseAmt=CommonMethods.fmtToTwoDecimal(ticketMrp-(ticketMrp*100)/(100+govt_comm));</span>
+<span class="nc" id="L223">					retComm = CommonMethods.fmtToTwoDecimal((ticketMrp-goodCauseAmt)* retCommRate * .01);</span>
+<span class="nc" id="L224">					agtComm = retComm;</span>
+<span class="nc" id="L225">					vatAmount = CommonMethods.fmtToTwoDecimal(retComm*levyRate*.01);</span>
+<span class="nc" id="L226">					retSdAmt = CommonMethods.fmtToTwoDecimal(retComm*secDepRate*.01);</span>
+<span class="nc" id="L227">					agtVatAmt = vatAmount;</span>
+<span class="nc" id="L228">					retNet = CommonMethods.fmtToTwoDecimal(ticketMrp)- (retComm-vatAmount-retSdAmt);</span>
+<span class="nc" id="L229">					agtNet = retNet;	</span>
+<span class="nc" id="L230">				} else{</span>
+<span class="nc" id="L231">					goodCauseAmt=CommonMethods.fmtToTwoDecimal(ticketMrp* govt_comm * .01);</span>
+<span class="nc" id="L232">					retComm = CommonMethods.fmtToTwoDecimal(ticketMrp * retCommRate* .01);</span>
+<span class="nc" id="L233">					agtComm = CommonMethods.fmtToTwoDecimal(ticketMrp * agtCommRate* .01);</span>
+<span class="nc" id="L234">					retNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - retComm;</span>
+<span class="nc" id="L235">					agtNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - agtComm;</span>
+<span class="nc" id="L236">					vatAmount = CommonMethods.calculateDrawGameVatPlr(ticketMrp, 0, prize_payout_ratio, govt_comm, vat);</span>
+<span class="nc" id="L237">					retSdAmt = 0.0;</span>
+<span class="nc" id="L238">					agtVatAmt = CommonMethods.calculateDrawGameVatRet(ticketMrp, 0, prize_payout_ratio, govt_comm, vat);</span>
+				}
+			
+<span class="nc" id="L241">				double taxableSale = CommonMethods.calTaxableSale(ticketMrp, 0,</span>
+						prize_payout_ratio, govt_comm, vat);
+<span class="nc" id="L243">				totalRetNet += retNet;</span>
+<span class="nc" id="L244">				totalAgtNet += agtNet;</span>
+<span class="nc" id="L245">				retSaleTlb.append(&quot;(&quot;).append(transId).append(&quot;,&quot;).append(ticketMrp).append(&quot;,&quot;).</span>
+					append(retComm).append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(retNet)).
+					append(&quot;,&quot;).append(agtComm).append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(agtNet)).
+					append(&quot;,&quot;).append(userInfoBean.getUserOrgId()).append(&quot;,'CLAIM_BAL',&quot;).
+					append(goodCauseAmt).
+					append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(vatAmount)).
+					append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(taxableSale)).
+					append(&quot;,&quot;).append(gameId).append(&quot;,&quot;).append(ticketBean.getTicketNo()).append(&quot;,&quot;).
+					append(retSdAmt).append(&quot;,&quot;).append(agtVatAmt).append(&quot;),&quot;);
+<span class="nc bnc" id="L254" title="All 2 branches missed.">				if (&quot;0&quot;.equals(ticketBean.getPromoCheck())) {</span>
+<span class="nc" id="L255">					promoTktBean.add(ticketBean.getPromoBean());</span>
+<span class="nc" id="L256">					promoTktNoMap.put(ticketBean.getTicketNo(), ticketBean</span>
+							.getPromoBean().getTicketNo());
+				}
+			}
+
+			// insert into retailer transaction master
+<span class="nc" id="L262">			insRetTranMas.deleteCharAt(insRetTranMas.length() - 1);</span>
+<span class="nc" id="L263">			pstmt = con.prepareStatement(insRetTranMas.toString());</span>
+			// System.out.println(&quot;*********2**********&quot; + pstmt);
+<span class="nc" id="L265">			pstmt.executeUpdate();</span>
+
+			// insert in ret draw sale table
+<span class="nc" id="L268">			retSaleTlb.deleteCharAt(retSaleTlb.length() - 1);</span>
+<span class="nc" id="L269">			pstmt = con.prepareStatement(retSaleTlb.toString());</span>
+<span class="nc" id="L270">			pstmt.setInt(1, gameNo);</span>
+			// System.out.println(&quot;*********3**********&quot; + pstmt);
+<span class="nc" id="L272">			pstmt.executeUpdate();</span>
+
+<span class="nc bnc" id="L274" title="All 2 branches missed.">			if (promoTktBean.size() &gt; 0) {</span>
+<span class="nc" id="L275">				int promoGameNo = Integer.parseInt(promoTktBean.get(0)</span>
+						.getTicketNo().charAt(4)
+						+ &quot;&quot;);
+
+<span class="nc" id="L279">				StringBuilder promoMappingQry = new StringBuilder(</span>
+						&quot;insert into ge_sale_promo_ticket_mapping (promo_id, sale_ticket_nbr, promo_ticket_nbr) values &quot;);
+
+<span class="nc" id="L282">				Iterator&lt;Map.Entry&lt;String, String&gt;&gt; promoEtr = promoTktNoMap</span>
+						.entrySet().iterator();
+<span class="nc bnc" id="L284" title="All 2 branches missed.">				while (promoEtr.hasNext()) {</span>
+<span class="nc" id="L285">					Map.Entry&lt;String, String&gt; pair = promoEtr.next();</span>
+<span class="nc" id="L286">					promoMappingQry.append(&quot;(1,&quot; + pair.getKey() + &quot;,&quot;</span>
+							+ pair.getValue() + &quot;),&quot;);
+<span class="nc" id="L288">				}</span>
+<span class="nc" id="L289">				promoMappingQry.deleteCharAt(promoMappingQry.length() - 1);</span>
+<span class="nc" id="L290">				PreparedStatement mappingPstmt = con</span>
+						.prepareStatement(promoMappingQry.toString());
+<span class="nc" id="L292">				mappingPstmt.executeUpdate();</span>
+
+<span class="nc" id="L294">				PreparedStatement pstmtPromo = con</span>
+						.prepareStatement(&quot;select * from st_dg_game_master where game_nbr=&quot;
+								+ promoGameNo);
+<span class="nc" id="L297">				ResultSet promoGameDetails = pstmtPromo.executeQuery();</span>
+
+<span class="nc bnc" id="L299" title="All 2 branches missed.">				if (promoGameDetails.next()) {</span>
+<span class="nc" id="L300">					retCommRate = promoGameDetails</span>
+							.getDouble(&quot;retailer_sale_comm_rate&quot;);
+<span class="nc" id="L302">					agtCommRate = promoGameDetails</span>
+							.getDouble(&quot;agent_sale_comm_rate&quot;);
+<span class="nc" id="L304">					govt_comm = promoGameDetails.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L305">					vat = promoGameDetails.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L306">					prize_payout_ratio = promoGameDetails</span>
+							.getDouble(&quot;prize_payout_ratio&quot;);
+<span class="nc" id="L308">					gameId = promoGameDetails.getInt(&quot;game_id&quot;);</span>
+				}
+<span class="nc" id="L310">				insTranMas = new StringBuilder(</span>
+						&quot;insert into st_lms_transaction_master(user_type,service_code,interface)values &quot;);
+<span class="nc bnc" id="L312" title="All 2 branches missed.">				for (int i = 0, j = promoTktBean.size(); i &lt; j; i++) {</span>
+<span class="nc" id="L313">					insTranMas.append(&quot;('RETAILER', 'DG', 'TERMINAL'),&quot;);</span>
+				}
+<span class="nc" id="L315">				insTranMas.deleteCharAt(insTranMas.length() - 1);</span>
+<span class="nc" id="L316">				pstmt = con.prepareStatement(insTranMas.toString());</span>
+				// System.out.println(&quot;****promo*****1**********&quot; + pstmt);
+<span class="nc" id="L318">				pstmt.executeUpdate();</span>
+<span class="nc" id="L319">				rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc" id="L320">				insRetTranMas = new StringBuilder(</span>
+						&quot;insert into st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) values&quot;);
+<span class="nc" id="L322">				retSaleTlb = new StringBuilder(</span>
+						&quot;insert into st_dg_ret_sale_?(transaction_id,mrp_amt,retailer_comm,net_amt,agent_comm,agent_net_amt,retailer_org_id,claim_status,good_cause_amt,vat_amt,taxable_sale,game_id,ticket_nbr,ret_sd_amt,agt_vat_amt) values&quot;);
+<span class="nc" id="L324">				retTrxMas = &quot;,&quot; + userInfoBean.getUserId() + &quot;,&quot;</span>
+						+ userInfoBean.getUserOrgId() + &quot;,&quot; + gameId + &quot;,'&quot;
+						+ new Timestamp(new Date().getTime())
+						+ &quot;','DG_SALE_OFFLINE'),&quot;;
+<span class="nc bnc" id="L328" title="All 4 branches missed.">				for (int i = 0, j = promoTktBean.size(); i &lt; j &amp;&amp; rsTrns.next(); i++) {</span>
+<span class="nc" id="L329">					int transId = rsTrns.getInt(1);</span>
+<span class="nc" id="L330">					insRetTranMas.append(&quot;(&quot; + transId + retTrxMas);</span>
+<span class="nc" id="L331">					ticketBean = promoTktBean.get(i);</span>
+<span class="nc" id="L332">					ticketBean.setSaleTrxId(transId);</span>
+<span class="nc" id="L333">					double ticketMrp = 0.0;// Zero Cause its Promo ticket</span>
+
+<span class="nc" id="L335">					double retNet = 0.0;</span>
+<span class="nc" id="L336">					double agtNet = 0.0;</span>
+<span class="nc" id="L337">					double retSdAmt = 0.0;</span>
+<span class="nc" id="L338">					double vatAmount = 0.0;</span>
+<span class="nc" id="L339">					double agtVatAmt = 0.0;</span>
+<span class="nc" id="L340">					double retComm = 0.0;</span>
+<span class="nc" id="L341">					double agtComm = 0.0;</span>
+<span class="nc" id="L342">					double goodCauseAmt=0.0;</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">					if(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L344">						OrgPwtLimitBean orgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getUserOrgId(),con);</span>
+<span class="nc" id="L345">						OrgPwtLimitBean parentOrgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getParentOrgId(),con);</span>
+						
+<span class="nc bnc" id="L347" title="All 2 branches missed.">						if(orgLimit != null){</span>
+<span class="nc" id="L348">							levyRate = orgLimit.getLevyRate();</span>
+<span class="nc" id="L349">							secDepRate = orgLimit.getSecurityDepositRate();</span>
+						}
+<span class="nc bnc" id="L351" title="All 2 branches missed.">						if(parentOrgLimit != null){</span>
+<span class="nc" id="L352">							agtLevyRate = parentOrgLimit.getLevyRate();</span>
+						}
+<span class="nc" id="L354">						goodCauseAmt=CommonMethods.fmtToTwoDecimal(ticketMrp-(ticketMrp*100)/(100+govt_comm));</span>
+<span class="nc" id="L355">						retComm = CommonMethods.fmtToTwoDecimal((ticketMrp-goodCauseAmt)* retCommRate * .01);</span>
+<span class="nc" id="L356">						agtComm = retComm;</span>
+<span class="nc" id="L357">						vatAmount = CommonMethods.fmtToTwoDecimal(retComm*levyRate*.01);</span>
+<span class="nc" id="L358">						retSdAmt = CommonMethods.fmtToTwoDecimal(retComm*secDepRate*.01);</span>
+<span class="nc" id="L359">						agtVatAmt = vatAmount;</span>
+<span class="nc" id="L360">						retNet = CommonMethods.fmtToTwoDecimal(ticketMrp)- (retComm-vatAmount-retSdAmt);</span>
+<span class="nc" id="L361">						agtNet = retNet;</span>
+<span class="nc" id="L362">					} else{</span>
+<span class="nc" id="L363">						goodCauseAmt=CommonMethods.fmtToTwoDecimal(ticketMrp* govt_comm * .01);</span>
+<span class="nc" id="L364">						retComm = CommonMethods.fmtToTwoDecimal(ticketMrp * retCommRate* .01);</span>
+<span class="nc" id="L365">						agtComm = CommonMethods.fmtToTwoDecimal(ticketMrp * agtCommRate* .01);</span>
+<span class="nc" id="L366">						retNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - retComm;</span>
+<span class="nc" id="L367">						agtNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - agtComm;</span>
+<span class="nc" id="L368">						vatAmount = CommonMethods.calculateDrawGameVatPlr(ticketMrp, 0, prize_payout_ratio, govt_comm, vat);</span>
+<span class="nc" id="L369">						retSdAmt = 0.0;</span>
+<span class="nc" id="L370">						agtVatAmt = CommonMethods.calculateDrawGameVatRet(ticketMrp, 0, prize_payout_ratio, govt_comm, vat);</span>
+					}
+					
+					
+<span class="nc" id="L374">					double taxableSale = CommonMethods.calTaxableSale(ticketMrp, 0, prize_payout_ratio, govt_comm, vat);</span>
+
+<span class="nc" id="L376">					totalRetNet += retNet;</span>
+<span class="nc" id="L377">					totalAgtNet += agtNet;</span>
+<span class="nc" id="L378">					retSaleTlb.append(&quot;(&quot;).append(transId).append(&quot;,&quot;).append(ticketMrp).append(&quot;,&quot;).</span>
+					append(retComm).append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(retNet)).
+					append(&quot;,&quot;).append(agtComm).append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(agtNet)).
+					append(&quot;,&quot;).append(userInfoBean.getUserOrgId()).append(&quot;,'CLAIM_BAL',&quot;).
+					append(goodCauseAmt).
+					append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(vatAmount)).
+					append(&quot;,&quot;).append(CommonMethods.fmtToTwoDecimal(taxableSale)).
+					append(&quot;,&quot;).append(gameId).append(&quot;,&quot;).append(ticketBean.getTicketNo()).append(&quot;,&quot;).
+					append(retSdAmt).append(&quot;,&quot;).append(agtVatAmt).append(&quot;),&quot;);
+					
+				}
+				// insert into retailer transaction master
+<span class="nc" id="L390">				insRetTranMas.deleteCharAt(insRetTranMas.length() - 1);</span>
+<span class="nc" id="L391">				pstmt = con.prepareStatement(insRetTranMas.toString());</span>
+				// System.out.println(&quot;****promo*****2**********&quot; + pstmt);
+<span class="nc" id="L393">				pstmt.executeUpdate();</span>
+
+				// insert in ret draw sale table
+<span class="nc" id="L396">				retSaleTlb.deleteCharAt(retSaleTlb.length() - 1);</span>
+<span class="nc" id="L397">				pstmt = con.prepareStatement(retSaleTlb.toString());</span>
+<span class="nc" id="L398">				pstmt.setInt(1, promoGameNo);</span>
+				// System.out.println(&quot;****promo*****3**********&quot; + pstmt);
+<span class="nc" id="L400">				pstmt.executeUpdate();</span>
+			}
+
+			
+			//Now make payment updte method only one
+<span class="nc" id="L405">			OrgCreditUpdation.updateOrganizationBalWithValidate(totalRetNet, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userInfoBean.getUserOrgId(), userInfoBean.getParentOrgId(), &quot;RETAILER&quot;, 0, con);</span>
+			
+<span class="nc" id="L407">			OrgCreditUpdation.updateOrganizationBalWithValidate(totalAgtNet, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userInfoBean.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);</span>
+		
+			
+			/*// update st_lms_organization_master for claimable balance for
+			// retailer
+			CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+			commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, totalRetNet, userInfoBean
+					.getUserOrgId(), &quot;CREDIT&quot;, con);
+
+			// update st_lms_organization_master for claimable balance for agent
+			commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, totalAgtNet, userInfoBean
+					.getParentOrgId(), &quot;CREDIT&quot;, con);*/
+
+<span class="nc" id="L420">		} catch (Exception e) {</span>
+<span class="nc" id="L421">			e.printStackTrace();</span>
+<span class="nc" id="L422">		}</span>
+<span class="nc" id="L423">	}</span>
+
+	public void uploadTktFile(List&lt;FileUploadBean&gt; beanList,
+			Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap, int uploadedBy) {
+<span class="nc" id="L427">		Connection con = null;</span>
+<span class="nc" id="L428">		FileUploadBean fileUploadBean = null;</span>
+<span class="nc" id="L429">		File file = null;</span>
+<span class="nc" id="L430">		String fileStatus = null;</span>
+<span class="nc" id="L431">		String fileName = null;</span>
+<span class="nc" id="L432">		int gameNo = 0;</span>
+<span class="nc" id="L433">		int promoGameNo = 0;</span>
+<span class="nc" id="L434">		int gameId = 0;</span>
+<span class="nc" id="L435">		int retOrgId = 0;</span>
+<span class="nc" id="L436">		int retUserId = 0;</span>
+<span class="nc" id="L437">		OfflineTicketBean ticketBean = null;</span>
+<span class="nc" id="L438">		List&lt;OfflineTicketBean&gt; offlineTktList = null;</span>
+<span class="nc" id="L439">		Set&lt;Integer&gt; activeDrawIDs = null;</span>
+<span class="nc" id="L440">		Set&lt;Integer&gt; activePromoDrawIDs = null;</span>
+<span class="nc" id="L441">		Set&lt;String&gt; curDrawIds = null;</span>
+<span class="nc" id="L442">		Set&lt;Integer&gt; curDrawIdSet = null;</span>
+<span class="nc" id="L443">		Set&lt;String&gt; curPromoDrawIds = null;</span>
+<span class="nc" id="L444">		Set&lt;Integer&gt; curPromoDrawIdSet = null;</span>
+
+<span class="nc bnc" id="L446" title="All 2 branches missed.">		for (int i = 0; i &lt; beanList.size(); i++) {</span>
+			try {
+<span class="nc" id="L448">				con = DBConnect.getConnection();</span>
+<span class="nc" id="L449">				offlineTktList = new ArrayList&lt;OfflineTicketBean&gt;();</span>
+
+<span class="nc" id="L451">				fileUploadBean = beanList.get(i);</span>
+<span class="nc" id="L452">				file = fileUploadBean.getFile();</span>
+<span class="nc" id="L453">				fileName = fileUploadBean.getFileName();</span>
+<span class="nc" id="L454">				gameNo = fileUploadBean.getGameNo();</span>
+<span class="nc" id="L455">				gameId = fileUploadBean.getGameId();</span>
+<span class="nc" id="L456">				retOrgId = fileUploadBean.getRetailerOrgId();</span>
+<span class="nc" id="L457">				retUserId = fileUploadBean.getRetailerUserId();</span>
+
+<span class="nc" id="L459">				activeDrawIDs = drawIdTableMap.get(gameNo).keySet();</span>
+<span class="nc" id="L460">				curDrawIds = new HashSet&lt;String&gt;();</span>
+<span class="nc" id="L461">				curDrawIdSet = new HashSet&lt;Integer&gt;();</span>
+<span class="nc" id="L462">				curPromoDrawIds = new HashSet&lt;String&gt;();</span>
+<span class="nc" id="L463">				curPromoDrawIdSet = new HashSet&lt;Integer&gt;();</span>
+<span class="nc" id="L464">				fileStatus = &quot;UPLOADED&quot;;</span>
+<span class="nc" id="L465">				String selQry = &quot;select reference_no,status from st_dg_offline_files_? where fileName=? and status!='UPLOADED'&quot;;</span>
+<span class="nc" id="L466">				PreparedStatement pstmt = con.prepareStatement(selQry);</span>
+<span class="nc" id="L467">				pstmt.setInt(1, gameNo);</span>
+<span class="nc" id="L468">				pstmt.setString(2, fileName);</span>
+<span class="nc" id="L469">				ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L470" title="All 2 branches missed.">				if (rs.next()) {</span>
+<span class="nc" id="L471">					fileStatus = rs.getString(&quot;status&quot;);</span>
+<span class="nc" id="L472">					fileUploadBean.setRefNo(rs.getString(&quot;reference_no&quot;));</span>
+				} else {
+<span class="nc bnc" id="L474" title="All 2 branches missed.">					if (file.length() &lt; 5) {</span>
+<span class="nc" id="L475">						fileStatus = &quot;EMPTY&quot;;</span>
+					}
+
+<span class="nc" id="L478">					String insertQuery = &quot;insert into st_dg_offline_files_? (game_no,game_id,retailer_user_id,&quot;</span>
+							+ &quot;retailer_org_id,upload_time,filename,file,status, uploaded_by) values(?,?,?,?,?,?,?,?,?)&quot;;
+<span class="nc" id="L480">					pstmt = con.prepareStatement(insertQuery);</span>
+<span class="nc" id="L481">					pstmt.setInt(1, gameNo);</span>
+<span class="nc" id="L482">					pstmt.setInt(2, gameNo);</span>
+<span class="nc" id="L483">					pstmt.setInt(3, gameId);</span>
+<span class="nc" id="L484">					pstmt.setInt(4, retUserId);</span>
+<span class="nc" id="L485">					pstmt.setInt(5, retOrgId);</span>
+<span class="nc" id="L486">					pstmt.setTimestamp(6, new Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L487">					pstmt.setString(7, fileName);</span>
+<span class="nc" id="L488">					pstmt.setAsciiStream(8, new FileInputStream(file),</span>
+							(int) file.length());
+<span class="nc" id="L490">					pstmt.setString(9, fileStatus);</span>
+<span class="nc" id="L491">					pstmt.setInt(10, uploadedBy);</span>
+<span class="nc" id="L492">					pstmt.executeUpdate();</span>
+<span class="nc" id="L493">					ResultSet rsKey = pstmt.getGeneratedKeys();</span>
+
+<span class="nc" id="L495">					StringBuilder refNo = null;</span>
+<span class="nc bnc" id="L496" title="All 2 branches missed.">					if (rsKey.next()) {</span>
+<span class="nc" id="L497">						refNo = new StringBuilder(&quot;FILE&quot;);</span>
+<span class="nc" id="L498">						String key = &quot;00000000&quot; + rsKey.getString(1);</span>
+<span class="nc" id="L499">						refNo.append(key.substring(key.length() - 8, key</span>
+								.length()));
+<span class="nc" id="L501">						String updateQuery = &quot;update st_dg_offline_files_? set reference_no=? where file_id=?&quot;;</span>
+<span class="nc" id="L502">						PreparedStatement pstmtUpdate = con</span>
+								.prepareStatement(updateQuery);
+<span class="nc" id="L504">						pstmtUpdate.setInt(1, gameNo);</span>
+<span class="nc" id="L505">						pstmtUpdate.setString(2, refNo.toString());</span>
+<span class="nc" id="L506">						pstmtUpdate.setInt(3, Integer.parseInt(key));</span>
+<span class="nc" id="L507">						pstmtUpdate.executeUpdate();</span>
+					}
+
+<span class="nc" id="L510">					fileUploadBean.setRefNo(refNo.toString());</span>
+<span class="nc" id="L511">					String gameName = Util.getGameName(gameNo);</span>
+<span class="nc" id="L512">					int startRange = 0, endRange = 0;</span>
+<span class="nc bnc" id="L513" title="All 2 branches missed.">					if (&quot;LOTTO&quot;.equalsIgnoreCase(gameName)) {</span>
+<span class="nc" id="L514">						startRange = ConfigurationVariables.LOTTO_START_RANGE;</span>
+<span class="nc" id="L515">						endRange = ConfigurationVariables.LOTTO_END_RANGE;</span>
+<span class="nc bnc" id="L516" title="All 2 branches missed.">					} else if (&quot;FASTLOTTO&quot;.equalsIgnoreCase(gameName)) {</span>
+<span class="nc" id="L517">						startRange = ConfigurationVariables.FASTLOTTO_START_RANGE;</span>
+<span class="nc" id="L518">						endRange = ConfigurationVariables.FASTLOTTO_END_RANGE;</span>
+<span class="nc bnc" id="L519" title="All 2 branches missed.">					} else if (&quot;ZIMLOTTO&quot;.equalsIgnoreCase(gameName)) {</span>
+<span class="nc" id="L520">						startRange = ConfigurationVariables.ZIMLOTTO_START_RANGE;</span>
+<span class="nc" id="L521">						endRange = ConfigurationVariables.ZIMLOTTO_END_RANGE;</span>
+<span class="nc bnc" id="L522" title="All 2 branches missed.">					} else if (&quot;ZIMLOTTOTWO&quot;.equalsIgnoreCase(gameName)) {</span>
+<span class="nc" id="L523">						startRange = ConfigurationVariables.ZIMLOTTOTWO_START_RANGE;</span>
+<span class="nc" id="L524">						endRange = ConfigurationVariables.ZIMLOTTOTWO_END_RANGE;</span>
+<span class="nc bnc" id="L525" title="All 2 branches missed.">					} else if (&quot;KENO&quot;.equalsIgnoreCase(gameName)) {</span>
+<span class="nc" id="L526">						startRange = ConfigurationVariables.KENO_START_RANGE;</span>
+<span class="nc" id="L527">						endRange = ConfigurationVariables.KENO_END_RANGE;</span>
+<span class="nc bnc" id="L528" title="All 2 branches missed.">					} else if (&quot;KENOTWO&quot;.equalsIgnoreCase(gameName)) {</span>
+<span class="nc" id="L529">						startRange = ConfigurationVariables.KENOTWO_START_RANGE;</span>
+<span class="nc" id="L530">						endRange = ConfigurationVariables.KENOTWO_END_RANGE;</span>
+					}
+
+<span class="nc" id="L533">					int totalTkt = 0;</span>
+<span class="nc" id="L534">					double totalSaleValue = 0;</span>
+
+<span class="nc bnc" id="L536" title="All 2 branches missed.">					if (&quot;UPLOADED&quot;.equalsIgnoreCase(fileStatus)) {</span>
+<span class="nc" id="L537">						FileInputStream in = new FileInputStream(file);</span>
+
+<span class="nc" id="L539">						byte[] line = new byte[in.available()];</span>
+<span class="nc" id="L540">						in.read(line, 0, in.available());</span>
+<span class="nc" id="L541">						String fileString = new String(line);</span>
+<span class="nc" id="L542">						String recSeparator = fileString.substring(2, 3);</span>
+<span class="nc" id="L543">						fileString = fileString.substring(4);</span>
+<span class="nc" id="L544">						String dataArr[] = fileString.split(recSeparator);</span>
+<span class="nc" id="L545">						Aes encDec = new Aes(&quot;RETAILERRETAILER&quot;.toCharArray(),</span>
+								128);
+<span class="nc bnc" id="L547" title="All 2 branches missed.">						for (String element : dataArr) {</span>
+
+<span class="nc" id="L549">							char[] decRec = encDec.decrypt(element</span>
+									.toCharArray());
+<span class="nc" id="L551">							String str = new String(decRec).trim(); //</span>
+<span class="nc" id="L552">							System.out.println(&quot;------file on tkt data---&quot;</span>
+									+ str);
+
+<span class="nc" id="L555">							String strArr[] = str.split(&quot;\\|&quot;);</span>
+							// create beans here
+<span class="nc bnc" id="L557" title="All 4 branches missed.">							if (strArr.length == 6 || strArr.length == 12) {</span>
+<span class="nc" id="L558">								fileStatus = &quot;ERROR&quot;;</span>
+								return;
+							}
+<span class="nc" id="L561">							totalTkt = totalTkt + 1;</span>
+<span class="nc" id="L562">							totalSaleValue = totalSaleValue</span>
+									+ Double.parseDouble(strArr[3]);
+<span class="nc" id="L564">							ticketBean = new OfflineTicketBean();</span>
+<span class="nc" id="L565">							ticketBean.setTicketNo(strArr[0].substring(0,</span>
+									strArr[0].length() - 2));
+<span class="nc" id="L567">							ticketBean.setPurchaseTime(strArr[1]);</span>
+<span class="nc" id="L568">							ticketBean.setGameData(strArr[2]);</span>
+<span class="nc" id="L569">							ticketBean</span>
+									.setTktCost(Double.parseDouble(strArr[3]));
+<span class="nc" id="L571">							ticketBean.setIsAdvancePlay(Integer</span>
+									.parseInt(strArr[4]));
+<span class="nc" id="L573">							ticketBean.setDrawIdList(Arrays.asList(strArr[5]</span>
+									.split(&quot;,&quot;))); // draw Ids
+
+<span class="nc" id="L576">							curDrawIds.addAll(Arrays.asList(strArr[5]</span>
+									.split(&quot;,&quot;)));
+
+<span class="nc" id="L579">							ticketBean.setPromoCheck(strArr[6]);</span>
+<span class="nc bnc" id="L580" title="All 2 branches missed.">							if (&quot;0&quot;.equalsIgnoreCase(strArr[6])) {</span>
+<span class="nc" id="L581">								OfflineTicketBean promoBean = new OfflineTicketBean();</span>
+<span class="nc" id="L582">								promoGameNo = Integer.parseInt(strArr[7]</span>
+										.charAt(4)
+										+ &quot;&quot;);
+<span class="nc" id="L585">								promoBean.setTicketNo(strArr[7].substring(0,</span>
+										strArr[7].length() - 2));
+<span class="nc" id="L587">								promoBean.setPurchaseTime(strArr[8]);</span>
+<span class="nc" id="L588">								promoBean.setGameData(strArr[9]);</span>
+<span class="nc" id="L589">								promoBean.setTktCost(Double</span>
+										.parseDouble(strArr[10]));
+<span class="nc" id="L591">								promoBean.setIsAdvancePlay(Integer</span>
+										.parseInt(strArr[11]));
+<span class="nc" id="L593">								promoBean.setDrawIdList(Arrays</span>
+										.asList(strArr[12].split(&quot;,&quot;)));
+<span class="nc" id="L595">								promoBean.setPromoCheck(&quot;1&quot;);</span>
+<span class="nc" id="L596">								ticketBean.setPromoBean(promoBean);</span>
+<span class="nc" id="L597">								curPromoDrawIds.addAll(Arrays.asList(strArr[12]</span>
+										.split(&quot;,&quot;)));
+							}
+<span class="nc" id="L600">							offlineTktList.add(ticketBean);</span>
+						}
+
+<span class="nc" id="L603">						String updateQuery = &quot;update st_dg_offline_files_? set totalTicket=?,totalSaleValue=? where reference_no=?&quot;;</span>
+<span class="nc" id="L604">						PreparedStatement pstmtUpdate = con</span>
+								.prepareStatement(updateQuery);
+<span class="nc" id="L606">						pstmtUpdate.setInt(1, gameNo);</span>
+<span class="nc" id="L607">						pstmtUpdate.setInt(2, totalTkt);</span>
+<span class="nc" id="L608">						pstmtUpdate.setDouble(3, totalSaleValue);</span>
+<span class="nc" id="L609">						pstmtUpdate.setString(4, refNo.toString());</span>
+
+<span class="nc" id="L611">						fileStatus = validateFileData(offlineTktList, gameNo,</span>
+								gameName, startRange, endRange);
+
+<span class="nc bnc" id="L614" title="All 2 branches missed.">						for (String drawId : curDrawIds) {</span>
+<span class="nc" id="L615">							curDrawIdSet.add(Integer.parseInt(drawId));</span>
+<span class="nc" id="L616">						}</span>
+<span class="nc bnc" id="L617" title="All 2 branches missed.">						for (String drawId : curPromoDrawIds) {</span>
+<span class="nc" id="L618">							curPromoDrawIdSet.add(Integer.parseInt(drawId));</span>
+<span class="nc" id="L619">						}</span>
+<span class="nc bnc" id="L620" title="All 2 branches missed.">						activePromoDrawIDs = (promoGameNo != 0) ? drawIdTableMap</span>
+								.get(promoGameNo).keySet()
+								: null;
+<span class="nc bnc" id="L623" title="All 2 branches missed.">						if (activePromoDrawIDs != null) {</span>
+<span class="nc" id="L624">							curPromoDrawIdSet.retainAll(activePromoDrawIDs);</span>
+						}
+<span class="nc" id="L626">						curDrawIdSet.retainAll(activeDrawIDs);</span>
+<span class="nc bnc" id="L627" title="All 6 branches missed.">						if (&quot;UPLOADED&quot;.equals(fileStatus)</span>
+								&amp;&amp; (curDrawIds.size() != curDrawIdSet.size() || curPromoDrawIds
+										.size() != curPromoDrawIdSet.size())) {
+<span class="nc" id="L630">							fileStatus = &quot;LATE_UPLOAD&quot;;</span>
+						}
+
+					}
+<span class="nc" id="L634">					fileUploadBean.setTicketBeanList(offlineTktList);</span>
+				}
+
+<span class="nc" id="L637">			} catch (Exception e) {</span>
+<span class="nc" id="L638">				fileStatus = &quot;ERROR&quot;;</span>
+<span class="nc" id="L639">				e.printStackTrace();</span>
+			} finally {
+<span class="nc" id="L641">				fileUploadBean.setStatus(fileStatus);</span>
+<span class="nc" id="L642">				DBConnect.closeCon(con);</span>
+<span class="nc" id="L643">			}</span>
+		}
+<span class="nc" id="L645">	}</span>
+
+	public static String validateFileData(
+			List&lt;OfflineTicketBean&gt; offlineTktList, int gameNo,
+			String gameName, int startRange, int endRange) {
+<span class="nc" id="L650">		double unitPrice = 0.0;</span>
+<span class="nc" id="L651">		boolean fileCheck = false;</span>
+<span class="nc" id="L652">		boolean hasBetType = false;</span>
+<span class="nc" id="L653">		String gameFamily = Util.getGameType(gameNo);</span>
+<span class="nc bnc" id="L654" title="All 4 branches missed.">		if (&quot;KENO&quot;.equalsIgnoreCase(gameFamily)</span>
+				|| &quot;ZIMLOTTOTWO&quot;.equalsIgnoreCase(gameName)) {
+<span class="nc" id="L656">			hasBetType = true;</span>
+		} else {
+<span class="nc" id="L658">			unitPrice = Util.getUnitPrice(gameNo, null);</span>
+		}
+
+<span class="nc bnc" id="L661" title="All 2 branches missed.">		for (OfflineTicketBean ticketBean : offlineTktList) {</span>
+<span class="nc bnc" id="L662" title="All 2 branches missed.">			if (ticketBean.getTicketNo().length() != 14) {</span>
+<span class="nc" id="L663">				fileCheck = true;</span>
+<span class="nc" id="L664">				break;</span>
+			}
+<span class="nc" id="L666">			double ticketMrp = ticketBean.getTktCost();</span>
+<span class="nc bnc" id="L667" title="All 8 branches missed.">			if (!hasBetType &amp;&amp; ticketMrp != 0.0 &amp;&amp; unitPrice != 0.0</span>
+					&amp;&amp; ticketMrp % unitPrice != 0.0) {
+<span class="nc" id="L669">				fileCheck = true;</span>
+<span class="nc" id="L670">				break;</span>
+			}
+<span class="nc" id="L672">			String ticketDataArr[] = ticketBean.getGameData().split(&quot;#&quot;);</span>
+<span class="nc" id="L673">			boolean panalChk = false;</span>
+<span class="nc bnc" id="L674" title="All 2 branches missed.">			for (String panelData : ticketDataArr) {</span>
+<span class="nc" id="L675">				String panelDataArr[] = panelData.split(&quot;;&quot;);</span>
+<span class="nc bnc" id="L676" title="All 2 branches missed.">				if (hasBetType) {</span>
+<span class="nc" id="L677">					unitPrice = Util.getUnitPrice(gameNo, panelDataArr[0]);</span>
+<span class="nc" id="L678">					double panelPrice = Double.parseDouble(panelDataArr[3])</span>
+							* unitPrice;
+<span class="nc bnc" id="L680" title="All 4 branches missed.">					if (panelPrice % unitPrice != 0.0</span>
+							&amp;&amp; Util.validateNumber(startRange, endRange,
+									panelDataArr[1].replace(&quot;,UL&quot;, &quot;&quot;).replace(
+											&quot;,BL&quot;, &quot;&quot;), false)) {
+<span class="nc" id="L684">						panalChk = true;</span>
+<span class="nc" id="L685">						break;</span>
+					}
+<span class="nc" id="L687">				} else {</span>
+<span class="nc bnc" id="L688" title="All 6 branches missed.">					if (startRange != 0</span>
+							&amp;&amp; endRange != 0
+							&amp;&amp; !Util.validateNumber(startRange, endRange,
+									panelDataArr[0], false)) {
+<span class="nc" id="L692">						panalChk = true;</span>
+<span class="nc" id="L693">						break;</span>
+					}
+				}
+			}
+
+<span class="nc bnc" id="L698" title="All 2 branches missed.">			if (panalChk) {</span>
+<span class="nc" id="L699">				fileCheck = true;</span>
+<span class="nc" id="L700">				break;</span>
+			}
+
+<span class="nc" id="L703">		}</span>
+
+<span class="nc bnc" id="L705" title="All 2 branches missed.">		if (fileCheck) {</span>
+<span class="nc" id="L706">			return &quot;ERROR&quot;;</span>
+		}
+<span class="nc" id="L708">		return &quot;UPLOADED&quot;;</span>
+	}
+
+	public static void sendMailToBo(File file, String errorMsg, String fileName) {
+<span class="nc" id="L712">		String FROM = &quot;lms.user@skilrock.com&quot;;</span>
+<span class="nc" id="L713">		String PASSWORD = &quot;skilrock&quot;;</span>
+<span class="nc" id="L714">		List&lt;String&gt; to = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L715">		to.add(&quot;support.wgrl@skilrock.com&quot;);</span>
+<span class="nc" id="L716">		to.add(&quot;error.wgrl@skilrock.com&quot;);</span>
+<span class="nc" id="L717">		String subject = &quot;Offline File Upload Having Problem: &quot; + errorMsg;</span>
+<span class="nc" id="L718">		String bodyText = errorMsg;</span>
+		try {
+<span class="nc" id="L720">			MailSender ms = new MailSender(FROM, PASSWORD, to, subject,</span>
+					bodyText, file, fileName);
+<span class="nc" id="L722">			ms.setDaemon(true);</span>
+<span class="nc" id="L723">			ms.start();</span>
+<span class="nc" id="L724">		} catch (Exception ex) {</span>
+<span class="nc" id="L725">			ex.printStackTrace();</span>
+<span class="nc" id="L726">		} finally {</span>
+
+<span class="nc" id="L728">		}</span>
+<span class="nc" id="L729">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

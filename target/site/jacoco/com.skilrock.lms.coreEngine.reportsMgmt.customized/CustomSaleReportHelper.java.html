@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomSaleReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.customized</a> &gt; <span class="el_source">CustomSaleReportHelper.java</span></div><h1>CustomSaleReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.customized;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+
+import java.util.LinkedHashMap;
+
+
+import java.util.Map;
+
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+
+
+
+
+import com.skilrock.lms.beans.CollectionReportOverAllBean;
+import com.skilrock.lms.beans.CompleteCollectionBean;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+
+
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+
+<span class="nc" id="L35">public class CustomSaleReportHelper {</span>
+
+<span class="nc" id="L37">private static Log logger =LogFactory.getLog(CustomSaleReportHelper.class);</span>
+
+private static final boolean isDailyRep =true;
+/***
+ * This Method Fetch Data For Slot Sale and Mrp Sale for Date Duration 
+ * 
+ * 
+ * @imp isDailyRep Variable Configured to Display Report From Daily/Weekly Table 
+ * @param fromDate
+ * @param toDate
+ * @param agentOrgId
+ * @return
+ * @throws LMSException
+ */
+public static 	Map&lt;Integer,CollectionReportOverAllBean&gt;  fetchSlotSaleData(String fromDate,String toDate,int agentOrgId,Map&lt;Integer,String&gt; gameMap) throws LMSException{
+<span class="nc" id="L52">	Connection con =null;</span>
+
+<span class="nc" id="L54">	PreparedStatement pstmt = null;</span>
+<span class="nc" id="L55">	Statement  stmt =null;</span>
+<span class="nc" id="L56">	ResultSet rs =null;</span>
+<span class="nc" id="L57">	ResultSet gameRs =null;</span>
+<span class="nc" id="L58">	Map&lt;Integer,CollectionReportOverAllBean&gt; agentDataMap = new LinkedHashMap&lt;Integer,CollectionReportOverAllBean&gt;()   ;</span>
+<span class="nc" id="L59">	SimpleDateFormat sdf = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+	try{
+<span class="nc" id="L61">		con =DBConnect.getConnection();</span>
+<span class="nc" id="L62">		stmt =con.createStatement();</span>
+		 
+<span class="nc" id="L64">		String gameQry =ReportUtility.getDrawGameMapQuery(new Timestamp(sdf.parse(fromDate).getTime()));</span>
+<span class="nc" id="L65">		gameRs =stmt.executeQuery(gameQry);</span>
+		
+<span class="nc" id="L67">		int gameId =0;</span>
+<span class="nc" id="L68">		String subQry =&quot;&quot;;</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">		if(agentOrgId!=-1){</span>
+<span class="nc" id="L70">			subQry =&quot;  and  om.organization_id=&quot;+agentOrgId;</span>
+			
+		}
+
+<span class="nc" id="L74">		int agtOrgId =0;</span>
+<span class="nc" id="L75">		double slotMrpSale =0.00;</span>
+<span class="nc" id="L76">		double mrpSale =0.00;</span>
+<span class="nc" id="L77">		String qry =&quot; &quot;; </span>
+		if(isDailyRep){
+<span class="nc" id="L79">			qry =&quot; select &quot;+QueryManager.getOrgCodeQuery()+&quot;,ifnull(mrpSale,0.0) mrpSale,ifnull(slotSale,0.0) slotSale,organization_id from st_lms_organization_master om  left join ( select agent_org_id,sum(mrp_sale) mrpSale,sum(time_slotted_mrp_sale) slotSale from st_lms_agent_daily_training_exp where  game_id=?  and date(date)&lt;=date(?) and date(date)&gt;=date(?)  group by agent_org_id )sale on sale.agent_org_id=om.organization_id   where  om.organization_type='AGENT' &quot;+subQry+&quot; order by &quot;+QueryManager.getAppendOrgOrder();</span>
+		}else{
+			
+			qry =&quot; select &quot;+QueryManager.getOrgCodeQuery()+&quot;,ifnull(mrpSale,0.0) mrpSale,ifnull(slotSale,0.0) slotSale,organization_id from st_lms_organization_master om  left join ( select agent_org_id,sum(mrp_sale) mrpSale,sum(time_slotted_mrp_sale) slotSale from st_lms_agent_weekly_training_exp where game_id=?  and date(date)&lt;=date(?) and date(date)&gt;=date(?)&quot;+subQry+&quot;  group by agent_org_id )sale on sale.agent_org_id=om.organization_id  where  om.organization_type='AGENT'  &quot;+subQry+&quot;  order by  &quot;+QueryManager.getAppendOrgOrder();
+		}
+	
+<span class="nc" id="L85">		pstmt =con.prepareStatement(qry);</span>
+
+<span class="nc" id="L87">		CollectionReportOverAllBean totalagtBean = new CollectionReportOverAllBean();</span>
+<span class="nc" id="L88">		Map&lt;String, CompleteCollectionBean&gt; totalGameBeanMap = new LinkedHashMap&lt;String, CompleteCollectionBean&gt;();</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">		while(gameRs.next()){</span>
+		
+			
+<span class="nc" id="L92">			double mrpSaleSum =0.00;</span>
+<span class="nc" id="L93">			double slotSum =0.00;</span>
+<span class="nc" id="L94">			gameId =gameRs.getInt(&quot;game_id&quot;);</span>
+			
+<span class="nc" id="L96">			pstmt.setInt(1,gameId);</span>
+<span class="nc" id="L97">			pstmt.setString(2,toDate);</span>
+<span class="nc" id="L98">			pstmt.setString(3, fromDate);</span>
+		
+<span class="nc" id="L100">			logger.debug(&quot;Mrp Sale Qry &quot;+pstmt);</span>
+<span class="nc" id="L101">			rs=pstmt.executeQuery();</span>
+<span class="nc" id="L102">			String gameName =gameRs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L103">			gameMap.put(gameId, gameName);</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">		while(rs.next()){</span>
+<span class="nc" id="L105">				agtOrgId =rs.getInt(&quot;organization_id&quot;);</span>
+<span class="nc" id="L106">				String orgName = rs.getString(&quot;orgCode&quot;);</span>
+<span class="nc" id="L107">				slotMrpSale =rs.getDouble(&quot;slotSale&quot;);</span>
+<span class="nc" id="L108">				slotSum=slotSum+slotMrpSale;</span>
+<span class="nc" id="L109">				mrpSale =rs.getDouble(&quot;mrpSale&quot;);</span>
+<span class="nc" id="L110">				mrpSaleSum=mrpSaleSum+mrpSale;</span>
+<span class="nc" id="L111">				CollectionReportOverAllBean agtBean = new CollectionReportOverAllBean();</span>
+		
+<span class="nc bnc" id="L113" title="All 2 branches missed.">				if(agentDataMap.containsKey(agtOrgId)){</span>
+<span class="nc" id="L114">					agtBean=agentDataMap.get(agtOrgId);</span>
+<span class="nc" id="L115">					CompleteCollectionBean   gameDataBean = new CompleteCollectionBean();</span>
+<span class="nc" id="L116">					gameDataBean.setDrawSlotSale(slotMrpSale);</span>
+<span class="nc" id="L117">					gameDataBean.setDrawSale(mrpSale);</span>
+<span class="nc" id="L118">					agtBean.getGameBeanMap().put(gameId+&quot;&quot;, gameDataBean);</span>
+					
+<span class="nc" id="L120">				}else{</span>
+<span class="nc" id="L121">					CompleteCollectionBean   gameDataBean = new CompleteCollectionBean();</span>
+<span class="nc" id="L122">					Map&lt;String, CompleteCollectionBean&gt; gameBeanMap = new LinkedHashMap&lt;String, CompleteCollectionBean&gt;();</span>
+<span class="nc" id="L123">					agtBean.setAgentName(orgName);</span>
+<span class="nc" id="L124">					gameDataBean.setDrawSlotSale(slotMrpSale);</span>
+<span class="nc" id="L125">					gameDataBean.setDrawSale(mrpSale);</span>
+<span class="nc" id="L126">					gameBeanMap.put(gameId+&quot;&quot;, gameDataBean);</span>
+<span class="nc" id="L127">					agtBean.setGameBeanMap(gameBeanMap);</span>
+<span class="nc" id="L128">					agentDataMap.put(agtOrgId, agtBean);</span>
+					
+				}
+			
+<span class="nc" id="L132">			}</span>
+<span class="nc" id="L133">			CompleteCollectionBean   totalgameDataBean = new CompleteCollectionBean();</span>
+<span class="nc" id="L134">			totalgameDataBean.setDrawSale(mrpSaleSum);</span>
+<span class="nc" id="L135">			totalgameDataBean.setDrawSlotSale(slotSum);</span>
+<span class="nc" id="L136">			totalGameBeanMap.put(gameId+&quot;&quot;, totalgameDataBean);</span>
+			
+<span class="nc" id="L138">			totalagtBean.setGameBeanMap(totalGameBeanMap);</span>
+		
+<span class="nc" id="L140">		}</span>
+		
+
+<span class="nc" id="L143">		agentDataMap.put(-1, totalagtBean);</span>
+<span class="nc" id="L144">	}catch (SQLException e) {</span>
+<span class="nc" id="L145">		logger.error(&quot;SQL Exception&quot;,e);</span>
+<span class="nc" id="L146">		throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L147">	}catch (Exception e) {</span>
+<span class="nc" id="L148">		logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L149">		throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+	}finally{
+<span class="nc" id="L151">		DBConnect.closeRs(rs);</span>
+<span class="nc" id="L152">		DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L153">		DBConnect.closeCon(con);</span>
+<span class="nc" id="L154">	}</span>
+<span class="nc" id="L155">	return agentDataMap;</span>
+}
+	
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

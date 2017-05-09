@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VirtualSportGamePlayControllerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.virtualSport.playMgmt.controllerImpl</a> &gt; <span class="el_source">VirtualSportGamePlayControllerImpl.java</span></div><h1>VirtualSportGamePlayControllerImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.virtualSport.playMgmt.controllerImpl;
+
+import java.sql.Connection;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.BaseAction;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.coreEngine.virtualSport.beans.TPSaleRequestBean;
+import com.skilrock.lms.coreEngine.virtualSport.beans.TPTxRequestBean;
+import com.skilrock.lms.coreEngine.virtualSport.common.VSErrors;
+import com.skilrock.lms.coreEngine.virtualSport.common.VSException;
+import com.skilrock.lms.coreEngine.virtualSport.common.VSUtil;
+import com.skilrock.lms.coreEngine.virtualSport.common.daoImpl.CommonMethodsDaoImpl;
+import com.skilrock.lms.coreEngine.virtualSport.playMgmt.daoImpl.VirtualSportGamePlayDaoImpl;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class VirtualSportGamePlayControllerImpl  extends BaseAction{
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+<span class="nc" id="L27">	private static VirtualSportGamePlayControllerImpl classInstance = null;</span>
+<span class="nc" id="L28">	private static Logger logger = LoggerFactory</span>
+			.getLogger(VirtualSportGamePlayControllerImpl.class);
+	
+	public VirtualSportGamePlayControllerImpl() {
+<span class="nc" id="L32">		super(VirtualSportGamePlayControllerImpl.class.getName());</span>
+<span class="nc" id="L33">	}</span>
+
+	public static VirtualSportGamePlayControllerImpl getInstance() {
+<span class="nc bnc" id="L36" title="All 2 branches missed.">		if (classInstance == null)</span>
+<span class="nc" id="L37">			classInstance = new VirtualSportGamePlayControllerImpl();</span>
+<span class="nc" id="L38">		return classInstance;</span>
+	}
+
+	/**
+	 * 
+	 * @param userInfoBean
+	 * @param tpTransactionBean
+	 * @author Nikhil K. Bansal
+	 */
+	public void virtualSportsPurchaseTicket(UserInfoBean userInfoBean , TPSaleRequestBean tpTransactionBean) throws VSException{
+<span class="nc" id="L48">		Connection con = null;</span>
+<span class="nc" id="L49">		String userName=null;</span>
+		try {
+<span class="nc" id="L51">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L52">			userName=VirtualSportGamePlayDaoImpl.getInstance().getUserNameFromRetPrinterId(tpTransactionBean.getUnitId(), con);</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">			if(userName==null){</span>
+<span class="nc" id="L54">				throw new VSException(VSErrors.INVALID_USER_NAME_CODE,VSErrors.INVALID_USER_NAME_MESSAGE);</span>
+			}
+<span class="nc" id="L56">			userInfoBean = getUserBean(userName);</span>
+<span class="nc" id="L57">			con.setAutoCommit(false);</span>
+<span class="nc" id="L58">			boolean isFraud = ResponsibleGaming.respGaming(userInfoBean, &quot;VS_SALE&quot;, tpTransactionBean.getAmount() + &quot;&quot;, con);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">			if (!isFraud) {</span>
+				try {
+<span class="nc" id="L61">					tpTransactionBean.setGameId(VSUtil.getGameId(tpTransactionBean.getEventType()));</span>
+					
+					//purchase Ticket
+<span class="nc" id="L64">					VirtualSportGamePlayDaoImpl.virtualBettingPurchaseTicket(tpTransactionBean, userInfoBean, con);</span>
+
+					// Update Heart Beat After Sale Completion
+<span class="nc" id="L67">					Util.setHeartBeatAndSaleTime(userInfoBean.getUserOrgId(), &quot;VS_SALE&quot;, con);</span>
+<span class="nc" id="L68">					con.commit();</span>
+<span class="nc" id="L69">				} catch (VSException e) {</span>
+<span class="nc" id="L70">					throw e;</span>
+<span class="nc" id="L71">				} catch (Exception e) {</span>
+<span class="nc" id="L72">					e.printStackTrace();</span>
+<span class="nc" id="L73">					throw new VSException(VSErrors.GENERAL_EXCEPTION_ERROR_CODE,VSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L74">				}</span>
+			} else {
+<span class="nc" id="L76">				throw new VSException(VSErrors.PURCHASE_FRAUD_ERROR_CODE,VSErrors.PURCHASE_FRAUD_ERROR_MESSAGE);</span>
+			}
+<span class="nc" id="L78">		} catch (VSException e) {</span>
+<span class="nc" id="L79">			throw e;</span>
+<span class="nc" id="L80">		} catch(LMSException le){</span>
+<span class="nc" id="L81">			throw new VSException(VSErrors.SESSION_TIME_OUT_ERROR_CODE,VSErrors.SESSION_TIME_OUT_ERROR_MESSAGE);</span>
+<span class="nc" id="L82">		} catch (Exception e) {</span>
+<span class="nc" id="L83">			e.printStackTrace();</span>
+<span class="nc" id="L84">			throw new VSException(VSErrors.GENERAL_EXCEPTION_ERROR_CODE,VSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally{
+<span class="nc" id="L86">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L87">		}		</span>
+<span class="nc" id="L88">	}</span>
+	
+	public void virtualSportsRefund(UserInfoBean userInfoBean , TPSaleRequestBean tpTransactionBean) throws VSException{
+<span class="nc" id="L91">		Connection con = null;</span>
+<span class="nc" id="L92">		String userName=null;</span>
+		try {
+<span class="nc" id="L94">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L95">			userName=VirtualSportGamePlayDaoImpl.getInstance().getUserNameFromRetPrinterId(tpTransactionBean.getUnitId(), con);</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">			if(userName==null){</span>
+<span class="nc" id="L97">				throw new VSException(VSErrors.INVALID_USER_NAME_CODE,VSErrors.INVALID_USER_NAME_MESSAGE);</span>
+			}
+<span class="nc" id="L99">			userInfoBean = getUserBean(userName);</span>
+<span class="nc" id="L100">			con.setAutoCommit(false);</span>
+				try {
+<span class="nc" id="L102">					tpTransactionBean.setGameId(CommonMethodsDaoImpl.getInstance().verifyTktAndFetchGameId(tpTransactionBean.getTicketNumber(), con));</span>
+					
+					//refund Ticket
+<span class="nc" id="L105">					long transId = VirtualSportGamePlayDaoImpl.virtualBettingRefundTicket(tpTransactionBean, userInfoBean, con);</span>
+<span class="nc bnc" id="L106" title="All 2 branches missed.">					if(transId == 0)</span>
+<span class="nc" id="L107">						throw new VSException(VSErrors.GENERAL_EXCEPTION_ERROR_CODE,VSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+					
+<span class="nc" id="L109">					con.commit();</span>
+<span class="nc" id="L110">				} catch (VSException e) {</span>
+<span class="nc" id="L111">					throw e;</span>
+<span class="nc" id="L112">				} catch (Exception e) {</span>
+<span class="nc" id="L113">					e.printStackTrace();</span>
+<span class="nc" id="L114">					throw new VSException(VSErrors.GENERAL_EXCEPTION_ERROR_CODE,VSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L115">				}</span>
+			
+<span class="nc" id="L117">		} catch (VSException e) {</span>
+<span class="nc" id="L118">			throw e;</span>
+<span class="nc" id="L119">		}catch(LMSException le){</span>
+<span class="nc" id="L120">			throw new VSException(VSErrors.SESSION_TIME_OUT_ERROR_CODE,VSErrors.SESSION_TIME_OUT_ERROR_MESSAGE);</span>
+<span class="nc" id="L121">		}catch (Exception e) {</span>
+<span class="nc" id="L122">			e.printStackTrace();</span>
+<span class="nc" id="L123">			throw new VSException(VSErrors.GENERAL_EXCEPTION_ERROR_CODE,VSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally{
+<span class="nc" id="L125">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L126">		}		</span>
+<span class="nc" id="L127">	}</span>
+	
+	
+	public void updateTicketInfo(TPTxRequestBean reqBean, boolean isLoginReq) throws VSException{
+<span class="nc" id="L131">		Connection conn = null;</span>
+<span class="nc" id="L132">		String userName = null;</span>
+		try{
+<span class="nc" id="L134">			conn = DBConnect.getConnection();</span>
+<span class="nc" id="L135">			userName = VirtualSportGamePlayDaoImpl.getInstance().getUserNameFromRetPrinterId(reqBean.getUnitId(), conn);</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">			if(isLoginReq)</span>
+<span class="nc" id="L137">				getUserBean(userName);</span>
+<span class="nc" id="L138">			VirtualSportGamePlayDaoImpl.getInstance().updateTicketInfo(reqBean, conn);</span>
+<span class="nc" id="L139">		} catch(VSException le){</span>
+<span class="nc" id="L140">			throw le;</span>
+<span class="nc" id="L141">		} catch(LMSException le){</span>
+<span class="nc" id="L142">			throw new VSException(VSErrors.SESSION_TIME_OUT_ERROR_CODE,VSErrors.SESSION_TIME_OUT_ERROR_MESSAGE);</span>
+<span class="nc" id="L143">		}catch(Exception e){</span>
+<span class="nc" id="L144">			e.printStackTrace();</span>
+<span class="nc" id="L145">			throw new VSException(VSErrors.INTERNAL_SYSTEM_ERROR_CODE, VSErrors.INTERNAL_SYSTEM_ERROR_MESSAGE);</span>
+		} finally{
+<span class="nc" id="L147">			DBConnect.closeCon(conn);</span>
+<span class="nc" id="L148">		}</span>
+<span class="nc" id="L149">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

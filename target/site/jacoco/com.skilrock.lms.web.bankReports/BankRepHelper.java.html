@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BankRepHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.bankReports</a> &gt; <span class="el_source">BankRepHelper.java</span></div><h1>BankRepHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.bankReports;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.bankMgmt.Helpers.BankHelper;
+import com.skilrock.lms.web.bankMgmt.beans.BankRepDataBean;
+import com.skilrock.lms.web.bankMgmt.beans.BranchDetailsBean;
+
+<span class="nc" id="L20">public class BankRepHelper {</span>
+<span class="nc" id="L21">	static Log logger = LogFactory.getLog(BankRepHelper.class);</span>
+	public List&lt;BankRepDataBean&gt; fetchCreditUpdateData(BranchDetailsBean branchDetailsBean,String startDate,String endDate,	UserInfoBean userBean ){
+<span class="nc" id="L23">		Connection con =null;</span>
+<span class="nc" id="L24">		PreparedStatement ps =null;</span>
+<span class="nc" id="L25">		ResultSet rs =null;</span>
+<span class="nc" id="L26">		List&lt;BankRepDataBean&gt; bankRepDataList =new ArrayList&lt;BankRepDataBean&gt;();</span>
+		try{
+<span class="nc" id="L28">			con =DBConnect.getConnection();</span>
+<span class="nc" id="L29">			int bankId =0;</span>
+<span class="nc bnc" id="L30" title="All 2 branches missed.">			if(userBean.getRoleId()==1){</span>
+<span class="nc" id="L31">				 bankId =branchDetailsBean.getBankId();</span>
+			}else{
+<span class="nc" id="L33">				bankId=Integer.parseInt(new BankHelper().fetchBankList(userBean.getRoleId()).split(&quot;:&quot;)[0]);</span>
+			}
+<span class="nc" id="L35">			int branchId=branchDetailsBean.getBranchId();</span>
+<span class="nc" id="L36">			String appendQry = getBankDataQuery(bankId,branchId);</span>
+<span class="nc" id="L37">			String query = &quot; select bank_display_name,bank_full_name,branch_display_name,branch_full_name,netAmount, noOfMach from (select bank_id,branch_id,sum(netAmount) netAmount, count(mach) noOfMach from ( &quot; +</span>
+			&quot; select branch_id,bank_id,sum(totalAmount) as netAmount,retOrgId,1 as mach from ( select btm.branch_id,btm.bank_id,sum(ifnull((agtcn.amount),-agtdn.amount)) totalAmount,ifnull((agtdn.retailer_org_id),agtcn.retailer_org_id) retOrgId&quot;+
+			&quot;	from (select lms_transaction_id,branch_id,bank_id from st_lms_branch_transaction_mapping where trn_type in(?,?))btm inner join (select transaction_date,transaction_id  from st_lms_agent_transaction_master   where date(transaction_date)&gt;=? and date(transaction_date)&lt;=? ) agtm&quot;+ 
+			&quot;	on  agtm.transaction_id = btm.lms_transaction_id left join st_lms_agent_debit_note agtdn on  agtdn.transaction_id = btm.lms_transaction_id left join st_lms_agent_cash_transaction agtcn on  agtcn.transaction_id = btm.lms_transaction_id &quot;+ 
+			&quot; group by branch_id,bank_id,retOrgId)a group by branch_id,bank_id,retOrgId )b &quot;+appendQry+&quot; group by branch_id,bank_id )main left join st_lms_bank_master bm on bm.bank_id=main.bank_id left join st_lms_branch_master brm on brm.branch_id=main.branch_id  order by  bank_display_name,branch_display_name&quot;; 
+<span class="nc" id="L42">			ps =con.prepareStatement(query);</span>
+<span class="nc" id="L43">			ps.setString(1,&quot;CASH&quot;);</span>
+<span class="nc" id="L44">			ps.setString(2,&quot;DR_NOTE_CASH&quot;);</span>
+<span class="nc" id="L45">			ps.setString(3, startDate);</span>
+<span class="nc" id="L46">			ps.setString(4, endDate);</span>
+<span class="nc" id="L47">			rs =ps.executeQuery();</span>
+<span class="nc" id="L48">			logger.info(&quot;bank data query&quot;+ps);</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L50">				BankRepDataBean repDataBean = new BankRepDataBean();</span>
+<span class="nc" id="L51">				repDataBean.setBankName(rs.getString(&quot;bank_display_name&quot;));</span>
+<span class="nc" id="L52">				repDataBean.setBankFullName(rs.getString(&quot;bank_full_name&quot;));</span>
+<span class="nc" id="L53">				repDataBean.setBranchName(rs.getString(&quot;branch_display_name&quot;));</span>
+<span class="nc" id="L54">				repDataBean.setBranchFullName(rs.getString(&quot;branch_full_name&quot;));</span>
+<span class="nc" id="L55">				repDataBean.setTotalAmount(rs.getDouble(&quot;netAmount&quot;));</span>
+<span class="nc" id="L56">				repDataBean.setTotalMachines(rs.getInt(&quot;noOfMach&quot;));</span>
+<span class="nc" id="L57">				bankRepDataList.add(repDataBean);</span>
+<span class="nc" id="L58">			}</span>
+<span class="nc" id="L59">		}catch(Exception e){</span>
+<span class="nc" id="L60">			e.printStackTrace();</span>
+		}finally {
+<span class="nc" id="L62">			try{</span>
+<span class="nc bnc" id="L63" title="All 6 branches missed.">				if(con!=null){</span>
+<span class="nc" id="L64">					con.close();</span>
+				}
+<span class="nc bnc" id="L66" title="All 6 branches missed.">				if(ps!=null){</span>
+<span class="nc" id="L67">					ps.close();</span>
+				}
+<span class="nc bnc" id="L69" title="All 6 branches missed.">				if(rs!=null){</span>
+<span class="nc" id="L70">					rs.close();</span>
+				}
+					
+<span class="nc" id="L73">			}catch(Exception e){</span>
+<span class="nc" id="L74">				e.printStackTrace();</span>
+<span class="nc" id="L75">			}</span>
+<span class="nc" id="L76">		}</span>
+		
+<span class="nc" id="L78">		return bankRepDataList;</span>
+	}
+	
+	public String getBankDataQuery(int bankId,int branchId){
+<span class="nc" id="L82">		StringBuilder appendQuery =new StringBuilder();</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">		if(bankId&gt;0){</span>
+<span class="nc" id="L84">			appendQuery.append(&quot; where bank_id=&quot;+bankId);</span>
+			
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if(branchId&gt;0){</span>
+<span class="nc" id="L87">				appendQuery.append(&quot; and  branch_id=&quot;+branchId);</span>
+			}
+		}
+		
+<span class="nc" id="L91">		return appendQuery.toString();</span>
+	}
+	
+	public List&lt;BankRepDataBean&gt; fetchCashierWiseTrnData (BranchDetailsBean branchDetailsBean,String startDate,String endDate,	UserInfoBean userBean ,String terminalId,String repType) {
+		
+
+<span class="nc" id="L97">		Connection con =null;</span>
+<span class="nc" id="L98">		PreparedStatement ps =null;</span>
+<span class="nc" id="L99">		ResultSet rs =null;</span>
+<span class="nc" id="L100">		List&lt;BankRepDataBean&gt; bankRepDataList =new ArrayList&lt;BankRepDataBean&gt;();</span>
+		try{
+<span class="nc" id="L102">			con =DBConnect.getConnection();</span>
+<span class="nc" id="L103">			int bankId =0;</span>
+<span class="nc" id="L104">			int userId =0;</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">			if(userBean.getRoleId()==1){</span>
+<span class="nc" id="L106">				 bankId =branchDetailsBean.getBankId();</span>
+				 
+			}else{
+<span class="nc" id="L109">				bankId=Integer.parseInt(new BankHelper().fetchBankList(userBean.getRoleId()).split(&quot;:&quot;)[0]);</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">				if(!userBean.getIsRoleHeadUser().equalsIgnoreCase(&quot;Y&quot;)){</span>
+<span class="nc" id="L111">					userId=userBean.getUserId();</span>
+				}
+			
+				
+			}
+<span class="nc" id="L116">			int branchId=branchDetailsBean.getBranchId();</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">			if(!repType.equalsIgnoreCase(&quot;Payment&quot;)){</span>
+<span class="nc" id="L118">				String query =getCashierDataQuery(bankId,branchId,terminalId,userId);</span>
+<span class="nc" id="L119">				ps =con.prepareStatement(query);</span>
+<span class="nc" id="L120">				ps.setString(1,&quot;CASH&quot;);</span>
+<span class="nc" id="L121">				ps.setString(2,&quot;DR_NOTE_CASH&quot;);</span>
+<span class="nc" id="L122">				ps.setString(3, startDate);</span>
+<span class="nc" id="L123">				ps.setString(4, endDate);</span>
+<span class="nc" id="L124">				logger.info(&quot;cashier data query&quot;+ps);</span>
+<span class="nc" id="L125">				rs =ps.executeQuery();</span>
+			
+<span class="nc bnc" id="L127" title="All 2 branches missed.">				while(rs.next()){</span>
+<span class="nc" id="L128">					BankRepDataBean repDataBean = new BankRepDataBean();</span>
+<span class="nc" id="L129">					repDataBean.setBankName(rs.getString(&quot;bank_display_name&quot;));</span>
+<span class="nc" id="L130">					repDataBean.setBankFullName(rs.getString(&quot;bank_full_name&quot;));</span>
+<span class="nc" id="L131">					repDataBean.setBranchName(rs.getString(&quot;branch_display_name&quot;));</span>
+<span class="nc" id="L132">					repDataBean.setBranchFullName(rs.getString(&quot;branch_full_name&quot;));</span>
+<span class="nc" id="L133">					repDataBean.setTotalAmount(rs.getDouble(&quot;Amount&quot;));</span>
+<span class="nc" id="L134">					repDataBean.setTerminalId(rs.getString(&quot;terminalId&quot;));</span>
+<span class="nc" id="L135">					repDataBean.setAgentCode(rs.getString(&quot;agentCode&quot;));</span>
+<span class="nc" id="L136">					repDataBean.setAgentName(rs.getString(&quot;agentName&quot;));</span>
+<span class="nc" id="L137">					repDataBean.setRefId(rs.getLong(&quot;lms_transaction_id&quot;)+&quot;&quot;);</span>
+<span class="nc" id="L138">					repDataBean.setTrnDate(rs.getString(&quot;transaction_date&quot;).replace(&quot;.0&quot;,&quot;&quot;));</span>
+<span class="nc" id="L139">					repDataBean.setCashierName(rs.getString(&quot;user_name&quot;));</span>
+<span class="nc" id="L140">					repDataBean.setTrnType(&quot;Credit&quot;);</span>
+<span class="nc" id="L141">					bankRepDataList.add(repDataBean);</span>
+<span class="nc" id="L142">				}</span>
+			}
+			
+<span class="nc bnc" id="L145" title="All 4 branches missed.">			if(!repType.equalsIgnoreCase(&quot;Credit&quot;)&amp;&amp;(terminalId.length()&lt;=0)){</span>
+<span class="nc" id="L146">				String query =getWinningDataQuery(bankId,branchId,userId);</span>
+<span class="nc" id="L147">				ps =con.prepareStatement(query);</span>
+<span class="nc" id="L148">				ps.setString(1,&quot;DG_PWT_PLR&quot;);</span>
+<span class="nc" id="L149">				ps.setString(2, startDate);</span>
+<span class="nc" id="L150">				ps.setString(3, endDate);</span>
+<span class="nc" id="L151">				logger.info(&quot;winning data query&quot;+ps);</span>
+<span class="nc" id="L152">				rs =ps.executeQuery();</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L154">					BankRepDataBean repDataBean = new BankRepDataBean();</span>
+<span class="nc" id="L155">					repDataBean.setBankName(rs.getString(&quot;bank_display_name&quot;));</span>
+<span class="nc" id="L156">					repDataBean.setBankFullName(rs.getString(&quot;bank_full_name&quot;));</span>
+<span class="nc" id="L157">					repDataBean.setBranchName(rs.getString(&quot;branch_display_name&quot;));</span>
+<span class="nc" id="L158">					repDataBean.setBranchFullName(rs.getString(&quot;branch_full_name&quot;));</span>
+<span class="nc" id="L159">					repDataBean.setTotalAmount(rs.getDouble(&quot;Amount&quot;));</span>
+<span class="nc" id="L160">					repDataBean.setRefId(rs.getLong(&quot;lms_transaction_id&quot;)+&quot;&quot;);</span>
+<span class="nc" id="L161">					repDataBean.setTerminalId(&quot;NA&quot;);</span>
+<span class="nc" id="L162">					repDataBean.setAgentCode(&quot;NA&quot;);</span>
+<span class="nc" id="L163">					repDataBean.setAgentName(&quot;NA&quot;);</span>
+<span class="nc" id="L164">					repDataBean.setTrnType(&quot;Payment&quot;);</span>
+<span class="nc" id="L165">					repDataBean.setTrnDate(rs.getString(&quot;transaction_date&quot;).replace(&quot;.0&quot;,&quot;&quot;));</span>
+<span class="nc" id="L166">					repDataBean.setCashierName(rs.getString(&quot;user_name&quot;));</span>
+<span class="nc" id="L167">					bankRepDataList.add(repDataBean);</span>
+<span class="nc" id="L168">				}</span>
+			}
+			
+<span class="nc" id="L171">		}catch(Exception e){</span>
+<span class="nc" id="L172">			e.printStackTrace();</span>
+<span class="nc" id="L173">			bankRepDataList.clear();</span>
+		}finally {
+<span class="nc" id="L175">			try{</span>
+<span class="nc bnc" id="L176" title="All 6 branches missed.">				if(con!=null){</span>
+<span class="nc" id="L177">					con.close();</span>
+				}
+<span class="nc bnc" id="L179" title="All 6 branches missed.">				if(ps!=null){</span>
+<span class="nc" id="L180">					ps.close();</span>
+				}
+<span class="nc bnc" id="L182" title="All 6 branches missed.">				if(rs!=null){</span>
+<span class="nc" id="L183">					rs.close();</span>
+				}
+					
+<span class="nc" id="L186">			}catch(Exception e){</span>
+<span class="nc" id="L187">				e.printStackTrace();</span>
+<span class="nc" id="L188">			}</span>
+<span class="nc" id="L189">		}</span>
+		
+<span class="nc" id="L191">		return bankRepDataList;</span>
+	
+	
+	}
+	private String getWinningDataQuery(int bankId, int branchId, int userId) {
+
+<span class="nc" id="L197">		StringBuilder appendQuery =new StringBuilder();</span>
+<span class="nc" id="L198">		appendQuery.append(&quot; select lms_transaction_id,transaction_date,um.user_name,bank_display_name,bank_full_name,branch_display_name,branch_full_name,Amount from (select lms_transaction_id,botm.transaction_date,btm.branch_id,btm.bank_id,user_id,net_amt Amount  from (select lms_transaction_id,branch_id,bank_id,user_id from st_lms_branch_transaction_mapping where trn_type in(?))btm 	inner join (select transaction_date,transaction_id  from st_lms_bo_transaction_master   where date(transaction_date)&gt;=? and date(transaction_date)&lt;=? ) botm on  botm.transaction_id = btm.lms_transaction_id 	left join st_dg_bo_direct_plr_pwt boPlr on  boPlr.transaction_id = btm.lms_transaction_id   &quot;);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">		if(bankId&gt;0){</span>
+<span class="nc" id="L200">			appendQuery.append(&quot; where bank_id=&quot;+bankId);</span>
+			
+<span class="nc bnc" id="L202" title="All 2 branches missed.">			if(branchId&gt;0){</span>
+<span class="nc" id="L203">				appendQuery.append(&quot; and  branch_id=&quot;+branchId);</span>
+			}
+<span class="nc bnc" id="L205" title="All 2 branches missed.">			if(userId&gt;0){</span>
+<span class="nc" id="L206">				appendQuery.append(&quot; and  user_id=&quot;+userId);	</span>
+			}
+			
+		}else{
+<span class="nc bnc" id="L210" title="All 2 branches missed.">			if(userId&gt;0){</span>
+<span class="nc" id="L211">				appendQuery.append(&quot; where  btm.user_id=&quot;+userId);</span>
+				
+				
+				
+			}
+			
+		}
+<span class="nc" id="L218">		appendQuery.append(&quot;  )main  left join st_lms_bank_master bm on bm.bank_id=main.bank_id  left join st_lms_branch_master brm on brm.branch_id=main.branch_id left join st_lms_user_master um on um.user_id=main.user_id    order  by main.user_id &quot; );</span>
+		
+<span class="nc" id="L220">		return appendQuery.toString();</span>
+	
+		
+		
+	}
+
+	public String getCashierDataQuery(int bankId,int branchId,String terminalId,int userId){
+<span class="nc" id="L227">		StringBuilder appendQuery =new StringBuilder();</span>
+<span class="nc" id="L228">		appendQuery.append(&quot; select lms_transaction_id,transaction_date,branch_display_name,branch_full_name,bank_display_name,bank_full_name,ifnull((agtcn.amount),-agtdn.amount) Amount,user_name,om.org_code terminalId,parentOm.org_code agentCode,parentOm.name agentName	from   (select lms_transaction_id,branch_id,bank_id,user_id from st_lms_branch_transaction_mapping where trn_type in(?,?))btm inner join (select transaction_date,transaction_id  from st_lms_agent_transaction_master   where date(transaction_date)&gt;=? and date(transaction_date)&lt;=? ) agtm  on  agtm.transaction_id = btm.lms_transaction_id left join st_lms_agent_debit_note agtdn on  agtdn.transaction_id = btm.lms_transaction_id left join st_lms_agent_cash_transaction agtcn on  agtcn.transaction_id = btm.lms_transaction_id left join  st_lms_branch_master brm on brm.branch_id =btm.branch_id left join  st_lms_bank_master bm on bm.bank_id =btm.bank_id left join st_lms_user_master um on um.user_id=btm .user_id  left join st_lms_organization_master om on (om.organization_id=ifnull((agtdn.retailer_org_id),agtcn.retailer_org_id) )  left join st_lms_organization_master parentOm  on om.parent_id = parentOm.organization_id      &quot;);</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">		if(bankId&gt;0){</span>
+<span class="nc" id="L230">			appendQuery.append(&quot; where btm.bank_id=&quot;+bankId);</span>
+			
+<span class="nc bnc" id="L232" title="All 2 branches missed.">			if(branchId&gt;0){</span>
+<span class="nc" id="L233">				appendQuery.append(&quot; and  btm.branch_id=&quot;+branchId);</span>
+			}
+<span class="nc bnc" id="L235" title="All 2 branches missed.">			if(userId&gt;0){</span>
+<span class="nc" id="L236">				appendQuery.append(&quot; and  btm.user_id=&quot;+userId);	</span>
+			}
+<span class="nc bnc" id="L238" title="All 2 branches missed.">			if(terminalId.length()&gt;0){</span>
+<span class="nc" id="L239">				appendQuery.append(&quot; and  om.org_code=&quot;+terminalId);</span>
+			}
+		}else{
+<span class="nc bnc" id="L242" title="All 2 branches missed.">			if(userId&gt;0){</span>
+<span class="nc" id="L243">				appendQuery.append(&quot; where  btm.user_id=&quot;+userId);</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">				if(terminalId.length()&gt;0){</span>
+<span class="nc" id="L245">					appendQuery.append(&quot; and  om.org_code=&quot;+terminalId);</span>
+				}
+				
+				
+			}else{
+<span class="nc bnc" id="L250" title="All 2 branches missed.">				if(terminalId.length()&gt;0){</span>
+<span class="nc" id="L251">					appendQuery.append(&quot; where  om.org_code=&quot;+terminalId);</span>
+				}
+				
+			}
+			
+		}
+<span class="nc" id="L257">		appendQuery.append(&quot; order  by om.org_code &quot; );</span>
+		
+<span class="nc" id="L259">		return appendQuery.toString();</span>
+	}
+
+	public List&lt;BankRepDataBean&gt; fetchWinningUpdateData(
+			BranchDetailsBean branchDetailsBean, String startDate,
+			String endDate, UserInfoBean userBean) {
+
+<span class="nc" id="L266">		Connection con =null;</span>
+<span class="nc" id="L267">		PreparedStatement ps =null;</span>
+<span class="nc" id="L268">		ResultSet rs =null;</span>
+<span class="nc" id="L269">		List&lt;BankRepDataBean&gt; bankRepDataList =new ArrayList&lt;BankRepDataBean&gt;();</span>
+		try{
+<span class="nc" id="L271">			con =DBConnect.getConnection();</span>
+<span class="nc" id="L272">			int bankId =0;</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">			if(userBean.getRoleId()==1){</span>
+<span class="nc" id="L274">				 bankId =branchDetailsBean.getBankId();</span>
+			}else{
+<span class="nc" id="L276">				bankId=Integer.parseInt(new BankHelper().fetchBankList(userBean.getRoleId()).split(&quot;:&quot;)[0]);</span>
+			}
+<span class="nc" id="L278">			int branchId=branchDetailsBean.getBranchId();</span>
+<span class="nc" id="L279">			String appendQry = getBankDataQuery(bankId,branchId);</span>
+			
+<span class="nc" id="L281">			String query =&quot; select bank_display_name,bank_full_name,branch_full_name,branch_display_name,totalAmount from (select btm.branch_id,btm.bank_id,sum(net_amt) totalAmount  from (select * from st_lms_branch_transaction_mapping where trn_type in(?))btm &quot;+ </span>
+							&quot;	inner join (select transaction_date,transaction_id  from st_lms_bo_transaction_master   where date(transaction_date)&gt;=? and date(transaction_date)&lt;=? ) botm on  botm.transaction_id = btm.lms_transaction_id &quot;+ 
+							&quot;	left join st_dg_bo_direct_plr_pwt boPlr on  boPlr.transaction_id = btm.lms_transaction_id &quot;+appendQry+&quot; group by branch_id,bank_id  )main  left join st_lms_bank_master bm on bm.bank_id=main.bank_id  left join st_lms_branch_master brm on brm.branch_id=main.branch_id   &quot;;
+			
+<span class="nc" id="L285">			ps =con.prepareStatement(query);</span>
+<span class="nc" id="L286">			ps.setString(1,&quot;DG_PWT_PLR&quot;);</span>
+<span class="nc" id="L287">			ps.setString(2, startDate);</span>
+<span class="nc" id="L288">			ps.setString(3, endDate);</span>
+<span class="nc" id="L289">			rs =ps.executeQuery();</span>
+<span class="nc" id="L290">			logger.info(&quot;bank data query&quot;+ps);</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L292">				BankRepDataBean repDataBean = new BankRepDataBean();</span>
+<span class="nc" id="L293">				repDataBean.setBankName(rs.getString(&quot;bank_display_name&quot;));</span>
+<span class="nc" id="L294">				repDataBean.setBankFullName(rs.getString(&quot;bank_full_name&quot;));</span>
+<span class="nc" id="L295">				repDataBean.setBranchName(rs.getString(&quot;branch_display_name&quot;));</span>
+<span class="nc" id="L296">				repDataBean.setBranchFullName(rs.getString(&quot;branch_full_name&quot;));</span>
+<span class="nc" id="L297">				repDataBean.setTotalAmount(rs.getDouble(&quot;totalAmount&quot;));</span>
+<span class="nc" id="L298">				bankRepDataList.add(repDataBean);</span>
+<span class="nc" id="L299">			}</span>
+<span class="nc" id="L300">		}catch(Exception e){</span>
+<span class="nc" id="L301">			e.printStackTrace();</span>
+		}finally {
+<span class="nc" id="L303">			try{</span>
+<span class="nc bnc" id="L304" title="All 6 branches missed.">				if(con!=null){</span>
+<span class="nc" id="L305">					con.close();</span>
+				}
+<span class="nc bnc" id="L307" title="All 6 branches missed.">				if(ps!=null){</span>
+<span class="nc" id="L308">					ps.close();</span>
+				}
+<span class="nc bnc" id="L310" title="All 6 branches missed.">				if(rs!=null){</span>
+<span class="nc" id="L311">					rs.close();</span>
+				}
+					
+<span class="nc" id="L314">			}catch(Exception e){</span>
+<span class="nc" id="L315">				e.printStackTrace();</span>
+<span class="nc" id="L316">			}</span>
+<span class="nc" id="L317">		}</span>
+		
+<span class="nc" id="L319">		return bankRepDataList;</span>
+	
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

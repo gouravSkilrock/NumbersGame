@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SoldTicketEntryForRetHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common</a> &gt; <span class="el_source">SoldTicketEntryForRetHelper.java</span></div><h1>SoldTicketEntryForRetHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Date;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.TicketBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.coreEngine.scratchService.pwtMgmt.common.CommonFunctionsHelper;
+import com.skilrock.lms.rest.scratchService.inventoryMgmt.dao.InventoryDao;
+import com.skilrock.lms.rest.scratchService.inventoryMgmt.daoImpl.InventoryDaoImpl;
+import com.skilrock.lms.rest.services.bean.DaoBean;
+
+public class SoldTicketEntryForRetHelper {
+
+<span class="fc" id="L26">	private static Log logger = LogFactory.getLog(SoldTicketEntryForRetHelper.class);</span>
+	private InventoryDao inventory;
+	
+<span class="fc" id="L29">	public SoldTicketEntryForRetHelper(){</span>
+<span class="fc" id="L30">		this.inventory = new InventoryDaoImpl();</span>
+<span class="fc" id="L31">	}</span>
+<span class="nc" id="L32">	public SoldTicketEntryForRetHelper(InventoryDao inventory){</span>
+<span class="nc" id="L33">		this.inventory = inventory;</span>
+<span class="nc" id="L34">	}</span>
+	
+	public String fetchBooksDetails(int orgId) throws LMSException {
+<span class="nc" id="L37">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L38">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L39">		StringBuilder strBuilder = new StringBuilder(&quot;&quot;);</span>
+		try {
+<span class="nc" id="L41">			String fetchBooksDetQuery = &quot;select aa.book_nbr, aa.cur_rem_tickets, bb.nbr_of_tickets_per_book, &quot;</span>
+					+ &quot;concat(bb.game_nbr, '-', game_name) 'game_name' from st_se_game_inv_status aa,st_se_game_master&quot;
+					+ &quot; bb where aa.game_id = bb.game_id and (aa.book_status = 'ACTIVE' or aa.book_status = &quot;
+					+ &quot;'CLAIMED') and aa.current_owner_id = ? and (aa.cur_rem_tickets&gt;0 and aa.cur_rem_tickets &quot;
+					+ &quot;is not null)&quot;;
+<span class="nc" id="L46">			pstmt = con.prepareStatement(fetchBooksDetQuery);</span>
+<span class="nc" id="L47">			pstmt.setInt(1, orgId);</span>
+<span class="nc" id="L48">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc" id="L49">			System.out.println(&quot;getgameList&quot;);</span>
+<span class="nc" id="L50">			String preGameName = null;</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L52">				String bookNbr = rs.getString(&quot;book_nbr&quot;);</span>
+<span class="nc" id="L53">				String gameName = rs.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L54">				int curRemTkt = rs.getInt(&quot;cur_rem_tickets&quot;);</span>
+<span class="nc" id="L55">				int nbrOfTktPerBook = rs.getInt(&quot;nbr_of_tickets_per_book&quot;);</span>
+<span class="nc bnc" id="L56" title="All 4 branches missed.">				if (gameName != null &amp;&amp; gameName.equalsIgnoreCase(preGameName)) {</span>
+<span class="nc" id="L57">					strBuilder.append(&quot;;&quot;).append(bookNbr).append(&quot;=&quot;).append(</span>
+							curRemTkt).append(&quot;=&quot;).append(nbrOfTktPerBook);
+				} else {
+<span class="nc" id="L60">					strBuilder.append(&quot;,&quot;).append(gameName).append(&quot;;&quot;).append(</span>
+							bookNbr).append(&quot;=&quot;).append(curRemTkt).append(&quot;=&quot;)
+							.append(nbrOfTktPerBook);
+<span class="nc" id="L63">					preGameName = gameName;</span>
+				}
+<span class="nc" id="L65">			}</span>
+			// System.out.println(strBuilder.toString()+&quot;--------&quot;);
+<span class="nc bnc" id="L67" title="All 2 branches missed.">			if (!&quot;&quot;.equals(strBuilder.toString().trim())) {</span>
+<span class="nc" id="L68">				strBuilder.deleteCharAt(strBuilder.indexOf(&quot;,&quot;));</span>
+			}
+
+<span class="nc" id="L71">			System.out.println(&quot;String is === &quot; + strBuilder.toString());</span>
+<span class="nc" id="L72">			rs.close();</span>
+<span class="nc" id="L73">		} catch (SQLException e) {</span>
+<span class="nc" id="L74">			e.printStackTrace();</span>
+<span class="nc" id="L75">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L77">			try {</span>
+<span class="nc bnc" id="L78" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L79">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L81" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L82">					con.close();</span>
+				}
+<span class="nc" id="L84">			} catch (SQLException e) {</span>
+<span class="nc" id="L85">				e.printStackTrace();</span>
+<span class="nc" id="L86">			}</span>
+<span class="nc" id="L87">		}</span>
+<span class="nc" id="L88">		return strBuilder.toString();</span>
+
+	}
+
+	/**
+	 * This method is used for the Sold ticket entry from Terminal/Web by Retailer.
+	 * @param bookNbr
+	 * @param currRem
+	 * @param userInfo
+	 * @param updCurrRem
+	 * @param tktInBook
+	 * @return
+	 * @throws LMSException
+	 */
+
+	public static boolean saveSoldTicketEntry(String[] bookNbr, String[] currRem,
+			UserInfoBean userInfo, String[] updCurrRem, String tktInBook[])
+			throws LMSException {
+<span class="nc" id="L106">		logger.info(bookNbr.length + &quot;, &quot; + currRem.length + &quot;, &quot;+ updCurrRem.length + &quot;,  &quot; + tktInBook);</span>
+		/*System.out.println(bookNbr.length + &quot;, &quot; + currRem.length + &quot;, &quot;
+				+ updCurrRem.length + &quot;,  &quot; + tktInBook);*/
+
+<span class="nc" id="L110">		Connection con =null;</span>
+<span class="nc" id="L111">		PreparedStatement hisPstmt = null, statusPstmt = null,lastRecPstmt=null;</span>
+<span class="nc" id="L112">		ResultSet rs =null;</span>
+<span class="nc" id="L113">		String getlastRecQry =&quot;select aa.game_id, aa.book_nbr, aa.current_owner, aa.current_owner_id, (bb.cur_rem_tickets-?) as sold_tickets , concat(bb.book_status, '_CLOSE') 'book_status' from (SELECT date,game_id, book_nbr,current_owner,current_owner_id FROM st_se_game_ticket_inv_history where current_owner_id=? and book_nbr = ? FOR UPDATE )aa inner join (SELECT cur_rem_tickets,book_status,book_nbr FROM st_se_game_inv_status where book_nbr = ? and current_owner_id=? FOR UPDATE ) bb on aa.book_nbr=bb.book_nbr order by date desc limit 1&quot;;</span>
+<span class="nc" id="L114">		String insSoldTktHistory = &quot; insert into st_se_game_ticket_inv_history (game_id, book_nbr, current_owner,  current_owner_id, date, done_by_oid, done_by_uid, cur_rem_tickets, active_tickets_upto,  sold_tickets, status) values(?,?,?,?,?,?,?,?,?,?,?) &quot;;</span>
+		
+		
+		/* String insSoldTktHistory = &quot; insert into st_se_game_ticket_inv_history (game_id, book_nbr, current_owner,  current_owner_id, date, done_by_oid, &quot; +
+		&quot;done_by_uid, cur_rem_tickets, active_tickets_upto, &quot; 
+		+ &quot; sold_tickets, status) values(?,?,?,?,?,?,?,?,?,?,?) select aa.game_id, aa.book_nbr, aa.current_owner, aa.current_owner_id, ?, &quot;
+		+ userInfo.getUserOrgId()
+		+ &quot;, &quot;
+		+ userInfo.getUserId()
+		+ &quot;, ?, ?, (bb.cur_rem_tickets-?) as sold_tickets , concat(bb.book_status, '_CLOSE') 'book_status' from st_se_game_ticket_inv_history&quot;
+		+ &quot; aa, st_se_game_inv_status bb where aa.book_nbr = bb.book_nbr and aa.current_owner_id=&quot;
+		+ userInfo.getUserOrgId()
+		+ &quot; and aa.book_nbr = ? order by date desc limit 1&quot;;*/
+
+<span class="nc" id="L128">		String updStatusTblQuery = &quot; update st_se_game_inv_status set cur_rem_tickets = ?, active_tickets_upto = ?  where  current_owner_id=? and book_nbr = ?&quot;;</span>
+		try {
+<span class="nc" id="L130">			con= DBConnect.getConnection();</span>
+<span class="nc" id="L131">			con.setAutoCommit(false);</span>
+<span class="nc" id="L132">			hisPstmt = con.prepareStatement(insSoldTktHistory);</span>
+<span class="nc" id="L133">			statusPstmt = con.prepareStatement(updStatusTblQuery);</span>
+<span class="nc" id="L134">			lastRecPstmt=con.prepareStatement(getlastRecQry);</span>
+<span class="nc" id="L135">			String updCurrRemTkt = null;</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">			for (int i = 0; i &lt; updCurrRem.length; i++) {</span>
+<span class="nc" id="L137">				updCurrRemTkt = updCurrRem[i].trim();</span>
+<span class="nc" id="L138">				logger.info(&quot;updCurrRemBook = &quot; + updCurrRemTkt);</span>
+
+<span class="nc bnc" id="L140" title="All 4 branches missed.">				if (updCurrRemTkt != null &amp;&amp; !&quot;&quot;.equals(updCurrRemTkt.trim())) {</span>
+					
+<span class="nc" id="L142">					lastRecPstmt.setInt(1,Integer.parseInt(updCurrRemTkt) );</span>
+<span class="nc" id="L143">					lastRecPstmt.setInt(2,userInfo.getUserOrgId());</span>
+<span class="nc" id="L144">					lastRecPstmt.setString(3, bookNbr[i].trim());</span>
+<span class="nc" id="L145">					lastRecPstmt.setString(4, bookNbr[i].trim());</span>
+<span class="nc" id="L146">					lastRecPstmt.setInt(5,userInfo.getUserOrgId());</span>
+<span class="nc" id="L147">					rs=lastRecPstmt.executeQuery();</span>
+<span class="nc" id="L148">					rs.last();</span>
+<span class="nc" id="L149">					int recs = rs.getRow();</span>
+<span class="nc" id="L150">					rs.beforeFirst();</span>
+					//more than one Record Fetched
+<span class="nc bnc" id="L152" title="All 2 branches missed.">					if(recs!=1){</span>
+					
+<span class="nc" id="L154">						throw new LMSException(LMSErrors.MORE_THAN_ONE_RECORD_CODE,LMSErrors.MORE_THAN_ONE_RECORD_MESSAGE);</span>
+					
+						}	
+<span class="nc bnc" id="L157" title="All 2 branches missed.">					if(rs.next()){</span>
+						
+						
+						// insert data into st_se_game_ticket_inv_history table
+<span class="nc" id="L161">						hisPstmt.setInt(1, rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L162">						hisPstmt.setString(2, rs.getString(&quot;book_nbr&quot;));</span>
+<span class="nc" id="L163">						hisPstmt.setString(3,rs.getString(&quot;current_owner&quot;));</span>
+<span class="nc" id="L164">						hisPstmt.setInt(4,rs.getInt(&quot;current_owner_id&quot;));</span>
+<span class="nc" id="L165">						hisPstmt.setTimestamp(5,new Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L166">						hisPstmt.setInt(6,userInfo.getUserOrgId());</span>
+<span class="nc" id="L167">						hisPstmt.setInt(7,userInfo.getUserId());</span>
+<span class="nc" id="L168">						hisPstmt.setInt(8, Integer.parseInt(updCurrRemTkt));</span>
+<span class="nc" id="L169">						hisPstmt.setInt(9, Integer.parseInt(tktInBook[i].trim())-Integer.parseInt(updCurrRemTkt));</span>
+<span class="nc" id="L170">						hisPstmt.setInt(10, rs.getInt(&quot;sold_tickets&quot;)); // used</span>
+<span class="nc" id="L171">						hisPstmt.setString(11, rs.getString(&quot;book_status&quot;));</span>
+						// to
+						// calculate
+						// sold
+						// tickethisPstmt.setString(5, bookNbr[i]);
+						
+						
+					}
+					
+
+					// update st_se_game_inv_status table
+<span class="nc" id="L182">					statusPstmt.setInt(1, Integer.parseInt(updCurrRemTkt));</span>
+<span class="nc" id="L183">					statusPstmt.setInt(2, Integer.parseInt(tktInBook[i].trim())-Integer.parseInt(updCurrRemTkt));</span>
+<span class="nc" id="L184">					statusPstmt.setInt(3,userInfo.getUserOrgId() );</span>
+<span class="nc" id="L185">					statusPstmt.setString(4, bookNbr[i].trim());</span>
+<span class="nc" id="L186">					logger.debug(&quot;hisPstmt== &quot; + hisPstmt+ &quot;\n statusPstmt = &quot; + statusPstmt);</span>
+					/*System.out.println(&quot;hisPstmt== &quot; + hisPstmt
+							+ &quot;\n statusPstmt = &quot; + statusPstmt);*/
+<span class="nc" id="L189">					hisPstmt.executeUpdate();</span>
+<span class="nc" id="L190">					statusPstmt.executeUpdate();</span>
+				}
+
+			}
+<span class="nc" id="L194">			con.commit();</span>
+<span class="nc" id="L195">			return true;</span>
+<span class="nc" id="L196">		} catch (SQLException e) {</span>
+<span class="nc" id="L197">			logger.error(&quot;SQL Exception&quot;,e);</span>
+<span class="nc" id="L198">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L199">		} catch (Exception e) {</span>
+<span class="nc" id="L200">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L201">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally {
+<span class="nc" id="L203">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L204">			DBConnect.closePstmt(lastRecPstmt);</span>
+<span class="nc" id="L205">			DBConnect.closePstmt(statusPstmt);</span>
+<span class="nc" id="L206">			DBConnect.closePstmt(hisPstmt);</span>
+<span class="nc" id="L207">			DBConnect.closeCon(con);</span>
+			
+		}
+
+	}
+
+	
+	public String updateSellTicketStatus(String ticketNbr,UserInfoBean userInfoBean,String tpTransactionId) throws LMSException{
+<span class="nc" id="L215">		Connection con=null;</span>
+<span class="nc" id="L216">		PreparedStatement pstmt=null;</span>
+<span class="nc" id="L217">		PreparedStatement pstmt1=null;</span>
+<span class="nc" id="L218">		ResultSet rs=null;</span>
+<span class="nc" id="L219">		String query = null;</span>
+<span class="nc" id="L220">		int gameId=0;</span>
+<span class="nc" id="L221">		int ticketPrice=0;</span>
+		try {
+<span class="nc" id="L223">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L224">			query = &quot;SELECT game_id,ticket_price from st_se_game_master WHERE game_nbr=?&quot;;</span>
+
+<span class="nc" id="L226">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L227">			pstmt.setInt(1, Integer.parseInt(ticketNbr.substring(0, 3)));</span>
+<span class="nc" id="L228">			rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L230" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L231">				gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L232">				ticketPrice=rs.getInt(&quot;ticket_price&quot;);</span>
+			}else{
+<span class="nc" id="L234">				throw new LMSException(LMSErrors.INVALID_TICKET_ERROR_CODE,LMSErrors.INVALID_TICKET_ERROR_MESSAGE);</span>
+			}
+<span class="nc" id="L236">			pstmt.clearParameters();</span>
+			
+<span class="nc" id="L238">			TicketBean tktBean = new CommonFunctionsHelper().isTicketFormatValid(ticketNbr,gameId, con);</span>
+<span class="nc" id="L239">			ticketNbr = tktBean.getTicketNumber();</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">			if (tktBean.getIsValid()) {</span>
+<span class="nc" id="L241">				String getlastRecQry =&quot;select aa.game_id, aa.book_nbr, aa.current_owner, aa.current_owner_id,(cur_rem_tickets+active_tickets_upto) totalTkt ,cur_rem_tickets, 1 as sold_tickets , concat(bb.book_status, '_CLOSE') 'book_status' from (SELECT date,game_id, book_nbr,current_owner,current_owner_id FROM st_se_game_ticket_inv_history where current_owner_id=? and book_nbr = ? FOR UPDATE )aa inner join (SELECT cur_rem_tickets,book_status,book_nbr,active_tickets_upto FROM st_se_game_inv_status where book_nbr = ? and current_owner_id=? and (book_status='ACTIVE' OR  book_status='CLAIMED')  and game_id=? FOR UPDATE ) bb on aa.book_nbr=bb.book_nbr order by date desc limit 1&quot;;</span>
+<span class="nc" id="L242">				pstmt = con.prepareStatement(getlastRecQry);</span>
+<span class="nc" id="L243">				pstmt.setInt(1,userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L244">				pstmt.setString(2, ticketNbr.substring(0, 10));</span>
+<span class="nc" id="L245">				pstmt.setString(3, ticketNbr.substring(0, 10));</span>
+<span class="nc" id="L246">				pstmt.setInt(4,userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L247">				pstmt.setInt(5,gameId);</span>
+<span class="nc" id="L248">				rs=pstmt.executeQuery();</span>
+				
+<span class="nc bnc" id="L250" title="All 2 branches missed.">				if(rs.next()){</span>
+<span class="nc" id="L251">					con.setAutoCommit(false);</span>
+					
+<span class="nc" id="L253">					query=&quot;UPDATE st_se_pwt_inv_?  SET ticket_status='SOLD' WHERE id1=? AND ticket_status='ACTIVE'&quot;;</span>
+<span class="nc" id="L254">					pstmt1 = con.prepareStatement(query);</span>
+<span class="nc" id="L255">					pstmt1.setInt(1, Integer.parseInt(ticketNbr.substring(0, 3)));</span>
+<span class="nc" id="L256">					pstmt1.setString(2, MD5Encoder.encode(ticketNbr));</span>
+<span class="nc" id="L257">					int isUpdated=pstmt1.executeUpdate();</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">					if(isUpdated&lt;=0){</span>
+<span class="nc" id="L259">						throw new LMSException(LMSErrors.INVALID_TICKET_ERROR_CODE,LMSErrors.ACTIVE_TICKET_ERROR_MESSAGE);</span>
+					}
+					
+					
+<span class="nc" id="L263">					String insSoldTktHistory = &quot;insert into st_se_game_ticket_inv_history (game_id, book_nbr, current_owner,  current_owner_id, date, done_by_oid, done_by_uid, cur_rem_tickets, active_tickets_upto,  sold_tickets, status) values(?,?,?,?,?,?,?,?,?,?,?) &quot;;</span>
+					
+<span class="nc" id="L265">					pstmt1=con.prepareStatement(insSoldTktHistory);</span>
+<span class="nc" id="L266">					pstmt1.setInt(1, rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L267">					pstmt1.setString(2, rs.getString(&quot;book_nbr&quot;));</span>
+<span class="nc" id="L268">					pstmt1.setString(3,rs.getString(&quot;current_owner&quot;));</span>
+<span class="nc" id="L269">					pstmt1.setInt(4,rs.getInt(&quot;current_owner_id&quot;));</span>
+<span class="nc" id="L270">					pstmt1.setTimestamp(5,new Timestamp(new Date().getTime()));</span>
+<span class="nc" id="L271">					pstmt1.setInt(6,userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L272">					pstmt1.setInt(7,userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L273">					pstmt1.setInt(8, rs.getInt(&quot;cur_rem_tickets&quot;)-rs.getInt(&quot;sold_tickets&quot;));</span>
+<span class="nc" id="L274">					pstmt1.setInt(9, rs.getInt(&quot;totalTkt&quot;)- (rs.getInt(&quot;cur_rem_tickets&quot;)-rs.getInt(&quot;sold_tickets&quot;)));</span>
+<span class="nc" id="L275">					pstmt1.setInt(10, rs.getInt(&quot;sold_tickets&quot;)); </span>
+<span class="nc" id="L276">					pstmt1.setString(11, rs.getString(&quot;book_status&quot;));</span>
+					
+<span class="nc" id="L278">					int isUpdated1=pstmt1.executeUpdate();</span>
+					
+					
+<span class="nc" id="L281">					query=&quot;UPDATE st_se_game_inv_status  SET cur_rem_tickets=cur_rem_tickets-1,active_tickets_upto=active_tickets_upto+1  where game_id=? and book_nbr=? and (book_status='ACTIVE' OR  book_status='CLAIMED') and current_owner_id=? and cur_rem_tickets &lt;&gt; 0 &quot;;</span>
+<span class="nc" id="L282">					pstmt1 = con.prepareStatement(query);</span>
+<span class="nc" id="L283">					pstmt1.setInt(1, gameId);</span>
+<span class="nc" id="L284">					pstmt1.setString(2, ticketNbr.substring(0,10));</span>
+<span class="nc" id="L285">					pstmt1.setInt(3, userInfoBean.getUserOrgId());</span>
+					
+<span class="nc" id="L287">					int isUpdated2 = pstmt1.executeUpdate();</span>
+					
+<span class="nc" id="L289">					Date date = new Date();</span>
+<span class="nc" id="L290">					String txnId = userInfoBean.getUserOrgId()+date.getTime()+&quot;&quot;;</span>
+					
+<span class="nc" id="L292">					DaoBean daoBean = new DaoBean();</span>
+<span class="nc" id="L293">					daoBean.setDateTime(date);</span>
+<span class="nc" id="L294">					daoBean.setTpTransactionId(tpTransactionId);</span>
+<span class="nc" id="L295">					daoBean.setTicketNbr(ticketNbr);</span>
+<span class="nc" id="L296">					daoBean.setTxnId(txnId);</span>
+<span class="nc" id="L297">					daoBean.setUserId(userInfoBean.getUserId());</span>
+<span class="nc" id="L298">					daoBean.setUserOrgId(userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L299">					daoBean.setStatus(&quot;SOLD&quot;);</span>
+<span class="nc" id="L300">					daoBean.setGameId(gameId);</span>
+<span class="nc" id="L301">					daoBean.setTicketPrice(ticketPrice);</span>
+					
+					
+<span class="nc" id="L304">					int isUpdated3 = getInventory().insertTicketByTicketSaleTxn(con,daoBean);</span>
+					
+<span class="nc bnc" id="L306" title="All 6 branches missed.">					if(isUpdated1&gt;0 &amp;&amp; isUpdated2&gt;0 &amp;&amp; isUpdated3&gt;0){</span>
+<span class="nc" id="L307">						con.commit();</span>
+<span class="nc" id="L308">						return txnId;</span>
+					}else{
+<span class="nc" id="L310">						throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+					}
+				}else{
+<span class="nc" id="L313">					throw new LMSException(LMSErrors.INVALID_TICKET_ERROR_CODE,LMSErrors.INVALID_TICKET_ERROR_MESSAGE_SELL_TICKET);</span>
+				}
+			
+			}else{
+<span class="nc" id="L317">				throw new LMSException(LMSErrors.INVALID_TICKET_ERROR_CODE,LMSErrors.INVALID_TICKET_ERROR_MESSAGE_SELL_TICKET);</span>
+			}
+<span class="nc" id="L319">		} catch (LMSException e) {</span>
+<span class="nc" id="L320">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L321">			throw e;</span>
+<span class="nc" id="L322">		}catch (SQLException e) {</span>
+<span class="nc" id="L323">			logger.error(&quot;SQL Exception&quot;,e);</span>
+<span class="nc" id="L324">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L325">		} catch (Exception e) {</span>
+<span class="nc" id="L326">			logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L327">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		}finally{
+<span class="nc" id="L329">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L330">			DBConnect.closePstmt(pstmt1);</span>
+		}
+		
+	}
+
+	public InventoryDao getInventory() {
+<span class="nc" id="L336">		return inventory;</span>
+	}
+
+	
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,484 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PwtPayAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.keba.drawGames.pwtMgmt.action</a> &gt; <span class="el_source">PwtPayAction.java</span></div><h1>PwtPayAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.keba.drawGames.pwtMgmt.action;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpSession;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+import net.sf.json.JSONSerializer;
+
+import org.apache.struts2.ServletActionContext;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.BaseAction;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.MpesaPaymentProcessHelper;
+import com.skilrock.lms.dge.beans.DrawIdBean;
+import com.skilrock.lms.dge.beans.MainPWTDrawBean;
+import com.skilrock.lms.dge.beans.PWTDrawBean;
+import com.skilrock.lms.dge.beans.PanelIdBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class PwtPayAction extends BaseAction {
+	private static final long serialVersionUID = 1L;
+
+	public PwtPayAction() {
+<span class="nc" id="L36">		super(PwtPayAction.class);</span>
+<span class="nc" id="L37">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public void payPwtTicket() {
+<span class="nc" id="L41">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L42">		JSONObject responseObject = new JSONObject();</span>
+<span class="nc" id="L43">		JSONArray drawDataArray = new JSONArray();</span>
+<span class="nc" id="L44">		JSONObject drawDataBean = null;</span>
+<span class="nc" id="L45">		String gameName = null;</span>
+<span class="nc" id="L46">		PrintWriter out = null;</span>
+		try {
+<span class="nc" id="L48">			logger.info(&quot;Pay Pwt Request Data : &quot; + request.getParameter(&quot;requestData&quot;));</span>
+<span class="nc" id="L49">			JSONObject payPwtRequestData = (JSONObject) JSONSerializer.toJSON(request.getParameter(&quot;requestData&quot;));</span>
+	
+<span class="nc" id="L51">			response.setContentType(&quot;application/json&quot;);</span>
+<span class="nc" id="L52">			out = response.getWriter();</span>
+
+<span class="nc" id="L54">			String userName = payPwtRequestData.getString(&quot;userName&quot;).trim();</span>
+<span class="nc" id="L55">			String ticketNumber = payPwtRequestData.getString(&quot;ticketNumber&quot;).trim();</span>
+<span class="nc" id="L56">			long lastTktNo = Long.parseLong(payPwtRequestData.getString(&quot;lastTktNo&quot;).trim());</span>
+<span class="nc" id="L57">			String mPesa = payPwtRequestData.getString(&quot;mPesa&quot;).trim();</span>
+<span class="nc" id="L58">			String mobileNo = payPwtRequestData.getString(&quot;mobileNo&quot;).trim();</span>
+
+<span class="nc" id="L60">			String isDraw = (String) sc.getAttribute(&quot;IS_DRAW&quot;);</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">			if (isDraw.equalsIgnoreCase(&quot;NO&quot;)) {</span>
+<span class="nc" id="L62">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L63">				responseObject.put(&quot;errorMsg&quot;, &quot;Draw Game Not Available.&quot;);</span>
+				return;
+			}
+
+<span class="nc" id="L67">			UserInfoBean userInfoBean = getUserBean(userName);</span>
+
+<span class="nc" id="L69">			Map currentUserSessionMap = (Map) sc.getAttribute(&quot;LOGGED_IN_USERS&quot;);</span>
+<span class="nc" id="L70">			HttpSession session = (HttpSession) currentUserSessionMap.get(userName);</span>
+<span class="nc" id="L71">			MainPWTDrawBean mainWinningBean = (MainPWTDrawBean) session.getAttribute(&quot;PWT_RES&quot;);</span>
+
+<span class="nc" id="L73">			DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+
+<span class="nc" id="L75">			int autoCancelHoldDays = Integer.parseInt((String) sc.getAttribute(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));</span>
+<span class="nc" id="L76">			long lastPrintedTicket = 0;</span>
+<span class="nc" id="L77">			String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+<span class="nc" id="L78">			int gameId = 0;</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">			if(lastTktNo != 0) {</span>
+<span class="nc" id="L80">				lastPrintedTicket = lastTktNo/Util.getDivValueForLastSoldTkt(String.valueOf(lastTktNo).length());</span>
+<span class="nc" id="L81">				gameId = Util.getGameIdFromGameNumber(Util.getGamenoFromTktnumber(String.valueOf(lastTktNo)));</span>
+			}
+<span class="nc" id="L83">			String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L84">			helper.checkLastPrintedTicketStatusAndUpdate(userInfoBean,lastPrintedTicket,&quot;TERMINAL&quot;,refMerchantId,autoCancelHoldDays,actionName, gameId);</span>
+
+<span class="nc" id="L86">			AjaxRequestHelper ajaxRequestHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L87">			ajaxRequestHelper.getAvlblCreditAmt(userInfoBean);</span>
+<span class="nc" id="L88">			double balance1 = userInfoBean.getAvailableCreditLimit() - userInfoBean.getClaimableBal();</span>
+<span class="nc" id="L89">			String highPrizeCriteria = (String) LMSUtility.sc.getAttribute(&quot;HIGH_PRIZE_CRITERIA&quot;);</span>
+<span class="nc" id="L90">			String highPrizeAmt = (String) LMSUtility.sc.getAttribute(&quot;HIGH_PRIZE_AMT&quot;);</span>
+<span class="nc" id="L91">			String highPrizeScheme = (String) LMSUtility.sc.getAttribute(&quot;DRAW_GAME_HIGH_PRIZE_SCHEME&quot;);</span>
+
+<span class="nc bnc" id="L93" title="All 4 branches missed.">			if(&quot;Y&quot;.equalsIgnoreCase(mPesa) &amp;&amp; mobileNo!=null){</span>
+<span class="nc" id="L94">				mainWinningBean.setIsmPesaEnable(true);</span>
+<span class="nc" id="L95">				mainWinningBean.setMobileNumber(mobileNo);</span>
+<span class="nc" id="L96">				UserInfoBean mPesaUserBean = new MpesaPaymentProcessHelper().payBymPesaAcc(mainWinningBean, userInfoBean);</span>
+<span class="nc" id="L97">				mainWinningBean = helper.payPwtTicket(mainWinningBean, mPesaUserBean,highPrizeCriteria,highPrizeAmt,highPrizeScheme);</span>
+<span class="nc" id="L98">			} else {</span>
+<span class="nc" id="L99">				mainWinningBean = helper.payPwtTicket(mainWinningBean, userInfoBean,highPrizeCriteria,highPrizeAmt,highPrizeScheme);</span>
+			}
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">			if (&quot;PWT_LIMIT_EXCEED&quot;.equalsIgnoreCase(mainWinningBean.getStatus())) {</span>
+<span class="nc" id="L103">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L104">				responseObject.put(&quot;errorMsg&quot;, &quot;PWT Limit Exceed.&quot;);</span>
+				return;
+			}
+
+<span class="nc" id="L108">			StringBuilder stBuiald = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L109">			double totalRaffleAmount = 0.0;</span>
+<span class="nc" id="L110">			double totTktAmt = 0.0;</span>
+<span class="nc" id="L111">			double totalClmPndAmt=0.0;</span>
+
+			/*
+			String raffleData = EmbeddedErrors.RAFFLE_DATA;
+			if (mainWinningBean.getPwtTicketType().equalsIgnoreCase(&quot;RAFFLE&quot;)) {
+				List&lt;RaffleDrawIdBean&gt; raffleDrawIdBeanList = mainWinningBean.getWinningBeanList().get(0).getRaffleDrawIdBeanList();
+				if (raffleDrawIdBeanList != null) {
+					for (int j = 0; j &lt; raffleDrawIdBeanList.size(); j++) {
+						if (j &gt; 0) {
+							raffleData = raffleData + &quot;;&quot;;
+						}
+						RaffleDrawIdBean raffleWinningBean = raffleDrawIdBeanList.get(j);
+						String dataArr[] = buildPWTRaffleData(raffleWinningBean).split(&quot;RWA&quot;);
+						String data = dataArr[0];
+						if (dataArr.length &gt; 1)
+							totalRaffleAmount = Double.parseDouble(dataArr[1]);
+
+						raffleData = raffleData + data;
+					}
+				}
+				raffleData = raffleData + &quot;#&quot; + &quot;|Total Pay:&quot; + totalRaffleAmount
+				+ &quot;|&quot;;
+			} else
+			*/
+<span class="nc bnc" id="L135" title="All 2 branches missed.">			if (mainWinningBean.getPwtTicketType().equalsIgnoreCase(&quot;DRAW&quot;)) {</span>
+<span class="nc" id="L136">				List&lt;PWTDrawBean&gt; pwtWinBeanlist = mainWinningBean.getWinningBeanList();</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">				for (int k = 0; k &lt; pwtWinBeanlist.size(); k++) {</span>
+<span class="nc" id="L138">					PWTDrawBean pwtWinningBean = pwtWinBeanlist.get(k);</span>
+					/*
+					if (pwtWinningBean.getPwtTicketType().equalsIgnoreCase(&quot;RAFFLE&quot;)) {
+						List&lt;RaffleDrawIdBean&gt; raffleDrawIdBeanList = pwtWinningBean.getRaffleDrawIdBeanList();
+						for (int i = 0; i &lt; raffleDrawIdBeanList.size(); i++) {
+							if (i &gt; 0) {
+								raffleData = raffleData + &quot;;&quot;;
+							}
+							RaffleDrawIdBean raffleWinningBean = raffleDrawIdBeanList
+							.get(i);
+
+							if (&quot;FRAUD&quot;.equalsIgnoreCase(raffleWinningBean
+									.getStatus())) {
+
+								raffleData = raffleData + &quot;ErrorMsg:&quot;
+								+ EmbeddedErrors.PWT_FRAUD;
+
+							} else if (&quot;TICKET_EXPIRED&quot;
+									.equalsIgnoreCase(raffleWinningBean.getStatus())) {
+								raffleData = raffleData + &quot;ErrorMsg:&quot;
+								+ EmbeddedErrors.PWT_TICKET_EXPIRED;
+
+							} else if (raffleWinningBean.getStatus().equals(
+							&quot;RES_AWAITED&quot;)) {
+								raffleData = raffleData
+								+ raffleWinningBean.getDrawDateTime()
+								+ &quot;|Awaited&quot;;
+
+							} else if (raffleWinningBean.getPwtStatus() != null
+									&amp;&amp; raffleWinningBean.getPwtStatus()
+									.equalsIgnoreCase(&quot;OUT_VERIFY_LIMIT&quot;)) {
+								raffleData = raffleData + &quot;ErrorMsg:&quot;
+								+ EmbeddedErrors.PWT_OUT_VERIFY_LIMIT;
+
+							} else if (raffleWinningBean.getPwtStatus() != null
+									&amp;&amp; raffleWinningBean.getPwtStatus().equals(
+									&quot;NON_WIN&quot;)) {
+								raffleData = raffleData
+								+ raffleWinningBean.getDrawDateTime()
+								+ &quot;|TRY AGAIN&quot;;
+
+							} else if (raffleWinningBean.getPwtStatus() != null
+									&amp;&amp; raffleWinningBean.getPwtStatus().equals(
+									&quot;NORMAL_PAY&quot;)) {
+								totalRaffleAmount = totalRaffleAmount
+								+ Double.parseDouble(raffleWinningBean
+										.getWinningAmt());
+								raffleData = raffleData
+								+ raffleWinningBean.getDrawDateTime()
+								+ &quot;|WIN &quot;
+								+ raffleWinningBean.getWinningAmt();
+
+							} else if (raffleWinningBean.getStatus() != null
+									&amp;&amp; raffleWinningBean.getStatus().equals(
+									&quot;CLAIMED&quot;)) {
+								raffleData = raffleData
+								+ raffleWinningBean.getDrawDateTime()
+								+ &quot;|CLAIMED&quot;;
+
+							} else if (raffleWinningBean.getPwtStatus() != null
+									&amp;&amp; raffleWinningBean.getPwtStatus().equals(
+									&quot;PND_PAY&quot;)) {
+								raffleData = raffleData + &quot;ErrorMsg:&quot;
+								+ EmbeddedErrors.PWT_OUT_VERIFY_LIMIT;
+
+							} else if (raffleWinningBean.getPwtStatus() != null
+									&amp;&amp; raffleWinningBean.getPwtStatus().equals(
+									&quot;HIGH_PRIZE&quot;)) {
+								raffleData = raffleData + &quot;ErrorMsg:&quot;
+								+ EmbeddedErrors.PWT_OUT_VERIFY_LIMIT;
+
+							} else if (raffleWinningBean.getPwtStatus() != null
+									&amp;&amp; raffleWinningBean.getPwtStatus().equals(
+									&quot;OUT_PAY_LIMIT&quot;)) {
+								raffleData = raffleData + &quot;ErrorMsg:&quot;
+								+ EmbeddedErrors.PWT_OUT_VERIFY_LIMIT;
+
+							} else if (raffleWinningBean.getPwtStatus() != null
+									&amp;&amp; raffleWinningBean.getPwtStatus().equals(
+									&quot;OUT_VERIFY_LIMIT&quot;)) {
+								raffleData = raffleData + &quot;ErrorMsg:&quot;
+								+ EmbeddedErrors.PWT_OUT_VERIFY_LIMIT;
+							}
+
+						}
+
+					}
+					*/
+				}
+				//raffleData = raffleData + &quot;#&quot;;
+
+<span class="nc bnc" id="L229" title="All 2 branches missed.">				for (int k = 0; k &lt; pwtWinBeanlist.size(); k++) {</span>
+<span class="nc" id="L230">					PWTDrawBean pwtWinningBean = pwtWinBeanlist.get(k);</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">					if (pwtWinningBean.getPwtTicketType().equalsIgnoreCase(&quot;DRAW&quot;)) {</span>
+<span class="nc" id="L232">						int totRegister = 0;</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">						if (!pwtWinningBean.isValid()) {</span>
+<span class="nc" id="L234">							responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L235">							responseObject.put(&quot;errorMsg&quot;, &quot;Invalid Ticket.&quot;);</span>
+							return;
+<span class="nc bnc" id="L237" title="All 2 branches missed.">						} else if (pwtWinningBean.getStatus().equals(&quot;SUCCESS&quot;)) {</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">							for (int i = 0; i &lt; pwtWinningBean.getDrawWinList().size(); i++) {</span>
+<span class="nc" id="L239">								DrawIdBean drawBean = pwtWinningBean.getDrawWinList().get(i);</span>
+
+<span class="nc" id="L241">								int nonWin = 0;</span>
+<span class="nc" id="L242">								int win = 0;</span>
+<span class="nc" id="L243">								int clm=0;</span>
+<span class="nc" id="L244">								int register = 0;</span>
+<span class="nc" id="L245">								int claim = 0;</span>
+<span class="nc" id="L246">								int outVerify = 0;</span>
+<span class="nc" id="L247">								int pndPay = 0;</span>
+
+<span class="nc" id="L249">								String message = null;</span>
+
+<span class="nc" id="L251">								boolean isExpired = false;</span>
+<span class="nc" id="L252">								boolean isVerPending = false;</span>
+<span class="nc" id="L253">								boolean isClmPending = false;</span>
+<span class="nc" id="L254">								String drawStatusForTicket = drawBean.getStatus();</span>
+<span class="nc" id="L255">								gameName = Util.getGameName(pwtWinningBean.getGameNo());</span>
+
+<span class="nc" id="L257">								boolean isResAwaited = false;</span>
+<span class="nc" id="L258">								double drawAmt = 0.0;</span>
+<span class="nc" id="L259">								List&lt;PanelIdBean&gt; panelWinList = drawBean.getPanelWinList();</span>
+<span class="nc bnc" id="L260" title="All 4 branches missed.">								if (panelWinList != null &amp;&amp; !drawStatusForTicket.equals(&quot;DRAW_EXPIRED&quot;)) {</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">									for (int j = 0; j &lt; panelWinList.size(); j++) {</span>
+<span class="nc" id="L262">										PanelIdBean panelBean = panelWinList.get(j);</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">										if (panelBean.getStatus().equals(&quot;NON WIN&quot;)) {</span>
+<span class="nc" id="L264">											nonWin++;</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">										} else if (panelBean.getStatus().equals(&quot;NORMAL_PAY&quot;)) {</span>
+<span class="nc" id="L266">											drawAmt = panelBean.getWinningAmt() + drawAmt;</span>
+<span class="nc" id="L267">											win++;</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">										} else if (panelBean.getStatus().equals(&quot;CLAIMED&quot;)) {</span>
+<span class="nc" id="L269">											claim++;</span>
+<span class="nc bnc" id="L270" title="All 2 branches missed.">										} else if (panelBean.getStatus().equals(&quot;PND_PAY&quot;)) {</span>
+<span class="nc" id="L271">											pndPay++;</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">										} else if (panelBean.getStatus().equals(&quot;HIGH_PRIZE&quot;)) {</span>
+<span class="nc" id="L273">											register++;</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">										} else if (panelBean.getStatus().equals(&quot;OUT_PAY_LIMIT&quot;)) {</span>
+<span class="nc" id="L275">											register++;</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">										} else if (panelBean.getStatus().equals(&quot;OUT_VERIFY_LIMIT&quot;)) {</span>
+<span class="nc" id="L277">											outVerify++;</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">										} else if (panelBean.getStatus().equals(&quot;CLAIM_PENDING&quot;)) {</span>
+<span class="nc" id="L279">											drawAmt = panelBean.getWinningAmt()+ drawAmt;</span>
+<span class="nc" id="L280">											totalClmPndAmt += panelBean.getWinningAmt();</span>
+<span class="nc" id="L281">											clm++;</span>
+										}
+									}
+<span class="nc bnc" id="L284" title="All 2 branches missed.">								} else if (drawStatusForTicket.equals(&quot;DRAW_EXPIRED&quot;)) {</span>
+<span class="nc" id="L285">									isExpired = true;</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">								} else if (drawStatusForTicket.equals(&quot;VERIFICATION_PENDING&quot;)) {</span>
+<span class="nc" id="L287">									isVerPending = true;</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">								} else if (drawStatusForTicket.equals(&quot;CLAIM_PENDING&quot;)) {</span>
+<span class="nc" id="L289">									isClmPending = true;</span>
+								} else {
+<span class="nc" id="L291">									isResAwaited = true;</span>
+								}
+<span class="nc bnc" id="L293" title="All 2 branches missed.">								totTktAmt = (drawStatusForTicket.equals(&quot;CLAIM_PENDING&quot;)?0.0:drawAmt) + totTktAmt;</span>
+<span class="nc bnc" id="L294" title="All 2 branches missed.">								if (isExpired) {</span>
+									//stBuild.append(&quot;,No:0,Message:Draw EXP&quot;);
+<span class="nc" id="L296">									message = &quot;Draw EXP&quot;;</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">								} else if (isVerPending) {</span>
+									//stBuild.append(&quot;,No:0,Message:VER PEND&quot;);
+<span class="nc" id="L299">									message = &quot;VER PEND&quot;;</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">								} else if (isResAwaited) {</span>
+									//stBuild.append(&quot;,No:0,Message:Awaited&quot;);
+<span class="nc" id="L302">									message = &quot;Awaited&quot;;</span>
+								} else {
+<span class="nc bnc" id="L304" title="All 2 branches missed.">									if (nonWin != 0) {</span>
+										//stBuild.append(&quot;,No:&quot; + nonWin + &quot;,Message:TRY AGAIN&quot;);
+<span class="nc" id="L306">										message = &quot;TRY AGAIN&quot;;</span>
+									}
+<span class="nc bnc" id="L308" title="All 2 branches missed.">									if (win != 0) {</span>
+										//stBuild.append(&quot;,No:&quot; + win + &quot;,Message:WIN &quot; + Util.getBalInString(drawAmt) + &quot;&quot;);
+<span class="nc" id="L310">										message = &quot;WIN &quot; + Util.getBalInString(drawAmt);</span>
+									}
+<span class="nc bnc" id="L312" title="All 2 branches missed.">									if (register != 0) {</span>
+										//stBuild.append(&quot;,No:&quot; + register + &quot;,Message:REG. REQ.&quot;);
+<span class="nc" id="L314">										message = &quot;REG. REQ.&quot;;</span>
+									}
+<span class="nc bnc" id="L316" title="All 2 branches missed.">									if (claim != 0) {</span>
+										//stBuild.append(&quot;,No:&quot; + claim + &quot;,Message:CLAIMED&quot;);
+<span class="nc" id="L318">										message = &quot;CLAIMED&quot;;</span>
+									}
+<span class="nc bnc" id="L320" title="All 2 branches missed.">									if (pndPay != 0) {</span>
+										//stBuild.append(&quot;,No:&quot; + pndPay + &quot;,Message:IN PROCESS&quot;);
+<span class="nc" id="L322">										message = &quot;IN PROCESS&quot;;</span>
+									}
+<span class="nc bnc" id="L324" title="All 2 branches missed.">									if (outVerify != 0) {</span>
+										//stBuild.append(&quot;,No:&quot; + outVerify + &quot;,Message:OUT OF VERIFY&quot;);
+<span class="nc" id="L326">										message = &quot;OUT OF VERIFY&quot;;</span>
+									}
+<span class="nc bnc" id="L328" title="All 2 branches missed.">									if(clm!=0){</span>
+										//stBuild.append(&quot;,No:&quot; + clm + &quot;,Message:CLM PND &quot;+ Util.getBalInString(drawAmt));
+<span class="nc" id="L330">										message = &quot;CLM PND &quot; + Util.getBalInString(drawAmt);</span>
+									}
+								}
+<span class="nc" id="L333">								totRegister = totRegister + register;</span>
+
+<span class="nc" id="L335">								String drawDateTime = drawBean.getDrawDateTime();</span>
+<span class="nc" id="L336">								drawDataBean = new JSONObject();</span>
+<span class="nc" id="L337">								drawDataBean.put(&quot;drawName&quot;, drawBean.getDrawname());</span>
+<span class="nc" id="L338">								drawDataBean.put(&quot;drawDate&quot;, drawDateTime.split(&quot; &quot;)[0]);</span>
+<span class="nc" id="L339">								drawDataBean.put(&quot;drawTime&quot;, drawDateTime.split(&quot; &quot;)[1].split(&quot;\\*&quot;)[0]);</span>
+<span class="nc" id="L340">								drawDataBean.put(&quot;panelWinning&quot;, win);</span>
+<span class="nc" id="L341">								drawDataBean.put(&quot;prizeAmount&quot;, drawAmt);</span>
+<span class="nc" id="L342">								drawDataBean.put(&quot;message&quot;, message);</span>
+<span class="nc" id="L343">								drawDataArray.add(drawDataBean);</span>
+							}
+<span class="nc bnc" id="L345" title="All 2 branches missed.">						} else if (pwtWinningBean.getStatus().equals(&quot;ERROR&quot;)) {</span>
+<span class="nc" id="L346">							responseObject.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L347">							responseObject.put(&quot;errorMsg&quot;, &quot;ERROR! Please Try Again.&quot;);</span>
+							return;
+						}
+
+<span class="nc" id="L351">						totTktAmt = totTktAmt + totalRaffleAmount;</span>
+
+<span class="nc" id="L353">						currentUserSessionMap.put(userName, session);</span>
+					}
+				}
+			}
+
+<span class="nc" id="L358">			ajaxRequestHelper.getAvlblCreditAmt(userInfoBean);</span>
+<span class="nc" id="L359">			double balance2 = userInfoBean.getAvailableCreditLimit() - userInfoBean.getClaimableBal();</span>
+<span class="nc" id="L360">			double balance = balance2 - balance1;</span>
+
+<span class="nc bnc" id="L362" title="All 2 branches missed.">			if (!mainWinningBean.isReprint()) {</span>
+<span class="nc" id="L363">				SimpleDateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L364">				SimpleDateFormat timeFormat = new SimpleDateFormat(&quot;HH:mm:ss&quot;);</span>
+<span class="nc" id="L365">				Date currentDate = new Date();</span>
+<span class="nc" id="L366">				responseObject.put(&quot;isSuccess&quot;, true);</span>
+<span class="nc" id="L367">				responseObject.put(&quot;errorMsg&quot;, &quot;&quot;);</span>
+<span class="nc bnc" id="L368" title="All 2 branches missed.">				if(ticketNumber.length() == 20)</span>
+<span class="nc" id="L369">					ticketNumber = ticketNumber.substring(0, ticketNumber.length()-2);</span>
+<span class="nc" id="L370">				responseObject.put(&quot;ticketNumber&quot;, ticketNumber);</span>
+<span class="nc" id="L371">				responseObject.put(&quot;currentDate&quot;, dateFormat.format(currentDate));</span>
+<span class="nc" id="L372">				responseObject.put(&quot;currentTime&quot;, timeFormat.format(currentDate));</span>
+<span class="nc" id="L373">				responseObject.put(&quot;gameName&quot;, gameName);</span>
+<span class="nc" id="L374">				responseObject.put(&quot;totalPay&quot;, totTktAmt);</span>
+<span class="nc" id="L375">				responseObject.put(&quot;totalClaimPending&quot;, totalClmPndAmt);</span>
+<span class="nc" id="L376">				responseObject.put(&quot;balance&quot;, balance2);</span>
+<span class="nc" id="L377">				responseObject.put(&quot;drawDataList&quot;, drawDataArray);</span>
+			}
+
+			/*
+			if (mainWinningBean.isReprint()) {
+				Object Purchasebean = mainWinningBean.getPurchaseBean();
+				if (Purchasebean instanceof FortunePurchaseBean) {
+					int gamenbr = helper.getGamenoFromTktnumber(mainWinningBean.getTicketNo());
+					gameName = Util.getGameName(gamenbr);
+
+					FortunePurchaseBean bean = (FortunePurchaseBean) mainWinningBean.getPurchaseBean();
+					stBuild.append(&quot;RPRT:&quot;
+							+ ReprintHepler.reprintFortuneTicket(bean, gameName));
+					String raffleDataRPRT = CommonMethods.buildRaffleData(bean
+							.getRafflePurchaseBeanList());
+
+					finalPwtData = raffleData + stBuild.toString() + &quot;|Amt:&quot;
+					+ balance + &quot;|QP:&quot; + bean.getIsQuickPick()[0] + &quot;|&quot;
+					+ raffleDataRPRT;
+				} else if (Purchasebean instanceof LottoPurchaseBean) {
+					int gamenbr = helper.getGamenoFromTktnumber(mainWinningBean
+							.getTicketNo());
+					gameName = Util.getGameName(gamenbr);
+
+					LottoPurchaseBean bean = (LottoPurchaseBean) mainWinningBean
+					.getPurchaseBean();
+					stBuild.append(&quot;RPRT:&quot;
+							+ ReprintHepler.reprintLottoTicket(bean, gameName));
+					String raffleDataRPRT = CommonMethods.buildRaffleData(bean
+							.getRafflePurchaseBeanList());
+
+					finalPwtData = raffleData + stBuild.toString() + &quot;|Amt:&quot;
+					+ balance + &quot;|QP:&quot; + bean.getIsQuickPick()[0] + &quot;|&quot;
+					+ raffleDataRPRT;
+				} else if (Purchasebean instanceof KenoPurchaseBean) {
+					int gamenbr = helper.getGamenoFromTktnumber(mainWinningBean
+							.getTicketNo());
+					gameName = Util.getGameName(gamenbr);
+
+					KenoPurchaseBean bean = (KenoPurchaseBean) mainWinningBean
+					.getPurchaseBean();
+					stBuild.append(&quot;RPRT:&quot;
+							+ ReprintHepler.reprintKenoTicket(bean, gameName,userInfoBean.getTerminalBuildVersion(),countryDeployed));
+					String raffleDataRPRT = CommonMethods.buildRaffleData(bean
+							.getRafflePurchaseBeanList());
+
+					finalPwtData = raffleData + stBuild.toString() + &quot;|Amt:&quot;
+					+ balance + &quot;|QP:&quot; + bean.getIsQuickPick()[0] + &quot;|&quot;
+					+ raffleDataRPRT;
+				} else if (Purchasebean instanceof FortuneTwoPurchaseBean) {
+					int gameNbr = helper.getGamenoFromTktnumber(mainWinningBean
+							.getTicketNo());
+					gameName = Util.getGameName(gameNbr);
+					FortuneTwoPurchaseBean bean = (FortuneTwoPurchaseBean) mainWinningBean
+					.getPurchaseBean();
+					stBuild
+					.append(&quot;RPRT:&quot;
+							+ ReprintHepler.reprintFortuneTwoTicket(bean,
+									gameName));
+					String raffleDataRPRT = CommonMethods.buildRaffleData(bean
+							.getRafflePurchaseBeanList());
+					finalPwtData = raffleData + stBuild.toString() + &quot;|Amt:&quot;
+					+ balance + &quot;|QP:&quot; + bean.getIsQuickPick()[0] + &quot;|&quot;
+					+ raffleDataRPRT;
+				} else if (Purchasebean instanceof FortuneThreePurchaseBean) {
+					int gameNbr = helper.getGamenoFromTktnumber(mainWinningBean
+							.getTicketNo());
+					gameName = Util.getGameName(gameNbr);
+					FortuneThreePurchaseBean bean = (FortuneThreePurchaseBean) mainWinningBean
+					.getPurchaseBean();
+					stBuild
+					.append(&quot;RPRT:&quot;
+							+ ReprintHepler.reprintFortuneThreeTicket(bean,
+									gameName));
+					String raffleDataRPRT = CommonMethods.buildRaffleData(bean
+							.getRafflePurchaseBeanList());
+					finalPwtData = raffleData + stBuild.toString() + &quot;|Amt:&quot;
+					+ balance + &quot;|QP:&quot; + bean.getIsQuickPick()[0] + &quot;|&quot;
+					+ raffleDataRPRT;
+				}
+			} else {
+				finalPwtData = raffleData + stBuild.toString() + &quot;Amt:&quot; + balance
+				+ &quot;|&quot;;
+			}
+			*/
+<span class="nc" id="L462">		} catch (IOException e) {</span>
+<span class="nc" id="L463">			e.printStackTrace();</span>
+<span class="nc" id="L464">			responseObject.put(&quot;errorMsg&quot;, &quot;IOException Occured.&quot;);</span>
+<span class="nc" id="L465">			responseObject.put(&quot;isSuccess&quot;, false);</span>
+			return;
+<span class="nc" id="L467">		} catch (Exception e) {</span>
+<span class="nc" id="L468">			e.printStackTrace();</span>
+<span class="nc" id="L469">			responseObject.put(&quot;errorMsg&quot;, &quot;Exception Occured.&quot;);</span>
+<span class="nc" id="L470">			responseObject.put(&quot;isSuccess&quot;, false);</span>
+			return;
+		} finally {
+<span class="nc bnc" id="L473" title="All 16 branches missed.">			if (responseObject.isEmpty()) {</span>
+<span class="nc" id="L474">				responseObject.put(&quot;errorMsg&quot;, &quot;Compile Time Error.&quot;);</span>
+<span class="nc" id="L475">				responseObject.put(&quot;isSuccess&quot;, false);</span>
+			}
+<span class="nc" id="L477">			logger.info(&quot;Cancel Response Data : &quot; + responseObject);</span>
+<span class="nc" id="L478">			out.print(responseObject);</span>
+<span class="nc" id="L479">			out.flush();</span>
+<span class="nc" id="L480">			out.close();</span>
+<span class="nc" id="L481">		}</span>
+<span class="nc" id="L482">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

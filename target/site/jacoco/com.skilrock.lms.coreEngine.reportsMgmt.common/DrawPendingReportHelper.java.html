@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DrawPendingReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">DrawPendingReportHelper.java</span></div><h1>DrawPendingReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.DrawPendingSettlementBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L20">public class DrawPendingReportHelper {</span>
+<span class="nc" id="L21">	private static final Log logger = LogFactory.getLog(DrawPendingReportHelper.class);</span>
+
+	public List&lt;DrawPendingSettlementBean&gt; getProcessTicketsData(int agentOrgId, String interfaceType) throws LMSException {
+<span class="nc" id="L24">		Connection connection = null;</span>
+<span class="nc" id="L25">		Statement stmt = null;</span>
+<span class="nc" id="L26">		ResultSet rs = null;</span>
+<span class="nc" id="L27">		String gameQuery = null;</span>
+<span class="nc" id="L28">		StringBuilder queryBuilder = new StringBuilder(&quot;SELECT parent_id agentOrgId, (SELECT &quot;).append(QueryManager.getOrgCodeQuery()).append(&quot; FROM st_lms_organization_master mm WHERE mm.organization_id=aa.parent_id)org_name, COUNT(ticket_nbr) ticket_count, SUM(mrp_amt) total_mrp FROM (&quot;);</span>
+<span class="nc" id="L29">		String query = &quot;&quot;;</span>
+<span class="nc" id="L30">		List&lt;DrawPendingSettlementBean&gt; drawPendingSettlementList = new ArrayList&lt;DrawPendingSettlementBean&gt;();</span>
+<span class="nc" id="L31">		DrawPendingSettlementBean drawPendingSettlementBean = null;</span>
+		try {
+<span class="nc" id="L33">			String appender = &quot;&quot;;</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">			if(agentOrgId != -1) {</span>
+<span class="nc" id="L35">				appender = &quot; AND parent_id=&quot;+agentOrgId;</span>
+			}
+
+<span class="nc" id="L38">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L39">			stmt = connection.createStatement();</span>
+<span class="nc" id="L40">			gameQuery = &quot;SELECT game_id FROM st_dg_game_master WHERE game_status='OPEN';&quot;;</span>
+<span class="nc" id="L41">			logger.info(&quot;Game List Query - &quot;+gameQuery);</span>
+<span class="nc" id="L42">			rs = stmt.executeQuery(gameQuery);</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L44">				queryBuilder.append(&quot;SELECT om.parent_id, ret_org_id, NAME, &quot;).append(interfaceType).append(&quot;_ticket_number ticket_nbr, mrp_amt FROM st_dg_last_sold_ticket lst INNER JOIN st_dg_ret_sale_&quot;).append(rs.getInt(&quot;game_id&quot;)).append(&quot; rs ON lst.&quot;).append(interfaceType).append(&quot;_ticket_number=rs.ticket_nbr INNER JOIN st_lms_organization_master om ON lst.ret_org_id=om.organization_id WHERE &quot;).append(interfaceType).append(&quot;_ticket_status='SOLD'&quot;).append(appender).append(&quot; UNION ALL &quot;);</span>
+			}
+<span class="nc" id="L46">			query = queryBuilder.substring(0, queryBuilder.lastIndexOf(&quot; UNION ALL &quot;))+&quot;)aa GROUP BY parent_id ORDER BY org_name;&quot;;</span>
+
+<span class="nc" id="L48">			stmt = connection.createStatement();</span>
+<span class="nc" id="L49">			logger.info(&quot;getProcessTicketsData Query - &quot;+query);</span>
+<span class="nc" id="L50">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L52">				drawPendingSettlementBean = new DrawPendingSettlementBean();</span>
+<span class="nc" id="L53">				drawPendingSettlementBean.setAgentOrgId(rs.getInt(&quot;agentOrgId&quot;));</span>
+<span class="nc" id="L54">				drawPendingSettlementBean.setAgentOrgName(rs.getString(&quot;org_name&quot;));</span>
+<span class="nc" id="L55">				drawPendingSettlementBean.setProcessingTickets(rs.getInt(&quot;ticket_count&quot;));</span>
+<span class="nc" id="L56">				drawPendingSettlementBean.setProcessingAmount(rs.getDouble(&quot;total_mrp&quot;));</span>
+<span class="nc" id="L57">				drawPendingSettlementList.add(drawPendingSettlementBean);</span>
+			}
+<span class="nc" id="L59">		} catch (Exception ex) {</span>
+<span class="nc" id="L60">			ex.printStackTrace();</span>
+<span class="nc" id="L61">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L63">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L64">		}</span>
+
+<span class="nc" id="L66">		return drawPendingSettlementList;</span>
+	}
+
+	public List&lt;DrawPendingSettlementBean&gt; getUnsuccessfulTicketsData(int agentOrgId, Timestamp startTime, Timestamp endTime) throws LMSException {
+<span class="nc" id="L70">		Connection connection = null;</span>
+<span class="nc" id="L71">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L72">		ResultSet rs = null;</span>
+<span class="nc" id="L73">		List&lt;DrawPendingSettlementBean&gt; drawPendingSettlementList = new ArrayList&lt;DrawPendingSettlementBean&gt;();</span>
+<span class="nc" id="L74">		DrawPendingSettlementBean drawPendingSettlementBean = null;</span>
+		try {
+<span class="nc" id="L76">			String appender = &quot;&quot;;</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">			if(agentOrgId != -1) {</span>
+<span class="nc" id="L78">				appender = &quot; AND om.parent_id=&quot;+agentOrgId;</span>
+			}
+
+<span class="nc" id="L81">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L82">			pstmt = connection.prepareStatement(&quot;SELECT agentOrgId, org_name, cancel_expired, cancel_expired_mrp, cancel_failed, cancel_failed_mrp, server_error, server_error_mrp, cancel_expired+cancel_failed+server_error total_ticket, (cancel_expired_mrp+cancel_failed_mrp+server_error_mrp) total_mrp FROM (SELECT SUM(cancel_expired) cancel_expired, SUM(cancel_failed) cancel_failed, SUM(server_error) server_error, (SELECT &quot;+QueryManager.getOrgCodeQuery()+&quot; FROM st_lms_organization_master mm WHERE mm.organization_id=om.parent_id) org_name, parent_id agentOrgId, SUM(cancel_expired_mrp) cancel_expired_mrp, SUM(cancel_failed_mrp) cancel_failed_mrp, SUM(server_error_mrp) server_error_mrp FROM (SELECT retailer_org_id, IF(reason='CANCEL_EXPIRED', SUM(mrp_amt), 0) cancel_expired_mrp, IF(reason='AUTO_CANCEL_FAILED', SUM(mrp_amt),0)cancel_failed_mrp, IF(reason IN ('CANCEL_SERVER_FAILED','DG_ERROR'), SUM(mrp_amt), 0) server_error_mrp, IF(reason='CANCEL_EXPIRED', COUNT(ticket_nbr),0)cancel_expired, IF(reason='AUTO_CANCEL_FAILED', COUNT(ticket_nbr), 0) cancel_failed, IF(reason IN ('CANCEL_SERVER_FAILED','DG_ERROR'), COUNT(ticket_nbr), 0) server_error FROM st_dg_ret_pending_cancel WHERE transaction_date&gt;=? AND transaction_date&lt;=? GROUP BY reason, retailer_org_id)cancel INNER JOIN st_lms_organization_master om ON cancel.retailer_org_id=om.organization_id&quot;+appender+&quot; GROUP BY parent_id)main ORDER BY org_name;&quot;);</span>
+<span class="nc" id="L83">			pstmt.setTimestamp(1, startTime);</span>
+<span class="nc" id="L84">			pstmt.setTimestamp(2, endTime);</span>
+<span class="nc" id="L85">			logger.info(&quot;getUnsuccessfulTicketsData Query - &quot;+pstmt);</span>
+<span class="nc" id="L86">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L88">				drawPendingSettlementBean = new DrawPendingSettlementBean();</span>
+<span class="nc" id="L89">				drawPendingSettlementBean.setAgentOrgId(rs.getInt(&quot;agentOrgId&quot;));</span>
+<span class="nc" id="L90">				drawPendingSettlementBean.setAgentOrgName(rs.getString(&quot;org_name&quot;));</span>
+<span class="nc" id="L91">				drawPendingSettlementBean.setDelayExpTicket(rs.getInt(&quot;cancel_expired&quot;));</span>
+<span class="nc" id="L92">				drawPendingSettlementBean.setDelayExpAmount(rs.getDouble(&quot;cancel_expired_mrp&quot;));</span>
+<span class="nc" id="L93">				drawPendingSettlementBean.setUnNotifyExpTicket(rs.getInt(&quot;cancel_failed&quot;));</span>
+<span class="nc" id="L94">				drawPendingSettlementBean.setUnNotifyExpAmount(rs.getDouble(&quot;cancel_failed_mrp&quot;));</span>
+<span class="nc" id="L95">				drawPendingSettlementBean.setServerErrorExpTicket(rs.getInt(&quot;server_error&quot;));</span>
+<span class="nc" id="L96">				drawPendingSettlementBean.setServerErrorExpAmount(rs.getDouble(&quot;server_error_mrp&quot;));</span>
+<span class="nc" id="L97">				drawPendingSettlementBean.setTotalExpTicket(rs.getInt(&quot;total_ticket&quot;));</span>
+<span class="nc" id="L98">				drawPendingSettlementBean.setTotalExpAmount(rs.getDouble(&quot;total_mrp&quot;));</span>
+<span class="nc" id="L99">				drawPendingSettlementList.add(drawPendingSettlementBean);</span>
+			}
+<span class="nc" id="L101">		} catch (Exception ex) {</span>
+<span class="nc" id="L102">			ex.printStackTrace();</span>
+<span class="nc" id="L103">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L105">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L106">		}</span>
+
+<span class="nc" id="L108">		return drawPendingSettlementList;</span>
+	}
+
+	public List&lt;DrawPendingSettlementBean&gt; getRetTicketProcessData(int agentOrgId, String interfaceType) throws LMSException {
+<span class="nc" id="L112">		Connection connection = null;</span>
+<span class="nc" id="L113">		Statement stmt = null;</span>
+<span class="nc" id="L114">		ResultSet rs = null;</span>
+<span class="nc" id="L115">		String gameQuery = null;</span>
+<span class="nc" id="L116">		StringBuilder queryBuilder = null;</span>
+<span class="nc" id="L117">		String query = &quot;&quot;;</span>
+<span class="nc" id="L118">		List&lt;DrawPendingSettlementBean&gt; drawPendingSettlementList = new ArrayList&lt;DrawPendingSettlementBean&gt;();</span>
+<span class="nc" id="L119">		DrawPendingSettlementBean drawPendingSettlementBean = null;</span>
+		try {
+<span class="nc" id="L121">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L122">			stmt = connection.createStatement();</span>
+<span class="nc" id="L123">			gameQuery = &quot;SELECT game_id FROM st_dg_game_master WHERE game_status='OPEN';&quot;;</span>
+<span class="nc" id="L124">			logger.info(&quot;Game List Query - &quot;+gameQuery);</span>
+<span class="nc" id="L125">			rs = stmt.executeQuery(gameQuery);</span>
+<span class="nc" id="L126">			queryBuilder = new StringBuilder(&quot;SELECT ret_org_id, orgCode, ticket_nbr, mrp_amt FROM (&quot;);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L128">				queryBuilder.append(&quot;SELECT ret_org_id,&quot;).append(QueryManager.getOrgCodeQuery()).append(&quot;, &quot;).append(interfaceType).append(&quot;_ticket_number ticket_nbr, mrp_amt FROM st_dg_last_sold_ticket lst INNER JOIN st_dg_ret_sale_&quot;).append(rs.getInt(&quot;game_id&quot;)).append(&quot; rs ON lst.&quot;).append(interfaceType).append(&quot;_ticket_number=rs.ticket_nbr LEFT JOIN st_lms_organization_master om ON lst.ret_org_id=om.organization_id WHERE &quot;).append(interfaceType).append(&quot;_ticket_status='SOLD' AND om.parent_id=&quot;).append(agentOrgId).append(&quot; UNION ALL &quot;);</span>
+			}
+<span class="nc" id="L130">			query = queryBuilder.substring(0, queryBuilder.lastIndexOf(&quot; UNION ALL &quot;))+&quot;)aa ORDER BY orgCode;&quot;;</span>
+
+<span class="nc" id="L132">			stmt = connection.createStatement();</span>
+<span class="nc" id="L133">			logger.info(&quot;getRetailerProcessData Query - &quot;+query);</span>
+<span class="nc" id="L134">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L136">				drawPendingSettlementBean = new DrawPendingSettlementBean();</span>
+<span class="nc" id="L137">				drawPendingSettlementBean.setRetailerOrgId(rs.getInt(&quot;ret_org_id&quot;));</span>
+<span class="nc" id="L138">				drawPendingSettlementBean.setRetailerOrgName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L139">				String ticketNumber = rs.getString(&quot;ticket_nbr&quot;);</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">				if(ticketNumber.length()==1) {</span>
+<span class="nc" id="L141">					drawPendingSettlementBean.setTicketNumber(ticketNumber);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">				} else if(ticketNumber.length()==17) {</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">					if(&quot;NEWTKTFORMAT&quot;.equalsIgnoreCase(Util.getTicketNumberFormat(ticketNumber+Util.getRpcAppenderForTickets(ticketNumber.length())))) {</span>
+<span class="nc" id="L144">						drawPendingSettlementBean.setTicketNumber(&quot;XXXX&quot;+ticketNumber.substring(4, 17));</span>
+					} else {
+<span class="nc" id="L146">						drawPendingSettlementBean.setTicketNumber(ticketNumber.substring(0, 13)+&quot;XXXXX&quot;);</span>
+					}
+				} else {
+<span class="nc" id="L149">					drawPendingSettlementBean.setTicketNumber(ticketNumber.substring(0, 12)+&quot;XX&quot;);</span>
+				}
+<span class="nc" id="L151">				drawPendingSettlementBean.setProcessingAmount(rs.getDouble(&quot;mrp_amt&quot;));</span>
+<span class="nc" id="L152">				drawPendingSettlementList.add(drawPendingSettlementBean);</span>
+<span class="nc" id="L153">			}</span>
+<span class="nc" id="L154">		} catch (Exception ex) {</span>
+<span class="nc" id="L155">			ex.printStackTrace();</span>
+<span class="nc" id="L156">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L158">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L159">		}</span>
+
+<span class="nc" id="L161">		return drawPendingSettlementList;</span>
+	}
+
+	public List&lt;DrawPendingSettlementBean&gt; getRetailerUnsuccessfulData(int agentOrgId, Timestamp startTime, Timestamp endTime) throws LMSException {
+<span class="nc" id="L165">		Connection connection = null;</span>
+<span class="nc" id="L166">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L167">		ResultSet rs = null;</span>
+<span class="nc" id="L168">		List&lt;DrawPendingSettlementBean&gt; drawPendingSettlementList = new ArrayList&lt;DrawPendingSettlementBean&gt;();</span>
+<span class="nc" id="L169">		DrawPendingSettlementBean drawPendingSettlementBean = null;</span>
+		try {
+<span class="nc" id="L171">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L172">			pstmt = connection.prepareStatement(&quot;SELECT retailer_org_id,&quot;+QueryManager.getOrgCodeQuery()+&quot;, ticket_nbr, ticket_nbr, mrp_amt, reason FROM (SELECT retailer_org_id, ticket_nbr, mrp_amt, reason FROM st_dg_ret_pending_cancel WHERE transaction_date&gt;=? AND transaction_date&lt;=?)cancel INNER JOIN st_lms_organization_master om ON cancel.retailer_org_id=om.organization_id AND om.parent_id=&quot;+agentOrgId+&quot; ORDER BY &quot;+QueryManager.getAppendOrgOrder()+&quot;;&quot;);</span>
+<span class="nc" id="L173">			pstmt.setTimestamp(1, startTime);</span>
+<span class="nc" id="L174">			pstmt.setTimestamp(2, endTime);</span>
+<span class="nc" id="L175">			logger.info(&quot;getRetailerUnsuccessfulData Query - &quot;+pstmt);</span>
+<span class="nc" id="L176">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L178">				drawPendingSettlementBean = new DrawPendingSettlementBean();</span>
+<span class="nc" id="L179">				drawPendingSettlementBean.setRetailerOrgId(rs.getInt(&quot;retailer_org_id&quot;));</span>
+<span class="nc" id="L180">				drawPendingSettlementBean.setRetailerOrgName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L181">				drawPendingSettlementBean.setTicketNumber(rs.getString(&quot;ticket_nbr&quot;));</span>
+<span class="nc" id="L182">				String ticketNumber = rs.getString(&quot;ticket_nbr&quot;);</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">				if(ticketNumber.length()==1) {</span>
+<span class="nc" id="L184">					drawPendingSettlementBean.setTicketNumber(ticketNumber);</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">				} else if(ticketNumber.length()==17) {</span>
+					//drawPendingSettlementBean.setTicketNumber(ticketNumber.substring(0, 13)+&quot;XXXXX&quot;);
+<span class="nc bnc" id="L187" title="All 2 branches missed.">					if(&quot;NEWTKTFORMAT&quot;.equalsIgnoreCase(Util.getTicketNumberFormat(ticketNumber+Util.getRpcAppenderForTickets(ticketNumber.length())))) {</span>
+<span class="nc" id="L188">						drawPendingSettlementBean.setTicketNumber(&quot;XXXX&quot;+ticketNumber.substring(4, 17));</span>
+					} else {
+<span class="nc" id="L190">						drawPendingSettlementBean.setTicketNumber(ticketNumber.substring(0, 13)+&quot;XXXXX&quot;);</span>
+					}
+				} else {
+<span class="nc" id="L193">					drawPendingSettlementBean.setTicketNumber(ticketNumber.substring(0, 12)+&quot;XX&quot;);</span>
+				}
+<span class="nc" id="L195">				drawPendingSettlementBean.setProcessingAmount(rs.getDouble(&quot;mrp_amt&quot;));</span>
+<span class="nc" id="L196">				drawPendingSettlementBean.setCancelReason(rs.getString(&quot;reason&quot;));</span>
+<span class="nc" id="L197">				drawPendingSettlementList.add(drawPendingSettlementBean);</span>
+<span class="nc" id="L198">			}</span>
+<span class="nc" id="L199">		} catch (Exception ex) {</span>
+<span class="nc" id="L200">			ex.printStackTrace();</span>
+<span class="nc" id="L201">			throw new LMSException();</span>
+		} finally {
+<span class="nc" id="L203">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L204">		}</span>
+
+<span class="nc" id="L206">		return drawPendingSettlementList;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

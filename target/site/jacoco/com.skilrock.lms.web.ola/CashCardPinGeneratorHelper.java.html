@@ -1,0 +1,494 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CashCardPinGeneratorHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.ola</a> &gt; <span class="el_source">CashCardPinGeneratorHelper.java</span></div><h1>CashCardPinGeneratorHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.ola;
+
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+
+import org.apache.commons.codec.binary.Base64;
+
+import rng.RNGUtilities;
+
+import com.skilrock.lms.beans.CashCardPinBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.coreEngine.ola.SendSMS;
+import com.skilrock.lms.coreEngine.ola.common.EncpDecpUtil;
+/**
+ * This class provide methods to generated cashCard,serialNumbers,PinNumbers,pinEncryption,
+ * pinDecryption,RecordInsertion at the time of Pin Generation,write generated pins to file.
+ * @author Neeraj Jain
+ *
+ */
+
+<span class="nc" id="L36">public class CashCardPinGeneratorHelper {</span>
+<span class="nc" id="L37">	Connection con = null;</span>
+<span class="nc" id="L38">	Connection con1 = null;</span>
+<span class="nc" id="L39">	PreparedStatement pstmt = null;</span>
+<span class="nc" id="L40">	PreparedStatement pstmt1 = null;</span>
+<span class="nc" id="L41">	PreparedStatement pstmt2 = null;</span>
+<span class="nc" id="L42">	PreparedStatement pstmt3 = null;</span>
+<span class="nc" id="L43">	String query = null;</span>
+<span class="nc" id="L44">	HashSet&lt;Long&gt; hPin = new HashSet&lt;Long&gt;();//Pin Set</span>
+<span class="nc" id="L45">	List&lt;Long&gt; listSerial = new ArrayList&lt;Long&gt;();//Serial Number List</span>
+/**
+ * this method generated pins for a given quantity 
+ * 
+ * @param distributorType For which pins has been generated
+ * @param denoType   Cash Card Denomination 
+ * @param pinQuantity Number of pins to be generated
+ * @param partyType   where pins will be redeemed 
+ * @param walletId    Pin Wallet
+ * @param expiryDate  date till pin is valid
+ * @param rootPath		deploy path to save pin files
+ * @param pinBean     bean contain pin data
+ * @param desKey      DES KEY 
+ * @param propKey	  AES KEY		
+ * @param userName	 BO user by whom pins has been generated	
+ * @param ip		 IP Address from where pin has been generated
+ * @return  CashCardPinBean
+ * @throws LMSException
+ */
+	public CashCardPinBean cashCardPinGenerator(String distributorType,
+			int denoType, int pinQuantity, String partyType, int walletId,
+			String expiryDate, String rootPath, CashCardPinBean pinBean,
+			String desKey, String propKey, String userName,String ip,double commRate) throws LMSException {
+
+<span class="nc" id="L69">		SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L70">		String tableName = &quot;st_ola_cashcard_rm_&quot; + walletId + &quot;_&quot; + denoType; </span>
+	try {
+<span class="nc" id="L72">		    con = DBConnect.getConnection();</span>
+<span class="nc" id="L73">			con.setAutoCommit(false);</span>
+			//Insert Pin Generation Record
+<span class="nc" id="L75">			int generatedKey = pinRecord(con,userName,pinQuantity,denoType,walletId,distributorType,ip,commRate,expiryDate);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">			if(generatedKey==0){</span>
+<span class="nc" id="L77">				pinBean.setSuccess(false);</span>
+<span class="nc" id="L78">				System.out.println(&quot;Error In Pin Record Insertion &quot;);</span>
+<span class="nc" id="L79">				return pinBean;</span>
+			}
+<span class="nc" id="L81">			boolean tableExits = checkTable(tableName,con ); </span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">			if(!tableExits)</span>
+			{
+<span class="nc" id="L84">				query = &quot;create table &quot;+ tableName+ &quot;(serial_number bigint(16) unsigned NOT NULL,pin_number  varchar(50) NOT NULL,amount decimal(10,2) NOT NULL,expiry_date date NOT NULL,&quot;                      </span>
+							+ &quot; distributor varchar(10) NOT NULL,player_id varchar(50),lms_transaction_id bigint(20) NOT NULL,tp_transaction_id varchar(20) default NULL,verification_date datetime ,&quot;                 
+								+ &quot; verification_status enum('PENDING','DONE') NOT NULL,generation_id int default 0, PRIMARY KEY  (serial_number),FOREIGN KEY (generation_id ) REFERENCES st_ola_pin_status(generation_id ))ENGINE=InnoDB&quot;;
+<span class="nc" id="L87">				pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L88">				pstmt.executeUpdate();</span>
+				
+			}
+			//Get the lastGeneratedSerial count and Day Count
+<span class="nc" id="L92">			String lastGeneratedSerialDayCount[] = getLastGeneratedPin(walletId ,con,&quot;FIXED&quot;);</span>
+<span class="nc bnc" id="L93" title="All 4 branches missed.">			if(lastGeneratedSerialDayCount[0]==null||lastGeneratedSerialDayCount==null){</span>
+<span class="nc" id="L94">				pinBean.setReturnType(null);</span>
+<span class="nc" id="L95">				System.out.print(&quot;Entry of this type does not exists in  st_ola_pin_generation table...&quot;);</span>
+<span class="nc" id="L96">				pinBean.setSuccess(false);</span>
+<span class="nc" id="L97">				return pinBean;</span>
+			}
+			
+<span class="nc" id="L100">			String lastGeneratedSerial=lastGeneratedSerialDayCount[0];</span>
+<span class="nc" id="L101">			String lastGeneratedDayCount=lastGeneratedSerialDayCount[1];</span>
+				
+<span class="nc" id="L103">			listSerial = randomSerial(&quot;FIXED&quot;, listSerial, pinQuantity,walletId,lastGeneratedSerial,lastGeneratedDayCount);// generate serial Numbers for given quantity </span>
+<span class="nc" id="L104">			hPin = randomPin(hPin, pinQuantity);// generate pins for given quantity</span>
+<span class="nc" id="L105">			List&lt;Long&gt; listPin = new ArrayList&lt;Long&gt;(hPin);//change pins hash set to list</span>
+<span class="nc" id="L106">			pinBean.setStartSerialNumber(listSerial.get(0));//Set Starting Serial  Number</span>
+<span class="nc" id="L107">			System.out.println(&quot;SR. Number &quot; + listSerial.get(0));</span>
+<span class="nc" id="L108">			int endPinIndex = listSerial.size()-1;</span>
+<span class="nc" id="L109">			pinBean.setEndSerialNumber(listSerial.get(endPinIndex));//Set End Serial Number</span>
+<span class="nc" id="L110">			System.out.println(&quot;SR. Number &quot; + listSerial.get(endPinIndex));</span>
+			// update st_ola_pin_generation
+<span class="nc" id="L112">			pstmt3 =con.prepareStatement(&quot;update st_ola_pin_generation set last_generated_serial_nbr=? where wallet_id =? and pin_type = ? &quot;);</span>
+<span class="nc" id="L113">			pstmt3.setString(1,listSerial.get(endPinIndex).toString().substring(7));</span>
+<span class="nc" id="L114">			pstmt3.setInt(2,walletId);</span>
+<span class="nc" id="L115">			pstmt3.setString(3,&quot;FIXED&quot;);</span>
+<span class="nc" id="L116">			pstmt3.executeUpdate();</span>
+<span class="nc" id="L117">			Collections.shuffle(listPin);//shuffle the Pin Numbers</span>
+<span class="nc" id="L118">			pstmt1 = con.prepareStatement(&quot;insert into &quot;</span>
+					+ tableName + &quot;(serial_number,pin_number,amount,expiry_date,distributor,lms_transaction_id ,verification_status,generation_id) values(?,?,?,?,?,?,?,?)&quot;);
+			
+<span class="nc" id="L121">			File directory = new File(rootPath + &quot;/PinFiles&quot;);</span>
+<span class="nc" id="L122">			boolean exists = directory.exists();</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">			if (!exists) {</span>
+<span class="nc" id="L124">				directory.mkdirs();</span>
+			}
+			
+<span class="nc" id="L127">		  File file = File.createTempFile(tableName,&quot;.txt&quot;,directory);</span>
+<span class="nc" id="L128">		  FileWriter writer = new FileWriter(file);</span>
+<span class="nc" id="L129">		  writer.write(&quot;Serial Number\tPin Number\tAmount\tExpiry Date&quot;);</span>
+<span class="nc" id="L130">		  writer.write(&quot;\r\n&quot;);</span>
+<span class="nc" id="L131">		  java.sql.Date expiryDate1 = new java.sql.Date(format.parse(expiryDate).getTime());</span>
+		  String serial_number1,pin_nbr1,record;
+		  // insert generated pin in db and write them into file
+<span class="nc bnc" id="L134" title="All 2 branches missed.">		 for (int k = 0; k &lt; pinQuantity; k++) {</span>
+<span class="nc" id="L135">				serial_number1 = listSerial.get(k).toString();</span>
+<span class="nc" id="L136">				pin_nbr1=listPin.get(k).toString();</span>
+<span class="nc" id="L137">				record =&quot;&quot;+serial_number1+&quot;\t&quot;+pin_nbr1+&quot;\t\t&quot;+denoType+&quot;\t&quot;+expiryDate1 ;</span>
+<span class="nc" id="L138">				writer.write(record);</span>
+<span class="nc" id="L139">			    writer.write(&quot;\r\n&quot;);</span>
+<span class="nc" id="L140">			    pin_nbr1=encryptPin(pin_nbr1,desKey,propKey);</span>
+<span class="nc" id="L141">			    pstmt1.setLong(1, listSerial.get(k));</span>
+<span class="nc" id="L142">				pstmt1.setString(2,pin_nbr1);</span>
+<span class="nc" id="L143">				pstmt1.setInt(3, denoType);</span>
+<span class="nc" id="L144">				pstmt1.setDate(4, expiryDate1);</span>
+<span class="nc" id="L145">				pstmt1.setString(5, distributorType);</span>
+<span class="nc" id="L146">				pstmt1.setInt(6,0);//lms_transaction_id default 0 </span>
+<span class="nc" id="L147">				pstmt1.setString(7, &quot;PENDING&quot;);// status default PENDING</span>
+<span class="nc" id="L148">				pstmt1.setInt(8,generatedKey);// Primary Key for record in  st_ola_pin_status</span>
+<span class="nc" id="L149">				pstmt1.addBatch();</span>
+<span class="nc bnc" id="L150" title="All 4 branches missed.">				if (k&gt;0 &amp;&amp; (k % 10000 == 0))</span>
+<span class="nc" id="L151">					pstmt1.executeBatch();</span>
+			}
+<span class="nc" id="L153">			pstmt1.executeBatch();</span>
+<span class="nc" id="L154">			con.commit();</span>
+<span class="nc" id="L155">			writer.flush();</span>
+<span class="nc" id="L156">			System.out.println(&quot;Temporary file created at : &quot; + file.getPath());</span>
+<span class="nc" id="L157">			pinBean.setFilePath(file.getAbsolutePath());</span>
+<span class="nc" id="L158">			writer.close();	</span>
+<span class="nc" id="L159">			pinBean.setSuccess(true);</span>
+			// send msg to admin user 
+<span class="nc" id="L161">			String msg =&quot;Dear admin,This is to inform you that &quot;+userName+&quot; has generated &quot;+pinQuantity+&quot; pins of denomiation &quot;+denoType+&quot; using OLAMS to be distributed at &quot;+distributorType+&quot;  for redemption at &quot;+partyType+&quot; .&quot;;</span>
+<span class="nc" id="L162">			String plrPhoneNumber=&quot;9818505764&quot;;//send msg to abhishek sir </span>
+<span class="nc" id="L163">			SendSMS smsSend = new SendSMS(msg, plrPhoneNumber);</span>
+<span class="nc" id="L164">			smsSend.setDaemon(true);</span>
+<span class="nc" id="L165">			smsSend.start();</span>
+<span class="nc" id="L166">			System.out.println(&quot; SMS Sent&quot;);	</span>
+<span class="nc" id="L167">			return pinBean;</span>
+
+<span class="nc" id="L169">		} catch (Exception e) {</span>
+<span class="nc" id="L170">			e.printStackTrace();</span>
+<span class="nc" id="L171">			throw new LMSException(&quot;Error During Pin Generation::&quot;);</span>
+		}finally{
+			
+<span class="nc" id="L174">			try {</span>
+<span class="nc bnc" id="L175" title="All 8 branches missed.">				if(con!=null){</span>
+<span class="nc" id="L176">					con.close();</span>
+					
+				}
+			}			
+<span class="nc" id="L180">			catch(Exception e){</span>
+<span class="nc" id="L181">				e.printStackTrace();</span>
+<span class="nc" id="L182">				throw new LMSException(e);</span>
+<span class="nc" id="L183">			}</span>
+			
+		}	
+	}
+/**
+ * This method generate serial number of Format :WALLETID-FIXED(1)/FLEXI(2) BIT-DDD(auto Increment)-2DigitRandomNumber-5DigitSerialNumber previously it was YY-DDD-WALLETID-FIXED(1)/FLEXI(2) BIT-9DigitSerialNumber
+ * for a given quantity
+ * @param denoType
+ * @param h1 serialNumber List
+ * @param pinQuantity
+ * @param walletId
+ * @param lastGeneratedSerial // last count of serialNumber
+ * @param lastGeneratedDayCount // Last count of day 
+ * @return serialNumber List
+ */
+public List&lt;Long&gt; randomSerial(String denoType, List&lt;Long&gt; h1,
+			int pinQuantity,int walletId,String lastGeneratedSerial,String lastGeneratedDayCount) {
+	
+		try {			
+			String lastSerialStr ;
+<span class="nc" id="L203">			StringBuffer strB = new StringBuffer();</span>
+			/*SimpleDateFormat sdf = new SimpleDateFormat(&quot;yy&quot;);
+			Calendar cal = Calendar.getInstance();
+			int ddd = cal.get(Calendar.DAY_OF_YEAR);
+			String yy = sdf.format(cal.getTime());
+			String ddd1 = new Integer(ddd).toString();
+			int tempyy = Integer.parseInt(yy);			
+			if (tempyy / 10 == 0) {
+				yy = &quot;0&quot; + &quot;&quot; + tempyy;
+			} else {
+				yy = tempyy + &quot;&quot;;
+			}
+			if (ddd / 100 == 0) {
+				if (ddd / 10 == 0) {
+					ddd1 = &quot;00&quot; + ddd;
+				} else {
+					ddd1 = &quot;0&quot; + ddd;
+				}
+			}
+
+			else {
+				ddd1 = ddd + &quot;&quot;;
+			}*/
+<span class="nc bnc" id="L226" title="All 2 branches missed.">			if(lastGeneratedSerial.equalsIgnoreCase(&quot;&quot;)){</span>
+<span class="nc" id="L227">				lastSerialStr=&quot;00000&quot;;</span>
+			}
+			else{
+<span class="nc" id="L230">			lastSerialStr = lastGeneratedSerial ;</span>
+			}
+				
+<span class="nc bnc" id="L233" title="All 2 branches missed.">			if (denoType.equalsIgnoreCase(&quot;FIXED&quot;)) {</span>
+<span class="nc" id="L234">				strB = strB.append(walletId+ &quot;1&quot; + lastGeneratedDayCount+&quot;00&quot;+lastSerialStr); // For Fixed 1: append walletId,Fixed Bit,Day Count,5Digit Serial Number</span>
+			}
+			else {
+<span class="nc" id="L237">				strB = strB.append( walletId + &quot;2&quot; +lastGeneratedDayCount+&quot;00&quot;+lastSerialStr);//For Flexi: append walletId,Flexi Bit,Day Count,5Digit Serial Number</span>
+				}			
+<span class="nc" id="L239">			long lastSerial = Long.parseLong(strB.toString());			</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">			while (h1.size() != pinQuantity) {</span>
+<span class="nc" id="L241">				lastSerial++;</span>
+<span class="nc" id="L242">				StringBuffer sb= new StringBuffer(lastSerial+&quot;&quot;);</span>
+<span class="nc" id="L243">				int rnumber= RNGUtilities.generateRandomNumber(10,99);</span>
+<span class="nc" id="L244">				sb.replace(5,7,rnumber+&quot;&quot;);// 2digit Random Number</span>
+<span class="nc" id="L245">				h1.add(Long.parseLong(sb.toString()));</span>
+<span class="nc" id="L246">				System.out.println(&quot;SR. Number &quot; + sb.toString());</span>
+<span class="nc" id="L247">			}</span>
+		
+		}
+
+<span class="nc" id="L251">		catch (Exception e) {</span>
+<span class="nc" id="L252">			e.printStackTrace();</span>
+<span class="nc" id="L253">		}</span>
+
+<span class="nc" id="L255">		return h1;</span>
+	}
+/**
+ * This method generate pin number of Format :4DigitRandomNumber previously is was DDD-13DigitRandomNumber
+ * for a given quantity
+ * @param h1 hash set 
+ * @param pinQuantity number of pins to be generated
+ * @return Set of random Numbers
+ * 
+ */
+	
+public HashSet&lt;Long&gt; randomPin(HashSet&lt;Long&gt; h1, int pinQuantity) {
+		//String randomPin = null;
+		try {
+			long rnumber;
+
+			/*SimpleDateFormat sdf = new SimpleDateFormat(&quot;yy&quot;);
+			Calendar cal = Calendar.getInstance();
+			int ddd = cal.get(Calendar.DAY_OF_YEAR);
+			String ddd1 = new Integer(ddd).toString();
+			if (ddd / 100 == 0) {
+				if (ddd / 10 == 0) {
+					ddd1 = &quot;00&quot; + ddd;
+				} else {
+					ddd1 = &quot;0&quot; + ddd;
+				}
+
+			}else {
+				ddd1 = ddd + &quot;&quot;;
+			}*/
+
+<span class="nc bnc" id="L286" title="All 2 branches missed.">		while(h1.size()!=pinQuantity) {</span>
+
+<span class="nc" id="L288">				StringBuffer strB = new StringBuffer();</span>
+<span class="nc" id="L289">				rnumber = RNGUtilities.generateRandomNumber(1000l,</span>
+						9999l);
+				//strB.append(ddd1+rnumber);//append  year,Month, 13 digit random number 
+<span class="nc" id="L292">				strB.append(rnumber);//append 4 digit random number </span>
+<span class="nc" id="L293">				h1.add(Long.parseLong(strB.toString()));</span>
+			//	System.out.println(&quot;Pin Number &quot; + strB);
+
+<span class="nc" id="L296">			}</span>
+
+		}
+
+<span class="nc" id="L300">		catch (Exception e) {</span>
+<span class="nc" id="L301">			e.printStackTrace();</span>
+<span class="nc" id="L302">		}</span>
+<span class="nc" id="L303">		return h1;</span>
+	}
+/**
+ * Write Pin Data to file
+ * @param pinBean
+ * @param rootPath
+ * @return FileInputStream 
+ * @throws LMSException
+ */	
+public FileInputStream cashCardPinsDownload(CashCardPinBean pinBean,String rootPath) throws LMSException{
+
+	try{
+<span class="nc" id="L315">		FileInputStream fstream = new FileInputStream(pinBean.getFilePath());</span>
+<span class="nc" id="L316">		 System.out.print(&quot;Writing Pins to File ... &quot;);</span>
+<span class="nc" id="L317">        return fstream;</span>
+	   	
+<span class="nc" id="L319">	}catch(Exception e){</span>
+<span class="nc" id="L320">		e.printStackTrace();</span>
+<span class="nc" id="L321">		throw new LMSException(&quot;Error In File Generation&quot;);</span>
+	}finally {
+		
+<span class="nc" id="L324">		try {</span>
+<span class="nc bnc" id="L325" title="All 4 branches missed.">			if(con1!=null){</span>
+<span class="nc" id="L326">				con1.close();</span>
+				
+			}
+		}
+<span class="nc" id="L330">		catch (Exception e){</span>
+			
+<span class="nc" id="L332">			e.printStackTrace();</span>
+<span class="nc" id="L333">			throw new LMSException(e);</span>
+<span class="nc" id="L334">		}</span>
+		
+	}
+	
+}
+
+/**
+ * Check weather table of given tableName exists or not 
+ * @param tableName
+ * @param con
+ * @return true/false
+ */
+public boolean checkTable(String tableName, Connection con) {
+
+		try {
+<span class="nc" id="L349">			ResultSet rs = con.getMetaData().getTables(null, null, tableName,null);</span>
+<span class="nc bnc" id="L350" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L351">				return true;</span>
+			}
+		}
+<span class="nc" id="L354">		catch (SQLException e) {</span>
+<span class="nc" id="L355">			e.printStackTrace();</span>
+<span class="nc" id="L356">			return false;</span>
+<span class="nc" id="L357">		}</span>
+
+<span class="nc" id="L359">		return false;</span>
+	}
+/**
+ * 
+ * @param walletId
+ * @param con
+ * @param pin_type Fixed/Flexi
+ * @return Return Last Generated Pin Serial  Number and Day Count
+ */
+	
+	
+public String[] getLastGeneratedPin(int walletId,Connection con,String pin_type) {
+		
+<span class="nc" id="L372">		String tempQ = &quot;select last_generated_serial_nbr,last_day_serial_nbr from st_ola_pin_generation where wallet_id='&quot;+walletId+&quot;' and pin_type='&quot;+pin_type+&quot;'&quot; ;</span>
+		try {
+<span class="nc" id="L374">			pstmt2 = con.prepareStatement(tempQ);</span>
+<span class="nc" id="L375">			ResultSet rs =pstmt2.executeQuery();</span>
+<span class="nc" id="L376">			String lastGeneratedSerialDayCount[]=new String[2];</span>
+<span class="nc bnc" id="L377" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L378">				lastGeneratedSerialDayCount[0]=rs.getString(&quot;last_generated_serial_nbr&quot;);</span>
+<span class="nc" id="L379">				lastGeneratedSerialDayCount[1]=rs.getString(&quot;last_day_serial_nbr&quot;);</span>
+<span class="nc" id="L380">				return lastGeneratedSerialDayCount;</span>
+				
+			}
+<span class="nc" id="L383">		} catch (SQLException e) {</span>
+<span class="nc" id="L384">			e.printStackTrace();</span>
+<span class="nc" id="L385">		}</span>
+
+<span class="nc" id="L387">		return null;</span>
+	}
+/**
+ * encrypt given pin number
+ * @param pin_nbr
+ * @param desKey DES Key
+ * @param propKey AES Key
+ * @return Encrypted Pin
+ */
+public String encryptPin(String pin_nbr,String desKey,String propKey){
+<span class="nc" id="L397">	String enPin =null;</span>
+	try {
+<span class="nc" id="L399">			byte[]propkey = Base64.decodeBase64(propKey.getBytes());</span>
+<span class="nc" id="L400">			byte[]deskey = Base64.decodeBase64(desKey.getBytes());</span>
+<span class="nc" id="L401">			byte[] decoAesKey = EncpDecpUtil.decodeDES(deskey,propkey);</span>
+			//	key(propkey,deskey,decoAesKey);  //call me to know keys 
+<span class="nc" id="L403">			byte[]value=pin_nbr.getBytes();</span>
+<span class="nc" id="L404">			byte[] encodedPin = EncpDecpUtil.encodeAES(decoAesKey,value);</span>
+<span class="nc" id="L405">			enPin = new String(Base64.encodeBase64(encodedPin));</span>
+			//String dePin = decryptPin(enPin);
+<span class="nc" id="L407">			System.out.println(&quot;dePin&quot;+enPin);</span>
+	}
+<span class="nc" id="L409">	catch(Exception e){</span>
+<span class="nc" id="L410">			e.printStackTrace();</span>
+<span class="nc" id="L411">			System.out.println(&quot;Error In Pin Encryption&quot;);</span>
+			
+<span class="nc" id="L413">	}</span>
+<span class="nc" id="L414">	return enPin;</span>
+	
+
+}
+/**
+ * Decrypt Given Pin
+ * @param enPin encrypted Pin 
+ * @param desKey DES Key
+ * @param propKey AES Key
+ * @return decrypt pin
+ */
+
+public String decryptPin(String enPin,String desKey,String propKey){
+	
+<span class="nc" id="L428">	byte[]propkey = Base64.decodeBase64(propKey.getBytes());</span>
+<span class="nc" id="L429">	byte[]deskey = Base64.decodeBase64(desKey.getBytes());</span>
+<span class="nc" id="L430">	byte[] decoAesKey = EncpDecpUtil.decodeDES(deskey,propkey);</span>
+<span class="nc" id="L431">	byte[]pin = Base64.decodeBase64(enPin.getBytes());</span>
+<span class="nc" id="L432">	byte[] decodedPin=EncpDecpUtil.decodeAES(decoAesKey,pin);</span>
+
+<span class="nc" id="L434">	String st1 = new String(decodedPin);</span>
+<span class="nc" id="L435">	System.out.println(&quot;decoded Pin&quot;+st1);</span>
+		
+<span class="nc" id="L437">	return st1;</span>
+	
+	
+}
+// this method can be used to check the value of AES and DES Keys 
+// to know the keys uncomment key function calling line in encryptPin Function
+private void key(byte[] propkey, byte[] deskey, byte[] decoAesKey) {
+<span class="nc" id="L444">	String nothing = new String(propkey);</span>
+<span class="nc" id="L445">	String aes= new String(deskey);</span>
+<span class="nc" id="L446">	String des = new String(decoAesKey);</span>
+<span class="nc" id="L447">	System.out.println(&quot;str1 :&quot;+nothing+&quot;str2 :&quot;+aes+&quot;str3 :&quot;+des);</span>
+	
+<span class="nc" id="L449">}</span>
+/**
+ * this function insert pin generation record
+ * @param con
+ * @param userName Bo username
+ * @param pinQuantity number of pins has been generated
+ * @param denoType denomination amount
+ * @param walletId
+ * @param distributorType For which pins has been generated
+ * @param ip  IP Address from where pin has been generated
+ * @return generation_id 
+ */
+private int pinRecord(Connection con,String userName,int pinQuantity,int denoType,int walletId,String distributorType,String ip,double commRate,String expiryDate){
+	try{
+<span class="nc" id="L463">		String query =null;</span>
+<span class="nc" id="L464">		Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L465">		Timestamp currentTime = new Timestamp(cal.getTime().getTime());</span>
+<span class="nc" id="L466">		query=&quot;insert into st_ola_pin_status(wallet_id,amount,sale_comm_rate,no_of_pin_generated,generated_by_user,generated_for,generated_from_ip,generation_time,expiry_date) values(?,?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L467">		PreparedStatement ps = con.prepareStatement(query);</span>
+<span class="nc" id="L468">		ps.setInt(1,walletId);</span>
+<span class="nc" id="L469">		ps.setInt(2, denoType);</span>
+<span class="nc" id="L470">		ps.setDouble(3,commRate);</span>
+<span class="nc" id="L471">		ps.setInt(4,pinQuantity);</span>
+<span class="nc" id="L472">		ps.setString(5,userName);</span>
+<span class="nc" id="L473">		ps.setString(6,distributorType );</span>
+<span class="nc" id="L474">		ps.setString(7,ip);</span>
+<span class="nc" id="L475">		ps.setTimestamp(8,currentTime);</span>
+<span class="nc" id="L476">		ps.setString(9, expiryDate);</span>
+<span class="nc" id="L477">		ps.executeUpdate();</span>
+<span class="nc" id="L478">		ResultSet rs = ps.getGeneratedKeys();</span>
+<span class="nc" id="L479">		int generationId=0;</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">		if(rs.next()){</span>
+<span class="nc" id="L481">			generationId=rs.getInt(1); </span>
+		}
+<span class="nc bnc" id="L483" title="All 2 branches missed.">		if(generationId!=0){</span>
+<span class="nc" id="L484">			System.out.println(&quot;Pin Record&quot;+walletId+&quot;:&quot;+denoType+&quot;:&quot;+pinQuantity+&quot;:&quot;+userName+&quot;:&quot;+distributorType+&quot;:&quot;+ip+&quot;:&quot;+currentTime+&quot; Inserted&quot;);</span>
+<span class="nc" id="L485">			return generationId;</span>
+		}
+<span class="nc" id="L487">	}catch(Exception e){</span>
+<span class="nc" id="L488">		e.printStackTrace();</span>
+<span class="nc" id="L489">	}</span>
+	
+<span class="nc" id="L491">	return 0;</span>
+}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

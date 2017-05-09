@@ -1,0 +1,424 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserMgmtService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.rest.services.userMgmtService</a> &gt; <span class="el_source">UserMgmtService.java</span></div><h1>UserMgmtService.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.rest.services.userMgmtService;
+
+import java.sql.SQLException;
+import java.util.Map;
+import java.util.Set;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validation;
+import javax.validation.Validator;
+import javax.validation.ValidatorFactory;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.controller.userMgmtController.UserMgmtController;
+import com.skilrock.lms.coreEngine.sportsLottery.common.SLEErrors;
+import com.skilrock.lms.coreEngine.sportsLottery.common.SLEException;
+import com.skilrock.lms.coreEngine.userMgmt.common.OrgNUserRegHelper;
+import com.skilrock.lms.coreEngine.userMgmt.common.UserManagementHelper;
+import com.skilrock.lms.rest.common.TransactionManager;
+import com.skilrock.lms.rest.scratchService.daoImpl.ScratchDaoImpl;
+import com.skilrock.lms.rest.services.bean.CreateUserResponseBean;
+import com.skilrock.lms.rest.services.bean.DaoBean;
+import com.skilrock.lms.rest.services.bean.EditUserRequestBean;
+import com.skilrock.lms.rest.services.bean.EditUserResponseBean;
+import com.skilrock.lms.rest.services.bean.ResponseDataBean;
+import com.skilrock.lms.rest.services.bean.TPResponseBean;
+import com.skilrock.lms.rest.services.bean.TpCommonStatusBean;
+import com.skilrock.lms.rest.services.bean.UserRegistrationRequest;
+import com.skilrock.lms.rest.services.common.TpUtility;
+import com.skilrock.lms.sportsLottery.userMgmt.javaBeans.UserDataBean;
+
+@Path(&quot;/userMgmt&quot;)
+public class UserMgmtService {
+<span class="pc" id="L53">	Logger logger = LoggerFactory.getLogger(UserMgmtService.class);</span>
+	
+	private static final String SECURITY_ANSWER = &quot;Cricket&quot;;
+	private static final String SECURITY_QUESTION = &quot;Which is your fav game?&quot;;
+	
+	UserInfoBean userInfoBean;
+	private ServletContext serveletContext;
+	private UserRegistrationRequest userRegistrationBean;
+	private ScratchDaoImpl scratchdao;
+	private CreateUserResponseBean respBean;
+	private UserManagementHelper userMgmtHlpr;
+	private TpUtility tpUtil;
+	
+<span class="nc" id="L66">	public UserMgmtService() {</span>
+<span class="nc" id="L67">		this.userMgmtHlpr = new UserManagementHelper();</span>
+<span class="nc" id="L68">		this.scratchdao = new ScratchDaoImpl();</span>
+<span class="nc" id="L69">		this.tpUtil = new TpUtility();</span>
+<span class="nc" id="L70">	}</span>
+	
+<span class="fc" id="L72">	public UserMgmtService(UserManagementHelper userMgmtHlpr,ScratchDaoImpl scratchdao,TpUtility tpUtil){</span>
+<span class="fc" id="L73">		this.userMgmtHlpr = userMgmtHlpr;</span>
+<span class="fc" id="L74">		this.scratchdao = scratchdao;</span>
+<span class="fc" id="L75">		this.tpUtil = tpUtil;</span>
+<span class="fc" id="L76">	}</span>
+
+	@Path(&quot;/getUserInfo&quot;)
+	@POST
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String getUserInfo(@Context HttpServletRequest request, String requestData){
+<span class="nc" id="L83">		String userName = null;</span>
+<span class="nc" id="L84">		TPResponseBean responseBean = null;</span>
+<span class="nc" id="L85">		UserDataBean userBean = null;</span>
+		try {
+<span class="nc" id="L87">			logger.info(&quot;LMS reqData - &quot; + requestData);</span>
+<span class="nc" id="L88">			logger.info(&quot;AUDIT_ID_{}_@@_LMS reqData {}&quot;,TransactionManager.getAuditId(), requestData);</span>
+
+<span class="nc" id="L90">			JsonObject data = new JsonParser().parse(requestData).getAsJsonObject();</span>
+<span class="nc" id="L91">			userName = data.get(&quot;userName&quot;).getAsString();</span>
+<span class="nc" id="L92">			userBean = UserMgmtController.getInstance().getUserInfo(userName);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">			if(userBean == null) {</span>
+<span class="nc" id="L94">				throw new SLEException(SLEErrors.SESSION_TIME_OUT_ERROR_CODE , SLEErrors.SESSION_TIME_OUT_ERROR_MESSAGE);</span>
+			}
+
+<span class="nc" id="L97">			responseBean = new TPResponseBean(0, &quot;SUCCESS&quot;, userBean);</span>
+<span class="nc" id="L98">		} catch (SLEException e) {</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">			if(responseBean == null){</span>
+<span class="nc" id="L100">				responseBean = new TPResponseBean();</span>
+<span class="nc" id="L101">				responseBean.setResponseCode(e.getErrorCode());</span>
+			}
+<span class="nc" id="L103">			logger.error(e.getErrorMessage());</span>
+<span class="nc" id="L104">		} catch (Exception e) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">			if(responseBean == null) {</span>
+<span class="nc" id="L106">				responseBean = new TPResponseBean();</span>
+<span class="nc" id="L107">				responseBean.setResponseCode(SLEErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+			}
+<span class="nc" id="L109">			e.printStackTrace();</span>
+<span class="nc" id="L110">		}</span>
+<span class="nc" id="L111">		Gson gson = new Gson();</span>
+<span class="nc" id="L112">		String json = gson.toJson(responseBean);</span>
+<span class="nc" id="L113">		logger.info(&quot;LMS Response data {}&quot; + json);</span>
+<span class="nc" id="L114">		return json;</span>
+	}
+	
+	@Path(&quot;/logOutAllRetailers&quot;)
+	@POST
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String logOutAllRetailers(@Context HttpServletRequest request) {
+		try {
+<span class="nc" id="L123">			UserMgmtController.getInstance().logOutAllRetailers();</span>
+<span class="nc" id="L124">			return &quot;success&quot;;</span>
+<span class="nc" id="L125">		} catch (Exception e) {</span>
+<span class="nc" id="L126">			e.printStackTrace();</span>
+<span class="nc" id="L127">			return &quot;error&quot;;</span>
+		}
+
+	}
+	
+	@Path(&quot;/validateRGLimit&quot;)
+	@POST
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public String validateRGLimits(@Context HttpServletRequest request, String requestData){
+<span class="nc" id="L137">		TPResponseBean responseBean = null;</span>
+<span class="nc" id="L138">		TpCommonStatusBean statusBean = null ;</span>
+		try {
+<span class="nc" id="L140">			logger.info(&quot;AUDIT_ID_{}_@@_LMS reqData {}&quot;,TransactionManager.getAuditId(), requestData);</span>
+
+<span class="nc" id="L142">			JsonObject data = new JsonParser().parse(requestData).getAsJsonObject();</span>
+<span class="nc" id="L143">			String userName = data.get(&quot;userName&quot;).getAsString();</span>
+<span class="nc" id="L144">			String criteria = data.get(&quot;criteria&quot;).getAsString();</span>
+<span class="nc" id="L145">			String amount = data.get(&quot;amount&quot;).getAsString();</span>
+
+<span class="nc" id="L147">			statusBean = UserMgmtController.getInstance().validateRGLimit(userName, criteria, amount) ;</span>
+			
+<span class="nc" id="L149">			responseBean = new TPResponseBean(0, &quot;SUCCESS&quot;, statusBean);</span>
+<span class="nc" id="L150">		} catch (Exception e) {</span>
+<span class="nc" id="L151">			e.printStackTrace();</span>
+
+<span class="nc bnc" id="L153" title="All 2 branches missed.">			if(responseBean == null) {</span>
+<span class="nc" id="L154">				responseBean = new TPResponseBean(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE, new TpCommonStatusBean(false, &quot;LIMIT REACHED&quot;));</span>
+			}
+<span class="nc" id="L156">		}</span>
+<span class="nc" id="L157">		String json = new Gson().toJson(responseBean);</span>
+<span class="nc" id="L158">		logger.info(&quot;LMS Response data - &quot; + json);</span>
+
+<span class="nc" id="L160">		return json;</span>
+	}
+	
+	@Path(&quot;/registerUser&quot;)
+	@POST
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	public String createUser(String requestData) {
+		// TODO Auto-generated method stub
+<span class="fc" id="L169">		JsonObject requestObj = null;</span>
+<span class="fc" id="L170">		CreateUserResponseBean respBean = null;</span>
+		try{
+			
+<span class="pc bpc" id="L173" title="1 of 4 branches missed.">			if (requestData == null || requestData.trim().length() &lt; 1) {</span>
+<span class="fc" id="L174">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+			
+<span class="fc" id="L177">			requestObj = new JsonParser().parse(requestData).getAsJsonObject();</span>
+			
+<span class="fc" id="L179">			userRegistrationBean = getUserRegistrationBean(requestObj);</span>
+			
+<span class="fc" id="L181">			validateMandatoryParamsForUserRegistration(userRegistrationBean);</span>
+			
+<span class="fc" id="L183">			checkForDuplicateTpUserId();</span>
+			
+<span class="fc" id="L185">			userInfoBean = TpUtility.createParentUserBean(userRegistrationBean.getParentUserId());</span>
+			
+<span class="fc" id="L187">			checkForRetailerCreditLimit();</span>
+		
+<span class="fc" id="L189">			respBean = new CreateUserResponseBean();</span>
+<span class="fc" id="L190">			respBean = getUserRegistrationResponse(userInfoBean,userRegistrationBean);</span>
+	
+<span class="fc" id="L192">		}catch(LMSException le){</span>
+<span class="fc" id="L193">			respBean = new CreateUserResponseBean();</span>
+<span class="fc" id="L194">			respBean.setResponseCode(le.getErrorCode());</span>
+<span class="fc" id="L195">			respBean.setResponseMsg(le.getErrorMessage());</span>
+		}
+<span class="fc" id="L197">		catch (Exception e) {</span>
+<span class="fc" id="L198">			respBean = new CreateUserResponseBean();</span>
+<span class="fc" id="L199">			respBean.setResponseCode(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="fc" id="L200">			respBean.setResponseMsg(LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="fc" id="L201">			e.printStackTrace();</span>
+<span class="fc" id="L202">		}	</span>
+<span class="fc" id="L203">		return new Gson().toJson(respBean);</span>
+	}
+
+	private void checkForRetailerCreditLimit() throws LMSException {
+<span class="fc" id="L207">		String errMsg = CommonMethods.chkCreditLimitAgt(userInfoBean.getUserOrgId(), userRegistrationBean.getCreditLimit());</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">		if (!&quot;TRUE&quot;.equals(errMsg)) {</span>
+<span class="fc" id="L209">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,errMsg);</span>
+		}
+<span class="fc" id="L211">	}</span>
+
+	private void checkForDuplicateTpUserId() throws LMSException {
+		
+<span class="fc" id="L215">		boolean tpUserIdCheck = TpUtility.checkForDuplicateTpUserId(userRegistrationBean.getTpUserId());</span>
+		
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">		if(!tpUserIdCheck){</span>
+<span class="nc" id="L218">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,&quot;TpUserId is duplicate&quot;);</span>
+		}
+<span class="fc" id="L220">	}</span>
+	
+	
+	private UserRegistrationRequest getUserRegistrationBean(JsonObject requestObj) throws LMSException {
+		
+<span class="fc" id="L225">		serveletContext = LMSUtility.sc;</span>
+<span class="fc" id="L226">		userRegistrationBean = new UserRegistrationRequest();</span>
+		try {
+<span class="fc" id="L228">			validateCreditLimitAndSecurityDeposit(requestObj);</span>
+<span class="fc" id="L229">			userRegistrationBean = new Gson().fromJson(requestObj, UserRegistrationRequest.class);</span>
+<span class="nc" id="L230">		} catch (JsonSyntaxException e) {</span>
+<span class="nc" id="L231">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+<span class="nc" id="L232">		}catch(NumberFormatException ne){</span>
+<span class="nc" id="L233">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+<span class="fc" id="L234">		}</span>
+		
+<span class="fc" id="L236">		int mappingId[] = tpUtil.getServiceList();</span>
+<span class="fc" id="L237">		String statusTable[] = tpUtil.getStatusTableValues();</span>
+		
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">		userRegistrationBean.setAddrLine1(requestObj.get(&quot;address&quot;) == null?&quot;&quot;:requestObj.get(&quot;address&quot;).getAsString());</span>
+<span class="fc" id="L240">		userRegistrationBean.setSecurity(requestObj.get(&quot;securityDeposit&quot;).getAsDouble());</span>
+<span class="fc" id="L241">		userRegistrationBean.setStatusTable(statusTable);</span>
+<span class="fc" id="L242">		userRegistrationBean.setId(mappingId);</span>
+<span class="fc" id="L243">		userRegistrationBean.setSelfClaim(Utility.getPropertyValue(&quot;SELF_CLAIM_RET&quot;));</span>
+<span class="fc" id="L244">		userRegistrationBean.setOtherClaim(Utility.getPropertyValue(&quot;OTHER_CLAIM_RET&quot;));</span>
+<span class="fc" id="L245">		userRegistrationBean.setMinClaimPerTicket(Double.parseDouble(Utility.getPropertyValue(&quot;MIN_CLAIM_PER_TICKET_RET&quot;)));</span>
+<span class="fc" id="L246">		userRegistrationBean.setMaxClaimPerTicket(Double.parseDouble(Utility.getPropertyValue(&quot;MAX_CLAIM_PER_TICKET_RET&quot;)));</span>
+<span class="fc" id="L247">		userRegistrationBean.setBlockAmt(Double.parseDouble(Utility.getPropertyValue(&quot;BLOCK_AMT&quot;)));</span>
+<span class="fc" id="L248">		userRegistrationBean.setBlockDays(Integer.parseInt(Utility.getPropertyValue(&quot;BLOCK_DAYS&quot;)));</span>
+<span class="fc" id="L249">		prepareUserRegistrationBeanFromServletContext();</span>
+<span class="fc" id="L250">		prepareUserRegistrationBeanAddManualParams();</span>
+<span class="fc" id="L251">		return userRegistrationBean;</span>
+	}
+
+	private void validateCreditLimitAndSecurityDeposit(JsonObject requestObj) throws LMSException {
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">		if(requestObj.get(&quot;creditLimit&quot;) == null){</span>
+<span class="nc" id="L256">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,&quot;Credit Limit Parameter should be Present&quot;);</span>
+		}
+<span class="pc bpc" id="L258" title="2 of 4 branches missed.">		if(requestObj.get(&quot;securityDeposit&quot;) == null || !Double.class.isInstance(requestObj.get(&quot;securityDeposit&quot;).getAsDouble())){</span>
+<span class="nc" id="L259">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,&quot;Security Deposit Parameter should be Present&quot;);</span>
+		}
+<span class="fc" id="L261">	}</span>
+	
+	
+	private void prepareUserRegistrationBeanAddManualParams() {	
+<span class="fc" id="L265">		userRegistrationBean.setStatusorg(&quot;ACTIVE&quot;);</span>
+<span class="fc" id="L266">		userRegistrationBean.setOrgType(&quot;Retailer&quot;);</span>
+<span class="fc" id="L267">		userRegistrationBean.setBlockAction(Utility.getPropertyValue(&quot;BLOCK_ACTION&quot;));</span>
+<span class="fc" id="L268">		userRegistrationBean.setStatus(&quot;ACTIVE&quot;);</span>
+<span class="fc" id="L269">		userRegistrationBean.setSecQues(SECURITY_QUESTION);</span>
+<span class="fc" id="L270">		userRegistrationBean.setSecAns(SECURITY_ANSWER);</span>
+<span class="fc" id="L271">		userRegistrationBean.setRegisterById(userRegistrationBean.getParentUserId());</span>
+<span class="fc" id="L272">	}</span>
+	
+	private void prepareUserRegistrationBeanFromServletContext() {
+<span class="fc" id="L275">		userRegistrationBean.setVerLimit(serveletContext.getAttribute(&quot;agtVerLimit&quot;).toString());</span>
+<span class="fc" id="L276">		userRegistrationBean.setAppLimit(serveletContext.getAttribute(&quot;agtAppLimit&quot;).toString());</span>
+<span class="fc" id="L277">		userRegistrationBean.setPayLimit(serveletContext.getAttribute(&quot;agtPayLimit&quot;).toString());</span>
+<span class="fc" id="L278">		userRegistrationBean.setScrapLimit(serveletContext.getAttribute(&quot;agtScrapLimit&quot;).toString());</span>
+<span class="fc" id="L279">		userRegistrationBean.setIsRetailerOnline((String) serveletContext.getAttribute(&quot;RET_ONLINE&quot;));</span>
+<span class="fc" id="L280">		userRegistrationBean.setMaxPerDayPayLimit(Double.parseDouble((String) serveletContext.getAttribute(&quot;MAX_PER_DAY_PAY_LIMIT_FOR_RET&quot;)));</span>
+<span class="fc" id="L281">	}</span>
+	
+	public CreateUserResponseBean getUserRegistrationResponse(UserInfoBean userInfoBean,
+			UserRegistrationRequest userRegistrationBean) throws LMSException {
+		
+<span class="fc" id="L286">		Map&lt;String, String&gt; errorMap = null;</span>
+<span class="fc" id="L287">		respBean = new CreateUserResponseBean();</span>
+		try{
+			
+<span class="fc" id="L290">			errorMap = OrgNUserRegHelper.createNewRetailerOrgNUser(userInfoBean,userRegistrationBean, &quot;Retailer&quot;);</span>
+			
+<span class="pc bpc" id="L292" title="2 of 4 branches missed.">			if(errorMap.containsKey(&quot;NewPassword&quot;) &amp;&amp; errorMap.containsKey(&quot;orgCode&quot;)){</span>
+<span class="fc" id="L293">				respBean = setResponseBeanForUserRegistration(userRegistrationBean, errorMap);</span>
+			}else{
+<span class="nc" id="L295">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+<span class="nc" id="L297">		}catch(LMSException le){</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">			if(le.getErrorCode()!=null){</span>
+<span class="nc" id="L299">				throw le;</span>
+			}else{
+<span class="nc" id="L301">				throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+			}
+		}
+<span class="nc" id="L304">		catch (Exception e) {</span>
+<span class="nc" id="L305">			e.printStackTrace();</span>
+<span class="fc" id="L306">		}</span>
+<span class="fc" id="L307">		return respBean;</span>
+	}
+		
+
+	private CreateUserResponseBean setResponseBeanForUserRegistration(UserRegistrationRequest userRegistrationBean,
+			Map&lt;String, String&gt; errorMap) {
+		int refUserId;
+<span class="fc" id="L314">		ResponseDataBean rdBean = new ResponseDataBean();</span>
+<span class="fc" id="L315">		respBean.setRequestId(userRegistrationBean.getRequestId());</span>
+<span class="fc" id="L316">		respBean.setResponseCode(100);</span>
+<span class="fc" id="L317">		respBean.setResponseMsg(&quot;Success&quot;);</span>
+		
+<span class="fc" id="L319">		refUserId = TpUtility.getUserIdForOrgCode(errorMap.get(&quot;orgCode&quot;));</span>
+		
+<span class="fc" id="L321">		rdBean.setRefUserId(refUserId);</span>
+<span class="fc" id="L322">		rdBean.setTpUserId(userRegistrationBean.getTpUserId());</span>
+<span class="fc" id="L323">		rdBean.setUserName(userRegistrationBean.getUserName());</span>
+<span class="fc" id="L324">		respBean.setRequestData(rdBean);</span>
+		
+<span class="fc" id="L326">		return respBean;</span>
+	}
+	
+	@Path(&quot;/editUser&quot;)
+	@POST
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	public String editUser(@Context HttpServletRequest requestContext, String reqData) {
+		
+<span class="fc" id="L335">		JsonObject requestObj = null;</span>
+<span class="fc" id="L336">		EditUserRequestBean editUserBean = null;</span>
+<span class="fc" id="L337">		EditUserResponseBean responseBean = new EditUserResponseBean();</span>
+		int userId;
+		try{
+			
+<span class="pc bpc" id="L341" title="1 of 4 branches missed.">			if (reqData == null || reqData.trim().length() &lt; 1) {</span>
+<span class="fc" id="L342">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+			
+<span class="fc" id="L345">			requestObj = new JsonParser().parse(reqData).getAsJsonObject();</span>
+			
+<span class="fc" id="L347">			editUserBean = new Gson().fromJson(requestObj, EditUserRequestBean.class);</span>
+			
+<span class="fc" id="L349">			validateMandatoryParamsForEditUser(editUserBean);</span>
+			
+<span class="fc" id="L351">			String requestIp = requestContext.getRemoteAddr();</span>
+
+<span class="fc" id="L353">			userId = getUserIdFromTPUserId(editUserBean.getTpUserId());</span>
+			
+<span class="fc bfc" id="L355" title="All 2 branches covered.">			if(userMgmtHlpr.editUserDetails(userId, Long.parseLong(editUserBean.getMobileNo()),Long.parseLong(editUserBean.getMobileNo()),editUserBean.getEmailId().trim(),editUserBean.getStatus(),11001,&quot;Edit User For API&quot;,requestIp)){</span>
+<span class="fc" id="L356">				responseBean.setRequestId(editUserBean.getRequestId());</span>
+<span class="fc" id="L357">				responseBean.setResponseCode(100);</span>
+<span class="fc" id="L358">				responseBean.setTpUserId(editUserBean.getTpUserId());</span>
+<span class="fc" id="L359">				responseBean.setResponseData(&quot;User Edit Successfully&quot;);</span>
+			}else{
+<span class="fc" id="L361">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+			
+<span class="fc" id="L364">		}catch(LMSException le){</span>
+<span class="pc bpc" id="L365" title="1 of 2 branches missed.">			if(le.getErrorCode()!=null){</span>
+<span class="fc" id="L366">				responseBean.setResponseCode(le.getErrorCode());</span>
+<span class="fc" id="L367">				responseBean.setResponseData(le.getErrorMessage());</span>
+			}else{
+<span class="nc" id="L369">				responseBean.setResponseCode(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="nc" id="L370">				responseBean.setResponseData(LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+			}
+		}
+<span class="fc" id="L373">		catch (Exception e) {</span>
+<span class="fc" id="L374">			responseBean.setRequestId(editUserBean.getRequestId());</span>
+<span class="fc" id="L375">			responseBean.setTpUserId(editUserBean.getTpUserId());</span>
+<span class="fc" id="L376">			responseBean.setResponseCode(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="fc" id="L377">			responseBean.setResponseData(LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="fc" id="L378">			}	</span>
+<span class="fc" id="L379">		return new Gson().toJson(responseBean);</span>
+	}
+
+	private int getUserIdFromTPUserId(String tpUserId) throws LMSException {
+<span class="fc" id="L383">		int userId = 0;</span>
+		DaoBean daoBean;
+		try {
+<span class="fc" id="L386">			daoBean = scratchdao.getUserOrgIdAndUserIdFromTpUserId(tpUserId);</span>
+<span class="fc bfc" id="L387" title="All 2 branches covered.">			if(daoBean==null){</span>
+<span class="fc" id="L388">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE, LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+<span class="fc" id="L390">			userId = daoBean.getUserId();</span>
+<span class="nc" id="L391">		} catch (SQLException e) {</span>
+<span class="nc" id="L392">			e.printStackTrace();</span>
+<span class="fc" id="L393">		}</span>
+<span class="fc" id="L394">		return userId;</span>
+	}
+
+	private void validateMandatoryParamsForUserRegistration(UserRegistrationRequest userRegBean) throws LMSException {
+		
+<span class="fc" id="L399">		Validator validator = prepareValidator();</span>
+<span class="fc" id="L400">		Set&lt;ConstraintViolation&lt;UserRegistrationRequest&gt;&gt; violations = validator.validate(userRegBean);</span>
+<span class="fc bfc" id="L401" title="All 2 branches covered.">		if(!violations.isEmpty()){</span>
+<span class="fc" id="L402">			ConstraintViolation&lt;UserRegistrationRequest&gt; firstViolation = violations.iterator().next();</span>
+<span class="fc" id="L403">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,firstViolation.getMessage());</span>
+		}		
+<span class="fc" id="L405">	}</span>
+
+	private void validateMandatoryParamsForEditUser(EditUserRequestBean editUserBean) throws LMSException {
+<span class="fc" id="L408">		Validator validator = prepareValidator();</span>
+<span class="fc" id="L409">		Set&lt;ConstraintViolation&lt;EditUserRequestBean&gt;&gt; violations = validator.validate(editUserBean);</span>
+					
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">		if(!violations.isEmpty()){</span>
+<span class="nc" id="L412">			ConstraintViolation&lt;EditUserRequestBean&gt; firstViolation = violations.iterator().next();</span>
+<span class="nc" id="L413">			throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE,firstViolation.getMessage());</span>
+		}
+<span class="fc" id="L415">	}</span>
+
+	private Validator prepareValidator() {
+<span class="fc" id="L418">		ValidatorFactory factory = Validation.buildDefaultValidatorFactory();</span>
+<span class="fc" id="L419">		Validator validator = factory.getValidator();</span>
+<span class="fc" id="L420">		return validator;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

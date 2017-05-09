@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaRetailerReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.ola.reportMgmt</a> &gt; <span class="el_source">OlaRetailerReportHelper.java</span></div><h1>OlaRetailerReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.ola.reportMgmt;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.OlaReportBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.coreEngine.ola.common.CommonFunctionsHelper;
+
+<span class="nc" id="L20">public class OlaRetailerReportHelper {</span>
+<span class="nc" id="L21">Log logger  = LogFactory.getLog(OlaRetailerReportHelper.class);</span>
+	public List&lt;OlaReportBean&gt; fetchOlaRetailerReportData(
+			OlaReportBean olaReportBean, int walletId, int retOrgId,String playerType) {
+<span class="nc" id="L24">		List&lt;OlaReportBean&gt; olaReportList = new ArrayList&lt;OlaReportBean&gt;();</span>
+<span class="nc" id="L25">		Connection con=null;</span>
+		try {
+<span class="nc" id="L27">			double depositAmt = 0.0;</span>
+<span class="nc" id="L28">			double withdrawlAmt = 0.0;</span>
+			
+<span class="nc" id="L30">			double totalDepositAmount = 0.0;</span>
+<span class="nc" id="L31">			double totalWithdrawlAmount = 0.0;</span>
+			/*double retailerDepositComm = 0.0;
+			double retailerWithdrawlComm = 0.0;
+			double totalDepositCommission = 0.0;
+			double totalWithdrawlCommission = 0.0;
+			double totalPlayerNetGaming = 0.0;
+			double totalComm = 0.0;
+			double totalCommissionCalculated = 0.0;*/
+			//DecimalFormat df = new DecimalFormat(&quot;##.## &quot;);
+<span class="nc" id="L40">			 con= DBConnect.getConnection();</span>
+<span class="nc" id="L41">			String startDate = olaReportBean.getFromDate();</span>
+<span class="nc" id="L42">			String endDate = olaReportBean.getToDate();</span>
+<span class="nc" id="L43">			con.setAutoCommit(false);</span>
+			// double commPer = CommonFunctionsHelper.fetchOLACommOfOrganization(walletId, retOrgId, &quot;NETGAMING&quot;, &quot;RETAILER&quot;, con);
+<span class="nc" id="L45">			String subQuery=&quot; &quot;;</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">			if(playerType.equalsIgnoreCase(&quot;Bind&quot;)){</span>
+<span class="nc" id="L47">				subQuery =&quot; where player_id is not null &quot;;</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">			}else if(playerType.equalsIgnoreCase(&quot;Notbind&quot;)) {</span>
+<span class="nc" id="L49">				subQuery=&quot; where player_id is null  &quot;;</span>
+			}
+			
+		
+<span class="nc" id="L53">			StringBuilder sbQuery = new StringBuilder();</span>
+<span class="nc" id="L54">									sbQuery.append(&quot; select sum(depositAmt) depositAmt,sum(withdrawlAmt) withdrawlAmt,party_id,transaction_type,Date(transaction_date) transaction_date,player_id from (&quot;);</span>
+<span class="nc" id="L55">									sbQuery.append(&quot; select 0.0 depositAmt,withdrawlAmt,party_id,transaction_type,transaction_date from (	select  sum(withdrawl_amt) withdrawlAmt,0.0 refundAmt,party_id,transaction_type,transaction_date&quot;);</span>
+<span class="nc" id="L56">									sbQuery.append(&quot; from st_lms_retailer_transaction_master rtm  inner join st_ola_ret_withdrawl wl on rtm.transaction_id=wl.transaction_id where rtm.transaction_type='OLA_WITHDRAWL'&quot;);</span>
+<span class="nc" id="L57">									sbQuery.append(&quot; and wallet_id=? and wl.retailer_org_id=? and transaction_date&gt;=? and transaction_date&lt;=? group by party_id &quot;);</span>
+<span class="nc" id="L58">									sbQuery.append(&quot; union all select 0.0 	withdrawlAmt,sum(withdrawl_amt) refundAmt,party_id,transaction_type,transaction_date from 	 st_lms_retailer_transaction_master rtm&quot;);</span>
+<span class="nc" id="L59">									sbQuery.append(&quot;  inner join st_ola_ret_withdrawl_refund wlr on rtm.transaction_id=wlr.transaction_id	where rtm.transaction_type='OLA_WITHDRAWL_REFUND' and wallet_id=? and wlr.retailer_org_id=? and&quot;);</span>
+<span class="nc" id="L60">									sbQuery.append(&quot;  transaction_date&gt;=?  and transaction_date&lt;=? 	group by party_id )withdrawl group by party_id &quot;);</span>
+<span class="nc" id="L61">									sbQuery.append(&quot;  union all	select sum(depositAmt- refundAmt) depositAmt,0.0 withdrawlAmt,party_id,transaction_type,transaction_date from (select sum(deposit_amt) depositAmt,0.0 refundAmt,party_id,transaction_type,transaction_date &quot;);</span>
+<span class="nc" id="L62">									sbQuery.append(&quot;   from st_lms_retailer_transaction_master rtm	inner join st_ola_ret_deposit dp on rtm.transaction_id=dp.transaction_id  where rtm.transaction_type='OLA_DEPOSIT' and wallet_id=? and dp.retailer_org_id=? &quot;);</span>
+<span class="nc" id="L63">									sbQuery.append(&quot;  and transaction_date&gt;=?  and transaction_date&lt;=?  group by party_id union all select 0.0  depositAmt,sum(deposit_amt) refundAmt,party_id,transaction_type,transaction_date from&quot;);</span>
+<span class="nc" id="L64">									sbQuery.append(&quot;  st_lms_retailer_transaction_master rtm inner join st_ola_ret_deposit_refund dpr on rtm.transaction_id=dpr.transaction_id 	  where rtm.transaction_type='OLA_DEPOSIT_REFUND' and wallet_id=? and dpr.retailer_org_id=? and&quot;);</span>
+<span class="nc" id="L65">									sbQuery.append(&quot; transaction_date&gt;=?  and transaction_date&lt;=?	group by party_id )olaDeposit group by party_id	)ola left join (select player_id from st_ola_affiliate_plr_mapping  where ref_user_org_id=? and wallet_id=?)apm  on ola.party_id =apm.player_id &quot;);</span>
+<span class="nc" id="L66">									sbQuery.append(subQuery);</span>
+<span class="nc" id="L67">									sbQuery.append(&quot; group by party_id&quot;);</span>
+									
+								
+
+	
+<span class="nc" id="L72">			PreparedStatement pstmt = con.prepareStatement(sbQuery.toString());</span>
+<span class="nc" id="L73">			pstmt.setInt(1,walletId);</span>
+<span class="nc" id="L74">			pstmt.setInt(2,retOrgId);</span>
+<span class="nc" id="L75">			pstmt.setString(3,startDate);</span>
+<span class="nc" id="L76">			pstmt.setString(4,endDate);</span>
+<span class="nc" id="L77">			pstmt.setInt(5,walletId);</span>
+<span class="nc" id="L78">			pstmt.setInt(6,retOrgId);</span>
+<span class="nc" id="L79">			pstmt.setString(7,startDate);</span>
+<span class="nc" id="L80">			pstmt.setString(8,endDate);</span>
+<span class="nc" id="L81">			pstmt.setInt(9,walletId);</span>
+<span class="nc" id="L82">			pstmt.setInt(10,retOrgId);</span>
+<span class="nc" id="L83">			pstmt.setString(11,startDate);</span>
+<span class="nc" id="L84">			pstmt.setString(12,endDate);</span>
+<span class="nc" id="L85">			pstmt.setInt(13,walletId);</span>
+<span class="nc" id="L86">			pstmt.setInt(14,retOrgId);</span>
+<span class="nc" id="L87">			pstmt.setString(15,startDate);</span>
+<span class="nc" id="L88">			pstmt.setString(16,endDate);</span>
+<span class="nc" id="L89">			pstmt.setInt(17,retOrgId);</span>
+<span class="nc" id="L90">			pstmt.setInt(18,walletId);</span>
+<span class="nc" id="L91">			System.out.println(pstmt);</span>
+<span class="nc" id="L92">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L94">				olaReportBean = new OlaReportBean();</span>
+<span class="nc" id="L95">				String playerName = rs.getString(&quot;party_id&quot;);</span>
+<span class="nc" id="L96">				olaReportBean.setPlayerName(playerName);</span>
+<span class="nc" id="L97">				depositAmt = rs.getDouble(&quot;depositAmt&quot;);</span>
+<span class="nc" id="L98">				olaReportBean.setDepositAmt(depositAmt);</span>
+<span class="nc" id="L99">				totalDepositAmount = totalDepositAmount + depositAmt;</span>
+<span class="nc" id="L100">				withdrawlAmt = rs.getDouble(&quot;withdrawlAmt&quot;);</span>
+<span class="nc" id="L101">				olaReportBean.setWithdrawlAmt(withdrawlAmt);</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">				if(rs.getString(&quot;player_id&quot;)==null){</span>
+<span class="nc" id="L103">					olaReportBean.setPlayerType(&quot;Not Bind&quot;);</span>
+				}else{
+<span class="nc" id="L105">					olaReportBean.setPlayerType(&quot;Bind&quot;);</span>
+				}
+<span class="nc" id="L107">				olaReportBean.setTrnDate(rs.getString(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L108">				totalWithdrawlAmount = totalWithdrawlAmount + withdrawlAmt;</span>
+			/*	retailerDepositComm = Double.parseDouble(df.format(depositAmt
+						* (rs.getDouble(&quot;deposit_retailer_comm&quot;)) * .01));
+				olaReportBean.setRetailerDepositCommission(retailerDepositComm);*/
+				/*totalDepositCommission = Double.parseDouble(df
+						.format(totalDepositCommission + retailerDepositComm));
+				retailerWithdrawlComm = Double.parseDouble(df
+						.format(withdrawlAmt
+								* (rs.getDouble(&quot;withdrawl_retailer_comm&quot;))
+								* .01));
+				olaReportBean
+						.setRetailerWithdrawlCommission(retailerWithdrawlComm);
+				totalWithdrawlCommission = Double.parseDouble(df
+						.format(totalWithdrawlCommission
+								+ retailerWithdrawlComm));
+				totalComm = commPer*(rs.getDouble(&quot;totalPlrNetGaming&quot;))*.01;
+				totalPlayerNetGaming = totalPlayerNetGaming + rs.getDouble(&quot;totalPlrNetGaming&quot;);
+				totalCommissionCalculated = totalCommissionCalculated + totalComm;
+				olaReportBean.setRetailerNetGaming(rs.getDouble(&quot;totalPlrNetGaming&quot;));
+				olaReportBean.setCommissionCalculated(totalComm);*/
+<span class="nc" id="L128">				olaReportList.add(olaReportBean);</span>
+<span class="nc" id="L129">			}</span>
+
+<span class="nc" id="L131">			OlaReportBean totalBean = new OlaReportBean();</span>
+<span class="nc" id="L132">			totalBean.setPlayerName(&quot;Total&quot;);</span>
+<span class="nc" id="L133">			totalBean.setDepositAmt(totalDepositAmount);</span>
+			//totalBean.setRetailerDepositCommission(totalDepositCommission);
+<span class="nc" id="L135">			totalBean.setWithdrawlAmt(totalWithdrawlAmount);</span>
+		//	totalBean.setRetailerWithdrawlCommission(totalWithdrawlCommission);
+		//	totalBean.setRetailerNetGaming(totalPlayerNetGaming);
+			//totalBean.setCommissionCalculated(totalCommissionCalculated);
+<span class="nc" id="L139">			olaReportList.add(totalBean);</span>
+
+<span class="nc" id="L141">			con.commit();</span>
+			
+<span class="nc" id="L143">		} catch (Exception e) {</span>
+<span class="nc" id="L144">			e.printStackTrace();</span>
+		}
+		finally{
+<span class="nc" id="L147">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L148">		}</span>
+<span class="nc" id="L149">		return olaReportList;</span>
+	}
+	
+	public String fetchOlaRetailerReportDataConsolidate(
+			String  fromDate, int walletId, int retOrgId) {
+		
+<span class="nc" id="L155">		Connection con=null;</span>
+<span class="nc" id="L156">		StringBuilder sb= new StringBuilder();</span>
+		try {
+		
+
+<span class="nc" id="L160">			String startDate =null;</span>
+<span class="nc" id="L161">			String endDate =null;</span>
+<span class="nc" id="L162">			con= DBConnect.getConnection();</span>
+<span class="nc" id="L163">			SimpleDateFormat sdf = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">		 if(fromDate.equalsIgnoreCase(&quot;lastday&quot;)){</span>
+<span class="nc" id="L165">				 Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L166">				 cal.add(Calendar.DATE, -1);</span>
+<span class="nc" id="L167">				 startDate = (sdf.format(cal.getTime()))+&quot; 00:00:00&quot;;</span>
+<span class="nc" id="L168">				 endDate = (sdf.format(cal.getTime()))+&quot; 23:59:59&quot;;</span>
+				 
+<span class="nc bnc" id="L170" title="All 2 branches missed.">			 }else if(fromDate.equalsIgnoreCase(&quot;currentday&quot;)){</span>
+<span class="nc" id="L171">				 Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L172">				 startDate = (sdf.format(cal.getTime()))+&quot; 00:00:00&quot;;</span>
+<span class="nc" id="L173">				 endDate = (sdf.format(cal.getTime()))+&quot; 23:59:59&quot;;</span>
+<span class="nc" id="L174">			 }else {</span>
+<span class="nc" id="L175">				 Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L176">				 startDate = (sdf.format(sdf.parse(fromDate)))+&quot; 00:00:00&quot;;</span>
+<span class="nc" id="L177">				 endDate = (sdf.format(cal.getTime()))+&quot; 23:59:59&quot;;</span>
+			 }
+<span class="nc" id="L179">			StringBuilder sbQuery = new StringBuilder();</span>
+<span class="nc" id="L180">									sbQuery.append(&quot; select sum(depositAmt) depositAmt,sum(withdrawlAmt) withdrawlAmt,transactionDate from ( &quot;);</span>
+<span class="nc" id="L181">									sbQuery.append(&quot;select 0.0 depositAmt,withdrawlAmt,transactionDate  from ( select  sum(withdrawl_amt) withdrawlAmt,0.0 refundAmt,transaction_type,Date(transaction_date) transactionDate  &quot;);</span>
+<span class="nc" id="L182">									sbQuery.append(&quot; from st_lms_retailer_transaction_master rtm  inner join st_ola_ret_withdrawl wl on rtm.transaction_id=wl.transaction_id where rtm.transaction_type='OLA_WITHDRAWL' and wallet_id=? and wl.retailer_org_id=? and transaction_date&gt;=?  and transaction_date&lt;=?  group by transactionDate&quot;);</span>
+<span class="nc" id="L183">									sbQuery.append(&quot; union all select 0.0 	withdrawlAmt,sum(withdrawl_amt) refundAmt,transaction_type,Date(transaction_date) transactionDate &quot;);</span>
+<span class="nc" id="L184">									sbQuery.append(&quot; from st_lms_retailer_transaction_master rtm  inner join st_ola_ret_withdrawl_refund wlr on rtm.transaction_id=wlr.transaction_id	where rtm.transaction_type='OLA_WITHDRAWL_REFUND' and wallet_id=? and wlr.retailer_org_id=? and  transaction_date&gt;=?  and transaction_date&lt;=? group by transactionDate  )withdrawl &quot;);</span>
+<span class="nc" id="L185">									sbQuery.append(&quot; union all	select sum(depositAmt- refundAmt) depositAmt,0.0 withdrawlAmt,transactionDate from (select sum(deposit_amt) depositAmt,0.0 refundAmt,Date(transaction_date) transactionDate  &quot;);</span>
+<span class="nc" id="L186">									sbQuery.append(&quot;  from st_lms_retailer_transaction_master rtm	inner join st_ola_ret_deposit dp on rtm.transaction_id=dp.transaction_id  where rtm.transaction_type='OLA_DEPOSIT' and wallet_id=? and dp.retailer_org_id=?   and transaction_date&gt;=?  and transaction_date&lt;=? group by transactionDate&quot;);</span>
+<span class="nc" id="L187">									sbQuery.append(&quot;  union all	select 0.0  depositAmt,sum(deposit_amt) refundAmt,Date(transaction_date) transactionDate  from  st_lms_retailer_transaction_master rtm inner join st_ola_ret_deposit_refund dpr on rtm.transaction_id=dpr.transaction_id 	 &quot;);</span>
+<span class="nc" id="L188">									sbQuery.append(&quot; where rtm.transaction_type='OLA_DEPOSIT_REFUND' and wallet_id=? and dpr.retailer_org_id=? and transaction_date&gt;=?  and transaction_date&lt;=? group by transactionDate &quot;);</span>
+<span class="nc" id="L189">									sbQuery.append(&quot;)olaDeposit  group by transactionDate	)ola group by transactionDate&quot;);</span>
+									
+								
+
+	
+<span class="nc" id="L194">			PreparedStatement pstmt = con.prepareStatement(sbQuery.toString());</span>
+<span class="nc" id="L195">			pstmt.setInt(1,walletId);</span>
+<span class="nc" id="L196">			pstmt.setInt(2,retOrgId);</span>
+<span class="nc" id="L197">			pstmt.setString(3,startDate);</span>
+<span class="nc" id="L198">			pstmt.setString(4,endDate);</span>
+<span class="nc" id="L199">			pstmt.setInt(5,walletId);</span>
+<span class="nc" id="L200">			pstmt.setInt(6,retOrgId);</span>
+<span class="nc" id="L201">			pstmt.setString(7,startDate);</span>
+<span class="nc" id="L202">			pstmt.setString(8,endDate);</span>
+<span class="nc" id="L203">			pstmt.setInt(9,walletId);</span>
+<span class="nc" id="L204">			pstmt.setInt(10,retOrgId);</span>
+<span class="nc" id="L205">			pstmt.setString(11,startDate);</span>
+<span class="nc" id="L206">			pstmt.setString(12,endDate);</span>
+<span class="nc" id="L207">			pstmt.setInt(13,walletId);</span>
+<span class="nc" id="L208">			pstmt.setInt(14,retOrgId);</span>
+<span class="nc" id="L209">			pstmt.setString(15,startDate);</span>
+<span class="nc" id="L210">			pstmt.setString(16,endDate);</span>
+<span class="nc" id="L211">			logger.info(pstmt);</span>
+<span class="nc" id="L212">			ResultSet rs = pstmt.executeQuery();</span>
+			
+			
+<span class="nc bnc" id="L215" title="All 2 branches missed.">			while (rs.next()) {</span>
+			
+<span class="nc" id="L217">					sb.append(rs.getString(&quot;transactionDate&quot;)+&quot;*&quot;);</span>
+<span class="nc" id="L218">					sb.append(rs.getString(&quot;depositAmt&quot;)+&quot;,&quot;);</span>
+<span class="nc" id="L219">					sb.append(rs.getString(&quot;withdrawlAmt&quot;));</span>
+<span class="nc" id="L220">					sb.append(&quot;|&quot;);</span>
+					
+				
+				
+				
+			}
+
+<span class="nc" id="L227">			logger.info(&quot;response data:&quot;+ sb.toString());</span>
+			
+			
+<span class="nc" id="L230">		} catch (Exception e) {</span>
+<span class="nc" id="L231">			e.printStackTrace();</span>
+		}
+		finally{
+<span class="nc" id="L234">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L235">		}</span>
+<span class="nc" id="L236">		return sb.toString() ;</span>
+	}
+
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,1025 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CashCheqReportAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.reportsMgmt.common</a> &gt; <span class="el_source">CashCheqReportAction.java</span></div><h1>CashCheqReportAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.reportsMgmt.common;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import jxl.Workbook;
+import jxl.write.WritableWorkbook;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.google.gson.Gson;
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.beans.CashChqPmntBean;
+import com.skilrock.lms.beans.CashChqReportBean;
+import com.skilrock.lms.beans.CashierDrawerDataForPWTBean;
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.GenericException;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.GetDate;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.CashChqReportsAgentHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.CashChqReportsAgentHelperSP;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.CashChqReportsHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.ICashChqReportsAgentHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.OrganizationTerminateReportHelper;
+import com.skilrock.ola.javaBeans.CountryDataBean;
+import com.skilrock.ola.userMgmt.controllerImpl.OlaPlrRegistrationControllerImpl;
+
+<span class="nc" id="L52">public class CashCheqReportAction extends ActionSupport implements</span>
+		ServletResponseAware, ServletRequestAware {
+
+	
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
+<span class="nc" id="L61">	private String edit = null;</span>
+
+<span class="nc" id="L63">	private String end = null;</span>
+	private String end_Date;
+<span class="nc" id="L65">	Log logger = LogFactory.getLog(CashCheqReportAction.class);</span>
+	private int orgId;
+	private String orgName;
+	private String reportType;
+	private HttpServletRequest request;
+
+	private HttpServletResponse response;
+	private String searchResultsAvailable;
+
+<span class="nc" id="L74">	private int start = 0;</span>
+
+	private String start_date;
+
+	private String totaltime;
+	private String lastDate;
+	private String userData;
+	private String userName;
+	private String cashierType;
+	private String state;
+	private String stateName;
+	private String city;
+	private String cityName;
+
+	public String getState() {
+<span class="nc" id="L89">		return state;</span>
+	}
+
+	public void setState(String state) {
+<span class="nc" id="L93">		this.state = state;</span>
+<span class="nc" id="L94">	}</span>
+
+	public String getStateName() {
+<span class="nc" id="L97">		return stateName;</span>
+	}
+
+	public void setStateName(String stateName) {
+<span class="nc" id="L101">		this.stateName = stateName;</span>
+<span class="nc" id="L102">	}</span>
+
+	public String getCity() {
+<span class="nc" id="L105">		return city;</span>
+	}
+
+	public void setCity(String city) {
+<span class="nc" id="L109">		this.city = city;</span>
+<span class="nc" id="L110">	}</span>
+
+	public String getCityName() {
+<span class="nc" id="L113">		return cityName;</span>
+	}
+
+	public void setCityName(String cityName) {
+<span class="nc" id="L117">		this.cityName = cityName;</span>
+<span class="nc" id="L118">	}</span>
+
+	private String countryData ;
+<span class="nc" id="L121">	String[] type = { &quot;Daily&quot;, &quot;Weekly&quot;, &quot;Monthly&quot; };</span>
+	private List list1;
+	public String cashChqForBOAgtWise() throws LMSException, ParseException {
+<span class="nc" id="L124">		boolean isExpand1 = false;</span>
+<span class="nc" id="L125">		boolean isExpand = false;</span>
+<span class="nc" id="L126">		HttpSession session = request.getSession();</span>
+		//ICashChqReportsHelper helper = null;
+<span class="nc" id="L128">		lastDate = CommonMethods.getLastArchDate();		</span>
+<span class="nc" id="L129">		Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L130">		Calendar calLast = Calendar.getInstance();</span>
+<span class="nc" id="L131">		Calendar calStart1 = Calendar.getInstance();</span>
+<span class="nc" id="L132">		Calendar calTest = Calendar.getInstance();</span>
+<span class="nc" id="L133">		SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L134">		SimpleDateFormat frmt = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L135">		Date devLastDate = format.parse(lastDate);</span>
+<span class="nc" id="L136">		calTest.setTime(frmt.parse(start_date));</span>
+<span class="nc" id="L137">		Date devStartDate = format.parse(format.format(calTest.getTime()));</span>
+<span class="nc" id="L138">		Date devStartDate1 = format.parse(end_Date);</span>
+<span class="nc" id="L139">		calStart.setTime(devStartDate);</span>
+<span class="nc" id="L140">		calStart1.setTime(devStartDate1);</span>
+<span class="nc" id="L141">		calLast.setTime(devLastDate);</span>
+<span class="nc bnc" id="L142" title="All 4 branches missed.">		if(calStart.before(calLast) || calStart.equals(calLast))</span>
+		{
+<span class="nc" id="L144">			isExpand1 = true;</span>
+		}
+<span class="nc bnc" id="L146" title="All 2 branches missed.">		else if(calStart.after(calLast))</span>
+		{
+<span class="nc" id="L148">			isExpand1 = false;</span>
+		}
+<span class="nc bnc" id="L150" title="All 4 branches missed.">		if(calStart1.before(calLast) || calStart1.equals(calLast))</span>
+		{
+<span class="nc" id="L152">			isExpand = true;</span>
+		}
+<span class="nc bnc" id="L154" title="All 2 branches missed.">		else if(calStart1.after(calLast))</span>
+		{
+<span class="nc" id="L156">			isExpand = false;</span>
+		}
+<span class="nc" id="L158">		session.setAttribute(&quot;isExpand&quot;, isExpand);</span>
+
+		/*if(LMSFilterDispatcher.isRepFrmSP)
+		{
+		helper = new CashChqReportsHelperSP((DateBeans) session.getAttribute(&quot;datebean&quot;));
+		}
+		else
+		{*/
+<span class="nc" id="L166">		CashChqReportsHelper helper = new CashChqReportsHelper((DateBeans) session.getAttribute(&quot;datebean&quot;));</span>
+		//}
+<span class="nc" id="L168">		List list = helper.getCashChqDetailAgentWise(end_Date, end_Date+&quot; 23:59:59&quot;,-1,isExpand1,state,city);</span>
+<span class="nc" id="L169">		session.setAttribute(&quot;searchCashChqResultDate&quot;, list);</span>
+<span class="nc" id="L170">		return SUCCESS;</span>
+	}
+
+	public String cashChqReportForAgent() throws LMSException, ParseException {
+<span class="nc" id="L174">		logger.debug(&quot;Cash &amp; Cheque report for AGENT result is executed. &quot;);</span>
+		// System.out.println(&quot;Cash &amp; Cheque report for AGENT result is
+		// executed. &quot;);
+<span class="nc" id="L177">		executeHelper(&quot;AGENT&quot;);</span>
+<span class="nc" id="L178">		return SUCCESS;</span>
+	}
+
+	public String cashChqReportForBO() throws LMSException, ParseException {
+<span class="nc" id="L182">		logger.debug(&quot;Cash &amp; Cheque report for Bo result is executed. &quot;);</span>
+		// System.out.println(&quot;Cash &amp; Cheque report for Bo result is executed.
+		// &quot;);
+<span class="nc bnc" id="L185" title="All 2 branches missed.">		if (&quot;Userwise&quot;.equals(reportType)) {</span>
+<span class="nc" id="L186">			Date lastArchDate = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;).parse(CommonMethods.getLastArchDate());</span>
+
+<span class="nc" id="L188">			SimpleDateFormat utilDateFormat = new SimpleDateFormat((String) getRequest().getSession().getAttribute(&quot;date_format&quot;));</span>
+<span class="nc bnc" id="L189" title="All 4 branches missed.">			if (utilDateFormat.parse(start_date).getTime() &lt;= lastArchDate.getTime()|| utilDateFormat.parse(end_Date).getTime() &lt;= lastArchDate.getTime()) {</span>
+<span class="nc" id="L190">				return &quot;checkArchivingDate&quot;;</span>
+			}
+		}
+<span class="nc" id="L193">		executeHelper(&quot;BO&quot;);</span>
+<span class="nc" id="L194">		return SUCCESS;</span>
+	}
+
+	public String cashChqReportForBODate() throws LMSException, ParseException {
+<span class="nc" id="L198">		boolean isExpand = false;</span>
+<span class="nc" id="L199">		HttpSession session = request.getSession();</span>
+		/*ICashChqReportsHelper helper = null;
+		if(LMSFilterDispatcher.isRepFrmSP)
+		{
+		helper = new CashChqReportsHelperSP((DateBeans) session.getAttribute(&quot;datebean&quot;));
+		}
+		else
+		{*/
+<span class="nc" id="L207">		CashChqReportsHelper helper = new CashChqReportsHelper((DateBeans) session.getAttribute(&quot;datebean&quot;));</span>
+		//}
+	
+<span class="nc" id="L210">		List list = helper.getCashChqDetailDateWise(orgId,-1);</span>
+<span class="nc" id="L211">		start_date = ((DateBeans) session.getAttribute(&quot;datebean&quot;)).getFirstdate().toString();</span>
+<span class="nc" id="L212">		lastDate = CommonMethods.getLastArchDate();</span>
+<span class="nc" id="L213">		System.out.println(&quot;last archieve date&quot;+lastDate);</span>
+<span class="nc" id="L214">		System.out.println(&quot;last archieve date&quot;+start_date);</span>
+		
+<span class="nc" id="L216">		System.out.println(&quot;last archieve date&quot;+lastDate);</span>
+<span class="nc" id="L217">		Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L218">		Calendar calLast = Calendar.getInstance();</span>
+<span class="nc" id="L219">		SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L220">		Date devLastDate = format.parse(lastDate);</span>
+<span class="nc" id="L221">		Date devStartDate = format.parse(start_date);</span>
+<span class="nc" id="L222">		calStart.setTime(devStartDate);</span>
+<span class="nc" id="L223">		calLast.setTime(devLastDate);</span>
+<span class="nc bnc" id="L224" title="All 4 branches missed.">		if(calStart.before(calLast) || calStart.equals(calLast))</span>
+		{
+<span class="nc" id="L226">			isExpand = true;</span>
+		}
+<span class="nc bnc" id="L228" title="All 2 branches missed.">		else if(calStart.after(calLast))</span>
+		{
+<span class="nc" id="L230">			isExpand = false;</span>
+		}
+<span class="nc" id="L232">		session.setAttribute(&quot;isExpand&quot;, isExpand);</span>
+
+<span class="nc" id="L234">		session.setAttribute(&quot;searchCashChqResultDate&quot;, list);</span>
+<span class="nc" id="L235">		return SUCCESS;</span>
+	}
+	public String execute() {
+<span class="nc" id="L238">		List&lt;CountryDataBean&gt; countryDataList = null;</span>
+		try {
+<span class="nc" id="L240">			request.getSession().setAttribute(&quot;stDate&quot;,</span>
+					new java.sql.Date(new java.util.Date().getTime()));
+<span class="nc" id="L242">			countryDataList=new OlaPlrRegistrationControllerImpl().getCountryListMap();</span>
+<span class="nc" id="L243">			String js = new Gson().toJson(countryDataList);</span>
+<span class="nc" id="L244">			setCountryData(js);</span>
+<span class="nc" id="L245">		} catch (LMSException e) {</span>
+<span class="nc" id="L246">			e.printStackTrace();</span>
+<span class="nc" id="L247">		} catch (GenericException e) {</span>
+<span class="nc" id="L248">			e.printStackTrace();</span>
+<span class="nc" id="L249">		}</span>
+	/*	ICashChqReportsAgentHelper helper = null;
+		
+		if (LMSFilterDispatcher.isRepFrmSP) {
+			helper = new CashChqReportsAgentHelperSP();
+		} else {	
+		CashChqReportsAgentHelper helper = new CashChqReportsAgentHelper();
+		//}
+			userData = helper.getUserList().toString();*/
+<span class="nc" id="L258">		return SUCCESS;</span>
+	}
+
+	public void executeHelper(String owner) throws LMSException, ParseException {
+		//List list = null;
+		//Connection con = null;
+		//boolean isExpand = false;
+<span class="nc" id="L265">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L266">		DateBeans dateBeans = GetDate.getDate(totaltime);</span>
+<span class="nc" id="L267">		dateBeans.setStartDate(new java.util.Date());</span>
+<span class="nc" id="L268">		dateBeans.setEndDate(new java.util.Date());</span>
+<span class="nc" id="L269">		SimpleDateFormat sdf=null;</span>
+<span class="nc" id="L270">		Timestamp startDate=null;</span>
+<span class="nc" id="L271">		Timestamp endDate=null;</span>
+<span class="nc" id="L272">		List list2=null;</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">		if (&quot;Date Wise&quot;.equalsIgnoreCase(totaltime)) {</span>
+
+<span class="nc" id="L275">			SimpleDateFormat utilDateFormat = new SimpleDateFormat(</span>
+					(String) session.getAttribute(&quot;date_format&quot;));
+
+			try {
+<span class="nc" id="L279">				dateBeans.setStartDate(utilDateFormat.parse(start_date));</span>
+<span class="nc" id="L280">				dateBeans.setFirstdate(new java.sql.Date(utilDateFormat.parse(</span>
+						start_date).getTime()));
+<span class="nc" id="L282">				dateBeans.setEndDate(utilDateFormat.parse(end_Date));</span>
+<span class="nc" id="L283">				dateBeans.setLastdate(new java.sql.Date(GetDate.getNextDayDate(</span>
+						utilDateFormat.parse(end_Date)).getTime()));
+<span class="nc" id="L285">				dateBeans.setReportType(&quot;&quot;);</span>
+<span class="nc" id="L286">			} catch (ParseException e) {</span>
+<span class="nc" id="L287">				e.printStackTrace();</span>
+<span class="nc" id="L288">				throw new LMSException(e);</span>
+<span class="nc" id="L289">			}</span>
+		}
+<span class="nc bnc" id="L291" title="All 2 branches missed.">		if (owner.equalsIgnoreCase(&quot;AGENT&quot;)) {</span>
+<span class="nc" id="L292">			UserInfoBean infoBean = (UserInfoBean) session</span>
+					.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc bnc" id="L294" title="All 2 branches missed.">			if (infoBean == null) {</span>
+<span class="nc" id="L295">				infoBean = new UserInfoBean();</span>
+<span class="nc" id="L296">				infoBean.setUserId(280);</span>
+			}
+<span class="nc" id="L298">			logger</span>
+					.debug(&quot; Inside agent block&quot;);
+			
+<span class="nc" id="L301">			ICashChqReportsAgentHelper agentHelper = null;</span>
+			
+<span class="nc bnc" id="L303" title="All 2 branches missed.">			if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L304">				agentHelper = new CashChqReportsAgentHelperSP(infoBean, dateBeans);</span>
+			} else {
+<span class="nc" id="L306">				agentHelper = new CashChqReportsAgentHelper(infoBean, dateBeans);</span>
+			}
+<span class="nc" id="L308">			list1 = agentHelper.getCashChqDetail();</span>
+<span class="nc" id="L309">			CashChqReportBean cashChqBean = agentHelper</span>
+					.getCashChqDetailWithBO();
+<span class="nc" id="L311">			session.setAttribute(&quot;agentbocashchqdetail&quot;, cashChqBean);</span>
+<span class="nc" id="L312">			session.setAttribute(&quot;cashchqDetail&quot;, list1);</span>
+<span class="nc" id="L313">			session.setAttribute(&quot;agentcashchq&quot;, &quot;agent&quot;);</span>
+<span class="nc" id="L314">		} else {</span>
+		/*	lastDate = CommonMethods.getLastArchDate();
+			SimpleDateFormat formatOld = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);
+			Date oldDate = formatOld.parse(start_date);
+			logger.info(&quot;last archieve date&quot;+lastDate);
+			Calendar calStart = Calendar.getInstance();
+			Calendar calLast = Calendar.getInstance();
+			SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);
+			Date devLastDate = format.parse(lastDate);
+			Date devStartDate = format.parse(format.format(oldDate));
+			calStart.setTime(devStartDate);
+			calLast.setTime(devLastDate);
+			if(calStart.after(calLast))
+			{
+				isArchData = false;
+			}else{
+				isArchData = true;
+				
+			}*/
+			//check for arch date
+		
+			//Calendar cal = Calendar.getInstance();
+			///	logger.info(&quot;start&quot;+cal.getTimeInMillis());
+<span class="nc" id="L337">			CashChqReportsHelper helper = new CashChqReportsHelper(dateBeans);</span>
+				
+			//Map&lt;Integer, String&gt; agtNameOrgIdMap = new LinkedHashMap&lt;Integer, String&gt;();
+			
+<span class="nc bnc" id="L341" title="All 2 branches missed.">			if (&quot;Agentwise&quot;.equalsIgnoreCase(reportType)) {</span>
+<span class="nc" id="L342">				list1 = helper.getCashChqDetail(state,city);</span>
+<span class="nc bnc" id="L343" title="All 2 branches missed.">			} else if(&quot;Daywise&quot;.equalsIgnoreCase(reportType)){</span>
+<span class="nc" id="L344">				list1 = helper.getCashChqDetailDayWise(state,city);</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">			} else if(&quot;Userwise&quot;.equalsIgnoreCase(reportType)){</span>
+<span class="nc" id="L346">				list1 = helper.getCashChqDetailUserWise();</span>
+				/*CashierDrawerDataForPWTBean innerBean = null ;
+				CashChqReportBean bean = null ;
+				CashChqReportsHelper helper1 = new CashChqReportsHelper(dateBeans);
+				sdf = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);
+				startDate = new Timestamp(sdf.parse(new Timestamp(dateBeans.getStartDate().getTime()).toString().substring(0, 10)).getTime());
+				sdf = new SimpleDateFormat(&quot;yyyy-MM-dd hh:mm:ss&quot;);
+				endDate = new Timestamp(sdf.parse(new Timestamp(dateBeans.getEndDate().getTime()).toString().substring(0, 10) + &quot; 23:59:59&quot;).getTime());
+				List&lt;CashierDrawerDataForPWTBean&gt; detailsForPwtTicketsCashierWise =  helper1.getCashierWisewtData(startDate, endDate, &quot;ALL&quot;, ((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;))
+						.getUserId());
+				
+				double totalClaim = 0.0 ;
+				for(Object list:  list1)
+				{
+					double claimAmt = 0.0;
+					bean = (CashChqReportBean) list ;
+					for(Object innerList: detailsForPwtTicketsCashierWise)
+					{
+						innerBean = (CashierDrawerDataForPWTBean) innerList;
+						if(bean.getOrgId() == innerBean.getUserId())
+						{
+							bean.setClaimAmt(FormatNumber.formatNumber(claimAmt + innerBean.getClaimedAmount()));
+							totalClaim += innerBean.getClaimedAmount();
+						}
+					}
+					bean.setNetAmt(FormatNumber.formatNumber(Double.parseDouble(bean.getNetAmt())+(bean.getClaimAmt() == null ? 0.0 : Double.parseDouble(bean.getClaimAmt())))) ;
+					if(bean.getOrgId() == -1)
+						bean.setTotalClaim(FormatNumber.formatNumber(totalClaim));
+				}	*/
+			} 	
+			//session.setAttribute(&quot;agentcashchq&quot;, null);
+			//session.setAttribute(&quot;agentNameOrgIdMap&quot;, agtNameOrgIdMap);
+<span class="nc" id="L378">			session.setAttribute(&quot;reportType&quot;, reportType);</span>
+			////Calendar cal1 = Calendar.getInstance();
+			//System.out.println(&quot;end&quot;+cal1.getTimeInMillis());
+			//System.out.println(&quot;diff&quot;+(cal1.getTimeInMillis()-cal.getTimeInMillis())/1000);
+		}
+
+<span class="nc" id="L384">		session.setAttribute(&quot;datebean&quot;, dateBeans);</span>
+<span class="nc" id="L385">		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session</span>
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+<span class="nc" id="L387">		session.setAttribute(&quot;orgAdd&quot;, ReportUtility.getOrgAdd(((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;)).getUserOrgId()));</span>
+		//session.setAttribute(&quot;cashChqResultBO&quot;, list1);
+<span class="nc" id="L389">	    sdf=new SimpleDateFormat(&quot;dd-MM-yyyy HH:mm:ss&quot;);</span>
+<span class="nc" id="L390">        startDate=new Timestamp(sdf.parse(start_date+&quot; 00:00:00&quot;).getTime());</span>
+<span class="nc" id="L391">        endDate=new Timestamp(sdf.parse(end_Date+&quot; 23:59:59&quot;).getTime());</span>
+<span class="nc" id="L392">        OrganizationTerminateReportHelper.getTerminateAgentListForRep(startDate, endDate);</span>
+<span class="nc" id="L393">        List&lt;Integer&gt; terminateAgentList=OrganizationTerminateReportHelper.AgentOrgIdIntTypeList;</span>
+<span class="nc" id="L394">        list2=new ArrayList();</span>
+<span class="nc" id="L395">        list2.addAll(list1);</span>
+        CashChqReportBean bean;	
+<span class="nc bnc" id="L397" title="All 2 branches missed.">	    for(Object o:list2){</span>
+<span class="nc" id="L398">				bean=(CashChqReportBean)o;</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">				if(terminateAgentList.contains(bean.getOrgId())){</span>
+<span class="nc" id="L400">					list1.remove(bean);</span>
+				}
+<span class="nc" id="L402">	   }</span>
+<span class="nc" id="L403">		session.setAttribute(&quot;searchCashChqResult&quot;, list1);</span>
+		/*if (list1 != null &amp;&amp; list1.size() &gt; 0) {
+			session.setAttribute(&quot;APP_ORDER_LIST5&quot;, list1);
+			session.setAttribute(&quot;startValueOrderSearch&quot;, new Integer(0));
+			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;Yes&quot;);
+			searchAjax();
+		} else {
+			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;No&quot;);
+			session.setAttribute(&quot;APP_ORDER_LIST5&quot;, new ArrayList(0));
+		}*/
+
+<span class="nc" id="L414">	}</span>
+
+	public String exportExcel() {
+<span class="nc" id="L417">		ArrayList&lt;CashChqReportBean&gt; data = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L418">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L419">		ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L420">		data = (ArrayList&lt;CashChqReportBean&gt;) session</span>
+				.getAttribute(&quot;searchCashChqResult&quot;);
+
+		try {
+			
+<span class="nc" id="L425">			response.setContentType(&quot;application/vnd.ms-excel&quot;);</span>
+<span class="nc" id="L426">			response.setHeader(&quot;Content-disposition&quot;,</span>
+					&quot;attachment;filename=Cash Cheque Report.xls&quot;);
+<span class="nc" id="L428">			WritableWorkbook w = Workbook.createWorkbook(response</span>
+					.getOutputStream());
+<span class="nc" id="L430">			WriteExcelForCashChq excel = new WriteExcelForCashChq(</span>
+					(DateBeans) request.getSession().getAttribute(&quot;datebean&quot;));
+			/*Map&lt;Integer, String&gt; agtNameIdMap = new LinkedHashMap&lt;Integer, String&gt;();
+			 ReportUtility.getOrgNameMap(agtNameIdMap);*/
+			
+				
+<span class="nc" id="L436">				Map&lt;Integer, List&lt;CashChqPmntBean&gt;&gt; detailDataMap = new LinkedHashMap&lt;Integer, List&lt;CashChqPmntBean&gt;&gt;();</span>
+<span class="nc" id="L437">				Map&lt;String, List&lt;CashChqPmntBean&gt;&gt; detailDataList2 = new TreeMap&lt;String, List&lt;CashChqPmntBean&gt;&gt;();</span>
+<span class="nc" id="L438">				CashChqReportsHelper helper = new CashChqReportsHelper((DateBeans) session.getAttribute(&quot;datebean&quot;));</span>
+				/*Iterator&lt;Map.Entry&lt;Integer, String&gt;&gt; it = agtNameIdMap
+						.entrySet().iterator();*/
+<span class="nc bnc" id="L441" title="All 4 branches missed.">				if (((String) session.getAttribute(&quot;reportType&quot;))</span>
+						.equalsIgnoreCase(&quot;Agentwise&quot;) || ((String) session.getAttribute(&quot;reportType&quot;))
+						.equalsIgnoreCase(&quot;Userwise&quot;)) {
+				/*	while (it.hasNext()) {
+						Map.Entry&lt;Integer, String&gt; pair = it.next();
+						detailDataList1.put(pair.getKey(), helper
+								.getCashChqDetailDateWise(pair.getKey(),-1));
+					}*/  
+<span class="nc" id="L449">					helper.getCashChqDetailAgentWise(-1 , detailDataMap, stateName, cityName);</span>
+<span class="nc" id="L450">					excel.writeFullDetailDateWise(data,	detailDataMap, w, (String) session.getAttribute(&quot;orgName&quot;), (String) session.getAttribute(&quot;orgAdd&quot;), stateName, cityName, (String) session.getAttribute(&quot;reportType&quot;));</span>
+				} else {
+<span class="nc" id="L452">					Calendar c1 = Calendar.getInstance();</span>
+<span class="nc" id="L453">					DateBeans dbean = (DateBeans) session</span>
+							.getAttribute(&quot;datebean&quot;);
+<span class="nc" id="L455">					c1.setTime(dbean.getStartDate());</span>
+<span class="nc" id="L456">					long diffDays = (dbean.getEndDate().getTime() - dbean</span>
+							.getStartDate().getTime())
+							/ (24 * 60 * 60 * 1000);
+<span class="nc" id="L459">					long i = 0L;</span>
+<span class="nc bnc" id="L460" title="All 2 branches missed.">					while (i &lt;= diffDays) {</span>
+<span class="nc" id="L461">						detailDataList2.put((new java.sql.Date(c1.getTime()</span>
+								.getTime())).toString(), helper
+								.getCashChqDetailAgentWise((new java.sql.Date(c1.getTime().getTime())).toString(),(new java.sql.Date(c1.getTime().getTime()+ 24 * 60 * 60 * 1000)).toString(),-1,false,state,city));
+<span class="nc" id="L464">						c1.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc" id="L465">						i++;</span>
+					}
+<span class="nc" id="L467">					excel.writeFullDetailDayWise(data, detailDataList2, w,</span>
+							(String) session.getAttribute(&quot;orgName&quot;),
+							(String) session.getAttribute(&quot;orgAdd&quot;), stateName, cityName);
+				}
+			
+			/*
+			 * if (session.getAttribute(&quot;agentcashchq&quot;) == null)
+			 * excel.write(data, w); else { CashChqReportBean agentBoDetail =
+			 * (CashChqReportBean) session
+			 * .getAttribute(&quot;agentbocashchqdetail&quot;); excel.writeAgent(data,
+			 * agentBoDetail, w); }
+			 */
+
+<span class="nc" id="L480">		} catch (FileNotFoundException e) {</span>
+<span class="nc" id="L481">			e.printStackTrace();</span>
+<span class="nc" id="L482">		} catch (IOException e) {</span>
+<span class="nc" id="L483">			e.printStackTrace();</span>
+<span class="nc" id="L484">		} catch (Exception e) {</span>
+<span class="nc" id="L485">			e.printStackTrace();</span>
+<span class="nc" id="L486">		}</span>
+<span class="nc" id="L487">		return null;</span>
+	}
+	
+	public String exportExcelForAgent() {
+<span class="nc" id="L491">		List&lt;CashChqReportBean&gt; data = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L492">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L493">		ServletContext sc = session.getServletContext();</span>
+<span class="nc" id="L494">		data = (List&lt;CashChqReportBean&gt;)session.getAttribute(&quot;cashchqDetail&quot;);</span>
+		try {
+<span class="nc" id="L496">			response.setContentType(&quot;application/vnd.ms-excel&quot;);</span>
+<span class="nc" id="L497">			response.setHeader(&quot;Content-disposition&quot;,</span>
+					&quot;attachment;filename=Cash Cheque Report.xls&quot;);
+<span class="nc" id="L499">			WritableWorkbook w = Workbook.createWorkbook(response</span>
+					.getOutputStream());
+<span class="nc" id="L501">			WriteExcelForCashChq excel = new WriteExcelForCashChq(</span>
+					(DateBeans) request.getSession().getAttribute(&quot;datebean&quot;));
+<span class="nc bnc" id="L503" title="All 2 branches missed.">			  if (session.getAttribute(&quot;agentcashchq&quot;) == null){</span>
+<span class="nc" id="L504">				  excel.write(data, w, (String)session.getAttribute(&quot;orgName&quot;), (String)session.getAttribute(&quot;orgAdd&quot;)); </span>
+			  }
+			  else { 
+<span class="nc" id="L507">				  CashChqReportBean agentBoDetail =	(CashChqReportBean) session.getAttribute(&quot;agentbocashchqdetail&quot;); </span>
+<span class="nc" id="L508">				  excel.writeAgent(data,agentBoDetail, w); </span>
+			  }
+
+<span class="nc" id="L511">		} catch (FileNotFoundException e) {</span>
+<span class="nc" id="L512">			e.printStackTrace();</span>
+<span class="nc" id="L513">		} catch (IOException e) {</span>
+<span class="nc" id="L514">			e.printStackTrace();</span>
+<span class="nc" id="L515">		} catch (Exception e) {</span>
+<span class="nc" id="L516">			e.printStackTrace();</span>
+<span class="nc" id="L517">		}</span>
+<span class="nc" id="L518">		return null;</span>
+	}
+	
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public void createExcelForPwtTicketsCashierWise() {
+
+<span class="nc" id="L524">		WritableWorkbook w = null;</span>
+<span class="nc" id="L525">		WriteExcelForCashChq excel = null;</span>
+
+<span class="nc" id="L527">		HttpSession session = null;</span>
+
+<span class="nc" id="L529">		DateBeans dateBeans = null;</span>
+<span class="nc" id="L530">		CashChqReportsHelper helper = null;</span>
+
+<span class="nc" id="L532">		List&lt;CashierDrawerDataForPWTBean&gt; detailsForPwtTicketsCashierWise = null;</span>
+		try {
+<span class="nc" id="L534">			session = getRequest().getSession();</span>
+<span class="nc" id="L535">			response.setContentType(&quot;application/vnd.ms-excel&quot;);</span>
+<span class="nc" id="L536">			response.setHeader(&quot;Content-disposition&quot;,</span>
+					&quot;attachment;filename=CashierWiseClaimedTicketsDetail.xls&quot;);
+<span class="nc" id="L538">			w = Workbook.createWorkbook(response.getOutputStream());</span>
+<span class="nc" id="L539">			dateBeans = (DateBeans) request.getSession().getAttribute(</span>
+					&quot;datebean&quot;);
+<span class="nc" id="L541">			dateBeans.setReportType(&quot;PWT Details Cashier Wise&quot;);</span>
+<span class="nc" id="L542">			excel = new WriteExcelForCashChq(dateBeans);</span>
+<span class="nc" id="L543">			helper = new CashChqReportsHelper(dateBeans);</span>
+<span class="nc" id="L544">			detailsForPwtTicketsCashierWise = helper</span>
+					.getDetailsForPwtTicketsCashierWise(dateBeans, cashierType,
+							((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;))
+									.getUserId());
+
+<span class="nc" id="L549">			excel.writeFullDetailForPwtTicketsCashierWise(</span>
+					detailsForPwtTicketsCashierWise, w, (String) session
+							.getAttribute(&quot;orgName&quot;), (String) session
+							.getAttribute(&quot;orgAdd&quot;));
+<span class="nc" id="L553">		} catch (FileNotFoundException e) {</span>
+<span class="nc" id="L554">			e.printStackTrace();</span>
+<span class="nc" id="L555">		} catch (IOException e) {</span>
+<span class="nc" id="L556">			e.printStackTrace();</span>
+<span class="nc" id="L557">		} catch (Exception e) {</span>
+<span class="nc" id="L558">			e.printStackTrace();</span>
+<span class="nc" id="L559">		}</span>
+<span class="nc" id="L560">	}</span>
+	/* @Override
+	public String execute() {
+		request.getSession().setAttribute(&quot;stDate&quot;,
+				new java.sql.Date(new java.util.Date().getTime()));
+		ICashChqReportsAgentHelper helper = null;
+		
+		if (LMSFilterDispatcher.isRepFrmSP) {
+			helper = new CashChqReportsAgentHelperSP();
+		} else {
+		CashChqReportsAgentHelper helper = new CashChqReportsAgentHelper();
+		}
+			userData = helper.getUserList().toString();
+		return SUCCESS;
+	}
+
+	public void executeHelper(String owner) throws LMSException, ParseException {
+		List list = null;
+		Connection con = null;
+		boolean isExpand = false;
+		HttpSession session = request.getSession();
+		DateBeans dateBeans = GetDate.getDate(totaltime);
+		dateBeans.setStartDate(new java.util.Date());
+		dateBeans.setEndDate(new java.util.Date());
+		if (&quot;Date Wise&quot;.equalsIgnoreCase(totaltime)) {
+
+			SimpleDateFormat utilDateFormat = new SimpleDateFormat(
+					(String) session.getAttribute(&quot;date_format&quot;));
+
+			try {
+				dateBeans.setStartDate(utilDateFormat.parse(start_date));
+				dateBeans.setFirstdate(new java.sql.Date(utilDateFormat.parse(
+						start_date).getTime()));
+				dateBeans.setEndDate(utilDateFormat.parse(end_Date));
+				dateBeans.setLastdate(new java.sql.Date(GetDate.getNextDayDate(
+						utilDateFormat.parse(end_Date)).getTime()));
+				dateBeans.setReportType(&quot;&quot;);
+			} catch (ParseException e) {
+				e.printStackTrace();
+				throw new LMSException(e);
+			}
+		}
+		if (owner.equalsIgnoreCase(&quot;AGENT&quot;)) {
+			UserInfoBean infoBean = (UserInfoBean) session
+					.getAttribute(&quot;USER_INFO&quot;);
+			if (infoBean == null) {
+				infoBean = new UserInfoBean();
+				infoBean.setUserId(280);
+			}
+			logger
+					.debug(&quot; Inside agent block&quot;);
+			
+			ICashChqReportsAgentHelper agentHelper = null;
+			
+			if (LMSFilterDispatcher.isRepFrmSP) {
+				agentHelper = new CashChqReportsAgentHelperSP(infoBean, dateBeans);
+			} else {
+				agentHelper = new CashChqReportsAgentHelper(infoBean, dateBeans);
+			}
+			list = agentHelper.getCashChqDetail();
+			CashChqReportBean cashChqBean = agentHelper
+					.getCashChqDetailWithBO();
+			session.setAttribute(&quot;agentbocashchqdetail&quot;, cashChqBean);
+			session.setAttribute(&quot;cashchqDetail&quot;, list);
+			session.setAttribute(&quot;agentcashchq&quot;, &quot;agent&quot;);
+		} else {
+			Calendar cal = Calendar.getInstance();
+			logger.info(&quot;start&quot;+cal.getTimeInMillis());
+			lastDate = CommonMethods.getLastArchDate();
+			SimpleDateFormat formatOld = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);
+			Date oldDate = formatOld.parse(start_date);
+			System.out.println(&quot;last archieve date&quot;+lastDate);
+			Calendar calStart = Calendar.getInstance();
+			Calendar calLast = Calendar.getInstance();
+			SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);
+			Date devLastDate = format.parse(lastDate);
+			Date devStartDate = format.parse(format.format(oldDate));
+			calStart.setTime(devStartDate);
+			calLast.setTime(devLastDate);
+			String name = &quot;-1&quot;;
+			if(calStart.before(calLast) || calStart.equals(calLast) || name.equalsIgnoreCase(&quot;-1&quot;))
+			{
+				isExpand = true;
+			}
+			else if(calStart.after(calLast))
+			{
+				isExpand = false;
+			}
+			session.setAttribute(&quot;isExpand&quot;, isExpand);
+			ICashChqReportsHelper helper = null;
+			if(LMSFilterDispatcher.isRepFrmSP)
+			{
+			helper = new CashChqReportsHelperSP(dateBeans);
+			}
+			else
+			{
+			CashChqReportsHelper helper = new CashChqReportsHelper(dateBeans);
+			List&lt;Integer&gt; agtOrgIdList = helper.getAgentOrgList();
+			
+			
+			//remove terminate agent
+			
+			//remove terminate Agent
+			OrganizationTerminateReportHelper.getTerminateAgentListForRep(new Timestamp(dateBeans.getStartDate().getTime()),new Timestamp(dateBeans.getEndDate().getTime()+ 1*24*60*60*1000-1000) );
+			List&lt;Integer&gt; terminateAgentList=OrganizationTerminateReportHelper.AgentOrgIdIntTypeList;
+	          System.out.println(&quot;Terminate agent List::&quot;+terminateAgentList);
+	          agtOrgIdList.removeAll(terminateAgentList);
+					
+			
+			Map&lt;Integer, String&gt; agtNameOrgIdMap = new LinkedHashMap&lt;Integer, String&gt;();
+			try
+			{
+			con = DBConnect.getConnection();
+			if(agtOrgIdList.size()&gt;0){
+			ReportUtility.getOrgNameMap(con,agtNameOrgIdMap,agtOrgIdList.toString().replace(&quot;[&quot;,&quot; &quot;).replace(&quot;]&quot;,&quot; &quot;));
+			}
+			
+			
+			for (Integer orgId : agtOrgIdList) {
+				agtNameOrgIdMap.put(orgId, ReportUtility.getOrgNameFromOrgId(con,orgId));
+			}
+			}
+			catch (Exception e) {
+				e.printStackTrace();
+			}
+			finally{
+				if(con!=null){
+					DBConnect.closeCon(con);
+					System.out.println(&quot;Action Connection Closed...&quot;);
+				}
+			}
+			if (&quot;Agentwise&quot;.equalsIgnoreCase(reportType)) {
+				list = helper.getCashChqDetail(agtOrgIdList,Integer.parseInt(name),isExpand);
+			} else if(&quot;Daywise&quot;.equalsIgnoreCase(reportType)){
+				list = helper.getCashChqDetailDayWise(Integer.parseInt(name),isExpand);
+			} else if(&quot;Userwise&quot;.equalsIgnoreCase(reportType)){
+				list = helper.getCashChqDetailUserWise();
+			} 	
+			session.setAttribute(&quot;agentcashchq&quot;, null);
+			session.setAttribute(&quot;agentNameOrgIdMap&quot;, agtNameOrgIdMap);
+			session.setAttribute(&quot;reportType&quot;, reportType);
+			
+			Calendar cal1 = Calendar.getInstance();
+			System.out.println(&quot;end&quot;+cal1.getTimeInMillis());
+			System.out.println(&quot;diff&quot;+(cal1.getTimeInMillis()-cal.getTimeInMillis())/1000);
+		}
+
+		session.setAttribute(&quot;datebean&quot;, dateBeans);
+		session.setAttribute(&quot;orgName&quot;, ((UserInfoBean) session
+				.getAttribute(&quot;USER_INFO&quot;)).getOrgName());
+		session.setAttribute(&quot;orgAdd&quot;, ReportUtility
+				.getOrgAdd(((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;))
+						.getUserOrgId()));
+		session.setAttribute(&quot;cashChqResultBO&quot;, list);
+		session.setAttribute(&quot;searchCashChqResult&quot;, list);
+
+		if (list != null &amp;&amp; list.size() &gt; 0) {
+			session.setAttribute(&quot;APP_ORDER_LIST5&quot;, list);
+			session.setAttribute(&quot;startValueOrderSearch&quot;, new Integer(0));
+			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;Yes&quot;);
+			// searchAjax();
+		} else {
+			session.setAttribute(&quot;SearchResultsAvailable&quot;, &quot;No&quot;);
+			session.setAttribute(&quot;APP_ORDER_LIST5&quot;, new ArrayList(0));
+		}
+
+	}*/
+
+
+	public String getEdit() {
+<span class="nc" id="L730">		return edit;</span>
+	}
+
+	public String getEnd() {
+<span class="nc" id="L734">		return end;</span>
+	}
+
+	public String getEnd_Date() {
+<span class="nc" id="L738">		return end_Date;</span>
+	}
+
+	public int getOrgId() {
+<span class="nc" id="L742">		return orgId;</span>
+	}
+
+	public String getOrgName() {
+<span class="nc" id="L746">		return orgName;</span>
+	}
+	public String getLastDate()
+	{
+<span class="nc" id="L750">		return lastDate;</span>
+	}
+	public String getReportType() {
+<span class="nc" id="L753">		return reportType;</span>
+	}
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L757">		return request;</span>
+	}
+
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L761">		return response;</span>
+	}
+
+	public String getSearchResultsAvailable() {
+<span class="nc" id="L765">		return searchResultsAvailable;</span>
+	}
+
+	public int getStart() {
+<span class="nc" id="L769">		return start;</span>
+	}
+
+	public String getStart_date() {
+<span class="nc" id="L773">		return start_date;</span>
+	}
+
+	public String getTotaltime() {
+<span class="nc" id="L777">		return totaltime;</span>
+	}
+
+	/**
+	 * This method handles the pagination(first,next,previous and last click) in
+	 * the searched results.
+	 * 
+	 * @return String
+	 */
+	public String searchAjax() {
+<span class="nc" id="L787">		int endValue = 0;</span>
+<span class="nc" id="L788">		int startValue = 0;</span>
+		// PrintWriter out = getResponse().getWriter();
+<span class="nc" id="L790">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L791">		List ajaxList = (List) session.getAttribute(&quot;APP_ORDER_LIST5&quot;);</span>
+<span class="nc" id="L792">		List ajaxSearchList = new ArrayList();</span>
+		// System.out.println(&quot;end &quot;+getEnd());
+<span class="nc bnc" id="L794" title="All 2 branches missed.">		if (ajaxList != null) {</span>
+<span class="nc bnc" id="L795" title="All 2 branches missed.">			if (getEnd() != null) {</span>
+<span class="nc" id="L796">				end = getEnd();</span>
+			} else {
+<span class="nc" id="L798">				end = &quot;first&quot;;</span>
+			}
+<span class="nc" id="L800">			logger.debug(&quot;List Size &quot; + ajaxList.size());</span>
+			// System.out.println(&quot;List Size &quot; + ajaxList.size());
+<span class="nc" id="L802">			startValue = (Integer) session</span>
+					.getAttribute(&quot;startValueOrderSearch&quot;);
+<span class="nc bnc" id="L804" title="All 2 branches missed.">			if (end.equals(&quot;first&quot;)) {</span>
+<span class="nc" id="L805">				logger.debug(&quot;i m in first&quot;);</span>
+				// System.out.println(&quot;i m in first&quot;);
+<span class="nc" id="L807">				startValue = 0;</span>
+<span class="nc" id="L808">				endValue = startValue + 10;</span>
+<span class="nc bnc" id="L809" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L810">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L812" title="All 2 branches missed.">			} else if (end.equals(&quot;Previous&quot;)) {</span>
+<span class="nc" id="L813">				logger.debug(&quot;i m in Previous&quot;);</span>
+				// System.out.println(&quot;i m in Previous&quot;);
+<span class="nc" id="L815">				startValue = startValue - 10;</span>
+<span class="nc bnc" id="L816" title="All 2 branches missed.">				if (startValue &lt; 10) {</span>
+<span class="nc" id="L817">					startValue = 0;</span>
+				}
+<span class="nc" id="L819">				endValue = startValue + 10;</span>
+<span class="nc bnc" id="L820" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L821">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L823" title="All 2 branches missed.">			} else if (end.equals(&quot;Next&quot;)) {</span>
+<span class="nc" id="L824">				logger.debug(&quot;i m in Next&quot;);</span>
+				// System.out.println(&quot;i m in Next&quot;);
+<span class="nc" id="L826">				startValue = startValue + 10;</span>
+<span class="nc" id="L827">				endValue = startValue + 10;</span>
+<span class="nc bnc" id="L828" title="All 2 branches missed.">				if (endValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L829">					endValue = ajaxList.size();</span>
+				}
+<span class="nc bnc" id="L831" title="All 2 branches missed.">				if (startValue &gt; ajaxList.size()) {</span>
+<span class="nc" id="L832">					startValue = ajaxList.size() - ajaxList.size() % 10;</span>
+				}
+<span class="nc bnc" id="L834" title="All 2 branches missed.">			} else if (end.equals(&quot;last&quot;)) {</span>
+<span class="nc" id="L835">				endValue = ajaxList.size();</span>
+<span class="nc" id="L836">				startValue = endValue - endValue % 10;</span>
+
+			}
+<span class="nc bnc" id="L839" title="All 2 branches missed.">			if (startValue == endValue) {</span>
+<span class="nc" id="L840">				startValue = endValue - 10;</span>
+			}
+<span class="nc" id="L842">			logger.debug(&quot;End value&quot; + endValue);</span>
+<span class="nc" id="L843">			logger.debug(&quot;Start Value&quot; + startValue);</span>
+
+			// System.out.println(&quot;End value&quot; + endValue);
+			// System.out.println(&quot;Start Value&quot; + startValue);
+<span class="nc bnc" id="L847" title="All 2 branches missed.">			for (int i = startValue; i &lt; endValue; i++) {</span>
+<span class="nc" id="L848">				ajaxSearchList.add(ajaxList.get(i));</span>
+			}
+<span class="nc" id="L850">			session.setAttribute(&quot;cashChqResultBO&quot;, ajaxSearchList);</span>
+<span class="nc" id="L851">			logger.debug(&quot;result in search ajax == &quot; + ajaxSearchList.size());</span>
+
+			// System.out.println(&quot;result in search ajax ==
+			// &quot;+ajaxSearchList.size());
+<span class="nc" id="L855">			session.setAttribute(&quot;startValueOrderSearch&quot;, startValue);</span>
+<span class="nc" id="L856">			setSearchResultsAvailable(&quot;Yes&quot;);</span>
+
+		}
+<span class="nc" id="L859">		logger.debug(&quot;value of Edit&quot; + edit);</span>
+		// System.out.println(&quot;value of Edit&quot; + edit);
+<span class="nc" id="L861">		return SUCCESS;</span>
+
+	}
+
+	public String cashChqForBOUserWise() throws LMSException, ParseException, SQLException {
+<span class="nc" id="L866">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L867">		CashChqReportsHelper helper = new CashChqReportsHelper((DateBeans) session.getAttribute(&quot;datebean&quot;));</span>
+<span class="nc" id="L868">		List&lt;Integer&gt; agtOrgIdList = helper.getAgentOrgList();</span>
+<span class="nc" id="L869">		List list2 = null ;</span>
+		//Map&lt;Integer, String&gt; agtNameOrgIdMap = new TreeMap&lt;Integer, String&gt;();
+<span class="nc" id="L871">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L872">		boolean isExpand = false;</span>
+<span class="nc" id="L873">		start_date = ((DateBeans) session.getAttribute(&quot;datebean&quot;)).getFirstdate().toString();</span>
+<span class="nc" id="L874">		lastDate = CommonMethods.getLastArchDate();</span>
+<span class="nc" id="L875">		Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L876">		Calendar calLast = Calendar.getInstance();</span>
+<span class="nc" id="L877">		SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L878">		Date devLastDate = format.parse(lastDate);</span>
+<span class="nc" id="L879">		Date devStartDate = format.parse(start_date);</span>
+<span class="nc" id="L880">		calStart.setTime(devStartDate);</span>
+<span class="nc" id="L881">		calLast.setTime(devLastDate);</span>
+<span class="nc bnc" id="L882" title="All 4 branches missed.">		if(calStart.before(calLast) || calStart.equals(calLast))</span>
+		{
+<span class="nc" id="L884">			isExpand = true;</span>
+		}
+<span class="nc bnc" id="L886" title="All 2 branches missed.">		else if(calStart.after(calLast))</span>
+		{
+<span class="nc" id="L888">			isExpand = false;</span>
+		}
+<span class="nc" id="L890">		session.setAttribute(&quot;isExpand&quot;, isExpand);</span>
+		/*for (Integer orgId : agtOrgIdList) {
+			agtNameOrgIdMap.put(orgId, ReportUtility.getOrgNameFromOrgId(con,orgId));
+		}*/
+<span class="nc" id="L894">		List list = helper.getCashChqDetailUserAgentWise(agtOrgIdList,orgId);</span>
+		
+<span class="nc" id="L896">		lastDate = ((DateBeans) session.getAttribute(&quot;datebean&quot;)).getLastdate().toString();</span>
+<span class="nc" id="L897">		devLastDate = format.parse(lastDate);</span>
+		
+<span class="nc" id="L899">		 OrganizationTerminateReportHelper.getTerminateAgentListForRep(new Timestamp(devStartDate.getTime()), new Timestamp(devLastDate.getTime()));</span>
+<span class="nc" id="L900">	        List&lt;Integer&gt; terminateAgentList=OrganizationTerminateReportHelper.AgentOrgIdIntTypeList;</span>
+<span class="nc" id="L901">	        list2=new ArrayList();</span>
+<span class="nc" id="L902">	        list2.addAll(list);</span>
+	        CashChqReportBean bean;	
+<span class="nc bnc" id="L904" title="All 2 branches missed.">		    for(Object o:list2){</span>
+<span class="nc" id="L905">					bean=(CashChqReportBean)o;</span>
+<span class="nc bnc" id="L906" title="All 2 branches missed.">					if(terminateAgentList.contains(bean.getOrgId())){</span>
+<span class="nc" id="L907">						list.remove(bean);</span>
+					}
+<span class="nc" id="L909">		   }</span>
+		
+<span class="nc" id="L911">		session.setAttribute(&quot;cashChqResultUser&quot;, list);</span>
+<span class="nc" id="L912">		session.setAttribute(&quot;username&quot;, userName);</span>
+<span class="nc" id="L913">		return SUCCESS;</span>
+	}
+	
+	public void setEdit(String edit) {
+<span class="nc" id="L917">		this.edit = edit;</span>
+<span class="nc" id="L918">	}</span>
+
+	public void setEnd(String end) {
+<span class="nc" id="L921">		this.end = end;</span>
+<span class="nc" id="L922">	}</span>
+
+	public void setEnd_Date(String end_Date) {
+<span class="nc" id="L925">		logger.debug(&quot;end date called&quot; + end_Date);</span>
+		// System.out.println(&quot;end date called&quot;+end_Date);
+<span class="nc bnc" id="L927" title="All 2 branches missed.">		if (end_Date != null) {</span>
+			// this.end_Date = GetDate.getSqlToUtilFormatStr(end_Date);
+<span class="nc" id="L929">			this.end_Date = end_Date;</span>
+		} else {
+<span class="nc" id="L931">			this.end_Date = new java.sql.Date(new java.util.Date().getTime())</span>
+					.toString();
+		}
+<span class="nc" id="L934">	}</span>
+
+	public void setOrgId(int orgId) {
+<span class="nc" id="L937">		this.orgId = orgId;</span>
+<span class="nc" id="L938">	}</span>
+	public void setLastDate(String lastDate)
+	{
+<span class="nc" id="L941">		this.lastDate = lastDate;</span>
+<span class="nc" id="L942">	}</span>
+	public void setOrgName(String orgName) {
+<span class="nc" id="L944">		this.orgName = orgName;</span>
+<span class="nc" id="L945">	}</span>
+
+	public void setReportType(String reportType) {
+<span class="nc" id="L948">		this.reportType = reportType;</span>
+<span class="nc" id="L949">	}</span>
+
+	public void setSearchResultsAvailable(String searchResultsAvailable) {
+<span class="nc" id="L952">		this.searchResultsAvailable = searchResultsAvailable;</span>
+<span class="nc" id="L953">	}</span>
+
+	public void setServletRequest(HttpServletRequest req) {
+<span class="nc" id="L956">		request = req;</span>
+
+<span class="nc" id="L958">	}</span>
+
+	public void setServletResponse(HttpServletResponse res) {
+<span class="nc" id="L961">		response = res;</span>
+
+<span class="nc" id="L963">	}</span>
+
+	public void setStart(int start) {
+<span class="nc" id="L966">		this.start = start;</span>
+<span class="nc" id="L967">	}</span>
+
+	public void setStart_date(String start_date) {
+<span class="nc" id="L970">		logger.debug(&quot;first date called&quot; + start_date);</span>
+		// System.out.println(&quot;first date called&quot;+start_date);
+<span class="nc bnc" id="L972" title="All 2 branches missed.">		if (start_date != null) {</span>
+			// this.start_date = GetDate.getSqlToUtilFormatStr(start_date);
+<span class="nc" id="L974">			this.start_date = start_date;</span>
+		} else {
+<span class="nc" id="L976">			this.start_date = new java.sql.Date(new java.util.Date().getTime())</span>
+					.toString();
+		}
+<span class="nc" id="L979">	}</span>
+
+	public void setTotaltime(String totaltime) {
+<span class="nc" id="L982">		this.totaltime = totaltime;</span>
+<span class="nc" id="L983">	}</span>
+
+	public String getUserData() {
+<span class="nc" id="L986">		return userData;</span>
+	}
+
+	public void setUserData(String userData) {
+<span class="nc" id="L990">		this.userData = userData;</span>
+<span class="nc" id="L991">	}</span>
+
+	public String getUserName() {
+<span class="nc" id="L994">		return userName;</span>
+	}
+
+	public void setUserName(String userName) {
+<span class="nc" id="L998">		this.userName = userName;</span>
+<span class="nc" id="L999">	}</span>
+
+	public String getCashierType() {
+<span class="nc" id="L1002">		return cashierType;</span>
+	}
+
+	public void setCashierType(String cashierType) {
+<span class="nc" id="L1006">		this.cashierType = cashierType;</span>
+<span class="nc" id="L1007">	}</span>
+
+	public List getList1() {
+<span class="nc" id="L1010">		return list1;</span>
+	}
+
+	public void setList1(List list1) {
+<span class="nc" id="L1014">		this.list1 = list1;</span>
+<span class="nc" id="L1015">	}</span>
+	public String getCountryData() {
+<span class="nc" id="L1017">		return countryData;</span>
+	}
+
+	public void setCountryData(String js) {
+<span class="nc" id="L1021">		this.countryData = js;</span>
+<span class="nc" id="L1022">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

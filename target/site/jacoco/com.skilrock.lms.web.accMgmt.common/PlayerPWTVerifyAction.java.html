@@ -1,0 +1,485 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PlayerPWTVerifyAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.accMgmt.common</a> &gt; <span class="el_source">PlayerPWTVerifyAction.java</span></div><h1>PlayerPWTVerifyAction.java</h1><pre class="source lang-java linenums">/*
+ * ï¿½ copyright 2007, SkilRock Technologies, A division of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * All Rights Reserved
+ * The contents of this file are the property of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * and are subject to a License agreement with Sugal &amp; Damani Lottery Agency Pvt. Ltd.; you may
+ * not use this file except in compliance with that License.  You may obtain a
+ * copy of that license from:
+ * Legal Department
+ * Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * 6/35,WEA, Karol Bagh,
+ * New Delhi
+ * India - 110005
+ * This software is distributed under the License and is provided on an ï¿½AS ISï¿½
+ * basis, without warranty of any kind, either express or implied, unless
+ * otherwise provided in the License.  See the License for governing rights and
+ * limitations under the License.
+ */
+
+package com.skilrock.lms.web.accMgmt.common;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.beans.PlayerBean;
+import com.skilrock.lms.beans.PwtBean;
+import com.skilrock.lms.beans.TicketBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.accMgmt.common.PlayerPWTVerifyHelper;
+import com.skilrock.lms.coreEngine.accMgmt.common.PwtTicketDirectPlayerHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.GraphReportHelper;
+
+/**
+ * This class is used to verify the player,resister the player if not exist,and
+ * complete the Direct player PWT receive.This class finally commit the whole
+ * process.
+ * 
+ * @author Skilrock Technologies.,
+ * 
+ */
+<span class="nc" id="L57">public class PlayerPWTVerifyAction extends ActionSupport implements</span>
+		ServletRequestAware {
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+<span class="nc" id="L64">	private Connection conn = null;</span>
+<span class="nc" id="L65">	private String country = null;</span>
+<span class="nc" id="L66">	private String emailId = null;</span>
+<span class="nc" id="L67">	private String firstName = null;</span>
+	private String idNumber;
+<span class="nc" id="L69">	private String idType = null;</span>
+<span class="nc" id="L70">	private String lastName = null;</span>
+<span class="nc" id="L71">	private String phone = null;</span>
+<span class="nc" id="L72">	private String plrAddr1 = null;</span>
+<span class="nc" id="L73">	private String plrAddr2 = null;</span>
+<span class="nc" id="L74">	private String plrCity = null;</span>
+<span class="nc" id="L75">	private String plrCountry = null;</span>
+	private String plrPin;
+<span class="nc" id="L77">	private String plrState = null;</span>
+	private HttpServletRequest request;
+
+	private String varForPlayerPWTVerify;
+
+	/**
+	 * This method is used to commit data in the database ,of whole process for
+	 * direct player PWT receive.It completes whole process and send response to
+	 * display PWT amount for the selected game-Ticket.
+	 * 
+	 * @return SUCCESS;
+	 * @throws LMSException
+	 */
+	public String donePWTProcess() throws LMSException {
+<span class="nc" id="L91">		int gameId = 0;</span>
+<span class="nc" id="L92">		int gameNbr = 0;</span>
+<span class="nc" id="L93">		int playerId = 0;</span>
+<span class="nc" id="L94">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L95">		session.setAttribute(&quot;Receipt_Id&quot;, null);</span>
+<span class="nc" id="L96">		session.setAttribute(&quot;PlayerId&quot;, null);</span>
+
+		UserInfoBean userInfo;
+<span class="nc" id="L99">		userInfo = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L100">		session.setAttribute(&quot;Receipt_Id&quot;, null);</span>
+
+<span class="nc" id="L102">		String boAccountName = userInfo.getOrgName();</span>
+
+<span class="nc" id="L104">		saveTicketsData(session);</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">		if (session.getAttribute(&quot;ConnObject&quot;) == null) {</span>
+<span class="nc" id="L106">			addActionError(&quot;Connection object is not available&quot;);</span>
+<span class="nc" id="L107">			System.out.println(&quot;Connection is not available for transaction&quot;);</span>
+<span class="nc" id="L108">			return ERROR;</span>
+
+		}
+
+<span class="nc" id="L112">		conn = (Connection) session.getAttribute(&quot;ConnObject&quot;);</span>
+<span class="nc" id="L113">		System.out.println(&quot;Connection object from PlayerPWTAction by session&quot;</span>
+				+ conn);
+<span class="nc bnc" id="L115" title="All 2 branches missed.">		if (session.getAttribute(&quot;PLAYER_DETAILS&quot;) == null) {</span>
+<span class="nc" id="L116">			playerId = registerPlayer(conn);</span>
+
+<span class="nc" id="L118">			System.out.println(&quot;Player Id from register&quot; + playerId);</span>
+
+		} else {
+<span class="nc" id="L121">			List&lt;PlayerBean&gt; playerBean = (List) session</span>
+					.getAttribute(&quot;PLAYER_DETAILS&quot;);
+
+<span class="nc" id="L124">			playerId = playerBean.get(0).getPlrId();</span>
+<span class="nc" id="L125">			plrAddr1 = playerBean.get(0).getPlrAddr1();</span>
+<span class="nc" id="L126">			plrAddr2 = playerBean.get(0).getPlrAddr2();</span>
+<span class="nc" id="L127">			plrCity = playerBean.get(0).getPlrCity();</span>
+<span class="nc" id="L128">			idType = playerBean.get(0).getIdType();</span>
+<span class="nc" id="L129">			idNumber = playerBean.get(0).getIdNumber();</span>
+
+<span class="nc" id="L131">			System.out.println(&quot;Player Id from database&quot; + playerId);</span>
+		}
+<span class="nc bnc" id="L133" title="All 2 branches missed.">		if (session.getAttribute(&quot;GAME_ID&quot;) != null) {</span>
+<span class="nc" id="L134">			gameId = ((Integer) session.getAttribute(&quot;GAME_ID&quot;)).intValue();</span>
+<span class="nc" id="L135">			gameNbr = ((Integer) session.getAttribute(&quot;GAME_NBR&quot;)).intValue();</span>
+		}
+		/*
+		 * if(session.getAttribute(&quot;GAME_ID&quot;)!=null) {
+		 * gameId=((Integer)session.getAttribute(&quot;GAME_ID&quot;)).intValue(); }
+		 */
+<span class="nc" id="L141">		List&lt;TicketBean&gt; verifiedTicketList = (List) session</span>
+				.getAttribute(&quot;VERIFIED_TICKET_LIST&quot;);
+<span class="nc" id="L143">		String ticket_nbr = verifiedTicketList.get(0).getTicketNumber();</span>
+<span class="nc" id="L144">		String pwtApprovalLimitStr = (String) ServletActionContext</span>
+				.getServletContext().getAttribute(&quot;PWT_APPROVAL_LIMIT&quot;);
+<span class="nc" id="L146">		double pwtApprovalLimit = Double.parseDouble(pwtApprovalLimitStr);</span>
+
+<span class="nc" id="L148">		List&lt;PwtBean&gt; pwtList = (List) session.getAttribute(&quot;PWTLIST&quot;);</span>
+<span class="nc" id="L149">		System.out.println(&quot;pwt list&quot; + pwtList);</span>
+
+<span class="nc" id="L151">		session.setAttribute(&quot;PWT_AMT&quot;, pwtList.get(0).getPwtAmount());</span>
+<span class="nc" id="L152">		PlayerPWTVerifyHelper plrHelper = new PlayerPWTVerifyHelper();</span>
+
+<span class="nc" id="L154">		int pwtReceiptId = plrHelper.partiallyPWTProcess(gameId, playerId,</span>
+				pwtList, conn, ticket_nbr, pwtApprovalLimit, gameNbr);
+<span class="nc" id="L156">		session.setAttribute(&quot;ConnObject&quot;, null);</span>
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">		if (pwtReceiptId &gt; 0) {</span>
+<span class="nc" id="L159">			session.setAttribute(&quot;Receipt_Id&quot;, pwtReceiptId);</span>
+<span class="nc" id="L160">			session.setAttribute(&quot;PlayerId&quot;, playerId);</span>
+<span class="nc" id="L161">			GraphReportHelper graphReportHelper = new GraphReportHelper();</span>
+			// graphReportHelper.createTextReportTempPlayerReceipt(pwtReceiptId,firstName,lastName,plrAddr1,plrAddr2,plrCity,gameId,boAccountName,(String)session.getAttribute(&quot;ROOT_PATH&quot;),idType,idNumber);
+<span class="nc" id="L163">			graphReportHelper.createTextReportTempPlayerReceipt(pwtReceiptId</span>
+					+ &quot;&quot;, userInfo.getUserType(), (String) session
+					.getAttribute(&quot;ROOT_PATH&quot;), &quot;SCRATCH_GAME&quot;);
+<span class="nc" id="L166">			System.out</span>
+					.println(&quot;^^^^^^^^^^^^^^^^^^^^^^^^^inside success loop::  &quot;
+							+ pwtReceiptId);
+<span class="nc" id="L169">			return SUCCESS;</span>
+		} else {
+<span class="nc" id="L171">			System.out</span>
+					.println(&quot;############################3inside error loop:::  &quot;
+							+ pwtReceiptId);
+<span class="nc" id="L174">			return ERROR;</span>
+		}
+	}
+
+	public Connection getConn() {
+<span class="nc" id="L179">		return conn;</span>
+	}
+
+	public String getCountry() {
+<span class="nc" id="L183">		return country;</span>
+	}
+
+	private List&lt;String&gt; getCountryList() throws LMSException {
+<span class="nc" id="L187">		List&lt;String&gt; list = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L188">		String query = null;</span>
+<span class="nc" id="L189">		ResultSet rs = null;</span>
+<span class="nc" id="L190">		Statement st = null;</span>
+<span class="nc" id="L191">		Connection conn = null;</span>
+		 
+		try {
+<span class="nc" id="L194">			conn = DBConnect.getConnection();</span>
+<span class="nc" id="L195">			st = conn.createStatement();</span>
+
+<span class="nc" id="L197">			query = QueryManager.getST5Country();</span>
+<span class="nc" id="L198">			System.out.println(&quot;query&gt;&gt;&gt;&gt;&gt;&quot; + query);</span>
+<span class="nc" id="L199">			rs = st.executeQuery(query);</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L201">				list.add(rs.getString(&quot;name&quot;));</span>
+			}
+<span class="nc" id="L203">		} catch (Exception e) {</span>
+<span class="nc" id="L204">			e.printStackTrace();</span>
+<span class="nc" id="L205">			System.out.println(&quot;error in the sql&quot;);</span>
+<span class="nc" id="L206">			throw new LMSException(e);</span>
+		} finally {
+
+<span class="nc" id="L209">			try {</span>
+<span class="nc bnc" id="L210" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L211">					rs.close();</span>
+				}
+<span class="nc bnc" id="L213" title="All 4 branches missed.">				if (st != null) {</span>
+<span class="nc" id="L214">					st.close();</span>
+				}
+<span class="nc bnc" id="L216" title="All 4 branches missed.">				if (conn != null) {</span>
+<span class="nc" id="L217">					conn.close();</span>
+				}
+<span class="nc" id="L219">			} catch (SQLException se) {</span>
+<span class="nc" id="L220">				throw new LMSException(se);</span>
+<span class="nc" id="L221">			}</span>
+		}
+<span class="nc" id="L223">		return list;</span>
+	}
+
+	public String getEmailId() {
+<span class="nc" id="L227">		return emailId;</span>
+	}
+
+	public String getFirstName() {
+<span class="nc" id="L231">		return firstName;</span>
+	}
+
+	public String getIdNumber() {
+<span class="nc" id="L235">		return idNumber;</span>
+	}
+
+	public String getIdType() {
+<span class="nc" id="L239">		return idType;</span>
+	}
+
+	public String getLastName() {
+<span class="nc" id="L243">		return lastName;</span>
+	}
+
+	public String getPhone() {
+<span class="nc" id="L247">		return phone;</span>
+	}
+
+	public String getPlrAddr1() {
+<span class="nc" id="L251">		return plrAddr1;</span>
+	}
+
+	public String getPlrAddr2() {
+<span class="nc" id="L255">		return plrAddr2;</span>
+	}
+
+	public String getPlrCity() {
+<span class="nc" id="L259">		return plrCity;</span>
+	}
+
+	public String getPlrCountry() {
+<span class="nc" id="L263">		return plrCountry;</span>
+	}
+
+	public String getPlrPin() {
+<span class="nc" id="L267">		return plrPin;</span>
+	}
+
+	public String getPlrState() {
+<span class="nc" id="L271">		return plrState;</span>
+	}
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L275">		return request;</span>
+	}
+
+	public String getVarForPlayerPWTVerify() {
+<span class="nc" id="L279">		return varForPlayerPWTVerify;</span>
+	}
+
+	/**
+	 * This method is used continue player verification or registration process.
+	 * 
+	 * @return SUCCESS.
+	 */
+	public String process() {
+<span class="nc" id="L288">		HttpSession session = getRequest().getSession();</span>
+		// /To show the steps on the jsp page
+<span class="nc" id="L290">		int count = (Integer) session.getAttribute(&quot;COUNTER&quot;);</span>
+<span class="nc" id="L291">		count = count + 1;</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">		if (count &gt; 3) {</span>
+<span class="nc" id="L293">			count = 3;</span>
+		}
+
+<span class="nc" id="L296">		session.setAttribute(&quot;COUNTER&quot;, new Integer(count));</span>
+<span class="nc" id="L297">		setVarForPlayerPWTVerify(&quot;No&quot;);</span>
+<span class="nc" id="L298">		return SUCCESS;</span>
+
+	}
+
+	private int registerPlayer(Connection conn) throws LMSException {
+<span class="nc" id="L303">		HttpSession session = getRequest().getSession();</span>
+		// session.setAttribute(&quot;PLAYER_DETAILS&quot;, null);
+<span class="nc" id="L305">		System.out.println(&quot;hello i AM in verify player   action&quot;);</span>
+<span class="nc" id="L306">		System.out.println(&quot;First Name:&quot; + firstName);</span>
+<span class="nc" id="L307">		System.out.println(&quot;Last Status:&quot; + lastName);</span>
+<span class="nc" id="L308">		System.out.println(&quot;ID Number:&quot; + idNumber);</span>
+<span class="nc" id="L309">		System.out.println(&quot;ID Type:&quot; + idType);</span>
+		// conn=(Connection)session.getAttribute(&quot;ConnObject&quot;);
+<span class="nc" id="L311">		Map&lt;String, String&gt; searchMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L312">		searchMap.put(TableConstants.PLAYER_FIRSTNAME, firstName);</span>
+<span class="nc" id="L313">		searchMap.put(TableConstants.PLAYER_LASTNAME, lastName);</span>
+<span class="nc" id="L314">		searchMap.put(TableConstants.PLAYER_IDNUMBER, idNumber);</span>
+<span class="nc" id="L315">		searchMap.put(TableConstants.PLAYER_IDTYPE, idType);</span>
+<span class="nc" id="L316">		searchMap.put(TableConstants.PLAYER_EMAIL, emailId);</span>
+<span class="nc" id="L317">		searchMap.put(TableConstants.PLAYER_PHONE, phone);</span>
+<span class="nc" id="L318">		searchMap.put(TableConstants.PLAYER_ADDR1, plrAddr1);</span>
+<span class="nc" id="L319">		searchMap.put(TableConstants.PLAYER_ADDR2, plrAddr2);</span>
+<span class="nc" id="L320">		searchMap.put(TableConstants.PLAYER_CITY, plrCity);</span>
+<span class="nc" id="L321">		searchMap.put(TableConstants.PLAYER_STATE, plrState);</span>
+<span class="nc" id="L322">		searchMap.put(TableConstants.PLAYER_COUNTRY, plrCountry);</span>
+<span class="nc" id="L323">		searchMap.put(TableConstants.PLAYER_PIN, plrPin);</span>
+<span class="nc" id="L324">		PlayerPWTVerifyHelper searchPlayerHelper = new PlayerPWTVerifyHelper();</span>
+<span class="nc" id="L325">		int playerId = searchPlayerHelper.registerPlayer(searchMap, conn);</span>
+
+<span class="nc" id="L327">		return playerId;</span>
+
+	}
+
+	private String saveTicketsData(HttpSession session1) throws LMSException {
+<span class="nc" id="L332">		System.out.println(&quot;inside playerpwtverifyaction&quot;);</span>
+<span class="nc" id="L333">		HttpSession session = session1;</span>
+
+<span class="nc" id="L335">		UserInfoBean userBean = (UserInfoBean) session1</span>
+				.getAttribute(&quot;USER_INFO&quot;);
+
+<span class="nc" id="L338">		List&lt;TicketBean&gt; verifiedTicketList = (List) session</span>
+				.getAttribute(&quot;VERIFIED_TICKET_LIST&quot;);
+		// List&lt;ActiveGameBean&gt; activeGameBeanList=(List)
+		// session.getAttribute(&quot;ACTIVE_GAME_LIST&quot;);
+<span class="nc" id="L342">		String gameNbrName = (String) session</span>
+				.getAttribute(&quot;SELECTED_GAMENBR_NAME&quot;);
+		// conn=(Connection)session.getAttribute(&quot;connObj&quot;);
+<span class="nc" id="L345">		System.out.println(&quot;Ticket List Size::&quot; + verifiedTicketList.size());</span>
+		// System.out.println(activeGameBeanList);
+<span class="nc" id="L347">		System.out.println(&quot;.........................&quot; + gameNbrName);</span>
+
+<span class="nc" id="L349">		PwtTicketDirectPlayerHelper pwtTicketHelper = new PwtTicketDirectPlayerHelper();</span>
+<span class="nc" id="L350">		int game_id = pwtTicketHelper.getGameIdFromDataBase(gameNbrName);</span>
+
+<span class="nc" id="L352">		session.setAttribute(&quot;GAME_ID&quot;, game_id);</span>
+<span class="nc" id="L353">		System.out.println(&quot;Get the Game ID is : &quot; + game_id);</span>
+
+<span class="nc" id="L355">		pwtTicketHelper.saveTicketsData(game_id, verifiedTicketList, userBean</span>
+				.getUserId(), userBean.getUserOrgId());
+		// ////to get the connection object for transaction
+<span class="nc" id="L358">		conn = pwtTicketHelper.getConnectrion();</span>
+<span class="nc" id="L359">		System.out.println(&quot;Connection Object in Session :&quot; + conn);</span>
+
+<span class="nc" id="L361">		session.setAttribute(&quot;ConnObject&quot;, conn);</span>
+<span class="nc" id="L362">		System.out.println(&quot;Afterrrrrrrrr callingggg save dataa&quot;);</span>
+
+		// session.setAttribute(&quot;SAVED_TICKET_LIST&quot;, savedTicketList);
+
+		// System.out.println(&quot;Saved List is &quot;+savedTicketList);
+
+<span class="nc" id="L368">		return SUCCESS;</span>
+
+	}
+
+	public void setConn(Connection conn) {
+<span class="nc" id="L373">		this.conn = conn;</span>
+<span class="nc" id="L374">	}</span>
+
+	public void setCountry(String country) {
+<span class="nc" id="L377">		this.country = country;</span>
+<span class="nc" id="L378">	}</span>
+
+	public void setEmailId(String emailId) {
+<span class="nc" id="L381">		this.emailId = emailId;</span>
+<span class="nc" id="L382">	}</span>
+
+	public void setFirstName(String firstName) {
+<span class="nc" id="L385">		this.firstName = firstName;</span>
+<span class="nc" id="L386">	}</span>
+
+	public void setIdNumber(String idNumber) {
+<span class="nc" id="L389">		this.idNumber = idNumber;</span>
+<span class="nc" id="L390">	}</span>
+
+	public void setIdType(String idType) {
+<span class="nc" id="L393">		this.idType = idType;</span>
+<span class="nc" id="L394">	}</span>
+
+	public void setLastName(String lastName) {
+<span class="nc" id="L397">		this.lastName = lastName;</span>
+<span class="nc" id="L398">	}</span>
+
+	public void setPhone(String phone) {
+<span class="nc" id="L401">		this.phone = phone;</span>
+<span class="nc" id="L402">	}</span>
+
+	public void setPlrAddr1(String plrAddr1) {
+<span class="nc" id="L405">		this.plrAddr1 = plrAddr1;</span>
+<span class="nc" id="L406">	}</span>
+
+	public void setPlrAddr2(String plrAddr2) {
+<span class="nc" id="L409">		this.plrAddr2 = plrAddr2;</span>
+<span class="nc" id="L410">	}</span>
+
+	public void setPlrCity(String plrCity) {
+<span class="nc" id="L413">		this.plrCity = plrCity;</span>
+<span class="nc" id="L414">	}</span>
+
+	public void setPlrCountry(String plrCountry) {
+<span class="nc" id="L417">		this.plrCountry = plrCountry;</span>
+<span class="nc" id="L418">	}</span>
+
+	public void setPlrPin(String plrPin) {
+<span class="nc" id="L421">		this.plrPin = plrPin;</span>
+<span class="nc" id="L422">	}</span>
+
+	public void setPlrState(String plrState) {
+<span class="nc" id="L425">		this.plrState = plrState;</span>
+<span class="nc" id="L426">	}</span>
+
+	public void setRequest(HttpServletRequest request) {
+<span class="nc" id="L429">		this.request = request;</span>
+<span class="nc" id="L430">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L433">		this.request = request;</span>
+<span class="nc" id="L434">	}</span>
+
+	public void setVarForPlayerPWTVerify(String varForPlayerPWTVerify) {
+<span class="nc" id="L437">		this.varForPlayerPWTVerify = varForPlayerPWTVerify;</span>
+<span class="nc" id="L438">	}</span>
+
+	/**
+	 * This method is used for player verification and registration if not
+	 * exists.
+	 * 
+	 * @return SUCCESS.
+	 * @throws LMSException
+	 */
+
+	public String verify() throws LMSException {
+<span class="nc" id="L449">		List&lt;String&gt; countryList = null;</span>
+<span class="nc" id="L450">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L451">		session.setAttribute(&quot;PLAYER_DETAILS&quot;, null);</span>
+
+<span class="nc" id="L453">		System.out.println(&quot;hello i AM in verify player   action&quot;);</span>
+<span class="nc" id="L454">		System.out.println(&quot;First Name:&quot; + firstName);</span>
+<span class="nc" id="L455">		System.out.println(&quot;Last Status:&quot; + lastName);</span>
+<span class="nc" id="L456">		System.out.println(&quot;ID Number:&quot; + idNumber);</span>
+<span class="nc" id="L457">		System.out.println(&quot;ID Type:&quot; + idType);</span>
+
+<span class="nc" id="L459">		Map&lt;String, String&gt; searchMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L460">		searchMap.put(TableConstants.PLAYER_FIRSTNAME, firstName);</span>
+<span class="nc" id="L461">		searchMap.put(TableConstants.PLAYER_LASTNAME, lastName);</span>
+<span class="nc" id="L462">		searchMap.put(TableConstants.PLAYER_IDNUMBER, idNumber);</span>
+<span class="nc" id="L463">		searchMap.put(TableConstants.PLAYER_IDTYPE, idType);</span>
+
+<span class="nc" id="L465">		PlayerPWTVerifyHelper searchPlayerHelper = new PlayerPWTVerifyHelper();</span>
+<span class="nc" id="L466">		List&lt;PlayerBean&gt; searchResults = searchPlayerHelper</span>
+				.searchPlayer(searchMap);
+
+<span class="nc bnc" id="L469" title="All 4 branches missed.">		if (searchResults != null &amp;&amp; searchResults.size() &gt; 0) {</span>
+<span class="nc" id="L470">			System.out.println(&quot;Yes:---Search result Processed&quot;);</span>
+<span class="nc" id="L471">			session.setAttribute(&quot;PLAYER_DETAILS&quot;, searchResults);</span>
+<span class="nc" id="L472">			System.out.println(&quot;Search Result's Email Id&quot;</span>
+					+ searchResults.get(0).getEmailId());
+<span class="nc" id="L474">			setVarForPlayerPWTVerify(&quot;Yes&quot;);</span>
+<span class="nc" id="L475">			return SUCCESS;</span>
+		} else {
+<span class="nc" id="L477">			setVarForPlayerPWTVerify(&quot;No&quot;);</span>
+<span class="nc" id="L478">			countryList = getCountryList();</span>
+<span class="nc" id="L479">			session.setAttribute(&quot;countryList&quot;, countryList);</span>
+<span class="nc" id="L480">			return SUCCESS;</span>
+		}
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

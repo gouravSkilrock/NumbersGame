@@ -1,0 +1,1624 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>orgOnLineSaleCreditUpdation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.common.utility</a> &gt; <span class="el_source">orgOnLineSaleCreditUpdation.java</span></div><h1>orgOnLineSaleCreditUpdation.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.common.utility;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.OrgPwtLimitBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.drawGames.common.CommonFunctionsHelper;
+import com.skilrock.lms.dge.beans.CancelTicketBean;
+import com.skilrock.lms.dge.beans.GameMasterLMSBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L28">public class orgOnLineSaleCreditUpdation {</span>
+<span class="nc" id="L29">	static Log logger = LogFactory.getLog(orgOnLineSaleCreditUpdation.class);</span>
+
+	public static int drawRaffleSaleTicketUpdate(long refrenceId,
+			String ticket_nbr, int game_nbr, UserInfoBean userInfoBean) {
+<span class="nc" id="L33">		logger.debug(&quot;inside ticket update yogesh **********************:: &quot;</span>
+				+ ticket_nbr);
+<span class="nc" id="L35">		Connection con = null;</span>
+<span class="nc" id="L36">		PreparedStatement pstmt = null;</span>
+
+		try {
+<span class="nc" id="L39">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L40">			con.setAutoCommit(false);</span>
+
+			// update retaler draw sale table for ticket number
+<span class="nc" id="L43">			pstmt = con</span>
+					.prepareStatement(&quot;update st_dg_ret_sale_? set game_id=(select game_id from st_dg_game_master where game_nbr=?),ticket_nbr=? where transaction_id=?&quot;);
+<span class="nc" id="L45">			pstmt.setInt(1, game_nbr);</span>
+<span class="nc" id="L46">			pstmt.setInt(2, game_nbr);</span>
+<span class="nc" id="L47">			pstmt.setString(3, ticket_nbr);</span>
+<span class="nc" id="L48">			pstmt.setLong(4, refrenceId);</span>
+<span class="nc" id="L49">			int isUpdate = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">			if (isUpdate == 1) {</span>
+<span class="nc" id="L51">				con.commit();</span>
+<span class="nc" id="L52">				return 1;</span>
+			} else {
+				// cancelTicketTxnFailed();
+				// drawTicketSaleRefund(userInfoBean,
+				// game_nbr,&quot;FAILED&quot;,refrenceId);
+<span class="nc" id="L57">				return 0;</span>
+			}
+
+<span class="nc" id="L60">		} catch (Exception se) {</span>
+<span class="nc" id="L61">			drawTicketSaleRefund(userInfoBean, game_nbr, &quot;FAILED&quot;, refrenceId);</span>
+<span class="nc" id="L62">			se.printStackTrace();</span>
+<span class="nc" id="L63">			return 0;</span>
+		} finally {
+<span class="nc bnc" id="L65" title="All 8 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L67">					con.close();</span>
+<span class="nc" id="L68">				} catch (SQLException e) {</span>
+<span class="nc" id="L69">					e.printStackTrace();</span>
+<span class="nc" id="L70">				}</span>
+			}
+
+		}
+
+	}
+
+	public static long drawRaffleTicketCancel(UserInfoBean userInfoBean,
+			Connection con, String cancellationCharges, String tktnumber,
+			int gameNbr) {
+
+<span class="nc" id="L81">		logger.debug(&quot;inside cancellation  yogesh **********************:: &quot;</span>
+				+ tktnumber);
+<span class="nc" id="L83">		double cancellationChargePer = Double.parseDouble(cancellationCharges);</span>
+
+		// whether already refunded
+		// if if pwt has claimed for a single panel
+		//
+
+<span class="nc" id="L89">		PreparedStatement pstmt = null;</span>
+
+<span class="nc" id="L91">		ResultSet rsTrns = null;</span>
+
+		try {
+
+			// int gameNbr = cancelTicketBean.getGameNo();
+
+			// check for pwt status
+<span class="nc" id="L98">			pstmt = con</span>
+					.prepareStatement(&quot;select ticket_nbr from st_dg_pwt_inv_? where ticket_nbr = ?&quot;);
+<span class="nc" id="L100">			pstmt.setInt(1, gameNbr);</span>
+<span class="nc" id="L101">			pstmt.setString(2, tktnumber);</span>
+<span class="nc" id="L102">			ResultSet rsPwt = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">			if (rsPwt.next()) {</span>
+<span class="nc" id="L104">				return -1;</span>
+			}
+
+			// check for already cancelled in refund table status
+<span class="nc" id="L108">			pstmt = con</span>
+					.prepareStatement(&quot;select ticket_nbr from st_dg_ret_sale_refund_? where ticket_nbr=?&quot;);
+<span class="nc" id="L110">			pstmt.setInt(1, gameNbr);</span>
+<span class="nc" id="L111">			pstmt.setString(2, tktnumber);</span>
+<span class="nc" id="L112">			rsPwt = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">			if (rsPwt.next()) {</span>
+<span class="nc" id="L114">				return -1;</span>
+			}
+
+			// get the comm from draw game master table
+<span class="nc" id="L118">			pstmt = con</span>
+					.prepareStatement(&quot;select * from st_dg_ret_sale_? where ticket_nbr=? and game_id=(select game_id from st_dg_game_master where game_nbr=?)&quot;);
+<span class="nc" id="L120">			pstmt.setInt(1, gameNbr);</span>
+<span class="nc" id="L121">			pstmt.setString(2, tktnumber);</span>
+<span class="nc" id="L122">			pstmt.setInt(3, gameNbr);</span>
+<span class="nc" id="L123">			ResultSet ticketDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L124">			double ticketMrp = 0.0;</span>
+<span class="nc" id="L125">			double retComm = 0.0;</span>
+<span class="nc" id="L126">			double agtComm = 0.0;</span>
+<span class="nc" id="L127">			double govt_comm = 0.0;</span>
+<span class="nc" id="L128">			double vatAmt = 0.0;</span>
+<span class="nc" id="L129">			double taxableSale = 0.0;</span>
+<span class="nc" id="L130">			double retNet = 0.0;</span>
+<span class="nc" id="L131">			double agtNet = 0.0;</span>
+<span class="nc" id="L132">			double retSdAmt = 0.0;</span>
+<span class="nc" id="L133">			double agtVatAmt = 0.0;</span>
+			//int refTranId = 0;
+<span class="nc" id="L135">			long refTranId=0;</span>
+<span class="nc" id="L136">			int gameId = 0;</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">			if (ticketDetails.next()) {</span>
+<span class="nc" id="L138">				ticketMrp = ticketDetails.getDouble(&quot;mrp_amt&quot;);</span>
+<span class="nc" id="L139">				retComm = ticketDetails.getDouble(&quot;retailer_comm&quot;);</span>
+<span class="nc" id="L140">				retNet = ticketDetails.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L141">				agtComm = ticketDetails.getDouble(&quot;agent_comm&quot;);</span>
+<span class="nc" id="L142">				agtNet = ticketDetails.getDouble(&quot;agent_net_amt&quot;);</span>
+<span class="nc" id="L143">				govt_comm = ticketDetails.getDouble(&quot;good_cause_amt&quot;);</span>
+<span class="nc" id="L144">				vatAmt = ticketDetails.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L145">				taxableSale = ticketDetails.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L146">				retSdAmt = ticketDetails.getDouble(&quot;ret_sd_amt&quot;);</span>
+<span class="nc" id="L147">				agtVatAmt = ticketDetails.getDouble(&quot;agt_vat_amt&quot;);</span>
+<span class="nc" id="L148">				gameId = ticketDetails.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L149">				refTranId = ticketDetails.getLong(&quot;transaction_id&quot;);</span>
+			} else {
+<span class="nc" id="L151">				return -1;</span>
+			}
+<span class="nc" id="L153">			double cancellationCharge = ticketMrp * .01 * cancellationChargePer;</span>
+<span class="nc" id="L154">			logger.debug(ticketMrp + &quot;*******Inside Cancellation*********&quot;</span>
+					+ cancellationChargePer + &quot;********&quot; + cancellationCharge);
+			// insert in main transaction table
+<span class="nc" id="L157">			pstmt = con.prepareStatement(QueryManager</span>
+					.insertInLMSTransactionMaster());
+<span class="nc" id="L159">			pstmt.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L160">			pstmt.executeUpdate();</span>
+<span class="nc" id="L161">			rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">			if (rsTrns.next()) {</span>
+<span class="nc" id="L163">				long transId = rsTrns.getInt(1);</span>
+				// cancelTicketBean.setRefTransId(transId + &quot;&quot;);
+<span class="nc" id="L165">				logger.debug(&quot;trans id &quot; + transId);</span>
+				// insert into retailer transaction master
+<span class="nc" id="L167">				pstmt = con</span>
+						.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L169">				pstmt.setLong(1, transId);</span>
+<span class="nc" id="L170">				pstmt.setInt(2, userInfoBean.getUserId()); // these are</span>
+				// retailers parent
+				// id
+<span class="nc" id="L173">				pstmt.setInt(3, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L174">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L175">				pstmt.setTimestamp(5, new java.sql.Timestamp(new Date()</span>
+						.getTime()));
+<span class="nc" id="L177">				pstmt.setString(6, &quot;DG_REFUND_CANCEL&quot;);</span>
+<span class="nc" id="L178">				pstmt.executeUpdate();</span>
+
+				// insert in ret draw sale table
+<span class="nc" id="L181">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_dg_ret_sale_refund_?(transaction_id,mrp_amt,retailer_comm,net_amt,agent_comm,agent_net_amt,retailer_org_id,claim_status,good_cause_amt,vat_amt,taxable_sale,game_id,cancellation_charges,ticket_nbr,ref_transaction_id,ret_sd_amt,agt_vat_amt) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L183">				pstmt.setInt(1, gameNbr);</span>
+<span class="nc" id="L184">				pstmt.setLong(2, transId);</span>
+<span class="nc" id="L185">				pstmt.setDouble(3, ticketMrp);</span>
+<span class="nc" id="L186">				pstmt.setDouble(4, CommonMethods.fmtToTwoDecimal(retComm));</span>
+<span class="nc" id="L187">				pstmt.setDouble(5, CommonMethods.fmtToTwoDecimal(retNet)</span>
+						- cancellationCharge);
+<span class="nc" id="L189">				pstmt.setDouble(6, CommonMethods.fmtToTwoDecimal(agtComm));</span>
+<span class="nc" id="L190">				pstmt.setDouble(7, CommonMethods.fmtToTwoDecimal(agtNet)</span>
+						- cancellationCharge);
+<span class="nc" id="L192">				pstmt.setInt(8, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L193">				pstmt.setString(9, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L194">				pstmt.setDouble(10, CommonMethods.fmtToTwoDecimal(govt_comm));</span>
+<span class="nc" id="L195">				pstmt.setDouble(11, CommonMethods.fmtToTwoDecimal(vatAmt));</span>
+<span class="nc" id="L196">				pstmt.setDouble(12, CommonMethods.fmtToTwoDecimal(taxableSale));</span>
+<span class="nc" id="L197">				pstmt.setInt(13, gameId);</span>
+<span class="nc" id="L198">				pstmt.setDouble(14, cancellationCharge);</span>
+<span class="nc" id="L199">				pstmt.setString(15, tktnumber);</span>
+<span class="nc" id="L200">				pstmt.setLong(16, refTranId);</span>
+<span class="nc" id="L201">				pstmt.setDouble(17, CommonMethods.fmtToTwoDecimal(retSdAmt));</span>
+<span class="nc" id="L202">				pstmt.setDouble(18, CommonMethods.fmtToTwoDecimal(agtVatAmt));</span>
+<span class="nc" id="L203">				pstmt.executeUpdate();</span>
+
+				// update st_lms_organization_master for claimable balance for
+				// retailer
+				/*
+				 * pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1,
+				 * CommonMethods.fmtToTwoDecimal(retNet) - cancellationCharge);
+				 * pstmt.setInt(2, userInfoBean.getUserOrgId());
+				 * pstmt.executeUpdate(); logger.debug(&quot;pstmt ret &quot; + pstmt);
+				 */
+
+				
+				//Now make payment updte method only one
+<span class="nc" id="L218">				OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(retNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean
+						.getUserOrgId(), userInfoBean
+						.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+				
+<span class="nc" id="L223">				OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(agtNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean
+						.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+				
+				/*CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(retNet), userInfoBean.getUserOrgId(),
+						&quot;DEBIT&quot;, con);
+
+				// update st_lms_organization_master for claimable balance for
+				// agent
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(agtNet),
+						userInfoBean.getParentOrgId(), &quot;DEBIT&quot;, con);*/
+
+				/*
+				 * // update st_lms_organization_master for claimable balance
+				 * for agent pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1,
+				 * CommonMethods.fmtToTwoDecimal(agtNet) - cancellationCharge);
+				 * pstmt.setInt(2, userInfoBean.getParentOrgId());
+				 * pstmt.executeUpdate(); logger.debug(&quot;pstmt agt &quot; + pstmt);
+				 */
+				// con.commit();
+				// return ticketMrp - cancellationCharge;
+<span class="nc" id="L249">				return transId;</span>
+			} else {
+<span class="nc" id="L251">				return -1;</span>
+			}
+
+<span class="nc" id="L254">		} catch (Exception se) {</span>
+<span class="nc" id="L255">			se.printStackTrace();</span>
+<span class="nc" id="L256">			return -1;</span>
+		}
+
+	}
+
+	/**
+	 * This method is used to update organization credit for draw game sale
+	 * ticket
+	 * 
+	 * @param userInfoBean
+	 *            logged in user information
+	 * @param gameNbr
+	 *            for which ticket is sold
+	 * @param ticketMrp
+	 *            mrp amount of ticket
+	 * @return integer value (0) if retailer has insufficient balane (-1) if
+	 *         agent(retailer's parent) has insufficient balane (-2) if some
+	 *         error has occured (&gt; 0) means valid reference id successful
+	 *         transaction
+	 * 
+	 */
+
+	public static  long drawTcketSaleBalDeduction(
+			UserInfoBean userInfoBean, int gameId, double ticketMrp,String plrMobileNbr,Connection con) {
+		//logger.debug(&quot;inside balance deduction  Ticket Mrp :: &quot;);
+		
+<span class="nc" id="L282">		PreparedStatement pstmt = null;</span>
+
+<span class="nc" id="L284">		ResultSet rsTrns = null;</span>
+<span class="nc" id="L285">		boolean isValid=false;</span>
+		try {
+			
+			/*// get the comm from draw game master table
+			pstmt = con
+					.prepareStatement(&quot;select * from st_dg_game_master where game_nbr=&quot;
+							+ gameNbr);
+			ResultSet gameDetails = pstmt.executeQuery();
+			double retCommRate = 0.0;
+			double agtCommRate = 0.0;
+			double govt_comm = 0.0;
+			double vat = 0.0;
+			double prize_payout_ratio = 0.0;
+			int gameId = 0;
+			if (gameDetails.next()) {
+				retCommRate = gameDetails.getDouble(&quot;retailer_sale_comm_rate&quot;);
+				agtCommRate = gameDetails.getDouble(&quot;agent_sale_comm_rate&quot;);
+				govt_comm = gameDetails.getDouble(&quot;govt_comm&quot;);
+				vat = gameDetails.getDouble(&quot;vat_amt&quot;);
+				prize_payout_ratio = gameDetails
+						.getDouble(&quot;prize_payout_ratio&quot;);
+				gameId = gameDetails.getInt(&quot;game_id&quot;);
+			} else {
+				return -2;
+			}*/
+			
+<span class="nc" id="L311">			double retCommRate = 0.0;</span>
+<span class="nc" id="L312">			double agtCommRate = 0.0;</span>
+<span class="nc" id="L313">			double levyRate = 0.0;</span>
+<span class="nc" id="L314">			double agtLevyRate = 0.0;</span>
+<span class="nc" id="L315">			double secDepRate = 0.0;</span>
+<span class="nc" id="L316">			double govt_comm = 0.0;</span>
+<span class="nc" id="L317">			double vat = 0.0;</span>
+<span class="nc" id="L318">			double prize_payout_ratio = 0.0;</span>
+<span class="nc" id="L319">			double retNet = 0.0;</span>
+<span class="nc" id="L320">			double agtNet = 0.0;</span>
+<span class="nc" id="L321">			double retSdAmt = 0.0;</span>
+<span class="nc" id="L322">			double vatAmount = 0.0;</span>
+<span class="nc" id="L323">			double agtVatAmt = 0.0;</span>
+<span class="nc" id="L324">			double goodCauseAmt=0.0;</span>
+<span class="nc" id="L325">			double retComm = 0.0;</span>
+<span class="nc" id="L326">			double agtComm = 0.0;</span>
+			
+			//get from context			
+<span class="nc" id="L329">			GameMasterLMSBean gameMasterLMSBean =Util.getGameMasterLMSBean(gameId);</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">			if(gameMasterLMSBean!=null){</span>
+				//retCommRate=gameMasterLMSBean.getRetSaleCommRate();
+				//agtCommRate =gameMasterLMSBean.getAgentSaleCommRate();
+<span class="nc" id="L333">				govt_comm = gameMasterLMSBean.getGovtComm();</span>
+<span class="nc" id="L334">				vat = gameMasterLMSBean.getVatAmount();</span>
+<span class="nc" id="L335">				prize_payout_ratio = gameMasterLMSBean.getPrizePayoutRatio();</span>
+				//gameId = gameMasterLMSBean.getGameId();	//not need to get again				
+			}else{
+<span class="nc" id="L338">				return -2;</span>
+			}
+			
+
+			/*retCommRate = CommonFunctionsHelper.fetchDGCommOfOrganization(
+					gameId, userInfoBean.getUserOrgId(), &quot;SALE&quot;, userInfoBean
+							.getUserType(), con);
+
+			agtCommRate = CommonFunctionsHelper
+					.fetchDGCommOfOrganization(gameId, userInfoBean
+							.getParentOrgId(), &quot;SALE&quot;, &quot;AGENT&quot;, con);*/
+			
+			
+			// get sale comm variance from util
+<span class="nc" id="L352">			retCommRate = Util.getSaleCommVariance(userInfoBean.getUserOrgId(),gameId);</span>
+<span class="nc" id="L353">			agtCommRate = Util.getSaleCommVariance(userInfoBean.getParentOrgId(),gameId);</span>
+
+<span class="nc bnc" id="L355" title="All 2 branches missed.">			if(ticketMrp&gt;0) {</span>
+				// check with ACA
+				// if online sale amt &gt; ACA then return ERROR
+<span class="nc" id="L358">				pstmt = con</span>
+						.prepareStatement(&quot;select (available_credit-claimable_bal) as availbale_sale_bal, organization_status from st_lms_organization_master where organization_id=?&quot;);
+<span class="nc" id="L360">				pstmt.setInt(1, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L361">				rsTrns = pstmt.executeQuery();</span>
+				//check for &gt;= ?? needs to be confirmed
+<span class="nc bnc" id="L363" title="All 2 branches missed.">				if (rsTrns.next()) {</span>
+<span class="nc bnc" id="L364" title="All 2 branches missed.">					if (!(rsTrns.getDouble(&quot;availbale_sale_bal&quot;) &gt;= ticketMrp</span>
+							- ticketMrp * retCommRate * .01)) {
+<span class="nc" id="L366">						return 0;</span>
+					}
+<span class="nc bnc" id="L368" title="All 2 branches missed.">					if(&quot;INACTIVE&quot;.equals(rsTrns.getString(&quot;organization_status&quot;))) {</span>
+<span class="nc" id="L369">						return -5;</span>
+					}
+				} else {
+<span class="nc" id="L372">					return -2;</span>
+				}
+
+				// check for agents ACA and claimable balance
+<span class="nc bnc" id="L376" title="All 2 branches missed.">				if(!&quot;GHANA&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L377">					pstmt = con</span>
+							.prepareStatement(&quot;select (available_credit-claimable_bal) as availbale_sale_bal, organization_status from st_lms_organization_master where organization_id=?&quot;);
+<span class="nc" id="L379">					pstmt.setInt(1, userInfoBean.getParentOrgId());</span>
+<span class="nc" id="L380">					rsTrns = pstmt.executeQuery();</span>
+					//check for &gt;= ?? needs to be confirmed
+<span class="nc bnc" id="L382" title="All 2 branches missed.">					if (rsTrns.next()) {</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">						if (!(rsTrns.getDouble(&quot;availbale_sale_bal&quot;) &gt;= ticketMrp</span>
+								- ticketMrp * agtCommRate * .01)) {
+<span class="nc" id="L385">							return -1;</span>
+						}
+<span class="nc bnc" id="L387" title="All 2 branches missed.">						if(&quot;INACTIVE&quot;.equals(rsTrns.getString(&quot;organization_status&quot;))) {</span>
+<span class="nc" id="L388">							return -2;</span>
+						}
+					} else {
+<span class="nc" id="L391">						return -2;</span>
+					}
+				}
+			}
+
+			// insert in main transaction table
+<span class="nc" id="L397">			pstmt = con.prepareStatement(QueryManager</span>
+					.insertInLMSTransactionMaster());
+<span class="nc" id="L399">			pstmt.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L400">			pstmt.executeUpdate();</span>
+<span class="nc" id="L401">			rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">			if (rsTrns.next()) {</span>
+<span class="nc" id="L403">				long transId = rsTrns.getLong(1);</span>
+				//logger.debug(&quot;trans id &quot; + transId);
+				// insert into retailer transaction master
+<span class="nc" id="L406">				pstmt = con</span>
+						.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L408">				pstmt.setLong(1, transId);</span>
+<span class="nc" id="L409">				pstmt.setInt(2, userInfoBean.getUserId()); // these are</span>
+				// retailers parent
+				// id
+<span class="nc" id="L412">				pstmt.setInt(3, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L413">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L414">				pstmt.setTimestamp(5, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L415">				pstmt.setString(6, &quot;DG_SALE&quot;);</span>
+<span class="nc" id="L416">				pstmt.executeUpdate();</span>
+
+                //remove unused variable 	saleCommRate			
+<span class="nc" id="L419">				double saleCommRate = 0.0;// This is agent or retailer sale</span>
+				// Comm Rate currently set to 0.
+				// calculate vat
+<span class="nc" id="L422">				double taxableSale = CommonMethods.calTaxableSale(ticketMrp,</span>
+						saleCommRate, prize_payout_ratio, govt_comm, vat);
+				//logger.debug(&quot;taxableSale   ======== &quot; + taxableSale);
+
+
+<span class="nc bnc" id="L427" title="All 2 branches missed.">				if(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L428">					OrgPwtLimitBean orgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getUserOrgId(),con);</span>
+<span class="nc" id="L429">					OrgPwtLimitBean parentOrgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getParentOrgId(),con);</span>
+				
+<span class="nc bnc" id="L431" title="All 2 branches missed.">					if(orgLimit != null){</span>
+<span class="nc" id="L432">						levyRate = orgLimit.getLevyRate();</span>
+<span class="nc" id="L433">						secDepRate = orgLimit.getSecurityDepositRate();</span>
+					}
+<span class="nc bnc" id="L435" title="All 2 branches missed.">					if(parentOrgLimit != null){</span>
+<span class="nc" id="L436">						agtLevyRate = parentOrgLimit.getLevyRate();</span>
+					}
+<span class="nc" id="L438">					goodCauseAmt=CommonMethods.fmtToTwoDecimal(ticketMrp-(ticketMrp*100)/(100+govt_comm));</span>
+<span class="nc" id="L439">					retComm = CommonMethods.fmtToTwoDecimal((ticketMrp-goodCauseAmt)* retCommRate * .01);</span>
+<span class="nc" id="L440">					agtComm = retComm;</span>
+<span class="nc" id="L441">					vatAmount = CommonMethods.fmtToTwoDecimal(retComm*levyRate*.01);</span>
+<span class="nc" id="L442">					retSdAmt = CommonMethods.fmtToTwoDecimal(retComm*secDepRate*.01);</span>
+<span class="nc" id="L443">					agtVatAmt = vatAmount;</span>
+<span class="nc" id="L444">					retNet = CommonMethods.fmtToTwoDecimal(ticketMrp)- (retComm-vatAmount-retSdAmt);</span>
+<span class="nc" id="L445">					agtNet = retNet;</span>
+<span class="nc" id="L446">				} else{</span>
+<span class="nc" id="L447">					retComm = CommonMethods.fmtToTwoDecimal(ticketMrp * retCommRate* .01);</span>
+<span class="nc" id="L448">					agtComm = CommonMethods.fmtToTwoDecimal(ticketMrp * agtCommRate* .01);</span>
+<span class="nc" id="L449">					goodCauseAmt=CommonMethods.fmtToTwoDecimal(ticketMrp* govt_comm * .01);</span>
+<span class="nc" id="L450">					retNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - retComm;</span>
+<span class="nc" id="L451">					agtNet = CommonMethods.fmtToTwoDecimal(ticketMrp) - agtComm;</span>
+<span class="nc" id="L452">					vatAmount = CommonMethods.calculateDrawGameVatPlr(ticketMrp, saleCommRate, prize_payout_ratio, govt_comm, vat);</span>
+<span class="nc" id="L453">					retSdAmt = 0.0;</span>
+<span class="nc" id="L454">					agtVatAmt = CommonMethods.calculateDrawGameVatRet(ticketMrp, saleCommRate, prize_payout_ratio, govt_comm, vat);</span>
+				}
+				/*
+				 * if(isModified) { //update in ret draw sale table pstmt =
+				 * con.prepareStatement(&quot;update st_dg_ret_sale_? set
+				 * transaction_id=transaction_id-1,mrp_amt=&quot;+modifiedTotalPurAmt+&quot;,retailer_comm=&quot;+CommonMethods.fmtToTwoDecimal(ticketMrp*retCommRate*.01)+&quot;,net_amt=&quot;+CommonMethods.fmtToTwoDecimal(retNet)+&quot;,agent_comm=&quot;+CommonMethods.fmtToTwoDecimal(ticketMrp*agtCommRate*.01)+&quot;,agent_net_amt=&quot;+agtNet+&quot;,retailer_org_id=&quot;+userInfoBean.getUserOrgId()+&quot;,claim_status=&quot;+&quot;CLAIM_BAL&quot;+&quot;,good_cause_amt=&quot;+CommonMethods.fmtToTwoDecimal(ticketMrp*govt_comm*.01)+&quot;,vat_amt=&quot;+CommonMethods.fmtToTwoDecimal(vatAmount)+&quot;,taxable_sale=&quot;+CommonMethods.fmtToTwoDecimal(taxableSale)+&quot;,game_id=&quot;+gameId);
+				 * pstmt.setInt(1,gameNbr); pstmt.executeUpdate(); }
+				 * 
+				 * 
+				 * 
+				 * else
+				 */
+
+				// insert in ret draw sale table
+				//Needs to confirm from sir
+<span class="nc" id="L469">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_dg_ret_sale_?(transaction_id,mrp_amt,retailer_comm,net_amt,agent_comm,agent_net_amt,retailer_org_id,claim_status,good_cause_amt,vat_amt,taxable_sale,game_id,player_mob_number,ret_sd_amt,agt_vat_amt) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L471">				pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L472">				pstmt.setLong(2, transId);</span>
+<span class="nc" id="L473">				pstmt.setDouble(3, CommonMethods.fmtToTwoDecimal(ticketMrp));</span>
+<span class="nc" id="L474">				pstmt.setDouble(4,retComm);</span>
+<span class="nc" id="L475">				pstmt.setDouble(5, CommonMethods.fmtToTwoDecimal(retNet));</span>
+<span class="nc" id="L476">				pstmt.setDouble(6, agtComm);</span>
+<span class="nc" id="L477">				pstmt.setDouble(7, CommonMethods.fmtToTwoDecimal(agtNet));</span>
+<span class="nc" id="L478">				pstmt.setInt(8, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L479">				pstmt.setString(9, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L480">				pstmt.setDouble(10, goodCauseAmt);</span>
+<span class="nc" id="L481">				pstmt.setDouble(11, CommonMethods.fmtToTwoDecimal(vatAmount));</span>
+<span class="nc" id="L482">				pstmt.setDouble(12, CommonMethods.fmtToTwoDecimal(taxableSale));</span>
+<span class="nc" id="L483">				pstmt.setInt(13, gameId);</span>
+<span class="nc" id="L484">				pstmt.setString(14, plrMobileNbr);</span>
+<span class="nc" id="L485">				pstmt.setDouble(15, CommonMethods.fmtToTwoDecimal(retSdAmt));</span>
+<span class="nc" id="L486">				pstmt.setDouble(16, CommonMethods.fmtToTwoDecimal(agtVatAmt));</span>
+
+<span class="nc" id="L488">				pstmt.executeUpdate();</span>
+
+				// update st_lms_organization_master for claimable balance for
+				// retailer
+				/*
+				 * pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal+?
+				 * where organization_id=?&quot;); pstmt.setDouble(1, retNet);
+				 * pstmt.setInt(2, userInfoBean.getUserOrgId());
+				 * pstmt.executeUpdate(); logger.debug(&quot;RET Claimable Balance&quot;);
+				 */
+
+				
+				//Now make payment updte method only one
+<span class="nc bnc" id="L502" title="All 2 branches missed.">				if(ticketMrp&gt;0) {</span>
+<span class="nc" id="L503">					isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(retNet, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userInfoBean</span>
+							.getUserOrgId(), userInfoBean
+							.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+<span class="nc bnc" id="L506" title="All 2 branches missed.">					if(!isValid){</span>
+<span class="nc" id="L507">						return -2;</span>
+					}
+<span class="nc" id="L509">					isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(agtNet, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userInfoBean</span>
+							.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+<span class="nc bnc" id="L511" title="All 2 branches missed.">					if(!isValid){</span>
+<span class="nc" id="L512">						return -2;</span>
+					}
+				}
+				/*CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, retNet, userInfoBean
+						.getUserOrgId(), &quot;CREDIT&quot;, con);
+
+				// update st_lms_organization_master for claimable balance for
+				// agent
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, agtNet, userInfoBean
+						.getParentOrgId(), &quot;CREDIT&quot;, con);*/
+				/*
+				 * pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal+?
+				 * where organization_id=?&quot;); pstmt.setDouble(1, agtNet);
+				 * pstmt.setInt(2, userInfoBean.getParentOrgId());
+				 * pstmt.executeUpdate();
+				 */
+
+			
+<span class="nc" id="L532">				return transId;</span>
+
+			} else {
+<span class="nc" id="L535">				return -2;</span>
+			}
+
+<span class="nc" id="L538">		} catch (Exception se) {</span>
+<span class="nc" id="L539">			se.printStackTrace();</span>
+<span class="nc" id="L540">			return -2;</span>
+		} 
+
+	}
+
+	/**
+	 * **********Added on 30 july,2010
+	 * 
+	 * @param userInfoBean
+	 *            :Contain user Information
+	 * @param gameNbr :
+	 *            Game no
+	 * @param modifiedTotalPurAmt
+	 *            :New Total Purchase Amt
+	 * @param oldTotalPurAmt :
+	 *            old Total Purchase Amt
+	 * @param transId
+	 * @return
+	 */
+	public static synchronized long drawTcketSaleBalDedUpdate(
+			UserInfoBean userInfoBean, int gameId, double modifiedTotalPurAmt,
+			double oldTotalPurAmt, long transId,Connection con) {
+<span class="nc" id="L562">		logger</span>
+				.debug(&quot;inside balance updation  **********************new mrp :: &quot;
+						+ modifiedTotalPurAmt);
+		
+<span class="nc" id="L566">		PreparedStatement pstmt = null;</span>
+
+<span class="nc" id="L568">		ResultSet rsTrns = null;</span>
+
+		try {
+			
+			/*// get the comm from draw game master table
+			pstmt = con
+					.prepareStatement(&quot;select * from st_dg_game_master where game_nbr=&quot;
+							+ gameNbr);
+			ResultSet gameDetails = pstmt.executeQuery();
+			double retCommRate = 0.0;
+			double agtCommRate = 0.0;
+			double govt_comm = 0.0;
+			double vat = 0.0;
+			double prize_payout_ratio = 0.0;
+			int gameId = 0;
+			if (gameDetails.next()) {
+				retCommRate = gameDetails.getDouble(&quot;retailer_sale_comm_rate&quot;);
+				agtCommRate = gameDetails.getDouble(&quot;agent_sale_comm_rate&quot;);
+				govt_comm = gameDetails.getDouble(&quot;govt_comm&quot;);
+				vat = gameDetails.getDouble(&quot;vat_amt&quot;);
+				prize_payout_ratio = gameDetails
+						.getDouble(&quot;prize_payout_ratio&quot;);
+				gameId = gameDetails.getInt(&quot;game_id&quot;);
+			} else {
+				return -2;
+			}*/
+			
+<span class="nc" id="L595">			double retCommRate = 0.0;</span>
+<span class="nc" id="L596">			double agtCommRate = 0.0;</span>
+<span class="nc" id="L597">			double levyRate = 0.0;</span>
+<span class="nc" id="L598">			double agtLevyRate = 0.0;</span>
+<span class="nc" id="L599">			double secDepRate = 0.0;</span>
+<span class="nc" id="L600">			double oldVatAmt = 0.0;</span>
+<span class="nc" id="L601">			double retOldSdAmt = 0.0;</span>
+<span class="nc" id="L602">			double agtOldVatAmt = 0.0;</span>
+<span class="nc" id="L603">			double govt_comm = 0.0;</span>
+<span class="nc" id="L604">			double vat = 0.0;</span>
+<span class="nc" id="L605">			double prize_payout_ratio = 0.0;</span>
+<span class="nc" id="L606">			double retNet = 0.0;</span>
+<span class="nc" id="L607">			double agtNet = 0.0;</span>
+<span class="nc" id="L608">			double retSdAmt = 0.0;</span>
+<span class="nc" id="L609">			double vatAmount = 0.0;</span>
+<span class="nc" id="L610">			double agtVatAmt = 0.0;</span>
+<span class="nc" id="L611">			double retNetClm = 0.0;</span>
+<span class="nc" id="L612">			double agtNetClm = 0.0;</span>
+<span class="nc" id="L613">			double goodCauseAmt=0.0;</span>
+<span class="nc" id="L614">			double oldGoodCauseAmt=0.0;</span>
+<span class="nc" id="L615">			double retCommAmt = 0.0;</span>
+<span class="nc" id="L616">			double agtCommAmt = 0.0;</span>
+<span class="nc" id="L617">			double retOldCommAmt=0.0;</span>
+<span class="nc" id="L618">			double agtOldCommAmt=0.0;</span>
+			
+			//get from context			
+<span class="nc" id="L621">			GameMasterLMSBean gameMasterLMSBean =Util.getGameMasterLMSBean(gameId);</span>
+<span class="nc bnc" id="L622" title="All 2 branches missed.">			if(gameMasterLMSBean!=null){</span>
+<span class="nc" id="L623">				retCommRate=gameMasterLMSBean.getRetSaleCommRate();</span>
+<span class="nc" id="L624">				agtCommRate =gameMasterLMSBean.getAgentSaleCommRate();</span>
+<span class="nc" id="L625">				govt_comm = gameMasterLMSBean.getGovtComm();</span>
+<span class="nc" id="L626">				vat = gameMasterLMSBean.getVatAmount();</span>
+<span class="nc" id="L627">				prize_payout_ratio = gameMasterLMSBean.getPrizePayoutRatio();</span>
+					
+			}else{
+<span class="nc" id="L630">				return -2;</span>
+			}
+
+			/*retCommRate = CommonFunctionsHelper.fetchDGCommOfOrganization(
+					gameId, userInfoBean.getUserOrgId(), &quot;SALE&quot;, userInfoBean
+							.getUserType(), con);
+
+			agtCommRate = CommonFunctionsHelper
+					.fetchDGCommOfOrganization(gameId, userInfoBean
+							.getParentOrgId(), &quot;SALE&quot;, &quot;AGENT&quot;, con);*/
+			
+			// get sale comm variance from util
+<span class="nc" id="L642">			retCommRate = Util.getSaleCommVariance(userInfoBean.getUserOrgId(),gameId);</span>
+<span class="nc" id="L643">			agtCommRate = Util.getSaleCommVariance(userInfoBean.getParentOrgId(),gameId);</span>
+			/*
+			 * double taxableSale = (((modifiedTotalPurAmt * (100 - (0 +
+			 * prize_payout_ratio + govt_comm))) / 100) * 100) / (100 + vat);
+			 */
+<span class="nc" id="L648">			double taxableSale = CommonMethods.calTaxableSale(</span>
+					modifiedTotalPurAmt, 0, prize_payout_ratio, govt_comm, vat);
+
+<span class="nc" id="L651">			logger.debug(&quot;taxableSale   ======== &quot; + taxableSale);</span>
+
+			// double retNetClm = -(oldTotalPurAmt - oldTotalPurAmt *
+			// retCommRate
+			// * .01)
+			// + modifiedTotalPurAmt
+			// - modifiedTotalPurAmt
+			// * retCommRate
+			// * .01;
+			// double retNet = modifiedTotalPurAmt - modifiedTotalPurAmt
+			// * retCommRate * .01;
+			// double agtNet = modifiedTotalPurAmt - modifiedTotalPurAmt
+			// * agtCommRate * .01;
+			// double agtNetClm = -(oldTotalPurAmt - oldTotalPurAmt *
+			// agtCommRate
+			// * .01)
+			// + modifiedTotalPurAmt
+			// - modifiedTotalPurAmt
+			// * agtCommRate
+			// * .01;
+
+			// Added by Vaibhav
+<span class="nc bnc" id="L673" title="All 2 branches missed.">			if(&quot;BENIN&quot;.equalsIgnoreCase(Utility.getPropertyValue(&quot;COUNTRY_DEPLOYED&quot;))){</span>
+<span class="nc" id="L674">				OrgPwtLimitBean orgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getUserOrgId(),con);</span>
+<span class="nc" id="L675">				OrgPwtLimitBean parentOrgLimit = new CommonFunctionsHelper().fetchPwtLimitsOfOrgnization(userInfoBean.getParentOrgId(),con);</span>
+	
+				
+<span class="nc bnc" id="L678" title="All 2 branches missed.">				if(orgLimit != null){</span>
+<span class="nc" id="L679">					levyRate = orgLimit.getLevyRate();</span>
+<span class="nc" id="L680">					secDepRate = orgLimit.getSecurityDepositRate();</span>
+				}
+<span class="nc bnc" id="L682" title="All 2 branches missed.">				if(parentOrgLimit != null){</span>
+<span class="nc" id="L683">					agtLevyRate = parentOrgLimit.getLevyRate();</span>
+				}
+<span class="nc" id="L685">				goodCauseAmt=CommonMethods.fmtToTwoDecimal(modifiedTotalPurAmt-(modifiedTotalPurAmt*100)/(100+govt_comm));</span>
+<span class="nc" id="L686">				retCommAmt = CommonMethods.fmtToTwoDecimal((modifiedTotalPurAmt-goodCauseAmt)* retCommRate * .01);</span>
+<span class="nc" id="L687">				agtCommAmt = retCommAmt;</span>
+					
+<span class="nc" id="L689">				oldGoodCauseAmt=CommonMethods.fmtToTwoDecimal(oldTotalPurAmt-(oldTotalPurAmt*100)/(100+govt_comm));</span>
+<span class="nc" id="L690">				retOldCommAmt = CommonMethods.fmtToTwoDecimal((oldTotalPurAmt-goodCauseAmt)* retCommRate * .01);</span>
+<span class="nc" id="L691">				agtOldCommAmt = retOldCommAmt;</span>
+				
+<span class="nc" id="L693">				vatAmount = CommonMethods.fmtToTwoDecimal(retCommAmt*levyRate*.01);</span>
+<span class="nc" id="L694">				retSdAmt = CommonMethods.fmtToTwoDecimal(retCommAmt*secDepRate*.01);</span>
+<span class="nc" id="L695">				agtVatAmt = vatAmount;</span>
+				
+<span class="nc" id="L697">				oldVatAmt = CommonMethods.fmtToTwoDecimal(retOldCommAmt*levyRate*.01);</span>
+<span class="nc" id="L698">				retOldSdAmt = CommonMethods.fmtToTwoDecimal(retOldCommAmt*secDepRate*.01);</span>
+<span class="nc" id="L699">				agtOldVatAmt = oldVatAmt;</span>
+				
+<span class="nc" id="L701">				retNet = CommonMethods.fmtToTwoDecimal(modifiedTotalPurAmt)- (retCommAmt-vatAmount-retSdAmt);</span>
+<span class="nc" id="L702">				agtNet = retNet;</span>
+				
+<span class="nc" id="L704">				retNetClm = retNet- (CommonMethods.fmtToTwoDecimal(oldTotalPurAmt) - (retOldCommAmt-oldVatAmt-retOldSdAmt));</span>
+<span class="nc" id="L705">				agtNetClm =retNetClm;</span>
+				
+<span class="nc" id="L707">			} else{</span>
+<span class="nc" id="L708">				goodCauseAmt=CommonMethods.fmtToTwoDecimal(modifiedTotalPurAmt* govt_comm * .01);</span>
+<span class="nc" id="L709">				retCommAmt = CommonMethods.fmtToTwoDecimal(modifiedTotalPurAmt * retCommRate * .01);</span>
+<span class="nc" id="L710">				agtCommAmt = CommonMethods.fmtToTwoDecimal(modifiedTotalPurAmt * agtCommRate * .01);</span>
+					
+<span class="nc" id="L712">				retOldCommAmt = CommonMethods.fmtToTwoDecimal(oldTotalPurAmt * retCommRate * .01);</span>
+<span class="nc" id="L713">				agtOldCommAmt = CommonMethods.fmtToTwoDecimal(oldTotalPurAmt * agtCommRate * .01);</span>
+<span class="nc" id="L714">				retNet = CommonMethods.fmtToTwoDecimal(modifiedTotalPurAmt)-  retCommAmt;</span>
+<span class="nc" id="L715">				agtNet = CommonMethods.fmtToTwoDecimal(modifiedTotalPurAmt)- agtCommAmt;</span>
+<span class="nc" id="L716">				vatAmount = CommonMethods.calculateDrawGameVatPlr(modifiedTotalPurAmt, 0, prize_payout_ratio, govt_comm, vat);</span>
+<span class="nc" id="L717">				retSdAmt = 0.0;</span>
+<span class="nc" id="L718">				agtVatAmt = CommonMethods.calculateDrawGameVatRet(modifiedTotalPurAmt, 0, prize_payout_ratio, govt_comm, vat);</span>
+<span class="nc" id="L719">				retNetClm = retNet- (CommonMethods.fmtToTwoDecimal(oldTotalPurAmt) - retOldCommAmt);</span>
+<span class="nc" id="L720">				agtNetClm = agtNet- (CommonMethods.fmtToTwoDecimal(oldTotalPurAmt) - agtOldCommAmt);</span>
+			}
+
+			// update in ret draw sale table
+<span class="nc" id="L724">			StringBuilder saleQuery = new StringBuilder();</span>
+<span class="nc" id="L725">			saleQuery = saleQuery.append(&quot;update st_dg_ret_sale_? set mrp_amt=&quot;).append(modifiedTotalPurAmt).</span>
+					append(&quot;,retailer_comm=&quot;).append(retCommAmt).append(&quot;,net_amt=&quot;).append(CommonMethods.fmtToTwoDecimal(retNet))
+					.append(&quot;,agent_comm=&quot;).append(agtCommAmt).append(&quot;,agent_net_amt=&quot;).append(agtNet).
+					append(&quot;,ret_sd_amt=&quot;).append(retSdAmt).append(&quot;,agt_vat_amt=&quot;).append(CommonMethods.fmtToTwoDecimal(agtVatAmt)).
+					append(&quot;,good_cause_amt=&quot;).append(goodCauseAmt).append(&quot;,vat_amt=&quot;).append(CommonMethods.fmtToTwoDecimal(vatAmount)).
+					append(&quot;,taxable_sale=&quot;).append(CommonMethods.fmtToTwoDecimal(taxableSale)).append(&quot; where transaction_id=&quot;).
+					append(transId).append(&quot; and retailer_org_id=&quot;).append(userInfoBean.getUserOrgId());
+			
+<span class="nc" id="L733">			pstmt = con.prepareStatement(saleQuery.toString());</span>
+<span class="nc" id="L734">			pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L735">			pstmt.executeUpdate();</span>
+
+			// update st_lms_organization_master for claimable balance for
+			// retailer
+			/*
+			 * pstmt = con .prepareStatement(&quot;update st_lms_organization_master
+			 * set claimable_bal=claimable_bal+? where organization_id=?&quot;);
+			 * pstmt.setDouble(1, retNetClm); pstmt.setInt(2,
+			 * userInfoBean.getUserOrgId()); pstmt.executeUpdate();
+			 */
+
+			
+			//Now make payment updte method only one
+<span class="nc" id="L748">			OrgCreditUpdation.updateOrganizationBalWithValidate(retNetClm, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userInfoBean</span>
+					.getUserOrgId(), userInfoBean
+					.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+			
+<span class="nc" id="L752">			OrgCreditUpdation.updateOrganizationBalWithValidate(agtNetClm, &quot;CLAIM_BAL&quot;, &quot;CREDIT&quot;, userInfoBean</span>
+					.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+			
+			
+			/*CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+			commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, retNetClm, userInfoBean
+					.getUserOrgId(), &quot;CREDIT&quot;, con);
+
+			// update st_lms_organization_master for claimable balance for agent
+			commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, agtNetClm, userInfoBean
+					.getParentOrgId(), &quot;CREDIT&quot;, con);*/
+
+			/*
+			 * pstmt = con .prepareStatement(&quot;update st_lms_organization_master
+			 * set claimable_bal=claimable_bal+? where organization_id=?&quot;);
+			 * pstmt.setDouble(1, agtNetClm); pstmt.setInt(2,
+			 * userInfoBean.getParentOrgId()); pstmt.executeUpdate();
+			 */
+		
+<span class="nc" id="L771">			return transId;</span>
+
+<span class="nc" id="L773">		} catch (Exception se) {</span>
+<span class="nc" id="L774">			se.printStackTrace();</span>
+<span class="nc" id="L775">			return -2;</span>
+		}
+
+	}
+
+	/**
+	 * This method is used to cancel the ticket
+	 * 
+	 * @param userInfoBean
+	 * @param gameNbr
+	 * @param cancelTicketBean.getTicketNo()
+	 * @param con
+	 * @return 1 if successfully cancelled
+	 */
+
+	public static double drawTicketCancel(UserInfoBean userInfoBean,
+			CancelTicketBean cancelTicketBean, Connection con,
+			String cancellationCharges) {
+
+<span class="nc" id="L794">		logger.debug(&quot;inside cancellation Cancel Transaction:: &quot;+ cancelTicketBean.getTicketNo());</span>
+<span class="nc" id="L795">		double cancellationChargePer = Double.parseDouble(cancellationCharges);</span>
+
+		// whether already refunded
+		// if if pwt has claimed for a single panel
+		//
+
+<span class="nc" id="L801">		PreparedStatement pstmt = null;</span>
+		// 
+<span class="nc" id="L803">		ResultSet rsTrns = null;</span>
+
+		try {
+
+<span class="nc" id="L807">			int gameId = cancelTicketBean.getGameId();</span>
+
+			// check for pwt status
+<span class="nc" id="L810">			pstmt = con</span>
+					.prepareStatement(&quot;select ticket_nbr from st_dg_pwt_inv_? where ticket_nbr = ?&quot;);
+<span class="nc" id="L812">			pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L813">			pstmt.setString(2, cancelTicketBean.getTicketNo());</span>
+<span class="nc" id="L814">			ResultSet rsPwt = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L815" title="All 2 branches missed.">			if (rsPwt.next()) {</span>
+<span class="nc" id="L816">				return -1;</span>
+			}
+
+			// check for already cancelled in refund table status
+<span class="nc" id="L820">			pstmt = con</span>
+					.prepareStatement(&quot;select ticket_nbr from st_dg_ret_sale_refund_? where ticket_nbr=?&quot;);
+<span class="nc" id="L822">			pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L823">			pstmt.setString(2, cancelTicketBean.getTicketNo());</span>
+<span class="nc" id="L824">			rsPwt = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L825" title="All 2 branches missed.">			if (rsPwt.next()) {</span>
+<span class="nc" id="L826">				return -1;</span>
+			}
+
+			// get the comm from draw game master table
+<span class="nc" id="L830">			pstmt = con</span>
+					.prepareStatement(&quot;select * from st_dg_ret_sale_? where ticket_nbr=? and game_id=?&quot;);
+<span class="nc" id="L832">			pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L833">			pstmt.setString(2, cancelTicketBean.getTicketNo());</span>
+<span class="nc" id="L834">			pstmt.setInt(3, gameId);</span>
+<span class="nc" id="L835">			ResultSet ticketDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L836">			double ticketMrp = 0.0;</span>
+<span class="nc" id="L837">			double retComm = 0.0;</span>
+<span class="nc" id="L838">			double agtComm = 0.0;</span>
+<span class="nc" id="L839">			double govt_comm = 0.0;</span>
+<span class="nc" id="L840">			double vatAmt = 0.0;</span>
+<span class="nc" id="L841">			double taxableSale = 0.0;</span>
+<span class="nc" id="L842">			double retNet = 0.0;</span>
+<span class="nc" id="L843">			double agtNet = 0.0;</span>
+<span class="nc" id="L844">			double retSdAmt = 0.0;</span>
+<span class="nc" id="L845">			double agtVatAmt = 0.0;</span>
+			long refTranId;
+<span class="nc" id="L847">			long saleTransId=0;</span>
+<span class="nc" id="L848">			boolean isValid=false;</span>
+<span class="nc bnc" id="L849" title="All 2 branches missed.">			if (ticketDetails.next()) {</span>
+<span class="nc" id="L850">				saleTransId=ticketDetails.getLong(&quot;transaction_id&quot;);</span>
+<span class="nc" id="L851">				ticketMrp = ticketDetails.getDouble(&quot;mrp_amt&quot;);</span>
+<span class="nc" id="L852">				retComm = ticketDetails.getDouble(&quot;retailer_comm&quot;);</span>
+<span class="nc" id="L853">				retNet = ticketDetails.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L854">				agtComm = ticketDetails.getDouble(&quot;agent_comm&quot;);</span>
+<span class="nc" id="L855">				agtNet = ticketDetails.getDouble(&quot;agent_net_amt&quot;);</span>
+<span class="nc" id="L856">				govt_comm = ticketDetails.getDouble(&quot;good_cause_amt&quot;);</span>
+<span class="nc" id="L857">				vatAmt = ticketDetails.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L858">				taxableSale = ticketDetails.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L859">				gameId = ticketDetails.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L860">				refTranId = ticketDetails.getLong(&quot;transaction_id&quot;);</span>
+<span class="nc" id="L861">				retSdAmt = ticketDetails.getDouble(&quot;ret_sd_amt&quot;);</span>
+<span class="nc" id="L862">				agtVatAmt = ticketDetails.getDouble(&quot;agt_vat_amt&quot;);</span>
+			} else {
+<span class="nc" id="L864">				return -1;</span>
+			}            
+<span class="nc" id="L866">			double cancellationCharge = ticketMrp * .01 * cancellationChargePer;</span>
+<span class="nc" id="L867">			logger.debug(ticketMrp + &quot;*******Inside Cancellation*********&quot;</span>
+					+ cancellationChargePer + &quot;********&quot; + cancellationCharge);
+			
+			//subtract cancel amount from sale in responsible Gaming
+<span class="nc" id="L871">			ResponsibleGaming</span>
+			.respGaming(userInfoBean, &quot;DG_CANCEL_AMOUNT&quot;,String.valueOf(ticketMrp), con);
+			
+			
+<span class="nc bnc" id="L875" title="All 2 branches missed.">			if(cancelTicketBean.isHoldAutoCancel()){</span>
+<span class="nc" id="L876">				Calendar calendar=Calendar.getInstance();</span>
+<span class="nc" id="L877">				int dayOfYear = calendar.get(Calendar.DAY_OF_YEAR); </span>
+				
+<span class="nc bnc" id="L879" title="All 2 branches missed.">				if(cancelTicketBean.getAutoCancelHoldDays()+cancelTicketBean.getDayOfTicket() &lt;= dayOfYear){</span>
+					// insert in ret draw sale table
+					
+					//need to change this query after cancel review by sumit
+<span class="nc" id="L883">					Statement stmt=con.createStatement();</span>
+<span class="nc" id="L884">					ResultSet dateRs=stmt.executeQuery(&quot;select transaction_date from st_lms_retailer_transaction_master where transaction_id=&quot;+saleTransId);</span>
+<span class="nc" id="L885">					Timestamp transactionDate=null;</span>
+<span class="nc bnc" id="L886" title="All 2 branches missed.">					if(dateRs.next()){</span>
+<span class="nc" id="L887">						 transactionDate=dateRs.getTimestamp(&quot;transaction_date&quot;);</span>
+					}else{
+<span class="nc" id="L889">						return -1;</span>
+					}
+					
+<span class="nc" id="L892">					pstmt = con</span>
+							.prepareStatement(&quot;insert into st_dg_ret_pending_cancel(sale_ref_transaction_id,ticket_nbr,mrp_amt,ret_net_amt,agent_net_amt,game_id,cancel_attempt_time,transaction_date,retailer_org_id,reason)values(?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L894">					pstmt.setLong(1, saleTransId);</span>
+<span class="nc" id="L895">					pstmt.setString(2, cancelTicketBean.getTicketNo());</span>
+<span class="nc" id="L896">					pstmt.setDouble(3, ticketMrp);</span>
+<span class="nc" id="L897">					pstmt.setDouble(4, retNet);</span>
+<span class="nc" id="L898">					pstmt.setDouble(5, agtNet);</span>
+<span class="nc" id="L899">					pstmt.setInt(6, gameId);</span>
+<span class="nc" id="L900">					pstmt.setTimestamp(7, Util.getCurrentTimeStamp());</span>
+<span class="nc" id="L901">					pstmt.setTimestamp(8, transactionDate);</span>
+<span class="nc" id="L902">					pstmt.setInt(9, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L903">					pstmt.setString(10, &quot;CANCEL_EXPIRED&quot;);</span>
+<span class="nc" id="L904">					logger.info(&quot;Auto Cancel Expire Insert Qry:&quot;+pstmt);</span>
+<span class="nc" id="L905">					pstmt.executeUpdate();</span>
+<span class="nc" id="L906">					return -3;</span>
+				}
+				
+			}
+			
+			
+				
+			// insert in main transaction table
+<span class="nc" id="L914">			pstmt = con.prepareStatement(QueryManager</span>
+					.insertInLMSTransactionMaster());
+<span class="nc" id="L916">			pstmt.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L917">			pstmt.executeUpdate();</span>
+<span class="nc" id="L918">			rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L919" title="All 2 branches missed.">			if (rsTrns.next()) {</span>
+<span class="nc" id="L920">				long transId = rsTrns.getLong(1);</span>
+<span class="nc" id="L921">				cancelTicketBean.setRefTransId(transId + &quot;&quot;);</span>
+<span class="nc" id="L922">				logger.debug(&quot;trans id &quot; + transId);</span>
+				// insert into retailer transaction master
+<span class="nc" id="L924">				pstmt = con</span>
+						.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L926">				pstmt.setLong(1, transId);</span>
+<span class="nc" id="L927">				pstmt.setInt(2, userInfoBean.getUserId()); // these are</span>
+				// retailers parent
+				// id
+<span class="nc" id="L930">				pstmt.setInt(3, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L931">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L932">				pstmt.setTimestamp(5, new java.sql.Timestamp(new Date()</span>
+						.getTime()));
+<span class="nc" id="L934">				pstmt.setString(6, &quot;DG_REFUND_CANCEL&quot;);</span>
+<span class="nc" id="L935">				pstmt.executeUpdate();</span>
+
+				// insert in ret draw sale table
+<span class="nc" id="L938">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_dg_ret_sale_refund_?(transaction_id,mrp_amt,retailer_comm,net_amt,agent_comm,agent_net_amt,retailer_org_id,claim_status,good_cause_amt,vat_amt,taxable_sale,game_id,cancellation_charges,ticket_nbr,ref_transaction_id,ret_sd_amt,agt_vat_amt) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L940">				pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L941">				pstmt.setLong(2, transId);</span>
+<span class="nc" id="L942">				pstmt.setDouble(3, ticketMrp);</span>
+<span class="nc" id="L943">				pstmt.setDouble(4, CommonMethods.fmtToTwoDecimal(retComm));</span>
+<span class="nc" id="L944">				pstmt.setDouble(5, CommonMethods.fmtToTwoDecimal(retNet)</span>
+						- cancellationCharge);
+<span class="nc" id="L946">				pstmt.setDouble(6, CommonMethods.fmtToTwoDecimal(agtComm));</span>
+<span class="nc" id="L947">				pstmt.setDouble(7, CommonMethods.fmtToTwoDecimal(agtNet)</span>
+						- cancellationCharge);
+<span class="nc" id="L949">				pstmt.setInt(8, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L950">				pstmt.setString(9, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L951">				pstmt.setDouble(10, CommonMethods.fmtToTwoDecimal(govt_comm));</span>
+<span class="nc" id="L952">				pstmt.setDouble(11, CommonMethods.fmtToTwoDecimal(vatAmt));</span>
+<span class="nc" id="L953">				pstmt.setDouble(12, CommonMethods.fmtToTwoDecimal(taxableSale));</span>
+<span class="nc" id="L954">				pstmt.setInt(13, gameId);</span>
+<span class="nc" id="L955">				pstmt.setDouble(14, cancellationCharge);</span>
+<span class="nc" id="L956">				pstmt.setString(15, cancelTicketBean.getTicketNo());</span>
+<span class="nc" id="L957">				pstmt.setLong(16, refTranId);</span>
+<span class="nc" id="L958">				pstmt.setDouble(17, CommonMethods.fmtToTwoDecimal(retSdAmt));</span>
+<span class="nc" id="L959">				pstmt.setDouble(18, CommonMethods.fmtToTwoDecimal(agtVatAmt));</span>
+<span class="nc" id="L960">				pstmt.executeUpdate();</span>
+
+				// update st_lms_organization_master for claimable balance for
+				// retailer
+				/*
+				 * pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1,
+				 * CommonMethods.fmtToTwoDecimal(retNet) - cancellationCharge);
+				 * pstmt.setInt(2, userInfoBean.getUserOrgId());
+				 * pstmt.executeUpdate(); logger.debug(&quot;pstmt ret &quot; + pstmt);
+				 */
+
+				
+				//Now make payment updte method only one
+<span class="nc" id="L975">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(retNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean.getUserOrgId(), userInfoBean.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+<span class="nc bnc" id="L977" title="All 2 branches missed.">				if(!isValid)</span>
+<span class="nc" id="L978">					return -1;</span>
+<span class="nc" id="L979">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(agtNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+<span class="nc bnc" id="L981" title="All 2 branches missed.">				if(!isValid)</span>
+<span class="nc" id="L982">					return -1;</span>
+				
+				/*CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(retNet), userInfoBean.getUserOrgId(),
+						&quot;DEBIT&quot;, con);
+
+				// update st_lms_organization_master for claimable balance for
+				// agent
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(agtNet),
+						userInfoBean.getParentOrgId(), &quot;DEBIT&quot;, con);*/
+
+				/*
+				 * // update st_lms_organization_master for claimable balance
+				 * for agent pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1,
+				 * CommonMethods.fmtToTwoDecimal(agtNet) - cancellationCharge);
+				 * pstmt.setInt(2, userInfoBean.getParentOrgId());
+				 * pstmt.executeUpdate(); logger.debug(&quot;pstmt agt &quot; + pstmt);
+				 */
+				// con.commit();
+<span class="nc" id="L1005">				return ticketMrp - cancellationCharge;</span>
+
+			} else {
+<span class="nc" id="L1008">				return -1;</span>
+			}
+
+<span class="nc" id="L1011">		} catch (Exception se) {</span>
+<span class="nc" id="L1012">			se.printStackTrace();</span>
+<span class="nc" id="L1013">			return -1;</span>
+		}
+
+	}
+
+	public static int drawTicketNPromoMappigUpdate(int promoId,
+			int parentGameNo, String parentTicketNo, String promoTktNo) {
+
+<span class="nc" id="L1021">		Connection con = null;</span>
+<span class="nc" id="L1022">		PreparedStatement pstmt = null;</span>
+
+		try {
+<span class="nc" id="L1025">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L1026">			con.setAutoCommit(false);</span>
+
+			// update retaler draw sale table for ticket number
+<span class="nc" id="L1029">			pstmt = con</span>
+					.prepareStatement(&quot;insert into ge_sale_promo_ticket_mapping (promo_id, sale_ticket_nbr, promo_ticket_nbr)values(?, ?, ?)&quot;);
+			// pstmt.setInt(1, parentGameNo);
+<span class="nc" id="L1032">			pstmt.setInt(1, promoId);</span>
+<span class="nc" id="L1033">			pstmt.setString(2, parentTicketNo);</span>
+<span class="nc" id="L1034">			pstmt.setString(3, promoTktNo);</span>
+<span class="nc" id="L1035">			int isUpdate = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L1036" title="All 2 branches missed.">			if (isUpdate == 1) {</span>
+<span class="nc" id="L1037">				con.commit();</span>
+<span class="nc" id="L1038">				return 1;</span>
+			} else {
+				// cancelTicketTxnFailed();
+				// drawTicketSaleRefund(userInfoBean,
+				// game_nbr,&quot;FAILED&quot;,refrenceId);
+<span class="nc" id="L1043">				return 0;</span>
+			}
+
+<span class="nc" id="L1046">		} catch (Exception se) {</span>
+<span class="nc" id="L1047">			se.printStackTrace();</span>
+<span class="nc" id="L1048">			return 0;</span>
+		} finally {
+<span class="nc bnc" id="L1050" title="All 8 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L1052">					con.close();</span>
+<span class="nc" id="L1053">				} catch (SQLException e) {</span>
+<span class="nc" id="L1054">					e.printStackTrace();</span>
+<span class="nc" id="L1055">				}</span>
+			}
+
+		}
+
+	}
+
+	// added by amit
+
+	/**
+	 * This method is used to refund in case of failed transaction draw ticket
+	 * 
+	 * @param userInfoBean
+	 * @param gameNbr
+	 * @param ticket_nbr
+	 * @param type
+	 *            (CANCEL or FAILED)
+	 * @return 1 if successfully refunded or cancelled
+	 * 
+	 */
+
+	// comments after reveiwing // drawTicketSaleRefund method is to updated for
+	// the scenerio where ticket no is not generated
+	// Use reference id for tracking the failed ticket sale
+	// suggestion dont user underscore for naming variables
+	public static int drawTicketSaleRefund(UserInfoBean userInfoBean,
+			int gameId, String type, long refrenceId) {
+
+<span class="nc" id="L1083">		Connection con = null;</span>
+<span class="nc" id="L1084">		PreparedStatement pstmt = null;</span>
+
+<span class="nc" id="L1086">		ResultSet rsTrns = null;</span>
+
+		try {
+<span class="nc" id="L1089">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L1090">			con.setAutoCommit(false);</span>
+
+			// get the comm from draw game master table
+<span class="nc" id="L1093">			pstmt = con</span>
+					.prepareStatement(&quot;select * from st_dg_ret_sale_? where game_id=?  and transaction_id=?&quot;);
+<span class="nc" id="L1095">			pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L1096">			pstmt.setInt(2, gameId);</span>
+<span class="nc" id="L1097">			pstmt.setLong(3, refrenceId);</span>
+<span class="nc" id="L1098">			ResultSet ticketDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L1099">			double ticketMrp = 0.0;</span>
+<span class="nc" id="L1100">			double retComm = 0.0;</span>
+<span class="nc" id="L1101">			double agtComm = 0.0;</span>
+<span class="nc" id="L1102">			double govt_comm = 0.0;</span>
+<span class="nc" id="L1103">			double vatAmt = 0.0;</span>
+<span class="nc" id="L1104">			double taxableSale = 0.0;</span>
+<span class="nc" id="L1105">			double retNet = 0.0;</span>
+<span class="nc" id="L1106">			double agtNet = 0.0;</span>
+<span class="nc" id="L1107">			double retSdAmt = 0.0;</span>
+<span class="nc" id="L1108">			double agtVatAmt = 0.0;</span>
+			String ticketNbr;
+
+			//int gameId = 0;
+<span class="nc bnc" id="L1112" title="All 2 branches missed.">			if (ticketDetails.next()) {</span>
+<span class="nc" id="L1113">				ticketMrp = ticketDetails.getDouble(&quot;mrp_amt&quot;);</span>
+<span class="nc" id="L1114">				retComm = ticketDetails.getDouble(&quot;retailer_comm&quot;);</span>
+<span class="nc" id="L1115">				retNet = ticketDetails.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L1116">				agtComm = ticketDetails.getDouble(&quot;agent_comm&quot;);</span>
+<span class="nc" id="L1117">				agtNet = ticketDetails.getDouble(&quot;agent_net_amt&quot;);</span>
+<span class="nc" id="L1118">				govt_comm = ticketDetails.getDouble(&quot;good_cause_amt&quot;);</span>
+<span class="nc" id="L1119">				vatAmt = ticketDetails.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L1120">				taxableSale = ticketDetails.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L1121">				gameId = ticketDetails.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1122">				ticketNbr = ticketDetails.getString(&quot;ticket_nbr&quot;);</span>
+<span class="nc" id="L1123">				retSdAmt = ticketDetails.getDouble(&quot;ret_sd_amt&quot;);</span>
+<span class="nc" id="L1124">				agtVatAmt = ticketDetails.getDouble(&quot;agt_vat_amt&quot;);</span>
+			} else {
+<span class="nc" id="L1126">				return 0;</span>
+			}
+
+			// insert in main transaction table
+<span class="nc" id="L1130">			pstmt = con.prepareStatement(QueryManager</span>
+					.insertInLMSTransactionMaster());
+<span class="nc" id="L1132">			pstmt.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L1133">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1134">			rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L1135" title="All 2 branches missed.">			if (rsTrns.next()) {</span>
+<span class="nc" id="L1136">				long transId = rsTrns.getLong(1);</span>
+<span class="nc" id="L1137">				logger.debug(&quot;trans id &quot; + transId);</span>
+				// insert into retailer transaction master
+<span class="nc" id="L1139">				pstmt = con</span>
+						.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L1141">				pstmt.setLong(1, transId);</span>
+<span class="nc" id="L1142">				pstmt.setInt(2, userInfoBean.getUserId()); // these are</span>
+				// retailers parent
+				// id
+<span class="nc" id="L1145">				pstmt.setInt(3, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L1146">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L1147">				pstmt.setTimestamp(5, new java.sql.Timestamp(new Date()</span>
+						.getTime()));
+<span class="nc bnc" id="L1149" title="All 2 branches missed.">				if (&quot;FAILED&quot;.equalsIgnoreCase(type)) {</span>
+<span class="nc" id="L1150">					pstmt.setString(6, &quot;DG_REFUND_FAILED&quot;);</span>
+				} else {
+<span class="nc" id="L1152">					pstmt.setString(6, &quot;DG_REFUND_CANCEL&quot;);</span>
+				}
+<span class="nc" id="L1154">				pstmt.executeUpdate();</span>
+
+				// insert in ret draw sale table
+<span class="nc" id="L1157">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_dg_ret_sale_refund_?(transaction_id,mrp_amt,retailer_comm,net_amt,agent_comm,agent_net_amt,retailer_org_id,claim_status,good_cause_amt,vat_amt,taxable_sale,game_id,ticket_nbr,ref_transaction_id,ret_sd_amt,agt_vat_amt) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L1159">				pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L1160">				pstmt.setLong(2, transId);</span>
+<span class="nc" id="L1161">				pstmt.setDouble(3, ticketMrp);</span>
+<span class="nc" id="L1162">				pstmt.setDouble(4, CommonMethods.fmtToTwoDecimal(retComm));</span>
+<span class="nc" id="L1163">				pstmt.setDouble(5, CommonMethods.fmtToTwoDecimal(retNet));</span>
+<span class="nc" id="L1164">				pstmt.setDouble(6, CommonMethods.fmtToTwoDecimal(agtComm));</span>
+<span class="nc" id="L1165">				pstmt.setDouble(7, CommonMethods.fmtToTwoDecimal(agtNet));</span>
+<span class="nc" id="L1166">				pstmt.setInt(8, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L1167">				pstmt.setString(9, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L1168">				pstmt.setDouble(10, CommonMethods.fmtToTwoDecimal(govt_comm));</span>
+<span class="nc" id="L1169">				pstmt.setDouble(11, CommonMethods.fmtToTwoDecimal(vatAmt));</span>
+<span class="nc" id="L1170">				pstmt.setDouble(12, CommonMethods.fmtToTwoDecimal(taxableSale));</span>
+<span class="nc" id="L1171">				pstmt.setInt(13, gameId);</span>
+<span class="nc" id="L1172">				pstmt.setString(14, ticketNbr);</span>
+<span class="nc" id="L1173">				pstmt.setLong(15, refrenceId);</span>
+<span class="nc" id="L1174">				pstmt.setDouble(16, CommonMethods.fmtToTwoDecimal(retSdAmt));</span>
+<span class="nc" id="L1175">				pstmt.setDouble(17, CommonMethods.fmtToTwoDecimal(agtVatAmt));</span>
+<span class="nc" id="L1176">				pstmt.executeUpdate();</span>
+
+				// update st_lms_organization_master for claimable balance for
+				// retailer
+				/*
+				 * pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1,
+				 * CommonMethods.fmtToTwoDecimal(retNet)); pstmt.setInt(2,
+				 * userInfoBean.getUserOrgId()); pstmt.executeUpdate();
+				 * logger.debug(&quot;pstmt ret &quot; + pstmt);
+				 */
+				
+				//Now make payment updte method only one
+<span class="nc" id="L1190">				boolean isValid=false;</span>
+<span class="nc" id="L1191">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(retNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean.getUserOrgId(), userInfoBean.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+<span class="nc bnc" id="L1193" title="All 2 branches missed.">				if(!isValid)</span>
+<span class="nc" id="L1194">					return 0;</span>
+<span class="nc" id="L1195">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(agtNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+			
+<span class="nc bnc" id="L1198" title="All 2 branches missed.">				if(!isValid)</span>
+<span class="nc" id="L1199">					return 0;</span>
+				/*CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(retNet), userInfoBean.getUserOrgId(),
+						&quot;DEBIT&quot;, con);
+
+				// update st_lms_organization_master for claimable balance for
+				// agent
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(agtNet),
+						userInfoBean.getParentOrgId(), &quot;DEBIT&quot;, con);
+*/
+				/*
+				 * pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1, agtNet);
+				 * pstmt.setInt(2, userInfoBean.getParentOrgId());
+				 * pstmt.executeUpdate(); logger.debug(&quot;pstmt agt &quot; + pstmt);
+				 */
+
+<span class="nc" id="L1219">				con.commit();</span>
+<span class="nc" id="L1220">				return 1;</span>
+
+			} else {
+<span class="nc" id="L1223">				return 0;</span>
+			}
+
+<span class="nc" id="L1226">		} catch (Exception se) {</span>
+<span class="nc" id="L1227">			se.printStackTrace();</span>
+<span class="nc" id="L1228">			return 0;</span>
+		} finally {
+<span class="nc bnc" id="L1230" title="All 14 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L1232">					con.close();</span>
+<span class="nc" id="L1233">				} catch (SQLException e) {</span>
+<span class="nc" id="L1234">					e.printStackTrace();</span>
+<span class="nc" id="L1235">				}</span>
+			}
+		}
+
+	}
+
+	/*
+	 * public static boolean isOrgBalanceAvaillable(UserInfoBean
+	 * userInfoBean,int gameNbr,double ticketMrp) throws LMSException{
+	 * 
+	 * Connection con=null; PreparedStatement pstmt=null; ResultSet rsTrns=null;
+	 * 
+	 * try{ con = DBConnect.getConnection();
+	 * 
+	 * //get the comm from draw game master table
+	 * 
+	 * pstmt = con.prepareStatement(&quot;select * from st_draw_game_master where
+	 * game_nbr=&quot;+gameNbr); ResultSet gameDetails = pstmt.executeQuery(); double
+	 * retCommRate=0.0; double agtCommRate=0.0; while(gameDetails.next()){
+	 * retCommRate = gameDetails.getDouble(&quot;ret_sale_comm_rate&quot;); agtCommRate =
+	 * gameDetails.getDouble(&quot;agt_sale_comm_rate&quot;); }
+	 * 
+	 * 
+	 * //check retailer available pstmt = con.prepareStatement(&quot;select
+	 * (available_credit-claimable_bal) as availbale_sale_bal from
+	 * st_lms_organization_master where organization_id=?&quot;);
+	 * pstmt.setInt(1,userInfoBean.getUserOrgId()); rsTrns =
+	 * pstmt.executeQuery(); if(rsTrns.next()){
+	 * if(!(rsTrns.getDouble(&quot;availbale_sale_bal&quot;) &gt;
+	 * ticketMrp-(ticketMrp*retCommRate*.01))) return false;
+	 * 
+	 * }else throw new LMSException(&quot;trasaction not done&quot;);
+	 * 
+	 * //check agents available pstmt = con.prepareStatement(&quot;select
+	 * (available_credit-claimable_bal) as availbale_sale_bal from
+	 * st_lms_organization_master where organization_id=?&quot;);
+	 * pstmt.setInt(1,userInfoBean.getParentOrgId()); rsTrns =
+	 * pstmt.executeQuery(); if(rsTrns.next()){
+	 * if(!(rsTrns.getDouble(&quot;availbale_sale_bal&quot;) &gt;
+	 * ticketMrp-(ticketMrp*agtCommRate*.01))) return false; }else throw new
+	 * LMSException(&quot;trasaction not done&quot;);
+	 * 
+	 * return true;
+	 * 
+	 * }catch(SQLException se){ se.printStackTrace(); throw new LMSException(); } }
+	 */
+
+	/**
+	 * This method is used to update ticket number if ticket is generated by
+	 * draw engine successfully
+	 * 
+	 * @param refrenceId
+	 * @param ticket_nbr
+	 * @return integer value (0) if some error has occured or (1) if updated
+	 *         successfully
+	 * @throws LMSException
+	 */
+
+	public static int drawTicketSaleTicketUpdate(long refrenceId,
+			String ticket_nbr, int gameId, UserInfoBean userInfoBean,String interFaceType,Connection con) {
+		//logger.debug(&quot;inside ticket update Getting DGE:&quot;+ ticket_nbr);
+		
+<span class="nc" id="L1297">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1298">		String query=null;</span>
+		try {
+			
+<span class="nc bnc" id="L1301" title="All 2 branches missed.">			interFaceType=&quot;LMS_Terminal&quot;.equalsIgnoreCase(interFaceType) ? &quot;TERMINAL&quot; : &quot;WEB&quot;;</span>
+<span class="nc bnc" id="L1302" title="All 8 branches missed.">			if(!&quot;RAFFLE&quot;.equalsIgnoreCase(Util.getGameType( gameId)) &amp;&amp; !&quot;Zimlottothree&quot;.equalsIgnoreCase(Util.getGameName(gameId)) &amp;&amp; !&quot;Zimlottobonusfree&quot;.equalsIgnoreCase(Util.getGameName(gameId))&amp;&amp;!&quot;Zimlottobonustwofree&quot;.equalsIgnoreCase(Util.getGameName(gameId))){</span>
+<span class="nc bnc" id="L1303" title="All 2 branches missed.">				if(&quot;TERMINAL&quot;.equals(interFaceType))</span>
+<span class="nc" id="L1304">				 query = &quot;update st_dg_last_sold_ticket set terminal_ticket_number = &quot; + ticket_nbr + &quot;,terminal_ticket_status='SOLD' where ret_org_id = &quot; + userInfoBean.getUserOrgId();</span>
+				else
+<span class="nc" id="L1306">					 query = &quot;update st_dg_last_sold_ticket set web_ticket_number = &quot; + ticket_nbr + &quot;,web_ticket_status='SOLD' where ret_org_id = &quot; + userInfoBean.getUserOrgId();</span>
+<span class="nc" id="L1307">					pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1308">				pstmt.executeUpdate();</span>
+			}
+			//Here call the last sale an heart beat update in retoffiline master
+			// update retaler draw sale table for ticket number			
+<span class="nc" id="L1312">			Util.setHeartBeatAndSaleTime(userInfoBean.getUserOrgId(),&quot;SALE&quot;,con);</span>
+<span class="nc" id="L1313">			pstmt = con</span>
+					.prepareStatement(&quot;update st_dg_ret_sale_? set ticket_nbr=? where transaction_id=?&quot;);
+<span class="nc" id="L1315">			pstmt.setInt(1, gameId);</span>
+			//pstmt.setInt(2, game_nbr);
+<span class="nc" id="L1317">			pstmt.setString(2, ticket_nbr);</span>
+<span class="nc" id="L1318">			pstmt.setLong(3, refrenceId);</span>
+<span class="nc" id="L1319">			int isUpdate = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L1320" title="All 2 branches missed.">			if (isUpdate == 1) {</span>
+<span class="nc" id="L1321">				return 1;</span>
+			} else {
+				// cancelTicketTxnFailed();
+				// drawTicketSaleRefund(userInfoBean,
+				// game_nbr,&quot;FAILED&quot;,refrenceId);
+<span class="nc" id="L1326">				return 0;</span>
+			}
+
+<span class="nc" id="L1329">		} catch (Exception se) {</span>
+			// drawTicketSaleRefund(userInfoBean, game_nbr, &quot;FAILED&quot;,
+			// refrenceId);
+<span class="nc" id="L1332">			se.printStackTrace();</span>
+<span class="nc" id="L1333">			return 0;</span>
+		} 
+
+	}
+	
+	public static int drawPromoTicketSaleTicketUpdate(long refrenceId, String ticket_nbr, int gameId, UserInfoBean userInfoBean, String interFaceType, Connection con, Boolean isPromo) {
+		//logger.debug(&quot;inside ticket update Getting DGE:&quot;+ ticket_nbr);
+		
+<span class="nc" id="L1341">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1342">		String query=null;</span>
+		try {
+			
+<span class="nc bnc" id="L1345" title="All 2 branches missed.">			interFaceType=&quot;LMS_Terminal&quot;.equalsIgnoreCase(interFaceType) ? &quot;TERMINAL&quot; : &quot;WEB&quot;;</span>
+<span class="nc bnc" id="L1346" title="All 2 branches missed.">			if (!isPromo) {</span>
+<span class="nc bnc" id="L1347" title="All 2 branches missed.">				if(&quot;TERMINAL&quot;.equals(interFaceType))</span>
+<span class="nc" id="L1348">				 query = &quot;update st_dg_last_sold_ticket set terminal_ticket_number = &quot; + ticket_nbr + &quot;,terminal_ticket_status='SOLD' where ret_org_id = &quot; + userInfoBean.getUserOrgId();</span>
+				else
+<span class="nc" id="L1350">					 query = &quot;update st_dg_last_sold_ticket set web_ticket_number = &quot; + ticket_nbr + &quot;,web_ticket_status='SOLD' where ret_org_id = &quot; + userInfoBean.getUserOrgId();</span>
+<span class="nc" id="L1351">					pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L1352">				pstmt.executeUpdate();</span>
+			}
+			//Here call the last sale an heart beat update in retoffiline master
+			// update retaler draw sale table for ticket number			
+<span class="nc" id="L1356">			Util.setHeartBeatAndSaleTime(userInfoBean.getUserOrgId(),&quot;SALE&quot;,con);</span>
+<span class="nc" id="L1357">			pstmt = con</span>
+					.prepareStatement(&quot;update st_dg_ret_sale_? set ticket_nbr=? where transaction_id=?&quot;);
+<span class="nc" id="L1359">			pstmt.setInt(1, gameId);</span>
+			//pstmt.setInt(2, game_nbr);
+<span class="nc" id="L1361">			pstmt.setString(2, ticket_nbr);</span>
+<span class="nc" id="L1362">			pstmt.setLong(3, refrenceId);</span>
+<span class="nc" id="L1363">			int isUpdate = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L1364" title="All 2 branches missed.">			if (isUpdate == 1) {</span>
+<span class="nc" id="L1365">				return 1;</span>
+			} else {
+				// cancelTicketTxnFailed();
+				// drawTicketSaleRefund(userInfoBean,
+				// game_nbr,&quot;FAILED&quot;,refrenceId);
+<span class="nc" id="L1370">				return 0;</span>
+			}
+
+<span class="nc" id="L1373">		} catch (Exception se) {</span>
+			// drawTicketSaleRefund(userInfoBean, game_nbr, &quot;FAILED&quot;,
+			// refrenceId);
+<span class="nc" id="L1376">			se.printStackTrace();</span>
+<span class="nc" id="L1377">			return 0;</span>
+		} 
+
+	}
+
+	public static double drawTicketTxCancel(CancelTicketBean cancelTicketBean,
+			UserInfoBean userInfoBean, Connection con) {
+<span class="nc" id="L1384">		PreparedStatement pstmt = null;</span>
+		// 
+<span class="nc" id="L1386">		ResultSet rsTrns = null;</span>
+<span class="nc" id="L1387">		long  saleRefTransId = Long.parseLong(cancelTicketBean.getRefTransId());</span>
+		try {
+
+<span class="nc" id="L1390">			int gameNbr = cancelTicketBean.getGameNo();</span>
+
+			// check for pwt status
+			/*
+			 * pstmt = con.prepareStatement(&quot;select ticket_nbr from
+			 * st_dg_pwt_inv_? where ticket_nbr = ?&quot;); pstmt.setInt(1,gameNbr);
+			 * pstmt.setString(2,cancelTicketBean.getTicketNo()); ResultSet
+			 * rsPwt = pstmt.executeQuery(); if(rsPwt.next()) return -1;
+			 * 
+			 * //check for already cancelled in refund table status pstmt =
+			 * con.prepareStatement(&quot;select ticket_nbr from
+			 * st_dg_ret_sale_refund_? where ticket_nbr=?&quot;);
+			 * pstmt.setInt(1,gameNbr);
+			 * pstmt.setString(2,cancelTicketBean.getTicketNo()); rsPwt =
+			 * pstmt.executeQuery(); if(rsPwt.next()) return -1;
+			 */// commented by amit because not applicable in this
+			// case
+			// get the comm from draw game master table
+<span class="nc" id="L1408">			pstmt = con</span>
+					.prepareStatement(&quot;select * from st_dg_ret_sale_? where transaction_id=? and game_id=?&quot;);
+<span class="nc" id="L1410">			pstmt.setInt(1, cancelTicketBean.getGameId());</span>
+<span class="nc" id="L1411">			pstmt.setLong(2, saleRefTransId);</span>
+<span class="nc" id="L1412">			pstmt.setInt(3, cancelTicketBean.getGameId());</span>
+<span class="nc" id="L1413">			ResultSet ticketDetails = pstmt.executeQuery();</span>
+<span class="nc" id="L1414">			double ticketMrp = 0.0;</span>
+<span class="nc" id="L1415">			double retComm = 0.0;</span>
+<span class="nc" id="L1416">			double agtComm = 0.0;</span>
+<span class="nc" id="L1417">			double govt_comm = 0.0;</span>
+<span class="nc" id="L1418">			double vatAmt = 0.0;</span>
+<span class="nc" id="L1419">			double taxableSale = 0.0;</span>
+<span class="nc" id="L1420">			double retNet = 0.0;</span>
+<span class="nc" id="L1421">			double agtNet = 0.0;</span>
+<span class="nc" id="L1422">			double retSdAmt = 0.0;</span>
+<span class="nc" id="L1423">			double agtVatAmt = 0.0;</span>
+<span class="nc" id="L1424">			int gameId = 0;</span>
+<span class="nc bnc" id="L1425" title="All 2 branches missed.">			if (ticketDetails.next()) {</span>
+<span class="nc" id="L1426">				ticketMrp = ticketDetails.getDouble(&quot;mrp_amt&quot;);</span>
+<span class="nc" id="L1427">				retComm = ticketDetails.getDouble(&quot;retailer_comm&quot;);</span>
+<span class="nc" id="L1428">				retNet = ticketDetails.getDouble(&quot;net_amt&quot;);</span>
+<span class="nc" id="L1429">				agtComm = ticketDetails.getDouble(&quot;agent_comm&quot;);</span>
+<span class="nc" id="L1430">				agtNet = ticketDetails.getDouble(&quot;agent_net_amt&quot;);</span>
+<span class="nc" id="L1431">				govt_comm = ticketDetails.getDouble(&quot;good_cause_amt&quot;);</span>
+<span class="nc" id="L1432">				vatAmt = ticketDetails.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L1433">				taxableSale = ticketDetails.getDouble(&quot;taxable_sale&quot;);</span>
+<span class="nc" id="L1434">				gameId = ticketDetails.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1435">				retSdAmt = ticketDetails.getDouble(&quot;ret_sd_amt&quot;);</span>
+<span class="nc" id="L1436">				agtVatAmt = ticketDetails.getDouble(&quot;agt_vat_amt&quot;);</span>
+			} else {
+<span class="nc" id="L1438">				return -1;</span>
+			}
+			// double cancellationCharge = ticketMrp*.01*cancellationChargePer;
+			// logger.debug(ticketMrp+&quot;*******Inside
+			// Cancellation*********&quot;+cancellationChargePer+&quot;********&quot;+cancellationCharge);
+			// insert in main transaction table
+<span class="nc" id="L1444">			pstmt = con.prepareStatement(QueryManager</span>
+					.insertInLMSTransactionMaster());
+<span class="nc" id="L1446">			pstmt.setString(1, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L1447">			pstmt.executeUpdate();</span>
+<span class="nc" id="L1448">			rsTrns = pstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L1449" title="All 2 branches missed.">			if (rsTrns.next()) {</span>
+<span class="nc" id="L1450">				long transId = rsTrns.getLong(1);</span>
+<span class="nc" id="L1451">				cancelTicketBean.setRefTransId(transId + &quot;&quot;);</span>
+<span class="nc" id="L1452">				logger.debug(&quot;trans id &quot; + transId);</span>
+				// insert into retailer transaction master
+<span class="nc" id="L1454">				pstmt = con</span>
+						.prepareStatement(&quot;INSERT INTO st_lms_retailer_transaction_master (transaction_id,retailer_user_id,retailer_org_id,game_id,transaction_date,transaction_type) VALUES (?,?,?,?,?,?)&quot;);
+<span class="nc" id="L1456">				pstmt.setLong(1, transId);</span>
+<span class="nc" id="L1457">				pstmt.setInt(2, userInfoBean.getUserId()); // these are</span>
+				// retailers parent
+				// id
+<span class="nc" id="L1460">				pstmt.setInt(3, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L1461">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L1462">				pstmt.setTimestamp(5, new java.sql.Timestamp(new Date()</span>
+						.getTime()));
+<span class="nc" id="L1464">				pstmt.setString(6, &quot;DG_REFUND_FAILED&quot;);</span>
+<span class="nc" id="L1465">				pstmt.executeUpdate();</span>
+
+				// insert in ret draw sale table
+<span class="nc" id="L1468">				pstmt = con</span>
+						.prepareStatement(&quot;insert into st_dg_ret_sale_refund_?(transaction_id,mrp_amt,retailer_comm,net_amt,agent_comm,agent_net_amt,retailer_org_id,claim_status,good_cause_amt,vat_amt,taxable_sale,game_id,cancellation_charges,ticket_nbr,ref_transaction_id,ret_sd_amt,agt_vat_amt) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L1470">				pstmt.setInt(1, cancelTicketBean.getGameId());</span>
+<span class="nc" id="L1471">				pstmt.setLong(2, transId);</span>
+<span class="nc" id="L1472">				pstmt.setDouble(3, ticketMrp);</span>
+<span class="nc" id="L1473">				pstmt.setDouble(4, CommonMethods.fmtToTwoDecimal(retComm));</span>
+<span class="nc" id="L1474">				pstmt.setDouble(5, CommonMethods.fmtToTwoDecimal(retNet));</span>
+<span class="nc" id="L1475">				pstmt.setDouble(6, CommonMethods.fmtToTwoDecimal(agtComm));</span>
+<span class="nc" id="L1476">				pstmt.setDouble(7, CommonMethods.fmtToTwoDecimal(agtNet));</span>
+<span class="nc" id="L1477">				pstmt.setInt(8, userInfoBean.getUserOrgId());</span>
+<span class="nc" id="L1478">				pstmt.setString(9, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L1479">				pstmt.setDouble(10, CommonMethods.fmtToTwoDecimal(govt_comm));</span>
+<span class="nc" id="L1480">				pstmt.setDouble(11, CommonMethods.fmtToTwoDecimal(vatAmt));</span>
+<span class="nc" id="L1481">				pstmt.setDouble(12, CommonMethods.fmtToTwoDecimal(taxableSale));</span>
+<span class="nc" id="L1482">				pstmt.setInt(13, gameId);</span>
+<span class="nc" id="L1483">				pstmt.setDouble(14, 0.0);// updated by amit because in this</span>
+				// case no cancellation charges
+				// apply
+<span class="nc" id="L1486">				pstmt.setString(15, cancelTicketBean.getTicketNo());</span>
+<span class="nc" id="L1487">				pstmt.setLong(16, saleRefTransId);</span>
+<span class="nc" id="L1488">				pstmt.setDouble(17, CommonMethods.fmtToTwoDecimal(retSdAmt));</span>
+<span class="nc" id="L1489">				pstmt.setDouble(18, CommonMethods.fmtToTwoDecimal(agtVatAmt));</span>
+<span class="nc" id="L1490">				pstmt.executeUpdate();</span>
+
+				// update st_lms_organization_master for claimable balance for
+				// retailer
+
+				/*
+				 * pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1,
+				 * CommonMethods.fmtToTwoDecimal(retNet)); pstmt.setInt(2,
+				 * userInfoBean.getUserOrgId()); pstmt.executeUpdate();
+				 * logger.debug(&quot;pstmt ret &quot; + pstmt);
+				 */
+
+<span class="nc" id="L1504">				boolean isValid=false;</span>
+				//Now make payment updte method only one
+<span class="nc" id="L1506">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(retNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean.getUserOrgId(), userInfoBean.getParentOrgId(), &quot;RETAILER&quot;, 0, con);
+<span class="nc bnc" id="L1508" title="All 2 branches missed.">				if(!isValid){</span>
+<span class="nc" id="L1509">					return -1;</span>
+				}
+<span class="nc" id="L1511">				isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods</span>
+						.fmtToTwoDecimal(agtNet), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, userInfoBean.getParentOrgId(),0, &quot;AGENT&quot;, 0, con);
+<span class="nc bnc" id="L1513" title="All 2 branches missed.">				if(!isValid){</span>
+<span class="nc" id="L1514">					return -1;</span>
+				}
+				
+			/*	CommonFunctionsHelper commHelper = new CommonFunctionsHelper();
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(retNet), userInfoBean.getUserOrgId(),
+						&quot;DEBIT&quot;, con);
+
+				// update st_lms_organization_master for claimable balance for
+				// agent
+				commHelper.updateOrgBalance(&quot;CLAIM_BAL&quot;, CommonMethods
+						.fmtToTwoDecimal(agtNet),
+						userInfoBean.getParentOrgId(), &quot;DEBIT&quot;, con);*/
+
+				/*
+				 * // update st_lms_organization_master for claimable balance
+				 * for agent pstmt = con .prepareStatement(&quot;update
+				 * st_lms_organization_master set claimable_bal=claimable_bal-?
+				 * where organization_id=?&quot;); pstmt.setDouble(1,
+				 * CommonMethods.fmtToTwoDecimal(agtNet)); pstmt.setInt(2,
+				 * userInfoBean.getParentOrgId()); pstmt.executeUpdate();
+				 * logger.debug(&quot;pstmt agt &quot; + pstmt);
+				 */
+				// con.commit();
+<span class="nc" id="L1538">				return ticketMrp;</span>
+
+			} else {
+<span class="nc" id="L1541">				return -1;</span>
+			}
+
+<span class="nc" id="L1544">		} catch (Exception se) {</span>
+<span class="nc" id="L1545">			se.printStackTrace();</span>
+<span class="nc" id="L1546">			return -1;</span>
+		}
+
+	}
+
+	
+	public static List&lt;String&gt; getAssociatedPromoTicket(String parentTktNo) {
+
+<span class="nc" id="L1554">		Connection con = null;</span>
+<span class="nc" id="L1555">		PreparedStatement pstmt = null;</span>
+
+<span class="nc" id="L1557">		List&lt;String&gt; promoTicketList = new ArrayList&lt;String&gt;();</span>
+
+		try {
+<span class="nc" id="L1560">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L1561">			con.setAutoCommit(false);</span>
+
+			// update retaler draw sale table for ticket number
+<span class="nc" id="L1564">			pstmt = con</span>
+					.prepareStatement(&quot;select promo_ticket_nbr from ge_sale_promo_ticket_mapping where sale_ticket_nbr=?&quot;);
+			// pstmt.setInt(1, prentGameNo);
+<span class="nc" id="L1567">			pstmt.setString(1, parentTktNo);</span>
+<span class="nc" id="L1568">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1569" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1570">				promoTicketList.add(rs.getString(1));</span>
+			}
+<span class="nc" id="L1572">		} catch (Exception se) {</span>
+<span class="nc" id="L1573">			se.printStackTrace();</span>
+		} finally {
+<span class="nc bnc" id="L1575" title="All 6 branches missed.">			if (con != null) {</span>
+				try {
+<span class="nc" id="L1577">					con.close();</span>
+<span class="nc" id="L1578">				} catch (SQLException e) {</span>
+<span class="nc" id="L1579">					e.printStackTrace();</span>
+<span class="nc" id="L1580">				}</span>
+			}
+
+		}
+<span class="nc" id="L1584">		return promoTicketList;</span>
+
+	}
+	public static List&lt;String&gt; getAssociatedPromoTicket(String parentTktNo,Connection con) {
+
+<span class="nc" id="L1589">		ResultSet rs=null; </span>
+<span class="nc" id="L1590">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1591">		List&lt;String&gt; promoTicketList = null;</span>
+		try {
+<span class="nc" id="L1593">			pstmt = con.prepareStatement(&quot;select promo_ticket_nbr from ge_sale_promo_ticket_mapping where sale_ticket_nbr=?&quot;);</span>
+<span class="nc" id="L1594">			pstmt.setString(1, parentTktNo);</span>
+<span class="nc" id="L1595">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L1596">			promoTicketList = new ArrayList&lt;String&gt;();</span>
+<span class="nc bnc" id="L1597" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1598">				promoTicketList.add(rs.getString(1));</span>
+			}
+<span class="nc" id="L1600">		} catch (Exception se) {</span>
+<span class="nc" id="L1601">			se.printStackTrace();</span>
+		} finally{
+<span class="nc" id="L1603">			DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L1604">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L1605">		}</span>
+<span class="nc" id="L1606">		return promoTicketList;</span>
+
+	}
+	public static void main(String[] args) throws LMSException {
+<span class="nc" id="L1610">		orgOnLineSaleCreditUpdation s = new orgOnLineSaleCreditUpdation();</span>
+<span class="nc" id="L1611">		logger.debug(&quot;start&quot;);</span>
+<span class="nc" id="L1612">		UserInfoBean u = new UserInfoBean();</span>
+<span class="nc" id="L1613">		u.setUserId(536);</span>
+<span class="nc" id="L1614">		u.setUserOrgId(164);</span>
+<span class="nc" id="L1615">		u.setParentOrgId(162);</span>
+		// int t = s.drawTcketSaleBalDeduction(u,102,500);
+		// s.drawTicketSaleTicketUpdate(t, 1414, 102);
+		// s.drawTicketSaleRefund(u, 102, 1414, &quot;&quot;);
+		// logger.debug(s.drawTicketSale(u,102,&quot;105-001001-002&quot;,400));
+<span class="nc" id="L1620">		logger.debug(&quot;success&quot;);</span>
+<span class="nc" id="L1621">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

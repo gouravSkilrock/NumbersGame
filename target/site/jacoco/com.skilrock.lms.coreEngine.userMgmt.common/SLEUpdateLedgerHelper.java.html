@@ -1,0 +1,2160 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SLEUpdateLedgerHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.userMgmt.common</a> &gt; <span class="el_source">SLEUpdateLedgerHelper.java</span></div><h1>SLEUpdateLedgerHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.userMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L25">public class SLEUpdateLedgerHelper {</span>
+	
+<span class="nc" id="L27">	private static Logger logger = LoggerFactory.getLogger(SLEUpdateLedgerHelper.class);</span>
+	private static final int batchSize = 500;
+	/*public static void main(String[] args) throws ClassNotFoundException,SQLException,LMSException {/*
+		Statement stmt=null;
+		Class.forName(&quot;com.mysql.jdbc.Driver&quot;);
+		Connection connection = DriverManager.getConnection(&quot;jdbc:mysql://192.168.124.125/lms_zim3&quot;, &quot;root&quot;, &quot;root&quot;);
+		runLedgerForSLE(connection);
+		
+	}*/
+	protected static void runLedgerForSLE(Connection con) throws LMSException{
+<span class="nc" id="L37">		logger.debug(new Date()+&quot;---Update Ledger Of SLE Start At--&quot;+new Date().getTime());</span>
+<span class="nc" id="L38">		Statement stmt=null;</span>
+		try {
+<span class="nc" id="L40">			stmt=con.createStatement();</span>
+<span class="nc" id="L41">			stmt.execute(&quot;CREATE TEMPORARY TABLE orgTransSummary (agent_ref_transaction_id BIGINT NOT NULL, ret_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, agt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, govt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, retailer_org_id INT UNSIGNED NOT NULL DEFAULT 0, game_id INT UNSIGNED NOT NULL DEFAULT 0,game_type_id INT UNSIGNED NOT NULL DEFAULT 0,trans_date DATETIME)&quot;);</span>
+<span class="nc" id="L42">			fillTempSLETransCommTlbForRet(con);</span>
+			// ADD Transaction Date in Agent Sale table While inserting the transactions while update ledger
+<span class="nc" id="L44">			updateSLESaleLedgerForRet(con);</span>
+			
+			
+			
+			// INCOMPLETE
+<span class="nc" id="L49">			updateSLEPwtLedgerForRet(con);</span>
+<span class="nc" id="L50">			logger.debug(new Date()+&quot;---Draw Game Sale Pwt Complete for Retailer Start At--&quot;+new Date().getTime());</span>
+<span class="nc" id="L51">			stmt.execute(&quot;drop table orgTransSummary&quot;);</span>
+<span class="nc" id="L52">			stmt.execute(&quot;CREATE TEMPORARY TABLE agentTransSummary (bo_ref_transaction_id BIGINT NOT NULL, agt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, govt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, agent_org_id INT UNSIGNED NOT NULL DEFAULT 0, game_id INT UNSIGNED NOT NULL DEFAULT 0,game_type_id INT UNSIGNED NOT NULL DEFAULT 0,trans_date DATETIME)&quot;);</span>
+<span class="nc" id="L53">			fillTempSLETransCommTlbForAgt(con);</span>
+<span class="nc" id="L54">			updateSLESaleLedgerForAgt(con);</span>
+			
+			
+<span class="nc" id="L57">			updateSLEPwtLedgerForAgt(con);</span>
+<span class="nc" id="L58">			stmt.execute(&quot;drop table agentTransSummary&quot;);</span>
+			//logger.debug(new Date()+&quot;---Draw Game Sale Pwt Complete for Agent Start At--&quot;+new Date().getTime());
+			//logger.debug(new Date()+&quot;---Update Ledger Of Draw Game End At--&quot;+new Date().getTime());
+			
+			/*cancelSleUpdateLedger(con);*/
+
+<span class="nc" id="L64">		} catch (Exception e) {</span>
+<span class="nc" id="L65">			throw new LMSException(); // TEMP</span>
+		} finally {
+<span class="nc" id="L67">			DBConnect.closeStmt(stmt);</span>
+<span class="nc" id="L68">		}	</span>
+<span class="nc" id="L69">	}</span>
+	
+	protected static void cancelSleUpdateLedger(Connection con) throws LMSException{
+	
+<span class="nc" id="L73">		Statement stmt=null;</span>
+		try {
+<span class="nc" id="L75">			logger.debug(&quot;SLE REFUND UPDATE LEDGET STARTS.......&quot;);</span>
+<span class="nc" id="L76">			stmt=con.createStatement();</span>
+<span class="nc" id="L77">			stmt.execute(&quot;drop table IF EXISTS orgTransSummary&quot;);</span>
+			//stmt.execute(&quot;CREATE TEMPORARY TABLE orgTransSummary (agent_ref_transaction_id BIGINT NOT NULL, ret_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, agt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, govt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, retailer_org_id INT UNSIGNED NOT NULL DEFAULT 0, game_id INT UNSIGNED NOT NULL DEFAULT 0,game_type_id INT UNSIGNED NOT NULL DEFAULT 0,trans_date DATETIME)&quot;);
+<span class="nc" id="L79">			stmt.execute(&quot;CREATE TABLE orgTransSummary (agent_ref_transaction_id BIGINT NOT NULL, ret_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, agt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, govt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, retailer_org_id INT UNSIGNED NOT NULL DEFAULT 0, game_id INT UNSIGNED NOT NULL DEFAULT 0,game_type_id INT UNSIGNED NOT NULL DEFAULT 0,trans_date DATETIME)&quot;);</span>
+<span class="nc" id="L80">			fillTempSLETransCommTlbForRet(con);</span>
+			// ADD Transaction Date in Agent Sale table While inserting the transactions while update ledger
+<span class="nc" id="L82">			updateSLESaleRefundLedgerForRet(con);</span>
+<span class="nc" id="L83">			stmt.execute(&quot;drop table IF EXISTS orgTransSummary&quot;);</span>
+<span class="nc" id="L84">			stmt.execute(&quot;drop table  IF EXISTS agentTransSummary&quot;);</span>
+<span class="nc" id="L85">			stmt.execute(&quot;CREATE TEMPORARY TABLE agentTransSummary (bo_ref_transaction_id BIGINT NOT NULL, agt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, govt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, agent_org_id INT UNSIGNED NOT NULL DEFAULT 0, game_id INT UNSIGNED NOT NULL DEFAULT 0,game_type_id INT UNSIGNED NOT NULL DEFAULT 0,trans_date DATETIME)&quot;);</span>
+<span class="nc" id="L86">			fillTempSLETransCommTlbForAgt(con);</span>
+<span class="nc" id="L87">			updateSLESaleRefundLedgerForAgt(con);</span>
+<span class="nc" id="L88">			stmt.execute(&quot;drop table IF EXISTS agentTransSummary&quot;);</span>
+<span class="nc" id="L89">			logger.debug(&quot;SLE REFUND UPDATE LEDGET ENDS.......&quot;);</span>
+			
+			
+			
+		
+			// INCOMPLETE
+			//updateSLEPwtLedgerForRet(con);
+			//logger.debug(new Date()+&quot;---Draw Game Sale Pwt Complete for Retailer Start At--&quot;+new Date().getTime());
+			//stmt.execute(&quot;drop table orgTransSummary&quot;);
+			//stmt.execute(&quot;CREATE TEMPORARY TABLE agentTransSummary (bo_ref_transaction_id BIGINT NOT NULL, agt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, govt_comm DECIMAL(20,2) NOT NULL DEFAULT 0.00, agent_org_id INT UNSIGNED NOT NULL DEFAULT 0, game_id INT UNSIGNED NOT NULL DEFAULT 0,game_type_id INT UNSIGNED NOT NULL DEFAULT 0,trans_date DATETIME)&quot;);
+			//fillTempSLETransCommTlbForAgt(con);
+			//updateSLESaleLedgerForAgt(con);
+			//updateSLEPwtLedgerForAgt(con);
+			//tempStmt.execute(&quot;drop table agentTransSummary&quot;);
+			//logger.debug(new Date()+&quot;---Draw Game Sale Pwt Complete for Agent Start At--&quot;+new Date().getTime());
+			//logger.debug(new Date()+&quot;---Update Ledger Of Draw Game End At--&quot;+new Date().getTime());
+
+<span class="nc" id="L106">		} catch (Exception e) {</span>
+<span class="nc" id="L107">			e.printStackTrace();</span>
+<span class="nc" id="L108">			throw new LMSException(); // TEMP</span>
+<span class="nc" id="L109">		} </span>
+<span class="nc" id="L110">	}</span>
+
+	
+	
+	private static void fillTempSLETransCommTlbForRet(Connection con) throws LMSException{
+
+		//logger.info(&quot;fillTempSLETransCommTlbForRet() starts.......AT &quot;+new Date() +&quot; &quot;+ new Date().getTime());
+		//ResultSet rs = null;
+		//PreparedStatement pstmt = null;
+		try {
+<span class="nc" id="L120">			con.prepareStatement(&quot;truncate table st_temp_update_ledger&quot;).executeUpdate();</span>
+<span class="nc" id="L121">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L122">			StringBuilder sb = new StringBuilder(&quot;insert into st_temp_update_ledger (trans_id, ret_comm, agt_comm, govt_comm) values&quot;);</span>
+			//String gameQry = &quot;select * from (select game_id,game_type_id,sum(retailer_sale_comm_rate) ret_comm,sum(agent_sale_comm_rate) agt_comm,sum(govt_comm) govt_comm,now() date from (select  game_id,game_type_id ,retailer_sale_comm_rate,agent_sale_comm_rate,gov_comm_rate govt_comm from st_sle_game_type_master union all select game_id,game_type_id,sale_comm_variance,0,0 from st_sle_agent_retailer_sale_pwt_comm_variance where retailer_org_id=?  union all select game_id,game_type_id,0,sale_comm_variance,0 from st_sle_bo_agent_sale_pwt_comm_variance where agent_org_id=? ) aa group by game_type_id union all select gm.game_id,gm.game_type_id,retailer_sale_comm_rate+sale_comm_variance retComm,0 agtComm,0 govtComm,date_changed from st_sle_agent_retailer_sale_comm_variance_history his inner join st_sle_game_type_master gm on his.game_type_id=gm.game_type_id where retialer_org_id=? union all select gm.game_id,gm.game_type_id,0,agent_sale_comm_rate+sale_comm_variance agtComm,0,date_changed from st_dg_bo_agent_sale_comm_variance_history his inner join st_sle_game_type_master gm on his.game_id=gm.game_type_id where agent_org_id=? union all select game_id , game_type_id,0,0,govt_comm_rate,date_changed from st_sle_game_govt_comm_history ) aa where game_type_id = ? order by date desc&quot;;
+<span class="nc" id="L124">			String gameQry = &quot;select * from (select game_id,game_type_id,sum(retailer_sale_comm_rate) ret_comm,sum(agent_sale_comm_rate) agt_comm,sum(govt_comm) govt_comm,now() date from (select  game_id,game_type_id ,retailer_sale_comm_rate,agent_sale_comm_rate,gov_comm_rate govt_comm from st_sle_game_type_master union all select game_id,game_type_id,sale_comm_variance,0,0 from st_sle_agent_retailer_sale_pwt_comm_variance where retailer_org_id=?  union all select game_id,game_type_id,0,sale_comm_variance,0 from st_sle_agent_retailer_sale_pwt_comm_variance where agent_org_id=? ) aa group by game_type_id union all select gm.game_id,gm.game_type_id,retailer_sale_comm_rate+sale_comm_variance retComm,0 agtComm,0 govtComm,date_changed from st_sle_agent_retailer_sale_comm_variance_history his inner join st_sle_game_type_master gm on his.game_type_id=gm.game_type_id where retialer_org_id=? union all select gm.game_id,gm.game_type_id,0,agent_sale_comm_rate+sale_comm_variance agtComm,0,date_changed from st_sle_agent_retailer_sale_comm_variance_history his inner join st_sle_game_type_master gm on his.game_type_id=gm.game_type_id where agent_org_id=? union all select game_id , game_type_id,0,0,govt_comm_rate,date_changed from st_sle_game_govt_comm_history ) aa where game_type_id = ? order by date desc&quot;;</span>
+<span class="nc" id="L125">			PreparedStatement gameStmt = con.prepareStatement(gameQry);</span>
+<span class="nc" id="L126">			String transQry = &quot;select sale.transaction_id,sale.game_id,sale.game_type_id ,tm.transaction_date,sale.retailer_org_id,parent_id from st_lms_retailer_transaction_master tm inner join st_lms_organization_master om inner join st_sle_ret_sale sale on tm.retailer_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL') union all select sale.transaction_id,sale.game_id ,sale.game_type_id ,tm.transaction_date,sale.retailer_org_id,parent_id from st_lms_retailer_transaction_master tm inner join st_lms_organization_master om inner join st_sle_ret_sale_refund sale on tm.retailer_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL')&quot;;</span>
+<span class="nc" id="L127">			PreparedStatement traStmt = con.prepareStatement(transQry);</span>
+<span class="nc" id="L128">			ResultSet tranRs = traStmt.executeQuery();</span>
+<span class="nc" id="L129">			int count =0; </span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">			while (tranRs.next()) {</span>
+<span class="nc" id="L131">					long transId = tranRs.getLong(&quot;transaction_id&quot;);</span>
+<span class="nc" id="L132">					int orgId = tranRs.getInt(&quot;retailer_org_id&quot;);</span>
+<span class="nc" id="L133">					int parentId = tranRs.getInt(&quot;parent_id&quot;);</span>
+<span class="nc" id="L134">					long transDate = tranRs.getTimestamp(&quot;transaction_date&quot;).getTime();</span>
+<span class="nc" id="L135">					int gameTypeId = tranRs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L136">					gameStmt.setInt(1, orgId);</span>
+<span class="nc" id="L137">					gameStmt.setInt(2, parentId);</span>
+<span class="nc" id="L138">					gameStmt.setInt(3, orgId);</span>
+<span class="nc" id="L139">					gameStmt.setInt(4, parentId);</span>
+<span class="nc" id="L140">					gameStmt.setInt(5, gameTypeId);</span>
+<span class="nc" id="L141">					ResultSet gameRs = gameStmt.executeQuery();</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">					while (gameRs.next()) {</span>
+<span class="nc" id="L143">						double retComm = 0.0;</span>
+<span class="nc" id="L144">						double 	agtComm = 0.0;</span>
+<span class="nc" id="L145">						double 	govtComm = 0.0;</span>
+<span class="nc" id="L146">						double retCommTemp = gameRs.getDouble(&quot;ret_comm&quot;);</span>
+<span class="nc" id="L147">						double agtCommTemp = gameRs.getDouble(&quot;agt_comm&quot;);</span>
+<span class="nc" id="L148">						double govtCommTemp = gameRs.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc bnc" id="L149" title="All 2 branches missed.">						if (gameRs.getTimestamp(&quot;date&quot;).getTime() &gt; transDate) {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">							 retComm = ((retCommTemp != 0.0)?retCommTemp:0.0);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">							 agtComm = ((agtCommTemp != 0.0)?agtCommTemp:0.0);</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">							 govtComm = ((govtCommTemp != 0.0)?govtCommTemp:0.0);</span>
+						}
+<span class="nc" id="L154">						sb.append(&quot;(&quot; + transId + &quot;, &quot; + retComm + &quot;, &quot; + agtComm + &quot;,&quot; + govtComm + &quot;),&quot;);</span>
+<span class="nc" id="L155">						count++;</span>
+
+<span class="nc bnc" id="L157" title="All 2 branches missed.">						if (count &gt; 500) {</span>
+<span class="nc" id="L158">							sb.deleteCharAt(sb.length() - 1);</span>
+<span class="nc" id="L159">							stmt.executeUpdate(sb.toString());</span>
+<span class="nc" id="L160">							count = 0;</span>
+<span class="nc" id="L161">							sb = null;</span>
+<span class="nc" id="L162">							sb = new StringBuilder(&quot;insert into st_temp_update_ledger (trans_id, ret_comm,agt_comm,govt_comm) values&quot;);</span>
+					}
+
+<span class="nc" id="L165">				}</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">				if (count &gt; 0) {</span>
+<span class="nc" id="L167">					sb.deleteCharAt(sb.length() - 1);</span>
+<span class="nc" id="L168">					logger.debug(sb.toString());</span>
+<span class="nc" id="L169">					stmt.executeUpdate(sb.toString());</span>
+<span class="nc" id="L170">					sb = new StringBuilder(&quot;insert into st_temp_update_ledger (trans_id, ret_comm,agt_comm,govt_comm) values&quot;);</span>
+				}
+<span class="nc" id="L172">			}</span>
+			//logger.info(&quot;fillTempSLETransCommTlbForRet()  ends.......AT &quot;+new Date() +&quot; &quot;+ new Date().getTime());
+<span class="nc" id="L174">		} catch (Exception e) {</span>
+<span class="nc" id="L175">			e.printStackTrace();</span>
+<span class="nc" id="L176">			throw new LMSException(&quot;enable to fill comm table for retailer&quot;);</span>
+<span class="nc" id="L177">		}</span>
+	
+		/*
+		//logger.debug(new Date() + &quot;---start---&quot; + new Date().getTime());
+
+		ResultSet rs = null;
+		PreparedStatement pstmt = null;
+		try {
+			con.prepareStatement(&quot;truncate table st_temp_update_ledger&quot;).executeUpdate();
+
+			String gameQry = &quot;select game_id from st_dg_game_master&quot;;
+			pstmt = con.prepareStatement(gameQry);
+			rs = pstmt.executeQuery();
+			//int transId = 0;
+			long transId=0;
+			int gameId = 0;
+			int orgId = 0;
+			int parentId = 0;
+			long transDate = 0;
+			double retComm, agtComm, govtComm;
+			Statement stmt = con.createStatement();
+			while (rs.next()) {
+				int count = 0;
+				gameId = rs.getInt(&quot;game_id&quot;);
+				StringBuilder sb = new StringBuilder(
+						&quot;insert into st_temp_update_ledger (trans_id, ret_comm, agt_comm, govt_comm) values&quot;);
+
+				
+				
+				
+				
+				gameQry = &quot;select * from (select game_id,sum(retailer_sale_comm_rate) ret_comm,sum(agent_sale_comm_rate) agt_comm,sum(govt_comm) govt_comm,now() date from (select game_id,retailer_sale_comm_rate,agent_sale_comm_rate,govt_comm from st_dg_game_master where game_id=&quot;
+						+ gameId
+						+ &quot; union all select game_id,sale_comm_variance,0,0 from st_dg_agent_retailer_sale_pwt_comm_variance where retailer_org_id=? and game_id=&quot;
+						+ gameId
+						+ &quot; union all select game_id,0,sale_comm_variance,0 from st_dg_bo_agent_sale_pwt_comm_variance where agent_org_id=? and game_id=&quot;
+						+ gameId
+						+ &quot;) aa group by game_id union all select gm.game_id,retailer_sale_comm_rate+sale_comm_variance retComm,0 agtComm,0 govtComm,date_changed from st_dg_agent_retailer_sale_comm_variance_history his inner join st_dg_game_master gm on his.game_id=gm.game_id where retialer_org_id=? and gm.game_id=&quot;
+						+ gameId
+						+ &quot; union all select gm.game_id,0,agent_sale_comm_rate+sale_comm_variance agtComm,0,date_changed from st_dg_bo_agent_sale_comm_variance_history his inner join st_dg_game_master gm on his.game_id=gm.game_id where agent_org_id=? and gm.game_id=&quot;
+						+ gameId
+						+ &quot; union all select game_id,0,0,govt_comm_rate,date_changed from st_dg_game_govt_comm_history where game_id=&quot;
+						+ gameId + &quot;) aa order by date desc&quot;;
+				
+				gameQry = &quot;select * from (select game_id,game_type_id,sum(retailer_sale_comm_rate) ret_comm,sum(agent_sale_comm_rate) agt_comm,sum(govt_comm) govt_comm,now() date from (select  game_id,game_type_id ,retailer_sale_comm_rate,agent_sale_comm_rate,gov_comm_rate govt_comm from st_sle_game_type_master union all select game_id,game_type_id,sale_comm_variance,0,0 from st_sle_agent_retailer_sale_pwt_comm_variance where retailer_org_id=3  union all select game_id,game_type_id,0,sale_comm_variance,0 from st_sle_bo_agent_sale_pwt_comm_variance where agent_org_id=2 ) aa group by game_id union all select gm.game_id,gm.game_type_id,retailer_sale_comm_rate+sale_comm_variance retComm,0 agtComm,0 govtComm,date_changed from st_sle_agent_retailer_sale_comm_variance_history his inner join st_sle_game_type_master gm on his.game_type_id=gm.game_type_id where retialer_org_id=3 union all select gm.game_id,gm.game_type_id,0,agent_sale_comm_rate+sale_comm_variance agtComm,0,date_changed from st_dg_bo_agent_sale_comm_variance_history his inner join st_sle_game_type_master gm on his.game_id=gm.game_type_id where agent_org_id=2 union all select game_id , game_type_id,0,0,govt_comm_rate,date_changed from st_sle_game_govt_comm_history ) aa order by date desc&quot;;
+				
+				PreparedStatement gameStmt = con.prepareStatement(gameQry);
+				
+				
+				
+				String transQry = &quot;select sale.transaction_id,sale.game_id ,transaction_date,sale.retailer_org_id,parent_id from st_lms_retailer_transaction_master tm inner join st_lms_organization_master om inner join st_dg_ret_sale_&quot;
+						+ gameId
+						+ &quot; sale on tm.retailer_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL') union all select sale.transaction_id,sale.game_id ,transaction_date,sale.retailer_org_id,parent_id from st_lms_retailer_transaction_master tm inner join st_lms_organization_master om inner join st_dg_ret_sale_refund_&quot;
+						+ gameId
+						+ &quot; sale on tm.retailer_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL')&quot;;
+				
+				
+				
+				String transQry = &quot;select sale.transaction_id,sale.game_id,sale.game_type_id ,tm.transaction_date,sale.retailer_org_id,parent_id from st_lms_retailer_transaction_master tm inner join st_lms_organization_master om inner join st_sle_ret_sale sale on tm.retailer_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL') union all select sale.transaction_id,sale.game_id ,sale.game_type_id ,tm.transaction_date,sale.retailer_org_id,parent_id from st_lms_retailer_transaction_master tm inner join st_lms_organization_master om inner join st_sle_ret_sale_refund sale on tm.retailer_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL')&quot;;
+				
+				
+				PreparedStatement traStmt = con.prepareStatement(transQry);
+				ResultSet tranRs = traStmt.executeQuery();
+				
+				while (tranRs.next()) {
+					transId = tranRs.getLong(&quot;transaction_id&quot;);
+					orgId = tranRs.getInt(&quot;retailer_org_id&quot;);
+					parentId = tranRs.getInt(&quot;parent_id&quot;);
+					transDate = tranRs.getTimestamp(&quot;transaction_date&quot;).getTime();
+					gameStmt.setInt(1, orgId);
+					gameStmt.setInt(2, parentId);
+					gameStmt.setInt(3, orgId);
+					gameStmt.setInt(4, parentId);
+					ResultSet gameRs = gameStmt.executeQuery();
+					retComm = 0;
+					agtComm = 0;
+					govtComm = 0;
+
+					while (gameRs.next()) {
+						double retCommTemp = gameRs.getDouble(&quot;ret_comm&quot;);
+						double agtCommTemp = gameRs.getDouble(&quot;agt_comm&quot;);
+						double govtCommTemp = gameRs.getDouble(&quot;govt_comm&quot;);
+						if (gameRs.getTimestamp(&quot;date&quot;).getTime() &gt; transDate) {
+							if (retCommTemp != 0.0) {
+								retComm = retCommTemp;
+							}
+							if (agtCommTemp != 0.0) {
+								agtComm = agtCommTemp;
+							}
+							if (govtCommTemp != 0.0) {
+								govtComm = govtCommTemp;
+							}
+						}
+					}
+
+					sb.append(&quot;(&quot; + transId + &quot;, &quot; + retComm + &quot;, &quot; + agtComm
+							+ &quot;,&quot; + govtComm + &quot;),&quot;);
+					count++;
+
+					if (count &gt; 500) {
+						sb.deleteCharAt(sb.length() - 1);
+						stmt.executeUpdate(sb.toString());
+						count = 0;
+						sb = null;
+						sb = new StringBuilder(
+								&quot;insert into st_temp_update_ledger (trans_id, ret_comm,agt_comm,govt_comm) values&quot;);
+					}
+
+				}
+
+				if (count &gt; 0) {
+					sb.deleteCharAt(sb.length() - 1);
+					stmt.executeUpdate(sb.toString());
+				}
+			}
+			//logger.debug(new Date() + &quot;---end---&quot; + new Date().getTime());
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new LMSException(&quot;enable to fill comm table for retailer&quot;);
+		}
+<span class="nc" id="L297">	*/}</span>
+	
+	private static void updateSLESaleLedgerForRet(Connection con) throws LMSException{
+
+		//logger.info(&quot;Transactions from SALE in updateSLESaleLedgerForRet() begins........&quot;);
+<span class="nc" id="L302">		Statement stmt = null;</span>
+<span class="nc" id="L303">		ResultSet rs = null;</span>
+<span class="nc" id="L304">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;</span>
+<span class="nc" id="L305">		Map&lt;Integer, Double&gt; orgIdAmountMap = new HashMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L306">		Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();</span>
+<span class="nc" id="L307">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvRetMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+<span class="nc" id="L308">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+
+<span class="nc" id="L310">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvRetMap = null;</span>
+<span class="nc" id="L311">		Statement tempStmt=null;</span>
+		try {
+			//String saleQry = &quot;select a.game_type_id,b.game_id , a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm from st_sle_ret_sale a inner join st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER' ) d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date&quot;;
+<span class="nc" id="L314">			String saleQry = &quot;select a.game_type_id,a.game_id , retailer_org_id,agtUserId,agtOrgId,totalMrp , totalRetComm, totalagtComm,  totalgovtComm,  totalVat, totalTaxSale,transaction_date,ret_comm,agt_comm,govt_comm ,prize_payout_ratio,vat_amt from (select a.game_type_id,a.game_id , a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm from st_sle_ret_sale a inner join st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER' ) d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date) a inner join st_sle_game_type_master sle on sle.game_type_id = a.game_type_id &quot;;</span>
+<span class="nc" id="L315">			PreparedStatement pstmtAgt = con.prepareStatement(QueryManager.insertInLMSTransactionMaster());</span>
+<span class="nc" id="L316">			PreparedStatement pstmtAgtTrans = con.prepareStatement(QueryManager.insertInAgentTransactionMaster());</span>
+<span class="nc" id="L317">			PreparedStatement insAgtSalePstmt = con.prepareStatement(&quot;insert into st_sle_agt_sale(transaction_id,agent_org_id,retailer_org_id,game_id,game_type_id,mrp_amt,retailer_comm_amt,net_amt,agent_comm_amt,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm,transaction_date) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L318">			PreparedStatement insAgtSaleRetPstmt = con.prepareStatement(&quot;insert into st_sle_agt_sale_refund(transaction_id,agent_org_id,retailer_org_id,game_id,game_type_id,mrp_amt,retailer_comm_amt,net_amt,agent_comm_amt,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm,cancellation_charges,transaction_date) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L319">			PreparedStatement insTempTablePstmt=con.prepareStatement(&quot;insert into orgTransSummary(agent_ref_transaction_id,ret_comm,agt_comm,govt_comm,retailer_org_id,game_id,game_type_id,trans_date) values(?,?,?,?,?,?,?,?)&quot;);			tempStmt=con.createStatement();</span>
+<span class="nc" id="L320">			tempStmt.execute(&quot;delete from orgTransSummary &quot;);</span>
+			
+			
+<span class="nc" id="L323">			int count = 0;</span>
+<span class="nc" id="L324">			double retDebitAmount = 0.0;</span>
+<span class="nc" id="L325">			stmt = con.createStatement();</span>
+<span class="nc" id="L326">			rs = stmt.executeQuery(saleQry);</span>
+
+<span class="nc bnc" id="L328" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L329">				double agtCommRate = rs.getDouble(&quot;agt_comm&quot;);</span>
+<span class="nc" id="L330">				double totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);</span>
+<span class="nc" id="L331">				double totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);</span>
+<span class="nc" id="L332">				double totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);</span>
+<span class="nc" id="L333">				double totalretNetAmt = totalMrpAmt - totalRetComm;</span>
+<span class="nc" id="L334">				double totalAgtNetAmt = totalMrpAmt - totalAgtComm;</span>
+<span class="nc" id="L335">				double retCommRate = rs.getDouble(&quot;ret_comm&quot;);</span>
+<span class="nc" id="L336">				int ppr = rs.getInt(&quot;prize_payout_ratio&quot;);</span>
+<span class="nc" id="L337">				double govtCommRate = rs.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L338">				double vatAmt = rs.getDouble(&quot;vat_amt&quot;);</span>
+
+				// CHECK IF necessary
+<span class="nc" id="L341">				double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, retCommRate, ppr, govtCommRate, vatAmt);</span>
+
+<span class="nc" id="L343">				int retOrgId = rs.getInt(&quot;retailer_org_id&quot;);</span>
+<span class="nc bnc" id="L344" title="All 2 branches missed.">				if (orgIdAmountMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L345">					retDebitAmount = orgIdAmountMap.get(retOrgId) + totalretNetAmt;</span>
+				} else {
+<span class="nc" id="L347">					retDebitAmount = totalretNetAmt;</span>
+				}
+
+<span class="nc" id="L350">				orgIdAmountMap.put(retOrgId, retDebitAmount);</span>
+<span class="nc" id="L351">				int agtOrgId = rs.getInt(&quot;agtOrgId&quot;);</span>
+<span class="nc" id="L352">				orgIdParentIdMap.put(retOrgId, agtOrgId);</span>
+
+<span class="nc bnc" id="L354" title="All 2 branches missed.">				if (orgIdTransIdInvMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L355">					transIdInvMap = orgIdTransIdInvMap.get(retOrgId);</span>
+				} else {
+<span class="nc" id="L357">					transIdInvMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L358">					orgIdTransIdInvMap.put(retOrgId, transIdInvMap);</span>
+				}
+
+				// insert in main transaction table
+<span class="nc" id="L362">				pstmtAgt.setString(1, &quot;AGENT&quot;);</span>
+<span class="nc" id="L363">				pstmtAgt.executeUpdate();</span>
+<span class="nc" id="L364">				ResultSet rsTrns = pstmtAgt.getGeneratedKeys();</span>
+<span class="nc" id="L365">				int gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L366">				int gameTypeId = rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L367">				double totalAgtVat = rs.getDouble(&quot;totalVat&quot;);</span>
+<span class="nc" id="L368">				double totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);</span>
+<span class="nc" id="L369">				String transDate = rs.getString(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L370">				int agtUserId = rs.getInt(&quot;agtUserId&quot;);</span>
+
+<span class="nc bnc" id="L372" title="All 2 branches missed.">				if (rsTrns.next()) {</span>
+<span class="nc" id="L373">					long transId = rsTrns.getLong(1);</span>
+					//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id-- &quot;+agtOrgId+&quot; -- Start Sale for Game type &quot;+gameTypeId +&quot; with transaction &quot;+ transId);
+<span class="nc bnc" id="L375" title="All 2 branches missed.">					if (!transIdInvMap.containsKey(transDate)) {</span>
+<span class="nc" id="L376">						transIdInvMap.put(transDate, new ArrayList&lt;Long&gt;());</span>
+					}
+
+					
+<span class="nc" id="L380">					transIdInvMap.get(transDate).add(transId);</span>
+<span class="nc" id="L381">					pstmtAgtTrans.setLong(1, transId);</span>
+<span class="nc" id="L382">					pstmtAgtTrans.setInt(2, agtUserId);</span>
+<span class="nc" id="L383">					pstmtAgtTrans.setInt(3, agtOrgId);</span>
+<span class="nc" id="L384">					pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L385">					pstmtAgtTrans.setInt(5, retOrgId);</span>
+<span class="nc" id="L386">					pstmtAgtTrans.setString(6, &quot;SLE_SALE&quot;);</span>
+<span class="nc" id="L387">					pstmtAgtTrans.setTimestamp(7, updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L388">					pstmtAgtTrans.executeUpdate();</span>
+
+<span class="nc" id="L390">					insAgtSalePstmt.setLong(1, transId);</span>
+<span class="nc" id="L391">					insAgtSalePstmt.setInt(2, agtOrgId);</span>
+<span class="nc" id="L392">					insAgtSalePstmt.setInt(3, retOrgId);</span>
+<span class="nc" id="L393">					insAgtSalePstmt.setInt(4, gameId);</span>
+<span class="nc" id="L394">					insAgtSalePstmt.setInt(5, gameTypeId);</span>
+<span class="nc" id="L395">					insAgtSalePstmt.setDouble(6, totalMrpAmt);</span>
+<span class="nc" id="L396">					insAgtSalePstmt.setDouble(7, totalRetComm);</span>
+<span class="nc" id="L397">					insAgtSalePstmt.setDouble(8, totalretNetAmt);</span>
+<span class="nc" id="L398">					insAgtSalePstmt.setDouble(9, totalAgtComm);</span>
+<span class="nc" id="L399">					insAgtSalePstmt.setDouble(10, totalAgtNetAmt);</span>
+<span class="nc" id="L400">					insAgtSalePstmt.setString(11, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L401">					insAgtSalePstmt.setDouble(12, totalAgtVat);</span>
+<span class="nc" id="L402">					insAgtSalePstmt.setDouble(13, tatalAgtTaxableSale);</span>
+<span class="nc" id="L403">					insAgtSalePstmt.setDouble(14, totalGoodCauseAmt);</span>
+<span class="nc" id="L404">					insAgtSalePstmt.setTimestamp(15, updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L405">					insAgtSalePstmt.executeUpdate();</span>
+
+					// insert temp table
+<span class="nc" id="L408">					insTempTablePstmt.setLong(1, transId);</span>
+<span class="nc" id="L409">					insTempTablePstmt.setDouble(2, retCommRate);</span>
+<span class="nc" id="L410">					insTempTablePstmt.setDouble(3, agtCommRate);</span>
+<span class="nc" id="L411">					insTempTablePstmt.setDouble(4, govtCommRate);</span>
+<span class="nc" id="L412">					insTempTablePstmt.setInt(5, retOrgId);</span>
+<span class="nc" id="L413">					insTempTablePstmt.setInt(6, gameId);</span>
+<span class="nc" id="L414">					insTempTablePstmt.setInt(7, gameTypeId);</span>
+<span class="nc" id="L415">					insTempTablePstmt.setString(8, transDate);</span>
+<span class="nc" id="L416">					insTempTablePstmt.addBatch();</span>
+				
+<span class="nc bnc" id="L418" title="All 2 branches missed.">					if (++count % batchSize == 0) {</span>
+<span class="nc" id="L419">						insTempTablePstmt.executeBatch();</span>
+					}
+				}
+<span class="nc" id="L422">			}</span>
+				
+<span class="nc" id="L424">				insTempTablePstmt.executeBatch();</span>
+				//logger.info(&quot;Transactions from SALE in updateSLESaleLedgerForRet() are updated successfully&quot;);
+				
+				// BE CARE FULL FOR THE GAME_TYPE_ID   
+				//tempStmt.executeUpdate(&quot;update st_sle_ret_sale sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				//logger.debug(tempStmt.executeUpdate(&quot;update st_sle_ret_sale sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_id ) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;));
+<span class="nc" id="L430">				tempStmt.executeUpdate(&quot;update st_sle_ret_sale sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select a.transaction_id,a.transaction_date,a.retailer_org_id,ret_comm,agt_comm,govt_comm,a.game_id,game_type_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b inner join st_sle_ret_sale c on a.transaction_id = b.trans_id and b.trans_id = c.transaction_id) yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_type_id ) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);</span>
+				
+<span class="nc" id="L432">				tempStmt.execute(&quot;delete from  orgTransSummary &quot;);</span>
+
+<span class="nc" id="L434">				String saleReturnQry = &quot;select a.game_type_id,a.game_id,retailer_org_id,agtUserId,agtOrgId, totalMrp ,totalRetComm, totalagtComm,  totalgovtComm,  totalVat, totalTaxSale, totalCancelCharge,transaction_date,ret_comm,agt_comm,govt_comm,transaction_type,prize_payout_ratio,vat_amt from (select a.game_type_id,a.game_id,a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,sum(cancellation_charges) totalCancelCharge,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm,transaction_type from st_sle_ret_sale_refund a inner join  st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER') d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,transaction_type,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date) a inner join st_sle_game_type_master sle on sle.game_type_id  =  a.game_type_id&quot;; </span>
+<span class="nc" id="L435">				stmt = con.createStatement();</span>
+<span class="nc" id="L436">				rs = stmt.executeQuery(saleReturnQry);</span>
+<span class="nc bnc" id="L437" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L438">					int retOrgId = rs.getInt(&quot;retailer_org_id&quot;);</span>
+<span class="nc" id="L439">					int agtUserId = rs.getInt(&quot;agtUserId&quot;);</span>
+<span class="nc" id="L440">					int agtOrgId = rs.getInt(&quot;agtOrgId&quot;);</span>
+<span class="nc" id="L441">					int gameId  = 	rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L442">					int gameTypeId  = 	rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L443">					double totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);</span>
+<span class="nc" id="L444">					double totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);</span>
+<span class="nc" id="L445">					double totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);</span>
+<span class="nc" id="L446">					double totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);</span>
+<span class="nc" id="L447">					double totalCancelCharge = rs.getDouble(&quot;totalCancelCharge&quot;);</span>
+<span class="nc" id="L448">					double retCommRate = rs.getDouble(&quot;ret_comm&quot;);</span>
+<span class="nc" id="L449">					double agtCommRate = rs.getDouble(&quot;agt_comm&quot;);</span>
+<span class="nc" id="L450">					double govtCommRate = rs.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L451">					String transDate = rs.getString(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L452">					double totalretNetAmt = totalMrpAmt - totalRetComm	- totalCancelCharge;</span>
+<span class="nc" id="L453">					double totalAgtNetAmt = totalMrpAmt - totalAgtComm	- totalCancelCharge;</span>
+<span class="nc" id="L454">					String tranType = rs.getString(&quot;transaction_type&quot;);</span>
+<span class="nc" id="L455">					double totalAgtVat =rs.getDouble(&quot;totalVat&quot;);</span>
+<span class="nc" id="L456">					int ppr = rs.getInt(&quot;prize_payout_ratio&quot;);</span>
+<span class="nc" id="L457">					double vatAmt = rs.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L458">					double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, retCommRate, ppr, govtCommRate, vatAmt);</span>
+
+<span class="nc bnc" id="L460" title="All 2 branches missed.">					if (orgIdAmountMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L461">						retDebitAmount = orgIdAmountMap.get(retOrgId) - totalretNetAmt;</span>
+					} else {
+<span class="nc" id="L463">						retDebitAmount = -totalretNetAmt;</span>
+					}
+
+<span class="nc" id="L466">					orgIdAmountMap.put(retOrgId, retDebitAmount);</span>
+<span class="nc" id="L467">					orgIdParentIdMap.put(retOrgId, agtOrgId);</span>
+
+<span class="nc bnc" id="L469" title="All 2 branches missed.">					if (orgIdTransIdInvRetMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L470">						transIdInvRetMap = orgIdTransIdInvRetMap.get(retOrgId);</span>
+					} else {
+<span class="nc" id="L472">						transIdInvRetMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L473">						orgIdTransIdInvRetMap.put(retOrgId, transIdInvRetMap);</span>
+					}
+
+					// insert in main transaction table
+
+<span class="nc" id="L478">					pstmtAgt.setString(1, &quot;AGENT&quot;);</span>
+<span class="nc" id="L479">					pstmtAgt.executeUpdate();</span>
+<span class="nc" id="L480">					ResultSet rsTrns = pstmtAgt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">					if (rsTrns.next()) {</span>
+<span class="nc" id="L482">						long transId = rsTrns.getLong(1);</span>
+						//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id--&quot;+agtOrgId+&quot;--Start Sale Refund tran for Game type &quot;+gameTypeId +&quot; with transaction &quot;+ transId);
+<span class="nc bnc" id="L484" title="All 2 branches missed.">						if (!transIdInvRetMap.containsKey(transDate)) {</span>
+<span class="nc" id="L485">							transIdInvRetMap.put(transDate ,	new ArrayList&lt;Long&gt;());</span>
+						}
+
+<span class="nc" id="L488">						transIdInvRetMap.get(transDate).add(transId);</span>
+
+<span class="nc" id="L490">						pstmtAgtTrans.setLong(1, transId);</span>
+<span class="nc" id="L491">						pstmtAgtTrans.setInt(2, agtUserId);</span>
+<span class="nc" id="L492">						pstmtAgtTrans.setInt(3, agtOrgId);</span>
+<span class="nc" id="L493">						pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L494">						pstmtAgtTrans.setInt(5, retOrgId);</span>
+<span class="nc" id="L495">						pstmtAgtTrans.setString(6, tranType);</span>
+<span class="nc" id="L496">						pstmtAgtTrans.setTimestamp(7,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L497">						pstmtAgtTrans.executeUpdate();</span>
+
+<span class="nc" id="L499">						insAgtSaleRetPstmt.setLong(1, transId);</span>
+<span class="nc" id="L500">						insAgtSaleRetPstmt.setInt(2, agtOrgId);</span>
+<span class="nc" id="L501">						insAgtSaleRetPstmt.setInt(3, retOrgId);</span>
+<span class="nc" id="L502">						insAgtSaleRetPstmt.setInt(4, gameId);</span>
+<span class="nc" id="L503">						insAgtSaleRetPstmt.setInt(5, gameTypeId);</span>
+						// ADD GAME TYPE ID FOR AGENT
+<span class="nc" id="L505">						insAgtSaleRetPstmt.setDouble(6, totalMrpAmt);</span>
+<span class="nc" id="L506">						insAgtSaleRetPstmt.setDouble(7, totalRetComm);</span>
+<span class="nc" id="L507">						insAgtSaleRetPstmt.setDouble(8, totalretNetAmt);</span>
+<span class="nc" id="L508">						insAgtSaleRetPstmt.setDouble(9, totalAgtComm);</span>
+<span class="nc" id="L509">						insAgtSaleRetPstmt.setDouble(10, totalAgtNetAmt);</span>
+<span class="nc" id="L510">						insAgtSaleRetPstmt.setString(11, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L511">						insAgtSaleRetPstmt.setDouble(12, totalAgtVat);</span>
+<span class="nc" id="L512">						insAgtSaleRetPstmt.setDouble(13, tatalAgtTaxableSale);</span>
+<span class="nc" id="L513">						insAgtSaleRetPstmt.setDouble(14, totalGoodCauseAmt);</span>
+<span class="nc" id="L514">						insAgtSaleRetPstmt.setDouble(15, totalCancelCharge);</span>
+<span class="nc" id="L515">						insAgtSaleRetPstmt.setTimestamp(16, updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L516">						insAgtSaleRetPstmt.executeUpdate();</span>
+
+						
+						//insert temp table
+<span class="nc" id="L520">						insTempTablePstmt.setLong(1, transId);</span>
+<span class="nc" id="L521">						insTempTablePstmt.setDouble(2, retCommRate);</span>
+<span class="nc" id="L522">						insTempTablePstmt.setDouble(3, agtCommRate);</span>
+<span class="nc" id="L523">						insTempTablePstmt.setDouble(4, govtCommRate);</span>
+<span class="nc" id="L524">						insTempTablePstmt.setInt(5, retOrgId);</span>
+<span class="nc" id="L525">						insTempTablePstmt.setInt(6, gameId);</span>
+<span class="nc" id="L526">						insTempTablePstmt.setInt(7, gameTypeId);</span>
+<span class="nc" id="L527">						insTempTablePstmt.setString(8, transDate);</span>
+<span class="nc" id="L528">						insTempTablePstmt.addBatch();</span>
+<span class="nc bnc" id="L529" title="All 2 branches missed.">						if(++count % batchSize == 0) {</span>
+<span class="nc" id="L530">							insTempTablePstmt.executeBatch();</span>
+					    }
+					}
+<span class="nc" id="L533">				}</span>
+				
+<span class="nc" id="L535">				insTempTablePstmt.executeBatch();</span>
+				// BE CARE FULL FOR THE GAME_TYPE_ID   
+				//tempStmt.executeUpdate(&quot;update st_dg_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				//tempStmt.executeUpdate(&quot;update st_sle_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+<span class="nc" id="L539">				tempStmt.executeUpdate(&quot;update st_sle_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select a.transaction_id,a.transaction_date,a.retailer_org_id,ret_comm,agt_comm,govt_comm,a.game_id,game_type_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b inner join st_sle_ret_sale_refund c on a.transaction_id = b.trans_id and b.trans_id = c.transaction_id )yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_type_id ) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);</span>
+<span class="nc" id="L540">				tempStmt.execute(&quot;delete from orgTransSummary&quot;);</span>
+				
+<span class="nc" id="L542">				updateLedgerHelper helper = new updateLedgerHelper();</span>
+<span class="nc" id="L543">				helper.generateDGReceiptNew(orgIdTransIdInvMap, orgIdParentIdMap,&quot;SLE_INVOICE&quot;, &quot;SLE_RECEIPT&quot;, con);</span>
+<span class="nc" id="L544">				helper.generateDGReceiptNew(orgIdTransIdInvRetMap, orgIdParentIdMap,&quot;CR_NOTE&quot;, &quot;CR_NOTE_CASH&quot;, con);</span>
+
+				//logger.debug(&quot;retailer orgIdAmountMap\n&quot; + orgIdAmountMap);
+
+				// update retailer balance
+<span class="nc" id="L549">				Set&lt;Integer&gt; retOrgIdSet = orgIdAmountMap.keySet();</span>
+<span class="nc bnc" id="L550" title="All 2 branches missed.">				for (Integer orgId : retOrgIdSet) {</span>
+<span class="nc" id="L551">					boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;TRANSACTION&quot;, &quot;SLE_SALE&quot;, orgId,</span>
+							orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+<span class="nc bnc" id="L553" title="All 2 branches missed.">					if(!isValid)</span>
+<span class="nc" id="L554">						throw new LMSException();</span>
+						
+<span class="nc" id="L556">					OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, orgId,</span>
+							orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+					
+<span class="nc" id="L559">				}</span>
+<span class="nc" id="L560">		} catch (Exception e) {</span>
+<span class="nc" id="L561">			e.printStackTrace();</span>
+<span class="nc" id="L562">			throw new LMSException(&quot;error in sale retailer&quot;);</span>
+<span class="nc" id="L563">		}</span>
+		//logger.debug(new Date() + &quot;---end-dg sale update for retailer--&quot;+ new Date().getTime());
+	
+		/*
+		//logger.debug(new Date() + &quot;---start-dg sale update for retailer--&quot;+ new Date().getTime());
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		double totalMrpAmt, totalRetComm, totalAgtComm, totalGoodCauseAmt, totalretNetAmt, totalAgtNetAmt, totalCancelCharge;
+		double retCommRate, agtCommRate, govtCommRate, retDebitAmount;
+		String transDate;
+		int retOrgId, agtUserId, agtOrgId=0;
+		Map&lt;Integer, Double&gt; orgIdAmountMap = new HashMap&lt;Integer, Double&gt;();
+		Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();
+		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();
+		Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;
+		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvRetMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();
+		Map&lt;String, List&lt;Long&gt;&gt; transIdInvRetMap = null;
+		Statement tempStmt=null;
+		
+		try {
+			String getGameNbrFromGameMaster = &quot;select game_id,game_type_id,prize_payout_ratio,vat_amt from st_sle_game_type_master&quot;;
+			String saleQry = &quot;select a.game_type_id,b.game_id , a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm from st_sle_ret_sale a inner join st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER' ) d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date&quot;;
+			String saleReturnQry = &quot;select a.game_type_id,a.game_id,a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,sum(cancellation_charges) totalCancelCharge,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm,transaction_type from st_sle_ret_sale_refund a inner join  st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER') d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,transaction_type,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date&quot;;
+
+			
+			PreparedStatement pstmtGameNbr = con.prepareStatement(getGameNbrFromGameMaster);
+			ResultSet resultGameNbr = pstmtGameNbr.executeQuery();
+
+			PreparedStatement pstmtAgt = con.prepareStatement(QueryManager.insertInLMSTransactionMaster());
+			PreparedStatement pstmtAgtTrans = con.prepareStatement(QueryManager.insertInAgentTransactionMaster());
+			PreparedStatement insAgtSalePstmt = con.prepareStatement(&quot;insert into st_sle_agt_sale(transaction_id,agent_org_id,retailer_org_id,game_id,game_type_id,mrp_amt,retailer_comm,net_amt,agent_comm,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+			PreparedStatement insTempTablePstmt=con.prepareStatement(&quot;insert into orgTransSummary(agent_ref_transaction_id,ret_comm,agt_comm,govt_comm,retailer_org_id,game_id,trans_date) values(?,?,?,?,?,?,?)&quot;);
+			PreparedStatement insAgtSaleRetPstmt = con.prepareStatement(&quot;insert into st_dg_agt_sale_refund(transaction_id,agent_org_id,retailer_org_id,game_id,mrp_amt,retailer_comm,net_amt,agent_comm,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm,cancellation_charges) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+			tempStmt=con.createStatement();
+			tempStmt.execute(&quot;delete from  orgTransSummary &quot;);
+			int gameId = 0;
+			double ppr = 0.0;
+			double vatAmt = 0.0;
+			final int batchSize = 500;
+			int count = 0;
+			while (resultGameNbr.next()) {
+				gameId = resultGameNbr.getInt(&quot;game_id&quot;);
+				ppr = resultGameNbr.getInt(&quot;prize_payout_ratio&quot;);
+				vatAmt = resultGameNbr.getDouble(&quot;vat_amt&quot;);
+				pstmt = con.prepareStatement(saleQry);
+				pstmt.setInt(1, gameId);
+				rs = pstmt.executeQuery();
+				//logger.debug(&quot;--Start Sale tran for game No&quot; + gameId);
+				
+				while (rs.next()) {
+					retOrgId = rs.getInt(&quot;retailer_org_id&quot;);
+					agtUserId = rs.getInt(&quot;agtUserId&quot;);
+					agtOrgId = rs.getInt(&quot;agtOrgId&quot;);
+
+					totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);
+					totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);
+					totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);
+					totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);
+					retCommRate = rs.getDouble(&quot;ret_comm&quot;);
+					agtCommRate = rs.getDouble(&quot;agt_comm&quot;);
+					govtCommRate = rs.getDouble(&quot;govt_comm&quot;);
+					transDate = rs.getString(&quot;transaction_date&quot;);
+					totalretNetAmt = totalMrpAmt - totalRetComm;
+					totalAgtNetAmt = totalMrpAmt - totalAgtComm;
+					double totalAgtVat= rs.getDouble(&quot;totalVat&quot;);
+					double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, retCommRate, ppr,govtCommRate, vatAmt);
+
+					if (orgIdAmountMap.containsKey(retOrgId)) {
+						retDebitAmount = orgIdAmountMap.get(retOrgId)
+								+ totalretNetAmt;
+					} else {
+						retDebitAmount = totalretNetAmt;
+					}
+
+					orgIdAmountMap.put(retOrgId, retDebitAmount);
+					orgIdParentIdMap.put(retOrgId, agtOrgId);
+
+					if (orgIdTransIdInvMap.containsKey(retOrgId)) {
+						transIdInvMap = orgIdTransIdInvMap.get(retOrgId);
+					} else {
+						transIdInvMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();
+						orgIdTransIdInvMap.put(retOrgId, transIdInvMap);
+					}
+
+					// insert in main transaction table
+
+					pstmtAgt.setString(1, &quot;AGENT&quot;);
+					pstmtAgt.executeUpdate();
+					ResultSet rsTrns = pstmtAgt.getGeneratedKeys();
+					if (rsTrns.next()) {
+						long transId = rsTrns.getLong(1);
+						//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id--&quot;+agtOrgId+&quot;--Start Sale tran for game No&quot; + gameId);
+						if (!transIdInvMap.containsKey(transDate)) {
+							transIdInvMap.put(transDate,
+									new ArrayList&lt;Long&gt;());
+						}
+
+						transIdInvMap.get(transDate).add(transId);
+
+						pstmtAgtTrans.setLong(1, transId);
+						pstmtAgtTrans.setInt(2, agtUserId);
+						pstmtAgtTrans.setInt(3, agtOrgId);
+						pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);
+						pstmtAgtTrans.setInt(5, retOrgId);
+						pstmtAgtTrans.setString(6, &quot;SLE_SALE&quot;);
+						pstmtAgtTrans.setTimestamp(7,updateLedgerHelper.fetchTransTimeStamp(transDate));
+						pstmtAgtTrans.executeUpdate();
+
+						insAgtSalePstmt.setLong(1, transId);
+						insAgtSalePstmt.setInt(2, agtOrgId);
+						insAgtSalePstmt.setInt(3, retOrgId);
+						insAgtSalePstmt.setInt(4, gameId);
+						insAgtSalePstmt.setDouble(5, totalMrpAmt);
+						insAgtSalePstmt.setDouble(6, totalRetComm);
+						insAgtSalePstmt.setDouble(7, totalretNetAmt);
+						insAgtSalePstmt.setDouble(8, totalAgtComm);
+						insAgtSalePstmt.setDouble(9, totalAgtNetAmt);
+						insAgtSalePstmt.setString(10, &quot;CLAIM_BAL&quot;);
+						insAgtSalePstmt.setDouble(11, totalAgtVat);
+						insAgtSalePstmt.setDouble(12, tatalAgtTaxableSale);
+						insAgtSalePstmt.setDouble(13, totalGoodCauseAmt);
+						insAgtSalePstmt.executeUpdate();
+
+						
+						
+						//insert temp table
+						insTempTablePstmt.setLong(1, transId);
+						insTempTablePstmt.setDouble(2, retCommRate);
+						insTempTablePstmt.setDouble(3, agtCommRate);
+						insTempTablePstmt.setDouble(4, govtCommRate);
+						insTempTablePstmt.setInt(5, retOrgId);
+						insTempTablePstmt.setInt(6, gameId);
+						insTempTablePstmt.setString(7, transDate);
+						insTempTablePstmt.addBatch();
+						if(++count % batchSize == 0) {
+							insTempTablePstmt.executeBatch();
+					    }
+					}
+
+				}
+				
+				insTempTablePstmt.executeBatch();
+				
+				
+				tempStmt.executeUpdate(&quot;update st_sle_ret_sale_&quot;+gameId+&quot; sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				tempStmt.execute(&quot;delete from  orgTransSummary &quot;);
+				//tempStmt.execute(&quot;truncate table orgTransSummary&quot;);
+				
+				pstmt = con.prepareStatement(saleReturnQry);
+				pstmt.setInt(1, gameId);
+				rs = pstmt.executeQuery();
+				//logger.debug(&quot;--Start Cancel tran for game No&quot; + gameId);
+				while (rs.next()) {
+					retOrgId = rs.getInt(&quot;retailer_org_id&quot;);
+					agtUserId = rs.getInt(&quot;agtUserId&quot;);
+					agtOrgId = rs.getInt(&quot;agtOrgId&quot;);
+
+					totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);
+					totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);
+					totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);
+					totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);
+					totalCancelCharge = rs.getDouble(&quot;totalCancelCharge&quot;);
+					retCommRate = rs.getDouble(&quot;ret_comm&quot;);
+					agtCommRate = rs.getDouble(&quot;agt_comm&quot;);
+					govtCommRate = rs.getDouble(&quot;govt_comm&quot;);
+					transDate = rs.getString(&quot;transaction_date&quot;);
+					totalretNetAmt = totalMrpAmt - totalRetComm
+							- totalCancelCharge;
+					totalAgtNetAmt = totalMrpAmt - totalAgtComm
+							- totalCancelCharge;
+					String tranType = rs.getString(&quot;transaction_type&quot;);
+					double totalAgtVat =rs.getDouble(&quot;totalVat&quot;);
+
+					double tatalAgtTaxableSale = CommonMethods
+							.calTaxableSale(totalMrpAmt, retCommRate, ppr,
+									govtCommRate, vatAmt);
+
+					if (orgIdAmountMap.containsKey(retOrgId)) {
+						retDebitAmount = orgIdAmountMap.get(retOrgId)
+								- totalretNetAmt;
+					} else {
+						retDebitAmount = -totalretNetAmt;
+					}
+
+					orgIdAmountMap.put(retOrgId, retDebitAmount);
+					orgIdParentIdMap.put(retOrgId, agtOrgId);
+
+					if (orgIdTransIdInvRetMap.containsKey(retOrgId)) {
+						transIdInvRetMap = orgIdTransIdInvRetMap.get(retOrgId);
+					} else {
+						transIdInvRetMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();
+						orgIdTransIdInvRetMap.put(retOrgId, transIdInvRetMap);
+					}
+
+					// insert in main transaction table
+
+					pstmtAgt.setString(1, &quot;AGENT&quot;);
+					pstmtAgt.executeUpdate();
+					ResultSet rsTrns = pstmtAgt.getGeneratedKeys();
+					if (rsTrns.next()) {
+						long transId = rsTrns.getLong(1);
+						//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id--&quot;+agtOrgId+&quot;--Start Sale Cancel tran for game No&quot; + gameId);
+						if (!transIdInvRetMap.containsKey(transDate)) {
+							transIdInvRetMap.put(transDate,
+									new ArrayList&lt;Long&gt;());
+						}
+
+						transIdInvRetMap.get(transDate).add(transId);
+
+						pstmtAgtTrans.setLong(1, transId);
+						pstmtAgtTrans.setInt(2, agtUserId);
+						pstmtAgtTrans.setInt(3, agtOrgId);
+						pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);
+						pstmtAgtTrans.setInt(5, retOrgId);
+						pstmtAgtTrans.setString(6, tranType);
+						pstmtAgtTrans.setTimestamp(7,
+								updateLedgerHelper.fetchTransTimeStamp(transDate));
+						pstmtAgtTrans.executeUpdate();
+
+						insAgtSaleRetPstmt.setLong(1, transId);
+						insAgtSaleRetPstmt.setInt(2, agtOrgId);
+						insAgtSaleRetPstmt.setInt(3, retOrgId);
+						insAgtSaleRetPstmt.setInt(4, gameId);
+						insAgtSaleRetPstmt.setDouble(5, totalMrpAmt);
+						insAgtSaleRetPstmt.setDouble(6, totalRetComm);
+						insAgtSaleRetPstmt.setDouble(7, totalretNetAmt);
+						insAgtSaleRetPstmt.setDouble(8, totalAgtComm);
+						insAgtSaleRetPstmt.setDouble(9, totalAgtNetAmt);
+						insAgtSaleRetPstmt.setString(10, &quot;CLAIM_BAL&quot;);
+						insAgtSaleRetPstmt.setDouble(11, totalAgtVat);
+						insAgtSaleRetPstmt.setDouble(12, tatalAgtTaxableSale);
+						insAgtSaleRetPstmt.setDouble(13, totalGoodCauseAmt);
+						insAgtSaleRetPstmt.setDouble(14, totalCancelCharge);
+						insAgtSaleRetPstmt.executeUpdate();
+
+						
+						//insert temp table
+						insTempTablePstmt.setLong(1, transId);
+						insTempTablePstmt.setDouble(2, retCommRate);
+						insTempTablePstmt.setDouble(3, agtCommRate);
+						insTempTablePstmt.setDouble(4, govtCommRate);
+						insTempTablePstmt.setInt(5, retOrgId);
+						insTempTablePstmt.setInt(6, gameId);
+						insTempTablePstmt.setString(7, transDate);
+						insTempTablePstmt.addBatch();
+						if(++count % batchSize == 0) {
+							insTempTablePstmt.executeBatch();
+					    }
+						
+					}
+
+				}
+				
+				insTempTablePstmt.executeBatch();
+				
+				tempStmt.executeUpdate(&quot;update st_dg_ret_sale_refund_&quot;+gameId+&quot; sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				tempStmt.execute(&quot;delete from orgTransSummary&quot;);
+				
+			}
+			updateLedgerHelper helper = new updateLedgerHelper();
+			helper.generateDGReceiptNew(orgIdTransIdInvMap, orgIdParentIdMap,&quot;SLE_INVOICE&quot;, &quot;SLE_RECEIPT&quot;, con);
+			helper.generateDGReceiptNew(orgIdTransIdInvRetMap, orgIdParentIdMap,&quot;SLE_CR_NOTE&quot;, &quot;SLE_CR_NOTE_CASH&quot;, con);
+
+			//logger.debug(&quot;retailer orgIdAmountMap\n&quot; + orgIdAmountMap);
+
+			// update retailer balance
+			Set&lt;Integer&gt; retOrgIdSet = orgIdAmountMap.keySet();
+			for (Integer orgId : retOrgIdSet) {
+				boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;TRANSACTION&quot;, &quot;DRAW_GAME_SALE&quot;, orgId,
+						orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+				if(!isValid)
+					throw new LMSException();
+					
+				OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, orgId,
+						orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+				
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new LMSException(&quot;error in sale retailer&quot;);
+		}
+		//logger.debug(new Date() + &quot;---end-dg sale update for retailer--&quot;
+				+ new Date().getTime());
+<span class="nc" id="L846">	*/}</span>
+	
+	private static void fillTempSLETransCommTlbForAgt(Connection con) throws LMSException{
+		//logger.debug(new Date() + &quot;---start---&quot; + new Date().getTime());
+
+		try {
+<span class="nc" id="L852">			con.prepareStatement(&quot;truncate table st_temp_update_ledger&quot;).executeUpdate();  </span>
+<span class="nc" id="L853">			long transId = 0;</span>
+<span class="nc" id="L854">			int gameId = 0;</span>
+<span class="nc" id="L855">			int gameTypeId = 0;</span>
+<span class="nc" id="L856">			int orgId = 0;</span>
+<span class="nc" id="L857">			Timestamp transDate = null;</span>
+			double retComm, agtComm, govtComm;
+			//String gameQry = &quot;select * from (select game_id,sum(retailer_sale_comm_rate) ret_comm,sum(agent_sale_comm_rate) agt_comm,sum(govt_comm) govt_comm,now() date from (select game_id,retailer_sale_comm_rate,agent_sale_comm_rate,govt_comm from st_dg_game_master where game_id=? union all select game_id,0,sale_comm_variance,0 from st_dg_bo_agent_sale_pwt_comm_variance where agent_org_id=? and game_id=?) aa group by game_id union all select gm.game_id,0,agent_sale_comm_rate+sale_comm_variance agtComm,0,date_changed from st_dg_bo_agent_sale_comm_variance_history his inner join st_dg_game_master gm on his.game_id=gm.game_id where agent_org_id=? and gm.game_id=? union all select game_id,0,0,govt_comm_rate,date_changed from st_dg_game_govt_comm_history where game_id=?) aa order by date desc&quot;;
+<span class="nc" id="L860">			String gameQry = &quot;select * from (select game_id,game_type_id,sum(retailer_sale_comm_rate) ret_comm,sum(agent_sale_comm_rate) agt_comm,sum(gov_comm_rate) govt_comm,now() date from (select game_id,game_type_id,retailer_sale_comm_rate,agent_sale_comm_rate,gov_comm_rate from st_sle_game_type_master where game_type_id=? and game_id = ? union all select game_id,game_type_id,0,sale_comm_variance,0 from st_sle_bo_agent_sale_pwt_comm_variance where agent_org_id=? and game_type_id=? and game_id = ?) aa group by game_type_id , game_id union all select gm.game_id,gm.game_type_id,0,agent_sale_comm_rate+sale_comm_variance agtComm,0,date_changed from st_sle_bo_agent_sale_comm_variance_history his inner join st_sle_game_type_master gm on his.game_type_id=gm.game_type_id and his.game_id=gm.game_id where agent_org_id=? and gm.game_type_id=? and gm.game_id=? union all select game_id,game_type_id,0,0,govt_comm_rate,date_changed from st_sle_game_govt_comm_history where game_type_id = ? and game_id=?) aa order by date desc&quot;;</span>
+<span class="nc" id="L861">			Statement stmt = con.createStatement();</span>
+
+<span class="nc" id="L863">			int count = 0;</span>
+<span class="nc" id="L864">			StringBuilder sb = new StringBuilder(&quot;insert into st_temp_update_ledger (trans_id, ret_comm, agt_comm, govt_comm) values&quot;);</span>
+			//String transQry = &quot;select sale.transaction_id,sale.game_id ,transaction_date,sale.agent_org_id,parent_id from st_lms_agent_transaction_master tm inner join st_lms_organization_master om inner join st_dg_agt_sale sale on sale.agent_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL') union all select sale.transaction_id,sale.game_id ,transaction_date,sale.agent_org_id,parent_id from st_lms_agent_transaction_master tm inner join st_lms_organization_master om inner join st_dg_agt_sale_refund sale on sale.agent_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL')&quot;;
+<span class="nc" id="L866">			String transQry = &quot;select sale.transaction_id,sale.game_id ,sale.game_type_id,tm.transaction_date,sale.agent_org_id,parent_id from st_lms_agent_transaction_master tm inner join st_lms_organization_master om inner join st_sle_agt_sale sale on sale.agent_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL') union all select sale.transaction_id,sale.game_id ,sale.game_type_id,tm.transaction_date,sale.agent_org_id,parent_id from st_lms_agent_transaction_master tm inner join st_lms_organization_master om inner join st_sle_agt_sale_refund sale on sale.agent_org_id=om.organization_id and tm.transaction_id=sale.transaction_id  where claim_status in('CLAIM_BAL')&quot;; </span>
+<span class="nc" id="L867">			PreparedStatement traStmt = con.prepareStatement(transQry);</span>
+<span class="nc" id="L868">			ResultSet tranRs = traStmt.executeQuery();</span>
+<span class="nc" id="L869">			PreparedStatement gameStmt = con.prepareStatement(gameQry);</span>
+
+<span class="nc bnc" id="L871" title="All 2 branches missed.">			while (tranRs.next()) {</span>
+<span class="nc" id="L872">				gameId = tranRs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L873">				orgId = tranRs.getInt(&quot;agent_org_id&quot;);</span>
+<span class="nc" id="L874">				gameTypeId = tranRs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L875">				transId = tranRs.getLong(&quot;transaction_id&quot;);</span>
+<span class="nc" id="L876">				transDate = tranRs.getTimestamp(&quot;transaction_date&quot;);</span>
+
+<span class="nc" id="L878">				gameStmt.setInt(1, gameTypeId);</span>
+<span class="nc" id="L879">				gameStmt.setInt(2, gameId);</span>
+<span class="nc" id="L880">				gameStmt.setInt(3, orgId);</span>
+<span class="nc" id="L881">				gameStmt.setInt(4, gameTypeId);</span>
+<span class="nc" id="L882">				gameStmt.setInt(5, gameId);</span>
+<span class="nc" id="L883">				gameStmt.setInt(6, orgId);</span>
+<span class="nc" id="L884">				gameStmt.setInt(7, gameTypeId);</span>
+<span class="nc" id="L885">				gameStmt.setInt(8, gameId);</span>
+<span class="nc" id="L886">				gameStmt.setInt(9, gameTypeId);</span>
+<span class="nc" id="L887">				gameStmt.setInt(10, gameId);</span>
+<span class="nc" id="L888">				ResultSet gameRs = gameStmt.executeQuery();</span>
+<span class="nc" id="L889">				retComm = 0;</span>
+<span class="nc" id="L890">				agtComm = 0;</span>
+<span class="nc" id="L891">				govtComm = 0;</span>
+<span class="nc bnc" id="L892" title="All 2 branches missed.">				while (gameRs.next()) {</span>
+<span class="nc bnc" id="L893" title="All 2 branches missed.">					if (gameRs.getTimestamp(&quot;date&quot;).getTime() &gt; transDate</span>
+							.getTime()) {
+<span class="nc bnc" id="L895" title="All 2 branches missed.">						if (gameRs.getDouble(&quot;ret_comm&quot;) != 0.0) {</span>
+<span class="nc" id="L896">							retComm = gameRs.getDouble(&quot;ret_comm&quot;);</span>
+						}
+<span class="nc bnc" id="L898" title="All 2 branches missed.">						if (gameRs.getDouble(&quot;agt_comm&quot;) != 0.0) {</span>
+<span class="nc" id="L899">							agtComm = gameRs.getDouble(&quot;agt_comm&quot;);</span>
+						}
+<span class="nc bnc" id="L901" title="All 2 branches missed.">						if (gameRs.getDouble(&quot;govt_comm&quot;) != 0.0) {</span>
+<span class="nc" id="L902">							govtComm = gameRs.getDouble(&quot;govt_comm&quot;);</span>
+						}
+					}
+				}
+
+<span class="nc" id="L907">				sb.append(&quot;(&quot; + transId + &quot;, &quot; + retComm + &quot;, &quot; + agtComm + &quot;,&quot;	+ govtComm + &quot;),&quot;);</span>
+<span class="nc" id="L908">				count++;</span>
+<span class="nc" id="L909">			}</span>
+<span class="nc bnc" id="L910" title="All 2 branches missed.">			if (count &gt; 0) {</span>
+<span class="nc" id="L911">				sb.deleteCharAt(sb.length() - 1);</span>
+<span class="nc" id="L912">				stmt.executeUpdate(sb.toString());</span>
+			}
+<span class="nc" id="L914">		} catch (Exception e) {</span>
+<span class="nc" id="L915">			e.printStackTrace();</span>
+<span class="nc" id="L916">			throw new LMSException(&quot;error in comm table agent&quot;);</span>
+<span class="nc" id="L917">		}</span>
+<span class="nc" id="L918">	}</span>
+
+	private static void updateSLESaleLedgerForAgt(Connection con) throws LMSException{
+<span class="nc" id="L921">		logger.debug(new Date() + &quot;---start-dg sale update for agent--&quot;+ new Date().getTime());</span>
+<span class="nc" id="L922">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L923">		ResultSet rs = null;</span>
+		double totalMrpAmt, totalAgtComm, totalGoodCauseAmt, totalAgtNetAmt, totalCancelCharge;
+		double agtCommRate, govtCommRate, agtDebitAmount;
+		String transDate;
+		int agtOrgId, boUserId, boOrgId;
+<span class="nc" id="L928">		Map&lt;Integer, Double&gt; orgIdAmountMap = new HashMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L929">		Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();</span>
+<span class="nc" id="L930">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+<span class="nc" id="L931">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;</span>
+<span class="nc" id="L932">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvRetMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+<span class="nc" id="L933">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvRetMap = null;</span>
+<span class="nc" id="L934">		Statement tempStmt=null;</span>
+		try {
+			//String saleQry = &quot;select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,tot.game_id,transaction_date,ret_comm,agt_comm,tot.govt_comm,prize_payout_ratio,vat_amt from (select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,game_id,transaction_date,ret_comm,agt_comm,govt_comm from(select a.agent_org_id,sum(mrp_amt) totalMrp ,sum(retailer_comm) totalRetComm,sum(agent_comm) totalagtComm, sum(a.govt_comm) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,a.game_id,DATE(transaction_date) 'transaction_date',ret_comm,agt_comm,c.govt_comm from st_dg_agt_sale a inner join  st_lms_agent_transaction_master b inner join st_temp_update_ledger c on a.transaction_id = b.transaction_id and a.transaction_id=trans_id where claim_status='CLAIM_BAL' group by a.agent_org_id,DATE(transaction_date),a.game_id,agt_comm,c.govt_comm  order by agent_org_id,game_id,transaction_date) sale inner join (select um.user_id agtUserId,um.organization_id agtOrgId,um.parent_user_id boUserId,om.parent_id boOrgId,isrolehead from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='AGENT') om on agent_org_id=agtOrgId and isrolehead = 'Y') tot inner join st_dg_game_master gm on tot.game_id=gm.game_id&quot;;
+<span class="nc" id="L937">			String saleQry = &quot;select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,tot.game_id,tot.game_type_id,transaction_date,ret_comm,agt_comm,tot.govt_comm,prize_payout_ratio,vat_amt from (select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,game_id,game_type_id,transaction_date,ret_comm,agt_comm,govt_comm from (select a.agent_org_id,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(a.govt_comm) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,a.game_id,game_type_id,DATE(b.transaction_date) 'transaction_date',ret_comm,agt_comm,c.govt_comm from st_sle_agt_sale a inner join  st_lms_agent_transaction_master b inner join st_temp_update_ledger c on a.transaction_id = b.transaction_id and a.transaction_id=trans_id where claim_status='CLAIM_BAL' group by a.agent_org_id,DATE(b.transaction_date),a.game_type_id,a.game_id,agt_comm,c.govt_comm  order by agent_org_id,game_id,transaction_date) sale inner join (select um.user_id agtUserId,um.organization_id agtOrgId,um.parent_user_id boUserId,om.parent_id boOrgId,isrolehead from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='AGENT') om on agent_org_id=agtOrgId and isrolehead = 'Y')  tot inner join st_sle_game_type_master gm on tot.game_id=gm.game_id and tot.game_type_id=gm.game_type_id&quot;;</span>
+			
+			//String saleReturnQry = &quot;select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,totalCancelCharge,tot.game_id,transaction_date,ret_comm,agt_comm,tot.govt_comm,transaction_type,prize_payout_ratio,vat_amt from(select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,totalCancelCharge,game_id,transaction_date,ret_comm,agt_comm,govt_comm,transaction_type from(select a.agent_org_id,sum(mrp_amt) totalMrp ,sum(retailer_comm) totalRetComm,sum(agent_comm) totalagtComm, sum(a.govt_comm) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,sum(cancellation_charges) totalCancelCharge,a.game_id,DATE(transaction_date) 'transaction_date',ret_comm,agt_comm,c.govt_comm,transaction_type from st_dg_agt_sale_refund a inner join  st_lms_agent_transaction_master b inner join st_temp_update_ledger c on a.transaction_id = b.transaction_id and a.transaction_id=trans_id where claim_status='CLAIM_BAL' group by a.agent_org_id,DATE(transaction_date),a.game_id,transaction_type,agt_comm,c.govt_comm  order by agent_org_id,game_id,transaction_date) saleRefund inner join (select um.user_id agtUserId,um.organization_id agtOrgId,um.parent_user_id boUserId,om.parent_id boOrgId,isrolehead from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='AGENT') d on agent_org_id=agtOrgId and isrolehead = 'Y') tot inner join st_dg_game_master gm on tot.game_id=gm.game_id&quot;;
+<span class="nc" id="L940">			String saleReturnQry = &quot;select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,totalCancelCharge,tot.game_id,tot.game_type_id,transaction_date,ret_comm,agt_comm,tot.govt_comm,transaction_type,prize_payout_ratio,vat_amt from(select agent_org_id,boUserId,boOrgId,totalMrp,totalRetComm,totalagtComm,totalgovtComm,totalVat,totalTaxSale,totalCancelCharge,game_id,game_type_id,transaction_date,ret_comm,agt_comm,govt_comm,transaction_type from(select a.agent_org_id,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(a.govt_comm) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,sum(cancellation_charges) totalCancelCharge,a.game_id,a.game_type_id,DATE(b.transaction_date) 'transaction_date',ret_comm,agt_comm,c.govt_comm,transaction_type from st_sle_agt_sale_refund a inner join  st_lms_agent_transaction_master b inner join st_temp_update_ledger c on a.transaction_id = b.transaction_id and a.transaction_id=trans_id where claim_status='CLAIM_BAL' group by a.agent_org_id,DATE(b.transaction_date),a.game_type_id,a.game_id,transaction_type,agt_comm,c.govt_comm  order by agent_org_id,game_id,game_type_id,transaction_date) saleRefund inner join (select um.user_id agtUserId,um.organization_id agtOrgId,um.parent_user_id boUserId,om.parent_id boOrgId,isrolehead from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='AGENT') d on agent_org_id=agtOrgId and isrolehead = 'Y') tot inner join st_sle_game_type_master gm on tot.game_type_id=gm.game_type_id and tot.game_id=gm.game_id&quot;;</span>
+
+<span class="nc" id="L942">			PreparedStatement pstmtBO = con.prepareStatement(QueryManager.insertInLMSTransactionMaster());</span>
+<span class="nc" id="L943">			PreparedStatement insBoTranPstmt = con.prepareStatement(QueryManager.insertInBOTransactionMaster());</span>
+<span class="nc" id="L944">			PreparedStatement insBoSalePstmt = con.prepareStatement(&quot;insert into st_sle_bo_sale(transaction_id,agent_org_id,game_id,game_type_id,mrp_amt,agent_comm,net_amt,vat_amt,taxable_sale,govt_comm,transaction_date) values(?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+			
+			//PreparedStatement updAgtSalepstmt = con.prepareStatement(&quot;update st_dg_agt_sale a inner join (select transaction_date,transaction_id,agt_comm,govt_comm from st_lms_agent_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id) b on a.transaction_id = b.transaction_id set claim_status='DONE_CLAIM',bo_ref_transaction_id=? where a.agent_org_id=? and b.agt_comm=? and b.govt_comm=? and DATE(transaction_date)=? and game_id=?&quot;);
+<span class="nc" id="L947">			PreparedStatement insTempTablePstmt=con.prepareStatement(&quot;insert into agentTransSummary(bo_ref_transaction_id,agt_comm,govt_comm,agent_org_id,game_id,game_type_id,trans_date) values(?,?,?,?,?,?,?)&quot;);</span>
+
+<span class="nc" id="L949">			PreparedStatement insBoSaleRetpstmt = con.prepareStatement(&quot;insert into st_sle_bo_sale_refund(transaction_id,agent_org_id,game_id,game_type_id,mrp_amt,agent_comm,net_amt,vat_amt,taxable_sale,govt_comm,cancellation_charges,transaction_date) values(?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+			//PreparedStatement updAgtSaleRetPstmt = con.prepareStatement(&quot;update st_dg_agt_sale_refund a inner join (select transaction_date,transaction_type,transaction_id,agt_comm,govt_comm from st_lms_agent_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id) b on a.transaction_id = b.transaction_id set claim_status='DONE_CLAIM',bo_ref_transaction_id=? where a.agent_org_id=? and b.agt_comm=? and b.govt_comm=? and DATE(transaction_date)=? and transaction_type=? and game_id=?&quot;);
+
+<span class="nc" id="L952">			int gameId = 0;</span>
+<span class="nc" id="L953">			int gameTypeId = 0;</span>
+<span class="nc" id="L954">			double ppr = 0.0;</span>
+<span class="nc" id="L955">			double vatAmt = 0.0;</span>
+<span class="nc" id="L956">			final int batchSize = 500;</span>
+<span class="nc" id="L957">			int count = 0;</span>
+<span class="nc" id="L958">			tempStmt=con.createStatement();</span>
+<span class="nc" id="L959">			tempStmt.execute(&quot;delete from  agentTransSummary &quot;);</span>
+<span class="nc" id="L960">			pstmt = con.prepareStatement(saleQry);</span>
+<span class="nc" id="L961">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L962" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L963">				agtOrgId = rs.getInt(&quot;agent_org_id&quot;);</span>
+<span class="nc" id="L964">				boUserId = rs.getInt(&quot;boUserId&quot;);</span>
+<span class="nc" id="L965">				boOrgId = rs.getInt(&quot;boOrgId&quot;);</span>
+<span class="nc" id="L966">				gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L967">				gameTypeId = rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L968">				logger.debug(&quot;--Agent Org Id--&quot;+agtOrgId+&quot;--Agent Sale tran for game No&quot; + gameId);</span>
+<span class="nc" id="L969">				totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);</span>
+<span class="nc" id="L970">				totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);</span>
+<span class="nc" id="L971">				totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);</span>
+<span class="nc" id="L972">				agtCommRate = rs.getDouble(&quot;agt_comm&quot;);</span>
+<span class="nc" id="L973">				govtCommRate = rs.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L974">				transDate = rs.getString(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L975">				vatAmt = rs.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L976">				ppr = rs.getDouble(&quot;prize_payout_ratio&quot;);</span>
+<span class="nc" id="L977">				totalAgtNetAmt = totalMrpAmt - totalAgtComm;</span>
+<span class="nc" id="L978">				double totalAgtVat =rs.getDouble(&quot;totalVat&quot;);</span>
+<span class="nc" id="L979">				double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, agtCommRate, ppr, govtCommRate, vatAmt);</span>
+
+<span class="nc bnc" id="L981" title="All 2 branches missed.">				if (orgIdAmountMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L982">					agtDebitAmount = orgIdAmountMap.get(agtOrgId) + totalAgtNetAmt;</span>
+				} else {
+<span class="nc" id="L984">					agtDebitAmount = totalAgtNetAmt;</span>
+				}
+
+<span class="nc" id="L987">				orgIdAmountMap.put(agtOrgId, agtDebitAmount);</span>
+<span class="nc" id="L988">				orgIdParentIdMap.put(agtOrgId, boOrgId);</span>
+
+<span class="nc bnc" id="L990" title="All 2 branches missed.">				if (orgIdTransIdInvMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L991">					transIdInvMap = orgIdTransIdInvMap.get(agtOrgId);</span>
+				} else {
+<span class="nc" id="L993">					transIdInvMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L994">					orgIdTransIdInvMap.put(agtOrgId, transIdInvMap);</span>
+				}
+
+				// insert in main transaction table
+
+<span class="nc" id="L999">				pstmtBO.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L1000">				pstmtBO.executeUpdate();</span>
+<span class="nc" id="L1001">				ResultSet rsTrns = pstmtBO.getGeneratedKeys();</span>
+<span class="nc bnc" id="L1002" title="All 2 branches missed.">				if (rsTrns.next()) {</span>
+<span class="nc" id="L1003">					long transId = rsTrns.getLong(1);</span>
+
+<span class="nc bnc" id="L1005" title="All 2 branches missed.">					if (!transIdInvMap.containsKey(transDate)) {</span>
+<span class="nc" id="L1006">						transIdInvMap.put(transDate, new ArrayList&lt;Long&gt;());</span>
+					}
+
+<span class="nc" id="L1009">					transIdInvMap.get(transDate).add(transId);</span>
+
+<span class="nc" id="L1011">					insBoTranPstmt.setLong(1, transId);</span>
+<span class="nc" id="L1012">					insBoTranPstmt.setInt(2, boUserId);</span>
+<span class="nc" id="L1013">					insBoTranPstmt.setInt(3, boOrgId);</span>
+<span class="nc" id="L1014">					insBoTranPstmt.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L1015">					insBoTranPstmt.setInt(5, agtOrgId);</span>
+<span class="nc" id="L1016">					insBoTranPstmt.setTimestamp(6,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L1017">					insBoTranPstmt.setString(7, &quot;SLE_SALE&quot;);</span>
+<span class="nc" id="L1018">					insBoTranPstmt.executeUpdate();</span>
+
+<span class="nc" id="L1020">					insBoSalePstmt.setLong(1, transId);</span>
+<span class="nc" id="L1021">					insBoSalePstmt.setInt(2, agtOrgId);</span>
+<span class="nc" id="L1022">					insBoSalePstmt.setInt(3, gameId);</span>
+<span class="nc" id="L1023">					insBoSalePstmt.setInt(4, gameTypeId);</span>
+<span class="nc" id="L1024">					insBoSalePstmt.setDouble(5, totalMrpAmt);</span>
+<span class="nc" id="L1025">					insBoSalePstmt.setDouble(6, totalAgtComm);</span>
+<span class="nc" id="L1026">					insBoSalePstmt.setDouble(7, totalAgtNetAmt);</span>
+<span class="nc" id="L1027">					insBoSalePstmt.setDouble(8, totalAgtVat);</span>
+<span class="nc" id="L1028">					insBoSalePstmt.setDouble(9, tatalAgtTaxableSale);</span>
+<span class="nc" id="L1029">					insBoSalePstmt.setDouble(10, totalGoodCauseAmt);</span>
+<span class="nc" id="L1030">					insBoSalePstmt.setTimestamp(11,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+
+<span class="nc" id="L1032">					insBoSalePstmt.executeUpdate();</span>
+
+					
+					//insert temp table
+<span class="nc" id="L1036">					insTempTablePstmt.setLong(1, transId);</span>
+<span class="nc" id="L1037">					insTempTablePstmt.setDouble(2, agtCommRate);</span>
+<span class="nc" id="L1038">					insTempTablePstmt.setDouble(3, govtCommRate);</span>
+<span class="nc" id="L1039">					insTempTablePstmt.setInt(4, agtOrgId);</span>
+<span class="nc" id="L1040">					insTempTablePstmt.setInt(5, gameId);</span>
+<span class="nc" id="L1041">					insTempTablePstmt.setInt(6, gameTypeId);</span>
+<span class="nc" id="L1042">					insTempTablePstmt.setString(7, transDate);</span>
+<span class="nc" id="L1043">					insTempTablePstmt.addBatch();</span>
+<span class="nc bnc" id="L1044" title="All 2 branches missed.">					if(++count % batchSize == 0) {</span>
+<span class="nc" id="L1045">						insTempTablePstmt.executeBatch();</span>
+				    }
+				}
+<span class="nc" id="L1048">			}</span>
+
+<span class="nc" id="L1050">			insTempTablePstmt.executeBatch();</span>
+
+			// CHECK FOR THE GAME TYPE ID 
+			//tempStmt.executeUpdate(&quot;update st_sle_agt_sale  sale inner join (select yy.transaction_id,xx.bo_ref_transaction_id,game_id from agentTransSummary xx inner join (select transaction_id,transaction_date,user_org_id agent_org_id,agt_comm,govt_comm from st_lms_agent_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.agent_org_id=yy.agent_org_id and  xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm ) tlb on sale.transaction_id=tlb.transaction_id and  sale.game_id=tlb.game_id set sale.claim_status='DONE_CLAIM',sale.bo_ref_transaction_id=tlb.bo_ref_transaction_id&quot;);
+<span class="nc" id="L1054">			tempStmt.executeUpdate(&quot;update st_sle_agt_sale  sale inner join (select yy.transaction_id,xx.bo_ref_transaction_id,game_id,game_type_id from agentTransSummary xx inner join (select transaction_id,transaction_date,user_org_id agent_org_id,agt_comm,govt_comm from st_lms_agent_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.agent_org_id=yy.agent_org_id and  xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm ) tlb on sale.transaction_id=tlb.transaction_id and sale.game_type_id = tlb.game_type_id and sale.game_id=tlb.game_id set sale.claim_status='DONE_CLAIM',sale.bo_ref_transaction_id=tlb.bo_ref_transaction_id&quot;);</span>
+<span class="nc" id="L1055">			tempStmt.execute(&quot;delete from  agentTransSummary &quot;);</span>
+		
+			
+<span class="nc" id="L1058">			pstmt = con.prepareStatement(saleReturnQry);</span>
+<span class="nc" id="L1059">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1060" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1061">				agtOrgId = rs.getInt(&quot;agent_org_id&quot;);</span>
+<span class="nc" id="L1062">				boUserId = rs.getInt(&quot;boUserId&quot;);</span>
+<span class="nc" id="L1063">				boOrgId = rs.getInt(&quot;boOrgId&quot;);</span>
+<span class="nc" id="L1064">				gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1065">				gameTypeId = rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L1066">				logger.debug(&quot;--Agent Org Id--&quot;+agtOrgId+&quot;--Agent Sale Cancel tran for game No&quot; + gameId);</span>
+<span class="nc" id="L1067">				totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);</span>
+<span class="nc" id="L1068">				totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);</span>
+<span class="nc" id="L1069">				totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);</span>
+<span class="nc" id="L1070">				totalCancelCharge = rs.getDouble(&quot;totalCancelCharge&quot;);</span>
+<span class="nc" id="L1071">				agtCommRate = rs.getDouble(&quot;agt_comm&quot;);</span>
+<span class="nc" id="L1072">				govtCommRate = rs.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L1073">				transDate = rs.getString(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L1074">				vatAmt = rs.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L1075">				ppr = rs.getDouble(&quot;prize_payout_ratio&quot;);</span>
+<span class="nc" id="L1076">				totalAgtNetAmt = totalMrpAmt - totalAgtComm - totalCancelCharge;</span>
+<span class="nc" id="L1077">				String tranType = rs.getString(&quot;transaction_type&quot;);</span>
+<span class="nc" id="L1078">				double totalAgtVat =rs.getDouble(&quot;totalVat&quot;);</span>
+				/*double totalAgtVat = CommonMethods.calculateDrawGameVatAgt(
+						totalMrpAmt, agtCommRate, ppr, govtCommRate, vatAmt);*/
+<span class="nc" id="L1081">				double tatalAgtTaxableSale = CommonMethods.calTaxableSale(</span>
+						totalMrpAmt, agtCommRate, ppr, govtCommRate, vatAmt);
+
+<span class="nc bnc" id="L1084" title="All 2 branches missed.">				if (orgIdAmountMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L1085">					agtDebitAmount = orgIdAmountMap.get(agtOrgId)</span>
+							- totalAgtNetAmt;
+				} else {
+<span class="nc" id="L1088">					agtDebitAmount = -totalAgtNetAmt;</span>
+				}
+
+<span class="nc" id="L1091">				orgIdAmountMap.put(agtOrgId, agtDebitAmount);</span>
+<span class="nc" id="L1092">				orgIdParentIdMap.put(agtOrgId, boOrgId);</span>
+
+<span class="nc bnc" id="L1094" title="All 2 branches missed.">				if (orgIdTransIdInvRetMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L1095">					transIdInvRetMap = orgIdTransIdInvRetMap.get(agtOrgId);</span>
+				} else {
+<span class="nc" id="L1097">					transIdInvRetMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L1098">					orgIdTransIdInvRetMap.put(agtOrgId, transIdInvRetMap);</span>
+				}
+
+				// insert in main transaction table
+
+<span class="nc" id="L1103">				pstmtBO.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L1104">				pstmtBO.executeUpdate();</span>
+<span class="nc" id="L1105">				ResultSet rsTrns = pstmtBO.getGeneratedKeys();</span>
+<span class="nc bnc" id="L1106" title="All 2 branches missed.">				if (rsTrns.next()) {</span>
+<span class="nc" id="L1107">					long transId = rsTrns.getLong(1);</span>
+
+<span class="nc bnc" id="L1109" title="All 2 branches missed.">					if (!transIdInvRetMap.containsKey(transDate)) {</span>
+<span class="nc" id="L1110">						transIdInvRetMap.put(transDate,</span>
+								new ArrayList&lt;Long&gt;());
+					}
+
+<span class="nc" id="L1114">					transIdInvRetMap.get(transDate).add(transId);</span>
+
+<span class="nc" id="L1116">					insBoTranPstmt.setLong(1, transId);</span>
+<span class="nc" id="L1117">					insBoTranPstmt.setInt(2, boUserId);</span>
+<span class="nc" id="L1118">					insBoTranPstmt.setInt(3, boOrgId);</span>
+<span class="nc" id="L1119">					insBoTranPstmt.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L1120">					insBoTranPstmt.setInt(5, agtOrgId);</span>
+<span class="nc" id="L1121">					insBoTranPstmt.setTimestamp(6,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L1122">					insBoTranPstmt.setString(7, tranType);</span>
+<span class="nc" id="L1123">					insBoTranPstmt.executeUpdate();</span>
+
+<span class="nc" id="L1125">					insBoSaleRetpstmt.setLong(1, transId);</span>
+<span class="nc" id="L1126">					insBoSaleRetpstmt.setInt(2, agtOrgId);</span>
+<span class="nc" id="L1127">					insBoSaleRetpstmt.setInt(3, gameId);</span>
+<span class="nc" id="L1128">					insBoSaleRetpstmt.setInt(4, gameTypeId);</span>
+<span class="nc" id="L1129">					insBoSaleRetpstmt.setDouble(5, totalMrpAmt);</span>
+<span class="nc" id="L1130">					insBoSaleRetpstmt.setDouble(6, totalAgtComm);</span>
+<span class="nc" id="L1131">					insBoSaleRetpstmt.setDouble(7, totalAgtNetAmt);</span>
+<span class="nc" id="L1132">					insBoSaleRetpstmt.setDouble(8, totalAgtVat);</span>
+<span class="nc" id="L1133">					insBoSaleRetpstmt.setDouble(9, tatalAgtTaxableSale);</span>
+<span class="nc" id="L1134">					insBoSaleRetpstmt.setDouble(10, totalGoodCauseAmt);</span>
+<span class="nc" id="L1135">					insBoSaleRetpstmt.setDouble(11, totalCancelCharge);</span>
+<span class="nc" id="L1136">					insBoSaleRetpstmt.setTimestamp(12,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L1137">					insBoSaleRetpstmt.executeUpdate();</span>
+
+					//insert temp table
+<span class="nc" id="L1140">					insTempTablePstmt.setLong(1, transId);</span>
+<span class="nc" id="L1141">					insTempTablePstmt.setDouble(2, agtCommRate);</span>
+<span class="nc" id="L1142">					insTempTablePstmt.setDouble(3, govtCommRate);</span>
+<span class="nc" id="L1143">					insTempTablePstmt.setInt(4, agtOrgId);</span>
+<span class="nc" id="L1144">					insTempTablePstmt.setInt(5, gameId);</span>
+<span class="nc" id="L1145">					insTempTablePstmt.setInt(6, gameTypeId);</span>
+<span class="nc" id="L1146">					insTempTablePstmt.setString(7, transDate);</span>
+<span class="nc" id="L1147">					insTempTablePstmt.addBatch();</span>
+<span class="nc bnc" id="L1148" title="All 2 branches missed.">					if(++count % batchSize == 0) {</span>
+<span class="nc" id="L1149">						insTempTablePstmt.executeBatch();</span>
+				    }
+				}
+
+<span class="nc" id="L1153">			}</span>
+<span class="nc" id="L1154">			insTempTablePstmt.executeBatch();</span>
+			
+			// CHECK FOR THE GAME TYPE ID 
+			//tempStmt.executeUpdate(&quot;update st_dg_sle_sale_refund  sale inner join (select yy.transaction_id,xx.bo_ref_transaction_id,game_id from agentTransSummary xx inner join (select transaction_id,transaction_date,user_org_id agent_org_id,agt_comm,govt_comm from st_lms_agent_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.agent_org_id=yy.agent_org_id and  xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm ) tlb on sale.transaction_id=tlb.transaction_id and  sale.game_id=tlb.game_id set sale.claim_status='DONE_CLAIM',sale.bo_ref_transaction_id=tlb.bo_ref_transaction_id&quot;);
+<span class="nc" id="L1158">			tempStmt.executeUpdate(&quot;update st_sle_agt_sale_refund  sale inner join (select yy.transaction_id,xx.bo_ref_transaction_id,game_id,game_type_id from agentTransSummary xx inner join (select transaction_id,transaction_date,user_org_id agent_org_id,agt_comm,govt_comm from st_lms_agent_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.agent_org_id=yy.agent_org_id and  xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm ) tlb on sale.transaction_id=tlb.transaction_id and  sale.game_type_id = tlb.game_type_id and  sale.game_id=tlb.game_id set sale.claim_status='DONE_CLAIM',sale.bo_ref_transaction_id=tlb.bo_ref_transaction_id&quot;);</span>
+<span class="nc" id="L1159">			tempStmt.execute(&quot;delete from  agentTransSummary &quot;);</span>
+		
+<span class="nc" id="L1161">			updateLedgerHelper helper = new updateLedgerHelper();</span>
+<span class="nc" id="L1162">			helper.generateDGReceiptForBONew(orgIdTransIdInvMap, orgIdParentIdMap,&quot;SLE_INVOICE&quot;, &quot;SLE_RECEIPT&quot;, con);</span>
+<span class="nc" id="L1163">			helper.generateDGReceiptForBONew(orgIdTransIdInvRetMap, orgIdParentIdMap, &quot;CR_NOTE&quot;, &quot;CR_NOTE_CASH&quot;, con);</span>
+
+<span class="nc" id="L1165">			logger.debug(&quot;agent orgIdAmountMap\n&quot; + orgIdAmountMap);</span>
+			// update agent balance
+<span class="nc" id="L1167">			Set&lt;Integer&gt; agtOrgIdSet = orgIdAmountMap.keySet();</span>
+<span class="nc bnc" id="L1168" title="All 2 branches missed.">			for (Integer orgId : agtOrgIdSet) {</span>
+<span class="nc" id="L1169">				boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;TRANSACTION&quot;, &quot;SLE_SALE&quot;, orgId,</span>
+						0, &quot;AGENT&quot;, 0, con);
+<span class="nc bnc" id="L1171" title="All 2 branches missed.">				if(!isValid)</span>
+<span class="nc" id="L1172">					throw new LMSException();</span>
+<span class="nc" id="L1173">				OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, orgId,</span>
+						0, &quot;AGENT&quot;, 0, con);
+				
+<span class="nc" id="L1176">			}</span>
+<span class="nc" id="L1177">		} catch (Exception e) {</span>
+<span class="nc" id="L1178">			e.printStackTrace();</span>
+<span class="nc" id="L1179">			throw new LMSException(&quot;error in sale agent&quot;);</span>
+<span class="nc" id="L1180">		}</span>
+<span class="nc" id="L1181">		logger.debug(new Date() + &quot;---end-dg sale update for agent--&quot;+ new Date().getTime());</span>
+<span class="nc" id="L1182">	}</span>
+
+	private static void updateSLEPwtLedgerForRet(Connection connection) throws LMSException {
+<span class="nc" id="L1185">		logger.debug(&quot;--- Start SLE PWT Update for Retailer --- &quot;+Util.getCurrentTimeString());</span>
+
+<span class="nc" id="L1187">		Statement gameStmt = null;</span>
+<span class="nc" id="L1188">		PreparedStatement pwtPstmt = null;</span>
+<span class="nc" id="L1189">		PreparedStatement retPwtUpdatePstmt = null;</span>
+<span class="nc" id="L1190">		PreparedStatement transMasQueryPstmt = null;</span>
+<span class="nc" id="L1191">		PreparedStatement agtTransMasterPstmt = null;</span>
+<span class="nc" id="L1192">		PreparedStatement agtPstmt = null;</span>
+<span class="nc" id="L1193">		ResultSet rs = null;</span>
+<span class="nc" id="L1194">		ResultSet gameRs = null;</span>
+<span class="nc" id="L1195">		ResultSet tranRs = null;</span>
+
+		try {
+			//String gameQry = &quot;SELECT game_id, game_type_id FROM st_sle_game_type_master;&quot;;
+			//gameStmt = connection.createStatement();
+
+<span class="nc" id="L1201">			transMasQueryPstmt = connection.prepareStatement(QueryManager.insertInLMSTransactionMaster());</span>
+<span class="nc" id="L1202">			agtTransMasterPstmt = connection.prepareStatement(QueryManager.insertInAgentTransactionMaster());</span>
+
+//			pwtPstmt = connection.prepareStatement(&quot;SELECT aaa.game_id, aaa.game_type_id, retailer_org_id, agtUserId, agtOrgId, aaa.draw_id, SUM(aaa.agt_claim_comm) totalAgtComm, SUM(aaa.pwt_amt) totalPwtAmt, aaa.pwt_type, SUM(aaa.retailer_claim_comm) totalRetComm, DATE(aaa.transaction_date) transaction_date FROM (SELECT b.ticket_nbr, a.retailer_org_id, a.pwt_amt, 'Anonymous' AS pwt_type, a.game_id, a.game_type_id, b.draw_id, a.retailer_claim_comm, a.agt_claim_comm, 'Anonymous' AS NAME, a.transaction_date FROM st_sle_ret_pwt a, st_sle_pwt_inv b, st_lms_retailer_transaction_master c WHERE a.pwt_claim_status = 'CLAIM_BAL' AND a.transaction_id = b.retailer_transaction_id AND a.transaction_id=c.transaction_id)aaa, st_sle_game_master bbb, (SELECT um.user_id retUserId, um.organization_id retOrgId, um.parent_user_id agtUserId, om.parent_id agtOrgId FROM st_lms_organization_master om INNER JOIN st_lms_user_master um ON om.organization_id=um.organization_id WHERE om.organization_type='RETAILER') ccc WHERE aaa.game_id=bbb.game_id AND retailer_org_id=retOrgId GROUP BY pwt_type, retailer_org_id, aaa.game_id, aaa.game_type_id, aaa.draw_id, DATE(aaa.transaction_date);&quot;);
+<span class="nc" id="L1205">			pwtPstmt = connection.prepareStatement(&quot;SELECT aaa.game_id, aaa.game_type_id, retailer_org_id, agtUserId, agtOrgId, aaa.draw_id, SUM(aaa.agt_claim_comm) totalAgtComm, SUM(aaa.pwt_amt) totalPwtAmt, sum(aaa.govt_claim_comm) totalGovAmt, aaa.pwt_type, SUM(aaa.retailer_claim_comm) totalRetComm, DATE(aaa.transaction_date) transaction_date FROM (SELECT b.ticket_nbr, a.retailer_org_id, a.pwt_amt, a.govt_claim_comm, 'Anonymous' AS pwt_type, a.game_id, a.game_type_id, b.draw_id, a.retailer_claim_comm, a.agt_claim_comm, 'Anonymous' AS NAME, a.transaction_date FROM st_sle_ret_pwt a, st_sle_pwt_inv b, st_lms_retailer_transaction_master c WHERE a.pwt_claim_status = 'CLAIM_BAL' AND a.transaction_id = b.retailer_transaction_id AND a.transaction_id=c.transaction_id)aaa, st_sle_game_master bbb, (SELECT um.user_id retUserId, um.organization_id retOrgId, um.parent_user_id agtUserId, om.parent_id agtOrgId FROM st_lms_organization_master om INNER JOIN st_lms_user_master um ON om.organization_id=um.organization_id WHERE om.organization_type='RETAILER') ccc WHERE aaa.game_id=bbb.game_id AND retailer_org_id=retOrgId GROUP BY pwt_type, retailer_org_id, aaa.game_id, aaa.game_type_id, aaa.draw_id, DATE(aaa.transaction_date);&quot;);</span>
+<span class="nc" id="L1206">			retPwtUpdatePstmt = connection.prepareStatement(&quot;UPDATE st_sle_ret_pwt aa, st_sle_pwt_inv bb, st_lms_retailer_transaction_master cc SET aa.pwt_claim_status=?, aa.agent_ref_reansaction_id=?, bb.status=?, bb.agent_transaction_id=? WHERE aa.transaction_id=bb.retailer_transaction_id AND aa.transaction_id=cc.transaction_id AND aa.game_id=? AND aa.game_type_id=? AND aa.draw_id=? AND aa.retailer_org_id=? AND DATE(cc.transaction_date)=DATE(?);&quot;);</span>
+<span class="nc" id="L1207">			agtPstmt = connection.prepareStatement(&quot;INSERT INTO st_sle_agt_pwt (agent_user_id, agent_org_id, retailer_org_id, game_id, game_type_id, draw_id, transaction_id, pwt_amt, comm_amt, net_amt, agt_claim_comm, govt_claim_comm, STATUS) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);&quot;);</span>
+
+<span class="nc" id="L1209">			int retOrgId = 0, agtOrgId=0, agtUserId, gameId, gameTypeId, drawId;</span>
+<span class="nc" id="L1210">			double totalPwtAmt, totalAgtComm, totalRetComm, totalNetAmt = 0, totalGovComm = 0;</span>
+			String pwtType, transDate;
+<span class="nc" id="L1212">			Map&lt;Integer, Double&gt; orgAmtMap = new HashMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L1213">			Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();</span>
+<span class="nc" id="L1214">			Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+<span class="nc" id="L1215">			Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;</span>
+<span class="nc" id="L1216">			totalNetAmt = 0;</span>
+			/*logger.debug(&quot;Game Statement - &quot;+gameQry);
+			gameRs = gameStmt.executeQuery(gameQry);
+			while (gameRs.next()) {
+				
+
+				gameId = gameRs.getInt(&quot;game_id&quot;);
+				gameTypeId = gameRs.getInt(&quot;game_type_id&quot;);
+				logger.debug(&quot;Start PWT transaction gameId - gameTypeId : &quot;+gameId+&quot; - &quot;+gameTypeId+&quot; | &quot;+pwtPstmt);*/
+<span class="nc" id="L1225">				rs = pwtPstmt.executeQuery();</span>
+<span class="nc bnc" id="L1226" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L1227">					retOrgId = rs.getInt(&quot;retailer_org_id&quot;);</span>
+<span class="nc" id="L1228">					agtOrgId = rs.getInt(&quot;agtOrgId&quot;);</span>
+<span class="nc" id="L1229">					agtUserId = rs.getInt(&quot;agtUserId&quot;);</span>
+<span class="nc" id="L1230">					gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1231">					gameTypeId = rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L1232">					drawId = rs.getInt(&quot;draw_id&quot;);</span>
+<span class="nc" id="L1233">					totalPwtAmt = rs.getDouble(&quot;totalPwtAmt&quot;);</span>
+<span class="nc" id="L1234">					totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);</span>
+<span class="nc" id="L1235">					totalAgtComm = rs.getDouble(&quot;totalAgtComm&quot;);</span>
+<span class="nc" id="L1236">					totalGovComm = rs.getDouble(&quot;totalGovAmt&quot;);</span>
+<span class="nc" id="L1237">					pwtType = rs.getString(&quot;pwt_type&quot;);</span>
+<span class="nc" id="L1238">					transDate = rs.getString(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L1239">					totalNetAmt = totalPwtAmt + totalRetComm - totalGovComm;</span>
+
+<span class="nc" id="L1241">					orgIdParentIdMap.put(retOrgId, agtOrgId);</span>
+<span class="nc bnc" id="L1242" title="All 2 branches missed.">					if (orgIdTransIdInvMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L1243">						transIdInvMap = orgIdTransIdInvMap.get(retOrgId);</span>
+					} else {
+<span class="nc" id="L1245">						transIdInvMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L1246">						orgIdTransIdInvMap.put(retOrgId, transIdInvMap);</span>
+					}
+
+<span class="nc" id="L1249">					transMasQueryPstmt.setString(1, &quot;AGENT&quot;);</span>
+<span class="nc" id="L1250">					logger.debug(&quot;Insert main Transaction - &quot;+transMasQueryPstmt);</span>
+<span class="nc" id="L1251">					transMasQueryPstmt.executeUpdate();</span>
+<span class="nc" id="L1252">					tranRs = transMasQueryPstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L1253" title="All 2 branches missed.">					if (tranRs.next()) {</span>
+<span class="nc" id="L1254">						long transId = tranRs.getLong(1);</span>
+
+<span class="nc bnc" id="L1256" title="All 2 branches missed.">						if (!transIdInvMap.containsKey(transDate)) {</span>
+<span class="nc" id="L1257">							transIdInvMap.put(transDate, new ArrayList&lt;Long&gt;());</span>
+						}
+<span class="nc" id="L1259">						transIdInvMap.get(transDate).add(transId);</span>
+
+<span class="nc" id="L1261">						agtTransMasterPstmt.setLong(1, transId);</span>
+<span class="nc" id="L1262">						agtTransMasterPstmt.setInt(2, agtUserId);</span>
+<span class="nc" id="L1263">						agtTransMasterPstmt.setInt(3, agtOrgId);</span>
+<span class="nc" id="L1264">						agtTransMasterPstmt.setString(4, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L1265">						agtTransMasterPstmt.setInt(5, retOrgId);</span>
+<span class="nc" id="L1266">						agtTransMasterPstmt.setString(6, &quot;SLE_PWT_AUTO&quot;);</span>
+<span class="nc" id="L1267">						agtTransMasterPstmt.setTimestamp(7,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L1268">						logger.debug(&quot;Insert Agent Transaction - &quot;+agtTransMasterPstmt);</span>
+<span class="nc" id="L1269">						agtTransMasterPstmt.executeUpdate();</span>
+
+<span class="nc bnc" id="L1271" title="All 2 branches missed.">						if (&quot;Anonymous&quot;.equals(pwtType)) {</span>
+<span class="nc" id="L1272">							retPwtUpdatePstmt.setString(1, &quot;DONE_CLM&quot;);</span>
+<span class="nc" id="L1273">							retPwtUpdatePstmt.setLong(2, transId);</span>
+<span class="nc" id="L1274">							retPwtUpdatePstmt.setString(3, &quot;CLAIM_RET_CLM_AUTO&quot;);</span>
+<span class="nc" id="L1275">							retPwtUpdatePstmt.setLong(4, transId);</span>
+<span class="nc" id="L1276">							retPwtUpdatePstmt.setInt(5, gameId);</span>
+<span class="nc" id="L1277">							retPwtUpdatePstmt.setInt(6, gameTypeId);</span>
+<span class="nc" id="L1278">							retPwtUpdatePstmt.setInt(7, drawId);</span>
+<span class="nc" id="L1279">							retPwtUpdatePstmt.setInt(8, retOrgId);</span>
+<span class="nc" id="L1280">							retPwtUpdatePstmt.setString(9, transDate);</span>
+							//retPwtUpdatePstmt.setString(9, &quot;2014-12-10 11:54:34&quot;);
+<span class="nc" id="L1282">							logger.debug(&quot;Update Retailer PWT Tables - &quot;+retPwtUpdatePstmt);</span>
+<span class="nc" id="L1283">							retPwtUpdatePstmt.executeUpdate();</span>
+						}
+
+<span class="nc" id="L1286">						agtPstmt.setInt(1, agtUserId);</span>
+<span class="nc" id="L1287">						agtPstmt.setInt(2, agtOrgId);</span>
+<span class="nc" id="L1288">						agtPstmt.setInt(3, retOrgId);</span>
+<span class="nc" id="L1289">						agtPstmt.setInt(4, gameId);</span>
+<span class="nc" id="L1290">						agtPstmt.setInt(5, gameTypeId);</span>
+<span class="nc" id="L1291">						agtPstmt.setInt(6, drawId);</span>
+<span class="nc" id="L1292">						agtPstmt.setLong(7, transId);</span>
+<span class="nc" id="L1293">						agtPstmt.setDouble(8, totalPwtAmt);</span>
+<span class="nc" id="L1294">						agtPstmt.setDouble(9, totalRetComm);</span>
+<span class="nc" id="L1295">						agtPstmt.setDouble(10, totalNetAmt);</span>
+<span class="nc" id="L1296">						agtPstmt.setDouble(11, totalAgtComm);</span>
+<span class="nc" id="L1297">						agtPstmt.setDouble(12, totalGovComm);</span>
+<span class="nc" id="L1298">						agtPstmt.setString(13, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L1299">						logger.debug(&quot;Insert In st_sle_agt_pwt - &quot;+agtPstmt);</span>
+<span class="nc" id="L1300">						agtPstmt.executeUpdate();</span>
+					}
+
+<span class="nc" id="L1303">					double retCrAmt = totalNetAmt;</span>
+<span class="nc bnc" id="L1304" title="All 2 branches missed.">					if (orgAmtMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L1305">						retCrAmt = retCrAmt + orgAmtMap.get(retOrgId);</span>
+					}
+<span class="nc" id="L1307">					orgAmtMap.put(retOrgId, retCrAmt);</span>
+<span class="nc" id="L1308">				}</span>
+		//	}
+
+<span class="nc" id="L1311">			logger.debug(&quot;Retailer PWT Update orgMap - &quot;+orgAmtMap);</span>
+
+<span class="nc bnc" id="L1313" title="All 2 branches missed.">			for (Integer orgId : orgAmtMap.keySet()) {</span>
+<span class="nc bnc" id="L1314" title="All 2 branches missed.">				if (orgId != 0) {</span>
+<span class="nc" id="L1315">					boolean isValid = OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgAmtMap.get(orgId)), &quot;TRANSACTION&quot;, &quot;PWT_AUTO&quot;, orgId, orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, connection);</span>
+<span class="nc bnc" id="L1316" title="All 2 branches missed.">					if(!isValid)</span>
+<span class="nc" id="L1317">						throw new LMSException();</span>
+
+<span class="nc" id="L1319">					OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgAmtMap.get(orgId)), &quot;CLAIM_BAL&quot;, &quot;CREDIT_UPDATE_LEDGER&quot;, orgId, orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, connection);</span>
+
+					//helper.generateReciptForPwtNew(orgIdTransIdInvMap.get(orgId), connection, orgIdParentIdMap.get(orgId), retOrgId, &quot;RETAILER&quot;, &quot;DRAWGAME&quot;);
+				}
+<span class="nc" id="L1323">			}</span>
+<span class="nc" id="L1324">		} catch (Exception e) {</span>
+<span class="nc" id="L1325">			e.printStackTrace();</span>
+<span class="nc" id="L1326">			throw new LMSException(&quot;Error in PWT Retailer&quot;);</span>
+<span class="nc" id="L1327">		}</span>
+
+<span class="nc" id="L1329">		logger.debug(&quot;--- End SLE PWT Update for Retailer --- &quot;+Util.getCurrentTimeString());</span>
+<span class="nc" id="L1330">	}</span>
+
+	private static void updateSLEPwtLedgerForAgt(Connection con) throws LMSException{
+<span class="nc" id="L1333">		logger.debug(&quot;--- Start SLE PWT Update for Agent ---&quot;+Util.getCurrentTimeString());</span>
+
+<span class="nc" id="L1335">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L1336">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L1338">			PreparedStatement agtPwtUpdatePstmt = con.prepareStatement(&quot;UPDATE st_sle_agt_pwt aa, st_sle_pwt_inv bb, st_lms_agent_transaction_master cc SET aa.status=?, bb.status=?, bb.bo_transaction_id=? WHERE aa.transaction_id=bb.agent_transaction_id AND aa.transaction_id=cc.transaction_id AND aa.game_id=? AND aa.game_type_id=? AND aa.draw_id=? AND bb.game_id=? AND bb.game_type_id=? AND bb.draw_id=? AND aa.agent_org_id=? AND DATE(cc.transaction_date)=?;&quot;);</span>
+<span class="nc" id="L1339">			PreparedStatement agtDirPlrPstmt = con.prepareStatement(&quot;UPDATE st_sle_agent_direct_plr_pwt aa, st_sle_pwt_inv bb, st_lms_agent_transaction_master cc SET aa.pwt_claim_status=?, bb.status=?, bb.bo_transaction_id=? WHERE aa.transaction_id=bb.agent_transaction_id AND aa.transaction_id=cc.transaction_id AND aa.game_id=? AND aa.game_type_id=? AND aa.draw_id=? AND bb.game_id=? AND bb.game_type_id=? AND bb.draw_id=? AND aa.agent_org_id=? AND DATE(cc.transaction_date)=?;&quot;);</span>
+<span class="nc" id="L1340">			PreparedStatement transMasQueryPstmt = con.prepareStatement(QueryManager.insertInLMSTransactionMaster());</span>
+<span class="nc" id="L1341">			PreparedStatement boTransMasterPstmt = con.prepareStatement(QueryManager.insertInBOTransactionMaster());</span>
+<span class="nc" id="L1342">			PreparedStatement agtPstmt = con.prepareStatement(&quot;INSERT INTO st_sle_bo_pwt (bo_user_id, bo_org_id, agent_org_id, game_id, game_type_id, draw_id, transaction_id, pwt_amt, comm_amt, net_amt, govt_claim_comm) VALUES (?,?,?,?,?,?,?,?,?,?,?);&quot;);</span>
+
+			int agtOrgId, boOrgId, boUserId, gameId, gameTypeId, drawId;
+<span class="nc" id="L1345">			double totalPwtAmt, totalAgtComm, totalNetAmt, totalGovComm = 0;</span>
+			String pwtType, transDate;
+<span class="nc" id="L1347">			Map&lt;Integer, Double&gt; orgAmtMap = new HashMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L1348">			Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();</span>
+<span class="nc" id="L1349">			Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+<span class="nc" id="L1350">			Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;</span>
+
+//			pstmt = con.prepareStatement(&quot;SELECT aaa.agent_org_id, boUserId, boOrgId, aaa.game_id, bbb.game_type_id, aaa.draw_id, SUM(aaa.agt_claim_comm) totalAgtComm, SUM(aaa.pwt_amt) totalPwtAmt, aaa.pwt_type, DATE(aaa.transaction_date) 'transaction_date' FROM ((SELECT a.transaction_id, a.agent_org_id, a.draw_id, a.pwt_amt, 'Anonymous' AS 'pwt_type', a.game_id, a.game_type_id, a.agt_claim_comm, transaction_date FROM st_sle_agt_pwt a INNER JOIN st_lms_agent_transaction_master b ON a.transaction_id=b.transaction_id WHERE a.status='CLAIM_BAL') UNION ALL (SELECT aa.transaction_id, aa.agent_org_id, aa.draw_id, aa.pwt_amt, 'DIRECT_PLAYER' AS 'pwt_type', aa.game_id, aa.game_type_id, agt_claim_comm, transaction_date FROM st_sle_agent_direct_plr_pwt aa WHERE aa.pwt_claim_status='CLAIM_BAL'))aaa, st_sle_game_type_master bbb, (SELECT um.user_id agtUserId, um.organization_id agtOrgId, um.parent_user_id boUserId, om.parent_id boOrgId FROM st_lms_organization_master om INNER JOIN st_lms_user_master um ON om.organization_id=um.organization_id WHERE om.organization_type='AGENT' AND isrolehead='Y') ccc WHERE aaa.game_id=bbb.game_id AND aaa.game_type_id=bbb.game_type_id AND agent_org_id=agtOrgId GROUP BY pwt_type, agent_org_id, aaa.game_id, aaa.draw_id, DATE(aaa.transaction_date);&quot;);
+<span class="nc" id="L1353">			pstmt = con.prepareStatement(&quot;SELECT aaa.agent_org_id, boUserId, boOrgId, aaa.game_id, bbb.game_type_id, aaa.draw_id, SUM(aaa.agt_claim_comm) totalAgtComm, SUM(aaa.pwt_amt) totalPwtAmt, sum(aaa.govt_comm) totalGovComm, aaa.pwt_type, DATE(aaa.transaction_date) 'transaction_date' FROM ((SELECT a.transaction_id, a.agent_org_id, a.draw_id, a.pwt_amt, a.govt_claim_comm govt_comm, 'Anonymous' AS 'pwt_type', a.game_id, a.game_type_id, a.agt_claim_comm, transaction_date FROM st_sle_agt_pwt a INNER JOIN st_lms_agent_transaction_master b ON a.transaction_id=b.transaction_id WHERE a.status='CLAIM_BAL') UNION ALL (SELECT aa.transaction_id, aa.agent_org_id, aa.draw_id, aa.pwt_amt, aa.tax_amt govt_comm, 'DIRECT_PLAYER' AS 'pwt_type', aa.game_id, aa.game_type_id, agt_claim_comm, transaction_date FROM st_sle_agent_direct_plr_pwt aa WHERE aa.pwt_claim_status='CLAIM_BAL'))aaa, st_sle_game_type_master bbb, (SELECT um.user_id agtUserId, um.organization_id agtOrgId, um.parent_user_id boUserId, om.parent_id boOrgId FROM st_lms_organization_master om INNER JOIN st_lms_user_master um ON om.organization_id=um.organization_id WHERE om.organization_type='AGENT' AND isrolehead='Y') ccc WHERE aaa.game_id=bbb.game_id AND aaa.game_type_id=bbb.game_type_id AND agent_org_id=agtOrgId GROUP BY pwt_type, agent_org_id, aaa.game_id, aaa.draw_id, DATE(aaa.transaction_date);&quot;);</span>
+<span class="nc" id="L1354">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1355" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1356">				agtOrgId = rs.getInt(&quot;agent_org_id&quot;);</span>
+<span class="nc" id="L1357">				boOrgId = rs.getInt(&quot;boOrgId&quot;);</span>
+<span class="nc" id="L1358">				boUserId = rs.getInt(&quot;boUserId&quot;);</span>
+<span class="nc" id="L1359">				gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1360">				gameTypeId = rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L1361">				drawId = rs.getInt(&quot;draw_id&quot;);</span>
+<span class="nc" id="L1362">				totalPwtAmt = rs.getDouble(&quot;totalPwtAmt&quot;);</span>
+<span class="nc" id="L1363">				totalAgtComm = rs.getDouble(&quot;totalAgtComm&quot;);</span>
+<span class="nc" id="L1364">				totalGovComm = rs.getDouble(&quot;totalGovComm&quot;);</span>
+<span class="nc" id="L1365">				pwtType = rs.getString(&quot;pwt_type&quot;);</span>
+<span class="nc" id="L1366">				transDate = rs.getString(&quot;transaction_date&quot;);</span>
+
+<span class="nc" id="L1368">				totalNetAmt = totalPwtAmt + totalAgtComm - totalGovComm;</span>
+
+<span class="nc" id="L1370">				orgIdParentIdMap.put(agtOrgId, boOrgId);</span>
+<span class="nc bnc" id="L1371" title="All 2 branches missed.">				if (orgIdTransIdInvMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L1372">					transIdInvMap = orgIdTransIdInvMap.get(agtOrgId);</span>
+				} else {
+<span class="nc" id="L1374">					transIdInvMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L1375">					orgIdTransIdInvMap.put(agtOrgId, transIdInvMap);</span>
+				}
+
+<span class="nc" id="L1378">				transMasQueryPstmt.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L1379">				transMasQueryPstmt.executeUpdate();</span>
+<span class="nc" id="L1380">				ResultSet tranRs = transMasQueryPstmt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L1381" title="All 2 branches missed.">				if (tranRs.next()) {</span>
+<span class="nc bnc" id="L1382" title="All 2 branches missed.">					if (!transIdInvMap.containsKey(transDate)) {</span>
+<span class="nc" id="L1383">						transIdInvMap.put(transDate, new ArrayList&lt;Long&gt;());</span>
+					}
+
+<span class="nc" id="L1386">					long transId = tranRs.getLong(1);</span>
+<span class="nc" id="L1387">					transIdInvMap.get(transDate).add(transId);</span>
+
+<span class="nc" id="L1389">					boTransMasterPstmt.setLong(1, transId);</span>
+<span class="nc" id="L1390">					boTransMasterPstmt.setInt(2, boUserId);</span>
+<span class="nc" id="L1391">					boTransMasterPstmt.setInt(3, boOrgId);</span>
+<span class="nc" id="L1392">					boTransMasterPstmt.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L1393">					boTransMasterPstmt.setInt(5, agtOrgId);</span>
+<span class="nc" id="L1394">					boTransMasterPstmt.setTimestamp(6,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L1395">					boTransMasterPstmt.setString(7, &quot;SLE_PWT_AUTO&quot;);</span>
+<span class="nc" id="L1396">					boTransMasterPstmt.executeUpdate();</span>
+
+<span class="nc bnc" id="L1398" title="All 2 branches missed.">					if (!&quot;DIRECT_PLAYER&quot;.equals(pwtType)) {</span>
+<span class="nc" id="L1399">						agtPwtUpdatePstmt.setString(1, &quot;DONE_CLM&quot;);</span>
+<span class="nc" id="L1400">						agtPwtUpdatePstmt.setString(2, &quot;CLAIM_AGT_CLM_AUTO&quot;);</span>
+<span class="nc" id="L1401">						agtPwtUpdatePstmt.setLong(3, transId);</span>
+<span class="nc" id="L1402">						agtPwtUpdatePstmt.setInt(4, gameId);</span>
+<span class="nc" id="L1403">						agtPwtUpdatePstmt.setInt(5, gameTypeId);</span>
+<span class="nc" id="L1404">						agtPwtUpdatePstmt.setInt(6, drawId);</span>
+<span class="nc" id="L1405">						agtPwtUpdatePstmt.setInt(7, gameId);</span>
+<span class="nc" id="L1406">						agtPwtUpdatePstmt.setInt(8, gameTypeId);</span>
+<span class="nc" id="L1407">						agtPwtUpdatePstmt.setInt(9, drawId);</span>
+<span class="nc" id="L1408">						agtPwtUpdatePstmt.setInt(10, agtOrgId);</span>
+<span class="nc" id="L1409">						agtPwtUpdatePstmt.setString(11, transDate);</span>
+<span class="nc" id="L1410">						logger.debug(&quot;Agent PWT - &quot;+agtPwtUpdatePstmt);</span>
+<span class="nc" id="L1411">						agtPwtUpdatePstmt.executeUpdate();</span>
+					} else {
+<span class="nc" id="L1413">						agtDirPlrPstmt.setString(1, &quot;DONE_CLM&quot;);</span>
+<span class="nc" id="L1414">						agtDirPlrPstmt.setString(2, &quot;CLAIM_AGT_CLM_AUTO&quot;);</span>
+<span class="nc" id="L1415">						agtDirPlrPstmt.setLong(3, transId);</span>
+<span class="nc" id="L1416">						agtDirPlrPstmt.setInt(4, gameId);</span>
+<span class="nc" id="L1417">						agtDirPlrPstmt.setInt(5, gameTypeId);</span>
+<span class="nc" id="L1418">						agtDirPlrPstmt.setInt(6, drawId);</span>
+<span class="nc" id="L1419">						agtDirPlrPstmt.setInt(7, gameId);</span>
+<span class="nc" id="L1420">						agtDirPlrPstmt.setInt(8, gameTypeId);</span>
+<span class="nc" id="L1421">						agtDirPlrPstmt.setInt(9, drawId);</span>
+<span class="nc" id="L1422">						agtDirPlrPstmt.setInt(10, agtOrgId);</span>
+<span class="nc" id="L1423">						agtDirPlrPstmt.setString(11, transDate);</span>
+<span class="nc" id="L1424">						logger.debug(&quot;Agent PWT (Direct Player) - &quot;+agtDirPlrPstmt);</span>
+<span class="nc" id="L1425">						agtDirPlrPstmt.executeUpdate();</span>
+					}
+
+<span class="nc" id="L1428">					agtPstmt.setInt(1, boUserId);</span>
+<span class="nc" id="L1429">					agtPstmt.setInt(2, boOrgId);</span>
+<span class="nc" id="L1430">					agtPstmt.setInt(3, agtOrgId);</span>
+<span class="nc" id="L1431">					agtPstmt.setInt(4, gameId);</span>
+<span class="nc" id="L1432">					agtPstmt.setInt(5, gameTypeId);</span>
+<span class="nc" id="L1433">					agtPstmt.setInt(6, drawId);</span>
+<span class="nc" id="L1434">					agtPstmt.setLong(7, transId);</span>
+<span class="nc" id="L1435">					agtPstmt.setDouble(8, totalPwtAmt);</span>
+<span class="nc" id="L1436">					agtPstmt.setDouble(9, totalAgtComm);</span>
+<span class="nc" id="L1437">					agtPstmt.setDouble(10, totalNetAmt);</span>
+<span class="nc" id="L1438">					agtPstmt.setDouble(11, totalGovComm);</span>
+<span class="nc" id="L1439">					agtPstmt.executeUpdate();</span>
+				}
+
+<span class="nc" id="L1442">				double agtCrAmt = totalNetAmt;</span>
+<span class="nc bnc" id="L1443" title="All 2 branches missed.">				if (orgAmtMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L1444">					agtCrAmt = agtCrAmt + orgAmtMap.get(agtOrgId);</span>
+				}
+<span class="nc" id="L1446">				orgAmtMap.put(agtOrgId, agtCrAmt);</span>
+<span class="nc" id="L1447">			}</span>
+<span class="nc" id="L1448">			logger.debug(&quot;Agent PWT Update ORG Amt Map - &quot;+orgAmtMap);</span>
+
+<span class="nc" id="L1450">			updateLedgerHelper helper = new updateLedgerHelper();</span>
+
+<span class="nc" id="L1452">			Set&lt;Integer&gt; allAgtId = orgAmtMap.keySet();</span>
+<span class="nc bnc" id="L1453" title="All 2 branches missed.">			for (Integer orgId : allAgtId) {</span>
+<span class="nc bnc" id="L1454" title="All 2 branches missed.">				if (orgId != 0) {</span>
+<span class="nc" id="L1455">					boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgAmtMap.get(orgId)), &quot;TRANSACTION&quot;, &quot;PWT_AUTO&quot;, orgId, 0, &quot;AGENT&quot;, 0, con);</span>
+<span class="nc bnc" id="L1456" title="All 2 branches missed.">					if(!isValid)</span>
+<span class="nc" id="L1457">						throw new LMSException();</span>
+<span class="nc" id="L1458">					OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgAmtMap.get(orgId)), &quot;CLAIM_BAL&quot;, &quot;CREDIT_UPDATE_LEDGER&quot;, orgId, 0, &quot;AGENT&quot;, 0, con);</span>
+<span class="nc" id="L1459">					helper.generateReceiptDGBoNew(con, orgId, &quot;AGENT&quot;, orgIdTransIdInvMap.get(orgId));</span>
+				}
+<span class="nc" id="L1461">			}</span>
+<span class="nc" id="L1462">		} catch (Exception e) {</span>
+<span class="nc" id="L1463">			e.printStackTrace();</span>
+<span class="nc" id="L1464">			throw new LMSException(&quot;Error in PWT Agent&quot;);</span>
+<span class="nc" id="L1465">		}</span>
+
+<span class="nc" id="L1467">		logger.debug(&quot;--- End SLE PWT Update for Agent --- &quot;+Util.getCurrentTimeString());</span>
+<span class="nc" id="L1468">	}</span>
+	
+
+
+	private static void updateSLESaleRefundLedgerForRet(Connection con) throws LMSException{
+
+		//logger.debug(&quot;Transactions from SALE in updateSLESaleLedgerForRet() begins........&quot;);
+<span class="nc" id="L1475">		Statement stmt = null;</span>
+<span class="nc" id="L1476">		ResultSet rs = null;</span>
+<span class="nc" id="L1477">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;</span>
+<span class="nc" id="L1478">		Map&lt;Integer, Double&gt; orgIdAmountMap = new HashMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L1479">		Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();</span>
+<span class="nc" id="L1480">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvRetMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+<span class="nc" id="L1481">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+
+<span class="nc" id="L1483">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvRetMap = null;</span>
+<span class="nc" id="L1484">		Statement tempStmt=null;</span>
+		try {
+<span class="nc" id="L1486">			con.setAutoCommit(false);</span>
+			//String saleQry = &quot;select a.game_type_id,b.game_id , a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm from st_sle_ret_sale a inner join st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER' ) d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date&quot;;
+<span class="nc" id="L1488">			String saleQry = &quot;select a.game_type_id,a.game_id , retailer_org_id,agtUserId,agtOrgId,totalMrp , totalRetComm, totalagtComm,  totalgovtComm,  totalVat, totalTaxSale,transaction_date,ret_comm,agt_comm,govt_comm ,prize_payout_ratio,vat_amt from (select a.game_type_id,b.game_id , a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm from st_sle_ret_sale a inner join st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER' ) d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date) a inner join st_sle_game_type_master sle on sle.game_type_id  =  a.game_type_id &quot;;</span>
+<span class="nc" id="L1489">			PreparedStatement pstmtAgt = con.prepareStatement(QueryManager.insertInLMSTransactionMaster());</span>
+<span class="nc" id="L1490">			PreparedStatement pstmtAgtTrans = con.prepareStatement(QueryManager.insertInAgentTransactionMaster());</span>
+<span class="nc" id="L1491">			PreparedStatement insAgtSalePstmt = con.prepareStatement(&quot;insert into st_sle_agt_sale(transaction_id,agent_org_id,retailer_org_id,game_id,game_type_id,mrp_amt,retailer_comm_amt,net_amt,agent_comm_amt,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm,transaction_date) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L1492">			PreparedStatement insAgtSaleRetPstmt = con.prepareStatement(&quot;insert into st_sle_agt_sale_refund(transaction_id,agent_org_id,retailer_org_id,game_id,game_type_id,mrp_amt,retailer_comm_amt,net_amt,agent_comm_amt,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm,cancellation_charges,transaction_date) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L1493">			PreparedStatement insTempTablePstmt=con.prepareStatement(&quot;insert into orgTransSummary(agent_ref_transaction_id,ret_comm,agt_comm,govt_comm,retailer_org_id,game_id,game_type_id,trans_date) values(?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L1494">			tempStmt=con.createStatement();</span>
+<span class="nc" id="L1495">			tempStmt.execute(&quot;delete from orgTransSummary &quot;);</span>
+			
+			
+<span class="nc" id="L1498">			int count = 0;</span>
+<span class="nc" id="L1499">			double retDebitAmount = 0.0;</span>
+		/*	stmt = con.createStatement();
+			rs = stmt.executeQuery(saleQry);
+
+			while (rs.next()) {
+				double agtCommRate = rs.getDouble(&quot;agt_comm&quot;);
+				double totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);
+				double totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);
+				double totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);
+				double totalretNetAmt = totalMrpAmt - totalRetComm;
+				double totalAgtNetAmt = totalMrpAmt - totalAgtComm;
+				double retCommRate = rs.getDouble(&quot;ret_comm&quot;);
+				int ppr = rs.getInt(&quot;prize_payout_ratio&quot;);
+				double govtCommRate = rs.getDouble(&quot;govt_comm&quot;);
+				double vatAmt = rs.getDouble(&quot;vat_amt&quot;);
+
+				// CHECK IF necessary
+				double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, retCommRate, ppr, govtCommRate, vatAmt);
+
+				int retOrgId = rs.getInt(&quot;retailer_org_id&quot;);
+				if (orgIdAmountMap.containsKey(retOrgId)) {
+					retDebitAmount = orgIdAmountMap.get(retOrgId) + totalretNetAmt;
+				} else {
+					retDebitAmount = totalretNetAmt;
+				}
+
+				orgIdAmountMap.put(retOrgId, retDebitAmount);
+				int agtOrgId = rs.getInt(&quot;agtOrgId&quot;);
+				orgIdParentIdMap.put(retOrgId, agtOrgId);
+
+				if (orgIdTransIdInvMap.containsKey(retOrgId)) {
+					transIdInvMap = orgIdTransIdInvMap.get(retOrgId);
+				} else {
+					transIdInvMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();
+					orgIdTransIdInvMap.put(retOrgId, transIdInvMap);
+				}
+
+				// insert in main transaction table
+				pstmtAgt.setString(1, &quot;AGENT&quot;);
+				pstmtAgt.executeUpdate();
+				ResultSet rsTrns = pstmtAgt.getGeneratedKeys();
+				int gameId = rs.getInt(&quot;game_id&quot;);
+				int gameTypeId = rs.getInt(&quot;game_type_id&quot;);
+				double totalAgtVat = rs.getDouble(&quot;totalVat&quot;);
+				double totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);
+				String transDate = rs.getString(&quot;transaction_date&quot;);
+				int agtUserId = rs.getInt(&quot;agtUserId&quot;);
+
+				if (rsTrns.next()) {
+					long transId = rsTrns.getLong(1);
+					//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id-- &quot;+agtOrgId+&quot; -- Start Sale for Game type &quot;+gameTypeId +&quot; with transaction &quot;+ transId);
+					if (!transIdInvMap.containsKey(transDate)) {
+						transIdInvMap.put(transDate, new ArrayList&lt;Long&gt;());
+					}
+
+					
+					transIdInvMap.get(transDate).add(transId);
+					pstmtAgtTrans.setLong(1, transId);
+					pstmtAgtTrans.setInt(2, agtUserId);
+					pstmtAgtTrans.setInt(3, agtOrgId);
+					pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);
+					pstmtAgtTrans.setInt(5, retOrgId);
+					pstmtAgtTrans.setString(6, &quot;SLE_SALE&quot;);
+					pstmtAgtTrans.setTimestamp(7, updateLedgerHelper.fetchTransTimeStamp(transDate));
+					pstmtAgtTrans.executeUpdate();
+
+					insAgtSalePstmt.setLong(1, transId);
+					insAgtSalePstmt.setInt(2, agtOrgId);
+					insAgtSalePstmt.setInt(3, retOrgId);
+					insAgtSalePstmt.setInt(4, gameId);
+					insAgtSalePstmt.setInt(5, gameTypeId);
+					insAgtSalePstmt.setDouble(6, totalMrpAmt);
+					insAgtSalePstmt.setDouble(7, totalRetComm);
+					insAgtSalePstmt.setDouble(8, totalretNetAmt);
+					insAgtSalePstmt.setDouble(9, totalAgtComm);
+					insAgtSalePstmt.setDouble(10, totalAgtNetAmt);
+					insAgtSalePstmt.setString(11, &quot;CLAIM_BAL&quot;);
+					insAgtSalePstmt.setDouble(12, totalAgtVat);
+					insAgtSalePstmt.setDouble(13, tatalAgtTaxableSale);
+					insAgtSalePstmt.setDouble(14, totalGoodCauseAmt);
+					insAgtSalePstmt.setTimestamp(15, updateLedgerHelper.fetchTransTimeStamp(transDate));
+					insAgtSalePstmt.executeUpdate();
+
+					// insert temp table
+					insTempTablePstmt.setLong(1, transId);
+					insTempTablePstmt.setDouble(2, retCommRate);
+					insTempTablePstmt.setDouble(3, agtCommRate);
+					insTempTablePstmt.setDouble(4, govtCommRate);
+					insTempTablePstmt.setInt(5, retOrgId);
+					insTempTablePstmt.setInt(6, gameId);
+					insTempTablePstmt.setInt(7, gameTypeId);
+					insTempTablePstmt.setString(8, transDate);
+					insTempTablePstmt.addBatch();
+				
+					if (++count % batchSize == 0) {
+						insTempTablePstmt.executeBatch();
+					}
+				}
+			}
+				
+				logger.debug(insTempTablePstmt.executeBatch());
+				//logger.debug(&quot;Transactions from SALE in updateSLESaleLedgerForRet() are updated successfully&quot;);
+				
+				con.commit();
+				// BE CARE FULL FOR THE GAME_TYPE_ID   
+				//tempStmt.executeUpdate(&quot;update st_sle_ret_sale sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				//logger.debug(tempStmt.executeUpdate(&quot;update st_sle_ret_sale sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_type_id ) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;));
+				logger.debug(tempStmt.executeUpdate(&quot;update st_sle_ret_sale sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select a.transaction_id,a.transaction_date,a.retailer_org_id,ret_comm,agt_comm,govt_comm,a.game_id,game_type_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b inner join st_sle_ret_sale c on a.transaction_id = b.trans_id and b.trans_id = c.transaction_id) yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_type_id ) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;));*/
+				
+<span class="nc" id="L1608">				tempStmt.execute(&quot;delete from  orgTransSummary &quot;);</span>
+
+<span class="nc" id="L1610">				String saleReturnQry = &quot;select a.game_type_id,a.game_id,retailer_org_id,agtUserId,agtOrgId, totalMrp ,totalRetComm, totalagtComm,  totalgovtComm,  totalVat, totalTaxSale, totalCancelCharge,transaction_date,ret_comm,agt_comm,govt_comm,transaction_type,prize_payout_ratio,vat_amt from (select a.game_type_id,a.game_id,a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,sum(cancellation_charges) totalCancelCharge,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm,transaction_type from st_sle_ret_sale_refund a inner join  st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER') d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,transaction_type,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date) a inner join st_sle_game_type_master sle on sle.game_type_id  =  a.game_type_id&quot;; </span>
+<span class="nc" id="L1611">				stmt = con.createStatement();</span>
+<span class="nc" id="L1612">				rs = stmt.executeQuery(saleReturnQry);</span>
+<span class="nc bnc" id="L1613" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L1614">					int retOrgId = rs.getInt(&quot;retailer_org_id&quot;);</span>
+<span class="nc" id="L1615">					int agtUserId = rs.getInt(&quot;agtUserId&quot;);</span>
+<span class="nc" id="L1616">					int agtOrgId = rs.getInt(&quot;agtOrgId&quot;);</span>
+<span class="nc" id="L1617">					int gameId  = 	rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L1618">					int gameTypeId  = 	rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L1619">					double totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);</span>
+<span class="nc" id="L1620">					double totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);</span>
+<span class="nc" id="L1621">					double totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);</span>
+<span class="nc" id="L1622">					double totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);</span>
+<span class="nc" id="L1623">					double totalCancelCharge = rs.getDouble(&quot;totalCancelCharge&quot;);</span>
+<span class="nc" id="L1624">					double retCommRate = rs.getDouble(&quot;ret_comm&quot;);</span>
+<span class="nc" id="L1625">					double agtCommRate = rs.getDouble(&quot;agt_comm&quot;);</span>
+<span class="nc" id="L1626">					double govtCommRate = rs.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L1627">					String transDate = rs.getString(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L1628">					double totalretNetAmt = totalMrpAmt - totalRetComm	- totalCancelCharge;</span>
+<span class="nc" id="L1629">					double totalAgtNetAmt = totalMrpAmt - totalAgtComm	- totalCancelCharge;</span>
+<span class="nc" id="L1630">					String tranType = rs.getString(&quot;transaction_type&quot;);</span>
+<span class="nc" id="L1631">					double totalAgtVat =rs.getDouble(&quot;totalVat&quot;);</span>
+<span class="nc" id="L1632">					int ppr = rs.getInt(&quot;prize_payout_ratio&quot;);</span>
+<span class="nc" id="L1633">					double vatAmt = rs.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L1634">					double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, retCommRate, ppr, govtCommRate, vatAmt);</span>
+
+<span class="nc bnc" id="L1636" title="All 2 branches missed.">					if (orgIdAmountMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L1637">						retDebitAmount = orgIdAmountMap.get(retOrgId) - totalretNetAmt;</span>
+					} else {
+<span class="nc" id="L1639">						retDebitAmount = -totalretNetAmt;</span>
+					}
+
+<span class="nc" id="L1642">					orgIdAmountMap.put(retOrgId, retDebitAmount);</span>
+<span class="nc" id="L1643">					orgIdParentIdMap.put(retOrgId, agtOrgId);</span>
+
+<span class="nc bnc" id="L1645" title="All 2 branches missed.">					if (orgIdTransIdInvRetMap.containsKey(retOrgId)) {</span>
+<span class="nc" id="L1646">						transIdInvRetMap = orgIdTransIdInvRetMap.get(retOrgId);</span>
+					} else {
+<span class="nc" id="L1648">						transIdInvRetMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L1649">						orgIdTransIdInvRetMap.put(retOrgId, transIdInvRetMap);</span>
+					}
+
+					// insert in main transaction table
+
+<span class="nc" id="L1654">					pstmtAgt.setString(1, &quot;AGENT&quot;);</span>
+<span class="nc" id="L1655">					pstmtAgt.executeUpdate();</span>
+<span class="nc" id="L1656">					ResultSet rsTrns = pstmtAgt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L1657" title="All 2 branches missed.">					if (rsTrns.next()) {</span>
+<span class="nc" id="L1658">						long transId = rsTrns.getLong(1);</span>
+						//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id--&quot;+agtOrgId+&quot;--Start Sale Refund tran for Game type &quot;+gameTypeId +&quot; with transaction &quot;+ transId);
+<span class="nc bnc" id="L1660" title="All 2 branches missed.">						if (!transIdInvRetMap.containsKey(transDate)) {</span>
+<span class="nc" id="L1661">							transIdInvRetMap.put(transDate ,	new ArrayList&lt;Long&gt;());</span>
+						}
+
+<span class="nc" id="L1664">						transIdInvRetMap.get(transDate).add(transId);</span>
+
+<span class="nc" id="L1666">						pstmtAgtTrans.setLong(1, transId);</span>
+<span class="nc" id="L1667">						pstmtAgtTrans.setInt(2, agtUserId);</span>
+<span class="nc" id="L1668">						pstmtAgtTrans.setInt(3, agtOrgId);</span>
+<span class="nc" id="L1669">						pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L1670">						pstmtAgtTrans.setInt(5, retOrgId);</span>
+<span class="nc" id="L1671">						pstmtAgtTrans.setString(6, tranType);</span>
+<span class="nc" id="L1672">						pstmtAgtTrans.setTimestamp(7,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L1673">						pstmtAgtTrans.executeUpdate();</span>
+
+<span class="nc" id="L1675">						insAgtSaleRetPstmt.setLong(1, transId);</span>
+<span class="nc" id="L1676">						insAgtSaleRetPstmt.setInt(2, agtOrgId);</span>
+<span class="nc" id="L1677">						insAgtSaleRetPstmt.setInt(3, retOrgId);</span>
+<span class="nc" id="L1678">						insAgtSaleRetPstmt.setInt(4, gameId);</span>
+<span class="nc" id="L1679">						insAgtSaleRetPstmt.setInt(5, gameTypeId);</span>
+						// ADD GAME TYPE ID FOR AGENT
+<span class="nc" id="L1681">						insAgtSaleRetPstmt.setDouble(6, totalMrpAmt);</span>
+<span class="nc" id="L1682">						insAgtSaleRetPstmt.setDouble(7, totalRetComm);</span>
+<span class="nc" id="L1683">						insAgtSaleRetPstmt.setDouble(8, totalretNetAmt);</span>
+<span class="nc" id="L1684">						insAgtSaleRetPstmt.setDouble(9, totalAgtComm);</span>
+<span class="nc" id="L1685">						insAgtSaleRetPstmt.setDouble(10, totalAgtNetAmt);</span>
+<span class="nc" id="L1686">						insAgtSaleRetPstmt.setString(11, &quot;CLAIM_BAL&quot;);</span>
+<span class="nc" id="L1687">						insAgtSaleRetPstmt.setDouble(12, totalAgtVat);</span>
+<span class="nc" id="L1688">						insAgtSaleRetPstmt.setDouble(13, tatalAgtTaxableSale);</span>
+<span class="nc" id="L1689">						insAgtSaleRetPstmt.setDouble(14, totalGoodCauseAmt);</span>
+<span class="nc" id="L1690">						insAgtSaleRetPstmt.setDouble(15, totalCancelCharge);</span>
+<span class="nc" id="L1691">						insAgtSaleRetPstmt.setTimestamp(16, updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L1692">						insAgtSaleRetPstmt.executeUpdate();</span>
+
+						
+						//insert temp table
+<span class="nc" id="L1696">						insTempTablePstmt.setLong(1, transId);</span>
+<span class="nc" id="L1697">						insTempTablePstmt.setDouble(2, retCommRate);</span>
+<span class="nc" id="L1698">						insTempTablePstmt.setDouble(3, agtCommRate);</span>
+<span class="nc" id="L1699">						insTempTablePstmt.setDouble(4, govtCommRate);</span>
+<span class="nc" id="L1700">						insTempTablePstmt.setInt(5, retOrgId);</span>
+<span class="nc" id="L1701">						insTempTablePstmt.setInt(6, gameId);</span>
+<span class="nc" id="L1702">						insTempTablePstmt.setInt(7, gameTypeId);</span>
+<span class="nc" id="L1703">						insTempTablePstmt.setString(8, transDate);</span>
+<span class="nc" id="L1704">						insTempTablePstmt.addBatch();</span>
+<span class="nc bnc" id="L1705" title="All 2 branches missed.">						if(++count % batchSize == 0) {</span>
+<span class="nc" id="L1706">							insTempTablePstmt.executeBatch();</span>
+					    }
+					}
+<span class="nc" id="L1709">				}</span>
+				
+<span class="nc" id="L1711">				insTempTablePstmt.executeBatch();</span>
+				// BE CARE FULL FOR THE GAME_TYPE_ID   
+				//tempStmt.executeUpdate(&quot;update st_dg_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				//logger.debug(tempStmt.executeUpdate(&quot;update st_sle_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;));
+				
+<span class="nc" id="L1716">				System.out.println(tempStmt.executeUpdate(&quot;update st_sle_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select a.transaction_id,a.transaction_date,a.retailer_org_id,ret_comm,agt_comm,govt_comm,a.game_id,game_type_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b inner join st_sle_ret_sale_refund c on a.transaction_id = b.trans_id and b.trans_id = c.transaction_id )yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_type_id ) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;));</span>
+<span class="nc" id="L1717">				con.commit();</span>
+/*				
+				tempStmt.execute(&quot;delete from orgTransSummary&quot;);
+				
+				updateLedgerHelper helper = new updateLedgerHelper();
+				helper.generateDGReceiptNew(orgIdTransIdInvMap, orgIdParentIdMap,&quot;SLE_INVOICE&quot;, &quot;SLE_RECEIPT&quot;, con);
+				helper.generateDGReceiptNew(orgIdTransIdInvRetMap, orgIdParentIdMap,&quot;CR_NOTE&quot;, &quot;CR_NOTE_CASH&quot;, con);
+
+				//logger.debug(&quot;retailer orgIdAmountMap\n&quot; + orgIdAmountMap);
+
+				// update retailer balance
+				Set&lt;Integer&gt; retOrgIdSet = orgIdAmountMap.keySet();
+				for (Integer orgId : retOrgIdSet) {
+					boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;TRANSACTION&quot;, &quot;SLE_SALE&quot;, orgId,
+							orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+					if(!isValid)
+						throw new LMSException();
+						
+					OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, orgId,
+							orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+					
+				}*/
+<span class="nc" id="L1739">		} catch (Exception e) {</span>
+<span class="nc" id="L1740">			e.printStackTrace();</span>
+<span class="nc" id="L1741">			throw new LMSException(&quot;error in sale refund retailer&quot;);</span>
+<span class="nc" id="L1742">		}</span>
+		//logger.debug(new Date() + &quot;---end-dg sale update for retailer--&quot;+ new Date().getTime());
+	
+		/*
+		//logger.debug(new Date() + &quot;---start-dg sale update for retailer--&quot;+ new Date().getTime());
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		double totalMrpAmt, totalRetComm, totalAgtComm, totalGoodCauseAmt, totalretNetAmt, totalAgtNetAmt, totalCancelCharge;
+		double retCommRate, agtCommRate, govtCommRate, retDebitAmount;
+		String transDate;
+		int retOrgId, agtUserId, agtOrgId=0;
+		Map&lt;Integer, Double&gt; orgIdAmountMap = new HashMap&lt;Integer, Double&gt;();
+		Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();
+		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();
+		Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;
+		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvRetMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();
+		Map&lt;String, List&lt;Long&gt;&gt; transIdInvRetMap = null;
+		Statement tempStmt=null;
+		
+		try {
+			String getGameNbrFromGameMaster = &quot;select game_id,game_type_id,prize_payout_ratio,vat_amt from st_sle_game_type_master&quot;;
+			String saleQry = &quot;select a.game_type_id,b.game_id , a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm from st_sle_ret_sale a inner join st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER' ) d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date&quot;;
+			String saleReturnQry = &quot;select a.game_type_id,a.game_id,a.retailer_org_id,agtUserId,agtOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(good_cause_amt) totalgovtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,sum(cancellation_charges) totalCancelCharge,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,govt_comm,transaction_type from st_sle_ret_sale_refund a inner join  st_lms_retailer_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id retUserId,um.organization_id retOrgId,um.parent_user_id agtUserId,om.parent_id agtOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER') d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.retailer_org_id=retOrgId  where claim_status='CLAIM_BAL' group by a.retailer_org_id,DATE(transaction_date),a.game_type_id,transaction_type,ret_comm,agt_comm,govt_comm  order by retailer_org_id,game_type_id,transaction_date&quot;;
+
+			
+			PreparedStatement pstmtGameNbr = con.prepareStatement(getGameNbrFromGameMaster);
+			ResultSet resultGameNbr = pstmtGameNbr.executeQuery();
+
+			PreparedStatement pstmtAgt = con.prepareStatement(QueryManager.insertInLMSTransactionMaster());
+			PreparedStatement pstmtAgtTrans = con.prepareStatement(QueryManager.insertInAgentTransactionMaster());
+			PreparedStatement insAgtSalePstmt = con.prepareStatement(&quot;insert into st_sle_agt_sale(transaction_id,agent_org_id,retailer_org_id,game_id,game_type_id,mrp_amt,retailer_comm,net_amt,agent_comm,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+			PreparedStatement insTempTablePstmt=con.prepareStatement(&quot;insert into orgTransSummary(agent_ref_transaction_id,ret_comm,agt_comm,govt_comm,retailer_org_id,game_id,trans_date) values(?,?,?,?,?,?,?)&quot;);
+			PreparedStatement insAgtSaleRetPstmt = con.prepareStatement(&quot;insert into st_dg_agt_sale_refund(transaction_id,agent_org_id,retailer_org_id,game_id,mrp_amt,retailer_comm,net_amt,agent_comm,bo_net_amt,claim_status,vat_amt,taxable_sale,govt_comm,cancellation_charges) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+			tempStmt=con.createStatement();
+			tempStmt.execute(&quot;delete from  orgTransSummary &quot;);
+			int gameId = 0;
+			double ppr = 0.0;
+			double vatAmt = 0.0;
+			final int batchSize = 500;
+			int count = 0;
+			while (resultGameNbr.next()) {
+				gameId = resultGameNbr.getInt(&quot;game_id&quot;);
+				ppr = resultGameNbr.getInt(&quot;prize_payout_ratio&quot;);
+				vatAmt = resultGameNbr.getDouble(&quot;vat_amt&quot;);
+				pstmt = con.prepareStatement(saleQry);
+				pstmt.setInt(1, gameId);
+				rs = pstmt.executeQuery();
+				//logger.debug(&quot;--Start Sale tran for game No&quot; + gameId);
+				
+				while (rs.next()) {
+					retOrgId = rs.getInt(&quot;retailer_org_id&quot;);
+					agtUserId = rs.getInt(&quot;agtUserId&quot;);
+					agtOrgId = rs.getInt(&quot;agtOrgId&quot;);
+
+					totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);
+					totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);
+					totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);
+					totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);
+					retCommRate = rs.getDouble(&quot;ret_comm&quot;);
+					agtCommRate = rs.getDouble(&quot;agt_comm&quot;);
+					govtCommRate = rs.getDouble(&quot;govt_comm&quot;);
+					transDate = rs.getString(&quot;transaction_date&quot;);
+					totalretNetAmt = totalMrpAmt - totalRetComm;
+					totalAgtNetAmt = totalMrpAmt - totalAgtComm;
+					double totalAgtVat= rs.getDouble(&quot;totalVat&quot;);
+					double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, retCommRate, ppr,govtCommRate, vatAmt);
+
+					if (orgIdAmountMap.containsKey(retOrgId)) {
+						retDebitAmount = orgIdAmountMap.get(retOrgId)
+								+ totalretNetAmt;
+					} else {
+						retDebitAmount = totalretNetAmt;
+					}
+
+					orgIdAmountMap.put(retOrgId, retDebitAmount);
+					orgIdParentIdMap.put(retOrgId, agtOrgId);
+
+					if (orgIdTransIdInvMap.containsKey(retOrgId)) {
+						transIdInvMap = orgIdTransIdInvMap.get(retOrgId);
+					} else {
+						transIdInvMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();
+						orgIdTransIdInvMap.put(retOrgId, transIdInvMap);
+					}
+
+					// insert in main transaction table
+
+					pstmtAgt.setString(1, &quot;AGENT&quot;);
+					pstmtAgt.executeUpdate();
+					ResultSet rsTrns = pstmtAgt.getGeneratedKeys();
+					if (rsTrns.next()) {
+						long transId = rsTrns.getLong(1);
+						//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id--&quot;+agtOrgId+&quot;--Start Sale tran for game No&quot; + gameId);
+						if (!transIdInvMap.containsKey(transDate)) {
+							transIdInvMap.put(transDate,
+									new ArrayList&lt;Long&gt;());
+						}
+
+						transIdInvMap.get(transDate).add(transId);
+
+						pstmtAgtTrans.setLong(1, transId);
+						pstmtAgtTrans.setInt(2, agtUserId);
+						pstmtAgtTrans.setInt(3, agtOrgId);
+						pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);
+						pstmtAgtTrans.setInt(5, retOrgId);
+						pstmtAgtTrans.setString(6, &quot;SLE_SALE&quot;);
+						pstmtAgtTrans.setTimestamp(7,updateLedgerHelper.fetchTransTimeStamp(transDate));
+						pstmtAgtTrans.executeUpdate();
+
+						insAgtSalePstmt.setLong(1, transId);
+						insAgtSalePstmt.setInt(2, agtOrgId);
+						insAgtSalePstmt.setInt(3, retOrgId);
+						insAgtSalePstmt.setInt(4, gameId);
+						insAgtSalePstmt.setDouble(5, totalMrpAmt);
+						insAgtSalePstmt.setDouble(6, totalRetComm);
+						insAgtSalePstmt.setDouble(7, totalretNetAmt);
+						insAgtSalePstmt.setDouble(8, totalAgtComm);
+						insAgtSalePstmt.setDouble(9, totalAgtNetAmt);
+						insAgtSalePstmt.setString(10, &quot;CLAIM_BAL&quot;);
+						insAgtSalePstmt.setDouble(11, totalAgtVat);
+						insAgtSalePstmt.setDouble(12, tatalAgtTaxableSale);
+						insAgtSalePstmt.setDouble(13, totalGoodCauseAmt);
+						insAgtSalePstmt.executeUpdate();
+
+						
+						
+						//insert temp table
+						insTempTablePstmt.setLong(1, transId);
+						insTempTablePstmt.setDouble(2, retCommRate);
+						insTempTablePstmt.setDouble(3, agtCommRate);
+						insTempTablePstmt.setDouble(4, govtCommRate);
+						insTempTablePstmt.setInt(5, retOrgId);
+						insTempTablePstmt.setInt(6, gameId);
+						insTempTablePstmt.setString(7, transDate);
+						insTempTablePstmt.addBatch();
+						if(++count % batchSize == 0) {
+							insTempTablePstmt.executeBatch();
+					    }
+					}
+
+				}
+				
+				insTempTablePstmt.executeBatch();
+				
+				
+				tempStmt.executeUpdate(&quot;update st_sle_ret_sale_&quot;+gameId+&quot; sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				tempStmt.execute(&quot;delete from  orgTransSummary &quot;);
+				//tempStmt.execute(&quot;truncate table orgTransSummary&quot;);
+				
+				pstmt = con.prepareStatement(saleReturnQry);
+				pstmt.setInt(1, gameId);
+				rs = pstmt.executeQuery();
+				//logger.debug(&quot;--Start Cancel tran for game No&quot; + gameId);
+				while (rs.next()) {
+					retOrgId = rs.getInt(&quot;retailer_org_id&quot;);
+					agtUserId = rs.getInt(&quot;agtUserId&quot;);
+					agtOrgId = rs.getInt(&quot;agtOrgId&quot;);
+
+					totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);
+					totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);
+					totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);
+					totalGoodCauseAmt = rs.getDouble(&quot;totalgovtComm&quot;);
+					totalCancelCharge = rs.getDouble(&quot;totalCancelCharge&quot;);
+					retCommRate = rs.getDouble(&quot;ret_comm&quot;);
+					agtCommRate = rs.getDouble(&quot;agt_comm&quot;);
+					govtCommRate = rs.getDouble(&quot;govt_comm&quot;);
+					transDate = rs.getString(&quot;transaction_date&quot;);
+					totalretNetAmt = totalMrpAmt - totalRetComm
+							- totalCancelCharge;
+					totalAgtNetAmt = totalMrpAmt - totalAgtComm
+							- totalCancelCharge;
+					String tranType = rs.getString(&quot;transaction_type&quot;);
+					double totalAgtVat =rs.getDouble(&quot;totalVat&quot;);
+
+					double tatalAgtTaxableSale = CommonMethods
+							.calTaxableSale(totalMrpAmt, retCommRate, ppr,
+									govtCommRate, vatAmt);
+
+					if (orgIdAmountMap.containsKey(retOrgId)) {
+						retDebitAmount = orgIdAmountMap.get(retOrgId)
+								- totalretNetAmt;
+					} else {
+						retDebitAmount = -totalretNetAmt;
+					}
+
+					orgIdAmountMap.put(retOrgId, retDebitAmount);
+					orgIdParentIdMap.put(retOrgId, agtOrgId);
+
+					if (orgIdTransIdInvRetMap.containsKey(retOrgId)) {
+						transIdInvRetMap = orgIdTransIdInvRetMap.get(retOrgId);
+					} else {
+						transIdInvRetMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();
+						orgIdTransIdInvRetMap.put(retOrgId, transIdInvRetMap);
+					}
+
+					// insert in main transaction table
+
+					pstmtAgt.setString(1, &quot;AGENT&quot;);
+					pstmtAgt.executeUpdate();
+					ResultSet rsTrns = pstmtAgt.getGeneratedKeys();
+					if (rsTrns.next()) {
+						long transId = rsTrns.getLong(1);
+						//logger.debug(&quot;--Retailer org id&quot;+retOrgId+&quot;--Agent org Id--&quot;+agtOrgId+&quot;--Start Sale Cancel tran for game No&quot; + gameId);
+						if (!transIdInvRetMap.containsKey(transDate)) {
+							transIdInvRetMap.put(transDate,
+									new ArrayList&lt;Long&gt;());
+						}
+
+						transIdInvRetMap.get(transDate).add(transId);
+
+						pstmtAgtTrans.setLong(1, transId);
+						pstmtAgtTrans.setInt(2, agtUserId);
+						pstmtAgtTrans.setInt(3, agtOrgId);
+						pstmtAgtTrans.setString(4, &quot;RETAILER&quot;);
+						pstmtAgtTrans.setInt(5, retOrgId);
+						pstmtAgtTrans.setString(6, tranType);
+						pstmtAgtTrans.setTimestamp(7,
+								updateLedgerHelper.fetchTransTimeStamp(transDate));
+						pstmtAgtTrans.executeUpdate();
+
+						insAgtSaleRetPstmt.setLong(1, transId);
+						insAgtSaleRetPstmt.setInt(2, agtOrgId);
+						insAgtSaleRetPstmt.setInt(3, retOrgId);
+						insAgtSaleRetPstmt.setInt(4, gameId);
+						insAgtSaleRetPstmt.setDouble(5, totalMrpAmt);
+						insAgtSaleRetPstmt.setDouble(6, totalRetComm);
+						insAgtSaleRetPstmt.setDouble(7, totalretNetAmt);
+						insAgtSaleRetPstmt.setDouble(8, totalAgtComm);
+						insAgtSaleRetPstmt.setDouble(9, totalAgtNetAmt);
+						insAgtSaleRetPstmt.setString(10, &quot;CLAIM_BAL&quot;);
+						insAgtSaleRetPstmt.setDouble(11, totalAgtVat);
+						insAgtSaleRetPstmt.setDouble(12, tatalAgtTaxableSale);
+						insAgtSaleRetPstmt.setDouble(13, totalGoodCauseAmt);
+						insAgtSaleRetPstmt.setDouble(14, totalCancelCharge);
+						insAgtSaleRetPstmt.executeUpdate();
+
+						
+						//insert temp table
+						insTempTablePstmt.setLong(1, transId);
+						insTempTablePstmt.setDouble(2, retCommRate);
+						insTempTablePstmt.setDouble(3, agtCommRate);
+						insTempTablePstmt.setDouble(4, govtCommRate);
+						insTempTablePstmt.setInt(5, retOrgId);
+						insTempTablePstmt.setInt(6, gameId);
+						insTempTablePstmt.setString(7, transDate);
+						insTempTablePstmt.addBatch();
+						if(++count % batchSize == 0) {
+							insTempTablePstmt.executeBatch();
+					    }
+						
+					}
+
+				}
+				
+				insTempTablePstmt.executeBatch();
+				
+				tempStmt.executeUpdate(&quot;update st_dg_ret_sale_refund_&quot;+gameId+&quot; sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+				tempStmt.execute(&quot;delete from orgTransSummary&quot;);
+				
+			}
+			updateLedgerHelper helper = new updateLedgerHelper();
+			helper.generateDGReceiptNew(orgIdTransIdInvMap, orgIdParentIdMap,&quot;SLE_INVOICE&quot;, &quot;SLE_RECEIPT&quot;, con);
+			helper.generateDGReceiptNew(orgIdTransIdInvRetMap, orgIdParentIdMap,&quot;SLE_CR_NOTE&quot;, &quot;SLE_CR_NOTE_CASH&quot;, con);
+
+			//logger.debug(&quot;retailer orgIdAmountMap\n&quot; + orgIdAmountMap);
+
+			// update retailer balance
+			Set&lt;Integer&gt; retOrgIdSet = orgIdAmountMap.keySet();
+			for (Integer orgId : retOrgIdSet) {
+				boolean isValid=OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;TRANSACTION&quot;, &quot;DRAW_GAME_SALE&quot;, orgId,
+						orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+				if(!isValid)
+					throw new LMSException();
+					
+				OrgCreditUpdation.updateOrganizationBalWithValidate(CommonMethods.fmtToTwoDecimal(orgIdAmountMap.get(orgId)), &quot;CLAIM_BAL&quot;, &quot;DEBIT&quot;, orgId,
+						orgIdParentIdMap.get(orgId), &quot;RETAILER&quot;, 0, con);
+				
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new LMSException(&quot;error in sale retailer&quot;);
+		}
+		//logger.debug(new Date() + &quot;---end-dg sale update for retailer--&quot;
+				+ new Date().getTime());
+<span class="nc" id="L2025">	*/}</span>
+	
+	private static void updateSLESaleRefundLedgerForAgt(Connection con) throws LMSException{
+<span class="nc" id="L2028">		Statement stmt = null;</span>
+<span class="nc" id="L2029">		ResultSet rs = null;</span>
+<span class="nc" id="L2030">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvMap = null;</span>
+<span class="nc" id="L2031">		Map&lt;Integer, Double&gt; orgIdAmountMap = new HashMap&lt;Integer, Double&gt;();</span>
+<span class="nc" id="L2032">		Map&lt;Integer, Integer&gt; orgIdParentIdMap = new HashMap&lt;Integer, Integer&gt;();</span>
+<span class="nc" id="L2033">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvRetMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+<span class="nc" id="L2034">		Map&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt; orgIdTransIdInvMap = new HashMap&lt;Integer, Map&lt;String, List&lt;Long&gt;&gt;&gt;();</span>
+
+<span class="nc" id="L2036">		Map&lt;String, List&lt;Long&gt;&gt; transIdInvRetMap = null;</span>
+<span class="nc" id="L2037">		Statement tempStmt=null;</span>
+		try {
+<span class="nc" id="L2039">			con.setAutoCommit(false);</span>
+<span class="nc" id="L2040">			PreparedStatement pstmtAgt = con.prepareStatement(QueryManager.insertInLMSTransactionMaster());</span>
+<span class="nc" id="L2041">			PreparedStatement pstmtAgtTrans = con.prepareStatement(QueryManager.insertInBOTransactionMaster());</span>
+<span class="nc" id="L2042">			PreparedStatement insAgtSaleRetPstmt = con.prepareStatement(&quot;insert into st_sle_bo_sale_refund(transaction_id,agent_org_id,game_id,game_type_id,mrp_amt,agent_comm,net_amt,vat_amt,taxable_sale,govt_comm,cancellation_charges,transaction_date) values(?,?,?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L2043">			PreparedStatement insTempTablePstmt=con.prepareStatement(&quot;insert into agentTransSummary(bo_ref_transaction_id,agt_comm,govt_comm,agent_org_id,game_id,game_type_id,trans_date) values(?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L2044">			tempStmt=con.createStatement();</span>
+<span class="nc" id="L2045">			tempStmt.execute(&quot;delete from agentTransSummary &quot;);</span>
+			
+			
+<span class="nc" id="L2048">			int count = 0;</span>
+<span class="nc" id="L2049">			double retDebitAmount = 0.0;</span>
+<span class="nc" id="L2050">			String saleReturnQry = &quot;select a.game_type_id,a.game_id,agent_org_id,boUserId,boOrgId, totalMrp ,totalRetComm, totalagtComm, totalVat, totalTaxSale, totalCancelCharge,transaction_date,ret_comm,agt_comm,a.govt_comm,transaction_type,prize_payout_ratio,vat_amt from (select a.game_type_id,a.game_id,a.agent_org_id,boUserId,boOrgId,sum(mrp_amt) totalMrp ,sum(retailer_comm_amt) totalRetComm,sum(agent_comm_amt) totalagtComm, sum(vat_amt) totalVat,sum(taxable_sale) totalTaxSale,sum(cancellation_charges) totalCancelCharge,DATE(a.transaction_date) 'transaction_date',ret_comm,agt_comm,a.govt_comm,transaction_type from st_sle_agt_sale_refund a inner join  st_lms_agent_transaction_master b inner join st_temp_update_ledger c inner join (select um.user_id agtUserId,um.organization_id agtOrgId,um.parent_user_id boUserId,isrolehead,om.parent_id boOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='AGENT') d on a.transaction_id = b.transaction_id and a.transaction_id=trans_id and a.agent_org_id=agtOrgId and isrolehead = 'Y'  where claim_status='CLAIM_BAL' group by a.agent_org_id,DATE(transaction_date),a.game_type_id,transaction_type,ret_comm,agt_comm,a.govt_comm  order by agent_org_id,game_type_id,transaction_date) a inner join st_sle_game_type_master sle on sle.game_type_id  =  a.game_type_id&quot;; </span>
+<span class="nc" id="L2051">			stmt = con.createStatement();</span>
+<span class="nc" id="L2052">			rs = stmt.executeQuery(saleReturnQry);</span>
+<span class="nc bnc" id="L2053" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L2054">				int agtOrgId = rs.getInt(&quot;agent_org_id&quot;);</span>
+<span class="nc" id="L2055">				int boUserId = rs.getInt(&quot;boUserId&quot;);</span>
+<span class="nc" id="L2056">				int boOrgId = rs.getInt(&quot;boOrgId&quot;);</span>
+<span class="nc" id="L2057">				int gameId  = 	rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L2058">				int gameTypeId  = 	rs.getInt(&quot;game_type_id&quot;);</span>
+<span class="nc" id="L2059">				double totalMrpAmt = rs.getDouble(&quot;totalMrp&quot;);</span>
+<span class="nc" id="L2060">				double totalRetComm = rs.getDouble(&quot;totalRetComm&quot;);</span>
+<span class="nc" id="L2061">				double totalAgtComm = rs.getDouble(&quot;totalagtComm&quot;);</span>
+<span class="nc" id="L2062">				double totalCancelCharge = rs.getDouble(&quot;totalCancelCharge&quot;);</span>
+<span class="nc" id="L2063">				double retCommRate = rs.getDouble(&quot;ret_comm&quot;);</span>
+<span class="nc" id="L2064">				double agtCommRate = rs.getDouble(&quot;agt_comm&quot;);</span>
+<span class="nc" id="L2065">				double govtCommRate = rs.getDouble(&quot;govt_comm&quot;);</span>
+<span class="nc" id="L2066">				String transDate = rs.getString(&quot;transaction_date&quot;);</span>
+<span class="nc" id="L2067">				double totalretNetAmt = totalMrpAmt - totalRetComm	- totalCancelCharge;</span>
+<span class="nc" id="L2068">				double totalAgtNetAmt = totalMrpAmt - totalAgtComm	- totalCancelCharge;</span>
+<span class="nc" id="L2069">				String tranType = rs.getString(&quot;transaction_type&quot;);</span>
+<span class="nc" id="L2070">				double totalAgtVat =rs.getDouble(&quot;totalVat&quot;);</span>
+<span class="nc" id="L2071">				int ppr = rs.getInt(&quot;prize_payout_ratio&quot;);</span>
+<span class="nc" id="L2072">				double vatAmt = rs.getDouble(&quot;vat_amt&quot;);</span>
+<span class="nc" id="L2073">				double tatalAgtTaxableSale = CommonMethods.calTaxableSale(totalMrpAmt, retCommRate, ppr, govtCommRate, vatAmt);</span>
+
+<span class="nc bnc" id="L2075" title="All 2 branches missed.">				if (orgIdAmountMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L2076">					retDebitAmount = orgIdAmountMap.get(agtOrgId) - totalretNetAmt;</span>
+				} else {
+<span class="nc" id="L2078">					retDebitAmount = -totalretNetAmt;</span>
+				}
+
+<span class="nc" id="L2081">				orgIdAmountMap.put(agtOrgId, retDebitAmount);</span>
+<span class="nc" id="L2082">				orgIdParentIdMap.put(agtOrgId, agtOrgId);</span>
+
+<span class="nc bnc" id="L2084" title="All 2 branches missed.">				if (orgIdTransIdInvRetMap.containsKey(agtOrgId)) {</span>
+<span class="nc" id="L2085">					transIdInvRetMap = orgIdTransIdInvRetMap.get(agtOrgId);</span>
+				} else {
+<span class="nc" id="L2087">					transIdInvRetMap = new HashMap&lt;String, List&lt;Long&gt;&gt;();</span>
+<span class="nc" id="L2088">					orgIdTransIdInvRetMap.put(agtOrgId, transIdInvRetMap);</span>
+				}
+
+				// insert in main transaction table
+
+<span class="nc" id="L2093">				pstmtAgt.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L2094">				pstmtAgt.executeUpdate();</span>
+<span class="nc" id="L2095">				ResultSet rsTrns = pstmtAgt.getGeneratedKeys();</span>
+<span class="nc bnc" id="L2096" title="All 2 branches missed.">				if (rsTrns.next()) {</span>
+<span class="nc" id="L2097">					long transId = rsTrns.getLong(1);</span>
+<span class="nc" id="L2098">					logger.debug(&quot;--Agent org id&quot;+agtOrgId+&quot;--Bo org Id--&quot;+boOrgId+&quot;--Start Sale Refund tran for Game type &quot;+gameTypeId +&quot; with transaction &quot;+ transId);</span>
+<span class="nc bnc" id="L2099" title="All 2 branches missed.">					if (!transIdInvRetMap.containsKey(transDate)) {</span>
+<span class="nc" id="L2100">						transIdInvRetMap.put(transDate ,	new ArrayList&lt;Long&gt;());</span>
+					}
+
+<span class="nc" id="L2103">					transIdInvRetMap.get(transDate).add(transId);</span>
+
+<span class="nc" id="L2105">					pstmtAgtTrans.setLong(1, transId);</span>
+<span class="nc" id="L2106">					pstmtAgtTrans.setInt(2, boUserId);</span>
+<span class="nc" id="L2107">					pstmtAgtTrans.setInt(3, boOrgId);</span>
+<span class="nc" id="L2108">					pstmtAgtTrans.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L2109">					pstmtAgtTrans.setInt(5, agtOrgId);</span>
+<span class="nc" id="L2110">					pstmtAgtTrans.setTimestamp(6,updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L2111">					pstmtAgtTrans.setString(7, tranType);</span>
+<span class="nc" id="L2112">					pstmtAgtTrans.executeUpdate();</span>
+
+<span class="nc" id="L2114">					insAgtSaleRetPstmt.setLong(1, transId);</span>
+<span class="nc" id="L2115">					insAgtSaleRetPstmt.setInt(2, agtOrgId);</span>
+<span class="nc" id="L2116">					insAgtSaleRetPstmt.setInt(3, gameId);</span>
+<span class="nc" id="L2117">					insAgtSaleRetPstmt.setInt(4, gameTypeId);</span>
+					// ADD GAME TYPE ID FOR AGENT
+<span class="nc" id="L2119">					insAgtSaleRetPstmt.setDouble(5, totalMrpAmt);</span>
+<span class="nc" id="L2120">					insAgtSaleRetPstmt.setDouble(6, totalAgtComm);</span>
+<span class="nc" id="L2121">					insAgtSaleRetPstmt.setDouble(7, totalAgtNetAmt);</span>
+<span class="nc" id="L2122">					insAgtSaleRetPstmt.setDouble(8, totalAgtVat);</span>
+<span class="nc" id="L2123">					insAgtSaleRetPstmt.setDouble(9, tatalAgtTaxableSale);</span>
+<span class="nc" id="L2124">					insAgtSaleRetPstmt.setDouble(10, govtCommRate);</span>
+<span class="nc" id="L2125">					insAgtSaleRetPstmt.setDouble(11, totalCancelCharge);</span>
+<span class="nc" id="L2126">					insAgtSaleRetPstmt.setTimestamp(12, updateLedgerHelper.fetchTransTimeStamp(transDate));</span>
+<span class="nc" id="L2127">					insAgtSaleRetPstmt.executeUpdate();</span>
+
+					
+					//insert temp table
+<span class="nc" id="L2131">					insTempTablePstmt.setLong(1, transId);</span>
+<span class="nc" id="L2132">					insTempTablePstmt.setDouble(2, agtCommRate);</span>
+<span class="nc" id="L2133">					insTempTablePstmt.setDouble(3, govtCommRate);</span>
+<span class="nc" id="L2134">					insTempTablePstmt.setInt(4, agtOrgId);</span>
+<span class="nc" id="L2135">					insTempTablePstmt.setInt(5, gameId);</span>
+<span class="nc" id="L2136">					insTempTablePstmt.setInt(6, gameTypeId);</span>
+<span class="nc" id="L2137">					insTempTablePstmt.setString(7, transDate);</span>
+<span class="nc" id="L2138">					insTempTablePstmt.addBatch();</span>
+<span class="nc bnc" id="L2139" title="All 2 branches missed.">					if(++count % batchSize == 0) {</span>
+<span class="nc" id="L2140">						insTempTablePstmt.executeBatch();</span>
+				    }
+				}
+<span class="nc" id="L2143">			}</span>
+			
+<span class="nc" id="L2145">			insTempTablePstmt.executeBatch();</span>
+			// BE CARE FULL FOR THE GAME_TYPE_ID   
+			//tempStmt.executeUpdate(&quot;update st_dg_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;);
+			//logger.debug(tempStmt.executeUpdate(&quot;update st_sle_ret_sale_refund sale inner join (select yy.transaction_id,xx.agent_ref_transaction_id from orgTransSummary xx inner join (select transaction_id,transaction_date,retailer_org_id,ret_comm,agt_comm,govt_comm,game_id from st_lms_retailer_transaction_master a inner join st_temp_update_ledger b on a.transaction_id = b.trans_id)yy on DATE(trans_date)=DATE(transaction_date) and xx.retailer_org_id=yy.retailer_org_id and xx.ret_comm=yy.ret_comm and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_id) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.agent_ref_transaction_id=tlb.agent_ref_transaction_id&quot;));
+			
+<span class="nc" id="L2150">			System.out.println(tempStmt.executeUpdate(&quot;update st_sle_agt_sale_refund sale inner join (select yy.transaction_id,xx.bo_ref_transaction_id from agentTransSummary xx inner join (select a.transaction_id,a.transaction_date,a.user_org_id agent_org_id,ret_comm,agt_comm,c.govt_comm,c.game_id,c.game_type_id from st_lms_agent_transaction_master a inner join st_temp_update_ledger b inner join st_sle_agt_sale_refund c on a.transaction_id = b.trans_id and b.trans_id = c.transaction_id )yy on DATE(trans_date)=DATE(transaction_date) and xx.agent_org_id=yy.agent_org_id and xx.agt_comm=yy.agt_comm and xx.govt_comm=yy.govt_comm and xx.game_type_id=yy.game_type_id ) tlb on sale.transaction_id=tlb.transaction_id set sale.claim_status='DONE_CLAIM',sale.bo_ref_transaction_id=tlb.bo_ref_transaction_id&quot;));</span>
+<span class="nc" id="L2151">			con.commit();</span>
+			
+<span class="nc" id="L2153">		} catch (Exception e) {</span>
+<span class="nc" id="L2154">			e.printStackTrace();</span>
+<span class="nc" id="L2155">			throw new LMSException(&quot;error in sale refund Agent&quot;);</span>
+<span class="nc" id="L2156">		}</span>
+<span class="nc" id="L2157">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

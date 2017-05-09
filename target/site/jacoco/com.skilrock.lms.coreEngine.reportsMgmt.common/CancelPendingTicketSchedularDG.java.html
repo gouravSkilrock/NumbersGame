@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CancelPendingTicketSchedularDG.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">CancelPendingTicketSchedularDG.java</span></div><h1>CancelPendingTicketSchedularDG.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.lang.reflect.Type;
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.ServiceResponse;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.dge.beans.CancelTicketDataBean;
+import com.skilrock.lms.scheduler.SchedulerCommonFuntionsHelper;
+
+<span class="nc" id="L30">public class CancelPendingTicketSchedularDG {</span>
+<span class="nc" id="L31">	private static Log logger = LogFactory.getLog(CancelPendingTicketSchedularDG.class);</span>
+
+	public static void pendingCancelTicketInsertSchedular(int jobId) throws LMSException {
+<span class="nc" id="L34">		Connection con = null;</span>
+<span class="nc" id="L35">		Statement stmt = null;</span>
+<span class="nc" id="L36">		Statement insertStmt = null;</span>
+<span class="nc" id="L37">		ResultSet rs = null;</span>
+<span class="nc" id="L38">		CallableStatement callStmt = null;</span>
+<span class="nc" id="L39">		Timestamp startDate = null;</span>
+<span class="nc" id="L40">		SimpleDateFormat dateFormat = null;</span>
+		try {
+<span class="nc" id="L42">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L43">			con.setAutoCommit(false);</span>
+<span class="nc" id="L44">			stmt = con.createStatement();</span>
+<span class="nc" id="L45">			rs = stmt.executeQuery(&quot;SELECT last_success_time FROM st_lms_scheduler_master WHERE dev_name='Cancel_Pending_Ticket_DG_SCHEDULER';&quot;);</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">			if(rs.next()) {</span>
+<span class="nc" id="L47">				startDate = rs.getTimestamp(&quot;last_success_time&quot;);</span>
+			} else {
+<span class="nc" id="L49">				throw new LMSException(&quot;Job 'Cancel_Pending_Ticket_DG_SCHEDULER' Not Found.&quot;);</span>
+			}
+
+<span class="nc" id="L52">			logger.info(&quot;Scheduler Start From - &quot;+startDate);</span>
+<span class="nc" id="L53">			SchedulerCommonFuntionsHelper.updateSchedulerStart(jobId, con);</span>
+<span class="nc" id="L54">			callStmt = con.prepareCall(&quot;call PendingCancelTktDG(?)&quot;);</span>
+<span class="nc" id="L55">			callStmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L56">			callStmt.executeUpdate();</span>
+
+<span class="nc" id="L58">			dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+
+<span class="nc" id="L60">			List&lt;CancelTicketDataBean&gt; dateList = null;</span>
+<span class="nc" id="L61">			CancelTicketDataBean dataBean = null;</span>
+<span class="nc" id="L62">			ServiceRequest sRequest = null;</span>
+<span class="nc" id="L63">			ServiceResponse sResponse = null;</span>
+<span class="nc" id="L64">			IServiceDelegate delegate = ServiceDelegate.getInstance();</span>
+
+<span class="nc" id="L66">			stmt = con.createStatement();</span>
+<span class="nc" id="L67">			rs = stmt.executeQuery(&quot;SELECT game_id FROM st_dg_game_master WHERE game_status&lt;&gt;'SALE_CLOSE';&quot;);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			while(rs.next()) {</span>
+<span class="nc" id="L69">				int gameId = rs.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L70">				dataBean = new CancelTicketDataBean();</span>
+<span class="nc" id="L71">				dataBean.setGameId(gameId);</span>
+<span class="nc" id="L72">				dataBean.setFromDate(dateFormat.format(startDate));</span>
+
+<span class="nc" id="L74">				sRequest = new ServiceRequest();</span>
+<span class="nc" id="L75">				sResponse = new ServiceResponse();</span>
+<span class="nc" id="L76">				sRequest.setServiceName(ServiceName.REPORTS_MGMT);</span>
+<span class="nc" id="L77">				sRequest.setServiceMethod(ServiceMethodName.FETCH_CANCEL_TICKET_FROM_DATE);</span>
+<span class="nc" id="L78">				sRequest.setServiceData(dataBean);</span>
+<span class="nc" id="L79">				sResponse = delegate.getResponse(sRequest);</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">				if (sResponse.getIsSuccess()) {</span>
+<span class="nc" id="L81">					Type elementType = new TypeToken&lt;List&lt;CancelTicketDataBean&gt;&gt;() {}.getType();</span>
+<span class="nc" id="L82">					dateList = new Gson().fromJson(sResponse.getResponseData().toString(), elementType);</span>
+
+<span class="nc bnc" id="L84" title="All 4 branches missed.">					if(dateList!=null &amp;&amp; dateList.size()&gt;0) {</span>
+<span class="nc" id="L85">						StringBuilder ticketQueryBuilder = new StringBuilder();</span>
+
+<span class="nc" id="L87">						int counter = 0;</span>
+<span class="nc" id="L88">						int size = dateList.size();</span>
+<span class="nc" id="L89">						int limit = dateList.size()-dateList.size()%50;</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">						for(int i=0; i&lt;limit; i++) {</span>
+<span class="nc" id="L91">							counter++;</span>
+<span class="nc" id="L92">							CancelTicketDataBean tempBean = dateList.get(i);</span>
+<span class="nc" id="L93">							ticketQueryBuilder.append(&quot;SELECT &quot;).append(tempBean.getTicketNumber()).append(&quot; dg_ticket UNION &quot;);</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">							if(counter%50 == 0) {</span>
+<span class="nc" id="L95">								String ticketQuery = ticketQueryBuilder.substring(0, ticketQueryBuilder.lastIndexOf(&quot; UNION &quot;));</span>
+<span class="nc" id="L96">								insertStmt = con.createStatement();</span>
+<span class="nc" id="L97">								String query = &quot;INSERT INTO st_dg_ret_pending_cancel (sale_ref_transaction_id, ticket_nbr, mrp_amt, ret_net_amt, agent_net_amt, game_id, cancel_attempt_time, transaction_date, retailer_org_id, reason) &quot; +</span>
+													&quot;SELECT transaction_id, dg_ticket, mrp_amt, net_amt, agent_net_amt, game_id, NOW(), transaction_date, retailer_org_id, 'DG_ERROR' FROM (&quot; +
+													&quot;SELECT dg_ticket FROM (&quot;+ticketQuery+&quot;)aa LEFT JOIN (SELECT ticket_nbr FROM st_dg_ret_sale_refund_&quot;+gameId+&quot; UNION SELECT ticket_nbr FROM st_dg_ret_pending_cancel) refund ON aa.dg_ticket=refund.ticket_nbr WHERE ticket_nbr IS NULL)aa &quot; +
+													&quot;INNER JOIN (SELECT rs.transaction_id, rs.ticket_nbr, rs.mrp_amt, rs.net_amt, rs.agent_net_amt, rs.game_id, transaction_date, rs.retailer_org_id FROM st_dg_ret_sale_&quot;+gameId+&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id &quot; +
+													&quot;WHERE transaction_date&gt;='&quot;+startDate+&quot;')bb ON aa.dg_ticket=bb.ticket_nbr;&quot;;
+<span class="nc" id="L102">								logger.info(&quot;Insert In st_dg_ret_pending_cancel for GameId(&quot;+gameId+&quot;) - &quot;+query);</span>
+<span class="nc" id="L103">								insertStmt.executeUpdate(query);</span>
+
+<span class="nc" id="L105">								ticketQueryBuilder = new StringBuilder();</span>
+							}
+						}
+
+<span class="nc" id="L109">						ticketQueryBuilder = new StringBuilder();</span>
+
+<span class="nc bnc" id="L111" title="All 2 branches missed.">						for(int i=limit; i&lt;size; i++) {</span>
+<span class="nc" id="L112">							CancelTicketDataBean tempBean = dateList.get(i);</span>
+<span class="nc" id="L113">							ticketQueryBuilder.append(&quot;SELECT &quot;).append(tempBean.getTicketNumber()).append(&quot; dg_ticket UNION &quot;);</span>
+						}
+<span class="nc" id="L115">						String ticketQuery = ticketQueryBuilder.substring(0, ticketQueryBuilder.lastIndexOf(&quot; UNION &quot;));</span>
+<span class="nc" id="L116">						insertStmt = con.createStatement();</span>
+<span class="nc" id="L117">						String query = &quot;INSERT INTO st_dg_ret_pending_cancel (sale_ref_transaction_id, ticket_nbr, mrp_amt, ret_net_amt, agent_net_amt, game_id, cancel_attempt_time, transaction_date, retailer_org_id, reason) &quot; +</span>
+											&quot;SELECT transaction_id, dg_ticket, mrp_amt, net_amt, agent_net_amt, game_id, NOW(), transaction_date, retailer_org_id, 'DG_ERROR' FROM (&quot; +
+											&quot;SELECT dg_ticket FROM (&quot;+ticketQuery+&quot;)aa LEFT JOIN (SELECT ticket_nbr FROM st_dg_ret_sale_refund_&quot;+gameId+&quot; UNION SELECT ticket_nbr FROM st_dg_ret_pending_cancel) refund ON aa.dg_ticket=refund.ticket_nbr WHERE ticket_nbr IS NULL)aa &quot; +
+											&quot;INNER JOIN (SELECT rs.transaction_id, rs.ticket_nbr, rs.mrp_amt, rs.net_amt, rs.agent_net_amt, rs.game_id, transaction_date, rs.retailer_org_id FROM st_dg_ret_sale_&quot;+gameId+&quot; rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id &quot; +
+											&quot;WHERE transaction_date&gt;='&quot;+startDate+&quot;')bb ON aa.dg_ticket=bb.ticket_nbr;&quot;;
+<span class="nc" id="L122">						logger.info(&quot;Insert In st_dg_ret_pending_cancel for GameId(&quot;+gameId+&quot;) - &quot;+query);</span>
+<span class="nc" id="L123">						insertStmt.executeUpdate(query);</span>
+					}
+<span class="nc" id="L125">				} else {</span>
+<span class="nc" id="L126">					throw new LMSException();</span>
+				}
+<span class="nc" id="L128">			}</span>
+<span class="nc" id="L129">			SchedulerCommonFuntionsHelper.updateSchedulerEnd(jobId, con);</span>
+
+<span class="nc" id="L131">			con.commit();</span>
+<span class="nc" id="L132">		} catch (SQLException e) {</span>
+<span class="nc" id="L133">			logger.info(&quot;SQL Exception &quot;,e);</span>
+<span class="nc" id="L134">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE,LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L135">		} catch (Exception e) {</span>
+<span class="nc" id="L136">			logger.info(&quot;Exception &quot;,e);</span>
+<span class="nc" id="L137">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L139">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L140">			DBConnect.closeStmt(stmt);</span>
+<span class="nc" id="L141">		}</span>
+<span class="nc" id="L142">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

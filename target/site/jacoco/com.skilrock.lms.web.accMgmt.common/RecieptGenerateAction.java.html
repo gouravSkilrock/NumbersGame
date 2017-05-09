@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RecieptGenerateAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.accMgmt.common</a> &gt; <span class="el_source">RecieptGenerateAction.java</span></div><h1>RecieptGenerateAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.accMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Map;
+import java.util.TreeMap;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts2.interceptor.ServletRequestAware;
+
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.GraphReportHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.LedgerHelper;
+
+<span class="nc" id="L22">public class RecieptGenerateAction extends ActionSupport implements</span>
+		ServletRequestAware {
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	private String orgName;
+	private String orgType;
+	private String ownerName;
+	private String parentOrgId;
+	private int receiptId;
+<span class="nc" id="L34">	HttpServletRequest request = null;</span>
+	private String serviceCode;
+
+	private int getOrgId(String ownerName) throws LMSException {
+<span class="nc" id="L38">		int orgId = -1;</span>
+<span class="nc" id="L39">		Connection conn = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L41">			PreparedStatement pstmt = conn</span>
+					.prepareStatement(&quot;select organization_id from st_lms_organization_master where name=?&quot;);
+<span class="nc" id="L43">			pstmt.setString(1, ownerName.trim());</span>
+<span class="nc" id="L44">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L46">				orgId = result.getInt(&quot;organization_id&quot;);</span>
+			}
+<span class="nc" id="L48">		} catch (SQLException e) {</span>
+<span class="nc" id="L49">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L51">			System.out.println(&quot; closing connection  &quot;);</span>
+			try {
+<span class="nc" id="L53">				conn.close();</span>
+<span class="nc" id="L54">			} catch (SQLException e) {</span>
+<span class="nc" id="L55">				e.printStackTrace();</span>
+<span class="nc" id="L56">				throw new LMSException(e);</span>
+<span class="nc" id="L57">			}</span>
+		}
+<span class="nc" id="L59">		return orgId;</span>
+	}
+
+	public String getOrgName() {
+<span class="nc" id="L63">		return orgName;</span>
+	}
+
+	public String getOrgType() {
+<span class="nc" id="L67">		return orgType;</span>
+	}
+
+	public String getOwnerName() {
+<span class="nc" id="L71">		return ownerName;</span>
+	}
+
+	public String getParentOrgId() {
+<span class="nc" id="L75">		return parentOrgId;</span>
+	}
+
+	private Map&lt;String, Object&gt; getPlayerValues(int rId, String serviceCode)
+			throws LMSException {
+<span class="nc" id="L80">		Map&lt;String, Object&gt; playerMap = new TreeMap&lt;String, Object&gt;();</span>
+<span class="nc" id="L81">		Connection conn = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L83">			String getReceiptType = &quot;select user_type from st_lms_receipts_master where receipt_id = &quot;</span>
+					+ rId;
+<span class="nc" id="L85">			PreparedStatement pstmtt = conn.prepareStatement(getReceiptType);</span>
+<span class="nc" id="L86">			ResultSet rs = pstmtt.executeQuery();</span>
+<span class="nc bnc" id="L87" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L88">				String getTaskId = &quot;&quot;;</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">				if (&quot;BO&quot;.equalsIgnoreCase(rs.getString(&quot;user_type&quot;))) {</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">					if (&quot;SE&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L91">						getTaskId = &quot;select cc.task_id, aa.receipt_id, aa.transaction_id, bb.party_id, cc.pwt_amt, cc.tax_amt  from st_lms_bo_receipts_trn_mapping aa, st_lms_bo_transaction_master bb, st_se_direct_player_pwt cc where aa.receipt_id = &quot;</span>
+								+ rId
+								+ &quot; and aa.transaction_id = bb.transaction_id and bb.transaction_id = cc.transaction_id&quot;;
+<span class="nc bnc" id="L94" title="All 2 branches missed.">					} else if (&quot;DG&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L95">						getTaskId = &quot;select cc.task_id, aa.receipt_id, aa.transaction_id, bb.party_id, cc.pwt_amt, cc.tax_amt  from st_lms_bo_receipts_trn_mapping aa, st_lms_bo_transaction_master bb, st_dg_bo_direct_plr_pwt cc where aa.receipt_id = &quot;</span>
+								+ rId
+								+ &quot; and aa.transaction_id = bb.transaction_id and bb.transaction_id = cc.transaction_id&quot;;
+					}
+<span class="nc bnc" id="L99" title="All 2 branches missed.">				} else if (&quot;AGENT&quot;.equalsIgnoreCase(rs.getString(&quot;user_type&quot;))) {</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">					if (&quot;SE&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L101">						getTaskId = &quot;select cc.task_id, aa.receipt_id, aa.transaction_id, bb.party_id, cc.pwt_amt, cc.tax_amt  from st_lms_agent_receipts_trn_mapping aa, st_lms_agent_transaction_master bb, st_se_agt_direct_player_pwt cc where aa.receipt_id = &quot;</span>
+								+ rId
+								+ &quot; and aa.transaction_id = bb.transaction_id and bb.transaction_id = cc.transaction_id&quot;;
+<span class="nc bnc" id="L104" title="All 2 branches missed.">					} else if (&quot;DG&quot;.equalsIgnoreCase(serviceCode)) {</span>
+<span class="nc" id="L105">						getTaskId = &quot;select cc.task_id, aa.receipt_id, aa.transaction_id, bb.party_id, cc.pwt_amt, cc.tax_amt  from st_lms_agent_receipts_trn_mapping aa, st_lms_agent_transaction_master bb, st_dg_agt_direct_plr_pwt cc where aa.receipt_id = &quot;</span>
+								+ rId
+								+ &quot; and aa.transaction_id = bb.transaction_id and bb.transaction_id = cc.transaction_id&quot;;
+					}
+				}
+<span class="nc" id="L110">				PreparedStatement pstmt = conn.prepareStatement(getTaskId);</span>
+<span class="nc" id="L111">				ResultSet result = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">				while (result.next()) {</span>
+<span class="nc" id="L113">					System.out.println(pstmt + &quot;\n-------TASK ID=&quot;</span>
+							+ result.getInt(&quot;task_id&quot;));
+<span class="nc" id="L115">					playerMap.put(&quot;playerId&quot;, &quot;&quot; + result.getInt(&quot;party_id&quot;));</span>
+<span class="nc" id="L116">					playerMap.put(&quot;pwt_amt&quot;, &quot;&quot; + result.getDouble(&quot;pwt_amt&quot;));</span>
+<span class="nc" id="L117">					playerMap.put(&quot;tax_amt&quot;, &quot;&quot; + result.getDouble(&quot;tax_amt&quot;));</span>
+<span class="nc" id="L118">					playerMap.put(&quot;task_id&quot;, result.getInt(&quot;task_id&quot;));</span>
+				}
+			}
+<span class="nc" id="L121">		} catch (SQLException e) {</span>
+<span class="nc" id="L122">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L124">			System.out.println(&quot; closing connection  &quot;);</span>
+			try {
+<span class="nc" id="L126">				conn.close();</span>
+<span class="nc" id="L127">			} catch (SQLException e) {</span>
+<span class="nc" id="L128">				e.printStackTrace();</span>
+<span class="nc" id="L129">				throw new LMSException(e);</span>
+<span class="nc" id="L130">			}</span>
+		}
+<span class="nc" id="L132">		return playerMap;</span>
+	}
+
+	public int getReceiptId() {
+<span class="nc" id="L136">		return receiptId;</span>
+	}
+
+	public String getServiceCode() {
+<span class="nc" id="L140">		return serviceCode;</span>
+	}
+
+	public String receiptGenerate() throws Exception {
+<span class="nc" id="L144">		HttpSession session = request.getSession();</span>
+<span class="nc" id="L145">		GraphReportHelper graphReportHelper = new GraphReportHelper();</span>
+<span class="nc" id="L146">		UserInfoBean userBean = null;</span>
+<span class="nc" id="L147">		String parentOrgName = null;</span>
+<span class="nc" id="L148">		int userOrgID = 0;</span>
+<span class="nc" id="L149">		LedgerHelper ledger = new LedgerHelper();</span>
+<span class="nc" id="L150">		userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L151">		parentOrgName = userBean.getOrgName();</span>
+<span class="nc" id="L152">		String agentOrgId = (String) session.getAttribute(&quot;agentOrgIdSearch&quot;);</span>
+
+<span class="nc bnc" id="L154" title="All 2 branches missed.">		if (agentOrgId != null) {</span>
+<span class="nc" id="L155">			userOrgID = Integer.parseInt(agentOrgId);</span>
+			// userOrgID=userBean.getUserOrgId();
+<span class="nc" id="L157">			System.out.println(&quot;getAgentOrgId not null userOrgID&quot; + userOrgID</span>
+					+ &quot;  agentOrgId &quot; + agentOrgId);
+<span class="nc bnc" id="L159" title="All 4 branches missed.">		} else if (&quot;RETAILER&quot;.equalsIgnoreCase(orgType.trim())</span>
+				&amp;&amp; &quot;BO&quot;.equalsIgnoreCase(userBean.getUserType())) {
+<span class="nc" id="L161">			userOrgID = getOrgId(ownerName);</span>
+<span class="nc" id="L162">			System.out.println(&quot;getAgentOrgId  null userOrgID&quot; + userOrgID</span>
+					+ &quot;uyuy &quot; + agentOrgId);
+<span class="nc bnc" id="L164" title="All 4 branches missed.">		} else if (&quot;RETAILER&quot;.equalsIgnoreCase(orgType.trim())</span>
+				&amp;&amp; &quot;AGENT&quot;.equalsIgnoreCase(userBean.getUserType())) {
+<span class="nc" id="L166">			userOrgID = getOrgId(ownerName);</span>
+<span class="nc" id="L167">			System.out.println(&quot;getAgentOrgId  null userOrgID&quot; + userOrgID</span>
+					+ &quot;uyuy &quot; + agentOrgId);
+		} else {
+<span class="nc" id="L170">			userOrgID = userBean.getUserOrgId();</span>
+<span class="nc" id="L171">			System.out.println(&quot;getAgentOrgId  null userOrgID&quot; + userOrgID</span>
+					+ &quot;uyuy &quot; + agentOrgId);
+		}
+<span class="nc" id="L174">		System.out.println(&quot;receipt no : &quot; + receiptId + &quot;,  Org type : &quot;</span>
+				+ orgType + &quot;, parentOrgName : &quot; + parentOrgName
+				+ &quot; userOrgID@@ &quot; + userOrgID + &quot; Orgname &quot; + getOrgName());
+
+		// generate pdf report
+<span class="nc bnc" id="L179" title="All 2 branches missed.">		if (&quot;PLAYER&quot;.equalsIgnoreCase(orgType.trim())) {</span>
+<span class="nc" id="L180">			Map&lt;String, Object&gt; playerMap = getPlayerValues(receiptId,</span>
+					serviceCode);
+<span class="nc bnc" id="L182" title="All 2 branches missed.">			if (serviceCode.equalsIgnoreCase(&quot;SE&quot;)) {</span>
+<span class="nc" id="L183">				graphReportHelper.createTextReportPlayer((Integer) playerMap</span>
+						.get(&quot;task_id&quot;), (String) session
+						.getAttribute(&quot;ROOT_PATH&quot;), &quot;SCRATCH_GAME&quot;);
+<span class="nc bnc" id="L186" title="All 2 branches missed.">			} else if (serviceCode.equalsIgnoreCase(&quot;DG&quot;)) {</span>
+<span class="nc" id="L187">				graphReportHelper.createTextReportPlayer((Integer) playerMap</span>
+						.get(&quot;task_id&quot;), (String) session
+						.getAttribute(&quot;ROOT_PATH&quot;), &quot;DRAW_GAME&quot;);
+			}
+<span class="nc" id="L191">		} </span>
+		// added check for OLA_DISTRIBUTOR organization type
+<span class="nc bnc" id="L193" title="All 8 branches missed.">		else if (&quot;AGENT&quot;.equalsIgnoreCase(orgType.trim())</span>
+				|| &quot;GOVT&quot;.equalsIgnoreCase(orgType.trim())
+				|| &quot;OLA_DISTRIBUTOR&quot;.equalsIgnoreCase(orgType.trim())
+				&amp;&amp; &quot;BO&quot;.equalsIgnoreCase(userBean.getUserType())) {
+<span class="nc" id="L197">			graphReportHelper.createTextReportBO(receiptId, parentOrgName,</span>
+					userOrgID, (String) session.getAttribute(&quot;ROOT_PATH&quot;));
+<span class="nc bnc" id="L199" title="All 6 branches missed.">		} else if (&quot;RETAILER&quot;.equalsIgnoreCase(orgType.trim())</span>
+				|| &quot;GOVT&quot;.equalsIgnoreCase(orgType.trim())
+				&amp;&amp; &quot;BO&quot;.equalsIgnoreCase(userBean.getUserType())) {
+<span class="nc" id="L202">			orgName = ledger.getOrganizationName(userOrgID);</span>
+<span class="nc" id="L203">			graphReportHelper.createTextReportAgent(receiptId, (String) session</span>
+					.getAttribute(&quot;ROOT_PATH&quot;), userOrgID, orgName);
+<span class="nc bnc" id="L205" title="All 6 branches missed.">		} else if (&quot;RETAILER&quot;.equalsIgnoreCase(orgType.trim())</span>
+				|| &quot;GOVT&quot;.equalsIgnoreCase(orgType.trim())
+				&amp;&amp; &quot;AGENT&quot;.equalsIgnoreCase(userBean.getUserType())) {
+<span class="nc" id="L208">			orgName = ledger.getOrganizationName(userOrgID);</span>
+<span class="nc" id="L209">			graphReportHelper.createTextReportAgent(receiptId, (String) session</span>
+					.getAttribute(&quot;ROOT_PATH&quot;), userOrgID, orgName);
+		}
+
+<span class="nc" id="L213">		return SUCCESS;</span>
+	}
+
+	public void setOrgName(String orgName) {
+<span class="nc" id="L217">		this.orgName = orgName;</span>
+<span class="nc" id="L218">	}</span>
+
+	public void setOrgType(String orgType) {
+<span class="nc" id="L221">		this.orgType = orgType;</span>
+<span class="nc" id="L222">	}</span>
+
+	public void setOwnerName(String ownerName) {
+<span class="nc" id="L225">		this.ownerName = ownerName;</span>
+<span class="nc" id="L226">	}</span>
+
+	public void setParentOrgId(String parentOrgId) {
+<span class="nc" id="L229">		this.parentOrgId = parentOrgId;</span>
+<span class="nc" id="L230">	}</span>
+
+	public void setReceiptId(int receiptId) {
+<span class="nc" id="L233">		this.receiptId = receiptId;</span>
+<span class="nc" id="L234">	}</span>
+
+	public void setServiceCode(String serviceCode) {
+<span class="nc" id="L237">		this.serviceCode = serviceCode;</span>
+<span class="nc" id="L238">	}</span>
+
+	public void setServletRequest(HttpServletRequest req) {
+<span class="nc" id="L241">		this.request = req;</span>
+
+<span class="nc" id="L243">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

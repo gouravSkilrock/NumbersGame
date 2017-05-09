@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AdminAuthHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.admin.common</a> &gt; <span class="el_source">AdminAuthHelper.java</span></div><h1>AdminAuthHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.admin.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedHashMap;
+
+import com.skilrock.lms.beans.LoginBean;
+import com.skilrock.lms.beans.PriviledgeBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.MD5Encoder;
+
+<span class="nc" id="L18">public class AdminAuthHelper {</span>
+
+	public LoginBean loginAuthentication(String username, String password,
+			String interface_type) {
+<span class="nc" id="L22">		Connection con = null;</span>
+<span class="nc" id="L23">		String dbPass = &quot;&quot;;</span>
+<span class="nc" id="L24">		int autoGenerate = 0;</span>
+<span class="nc" id="L25">		String status = &quot;&quot;;</span>
+<span class="nc" id="L26">		int uid = -1;</span>
+<span class="nc" id="L27">		LoginBean loginBean = new LoginBean();</span>
+		UserInfoBean userInfo;
+<span class="nc" id="L29">		ArrayList&lt;String&gt; userActionList = new ArrayList&lt;String&gt;();</span>
+		try {
+<span class="nc" id="L31">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L32">			con.setAutoCommit(false);</span>
+<span class="nc" id="L33">			String getUserDetailsQuery = &quot;select user_id, user_name, password,status,auto_password,if(login_attempt&lt;3,'ALLOW','BLOCK') login_attempt from st_admin_user_master where user_name =?&quot;;</span>
+
+<span class="nc" id="L35">			PreparedStatement pstmt = con.prepareStatement(getUserDetailsQuery);</span>
+<span class="nc" id="L36">			pstmt.setString(1, username.trim());</span>
+
+<span class="nc" id="L38">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">			if (rs.getFetchSize() &gt; 1) {</span>
+<span class="nc" id="L40">				loginBean.setStatus(&quot;ERROR&quot;);</span>
+<span class="nc" id="L41">				return loginBean;</span>
+			}
+
+<span class="nc bnc" id="L44" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L45">				dbPass = rs.getString(&quot;password&quot;);</span>
+<span class="nc" id="L46">				status = rs.getString(&quot;status&quot;);</span>
+<span class="nc" id="L47">				username = rs.getString(&quot;user_name&quot;);</span>
+<span class="nc" id="L48">				uid = rs.getInt(&quot;user_id&quot;);</span>
+<span class="nc" id="L49">				autoGenerate = rs.getInt(&quot;auto_password&quot;);</span>
+
+<span class="nc" id="L51">				userInfo = new UserInfoBean();</span>
+<span class="nc" id="L52">				userInfo.setUserId(uid);</span>
+<span class="nc" id="L53">				userInfo.setUserName(username);</span>
+<span class="nc" id="L54">				userInfo.setStatus(status);</span>
+<span class="nc" id="L55">				userInfo.setUserType(&quot;ADMIN&quot;);</span>
+			} else {
+<span class="nc" id="L57">				loginBean.setStatus(&quot;USER_NAME_NOT_MATCH&quot;);</span>
+<span class="nc" id="L58">				return loginBean;</span>
+			}
+
+			// Login Password SkilRock@123
+<span class="nc bnc" id="L62" title="All 2 branches missed.">			if (&quot;BLOCK&quot;.equals(rs.getString(&quot;login_attempt&quot;))) {</span>
+<span class="nc" id="L63">				String updatePass = &quot;update st_admin_user_master set auto_password='1', password='Y8+x74/0W7gFNGWXunNeEA==' where user_id='&quot;</span>
+						+ uid + &quot;'&quot;;
+<span class="nc" id="L65">				pstmt = con.prepareStatement(updatePass);</span>
+<span class="nc" id="L66">				pstmt.executeUpdate();</span>
+			}
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">			if (MD5Encoder.encode(password).equals(dbPass)) {</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">				if (status.equals(&quot;INACTIVE&quot;) || status.equals(&quot;TERMINATE&quot;)) {</span>
+<span class="nc" id="L71">					loginBean.setStatus(&quot;ERRORINACTIVE&quot;);</span>
+<span class="nc" id="L72">					return loginBean;</span>
+				}
+<span class="nc" id="L74">				String countLoginAttempt = &quot;update st_admin_user_master set  login_attempt=0 where user_name='&quot;</span>
+						+ username + &quot;'&quot;;
+<span class="nc" id="L76">				pstmt = con.prepareStatement(countLoginAttempt);</span>
+<span class="nc" id="L77">				pstmt.executeUpdate();</span>
+
+<span class="nc" id="L79">				rs.close();</span>
+<span class="nc" id="L80">				pstmt.close();</span>
+
+<span class="nc" id="L82">				LinkedHashMap&lt;String, ArrayList&lt;PriviledgeBean&gt;&gt; actionServiceMap = new LinkedHashMap&lt;String, ArrayList&lt;PriviledgeBean&gt;&gt;();</span>
+<span class="nc" id="L83">				PriviledgeBean privBean = null;</span>
+<span class="nc" id="L84">				String getAction = null;</span>
+<span class="nc" id="L85">				String getMenuTitle = null;</span>
+
+<span class="nc" id="L87">				ArrayList&lt;PriviledgeBean&gt; privList = new ArrayList&lt;PriviledgeBean&gt;();</span>
+<span class="nc" id="L88">				getAction = &quot;select distinct(action_mapping) from st_admin_priviledge_rep pr where status='ACTIVE'&quot;;</span>
+<span class="nc" id="L89">				getMenuTitle = &quot;select menu_disp_name,item_order,related_to,action_mapping from st_admin_menu_master smm,st_admin_priviledge_rep pr where  pr.status='ACTIVE' and smm.action_id=pr.action_id order by related_to,item_order,menu_disp_name&quot;;</span>
+<span class="nc" id="L90">				PreparedStatement pstmtPriv = con.prepareStatement(getAction);</span>
+<span class="nc" id="L91">				ResultSet rsPriv = pstmtPriv.executeQuery();</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">				while (rsPriv.next()) {</span>
+<span class="nc" id="L93">					userActionList.add(rsPriv.getString(&quot;action_mapping&quot;));</span>
+				}
+
+<span class="nc" id="L96">				pstmtPriv = con.prepareStatement(getMenuTitle);</span>
+<span class="nc" id="L97">				rsPriv = pstmtPriv.executeQuery();</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">				while (rsPriv.next()) {</span>
+<span class="nc" id="L99">					privBean = new PriviledgeBean();</span>
+<span class="nc" id="L100">					privBean.setPrivTitle(rsPriv.getString(&quot;menu_disp_name&quot;));</span>
+<span class="nc" id="L101">					privBean.setActionMapping(rsPriv</span>
+							.getString(&quot;action_mapping&quot;));
+<span class="nc" id="L103">					privBean.setRelatedTo(rsPriv.getString(&quot;related_to&quot;));</span>
+<span class="nc" id="L104">					privList.add(privBean);</span>
+				}
+<span class="nc bnc" id="L106" title="All 2 branches missed.">				if (privList.size() &gt; 0) {</span>
+<span class="nc" id="L107">					actionServiceMap.put(&quot;ADMIN-ADMIN&quot;, privList);</span>
+				}
+
+				// Add Inactive privilege Of All other type users
+
+<span class="nc" id="L112">				String getService = &quot;select distinct service_display_name,service_code,priv_rep_table,menu_master_table from st_lms_service_master sm,st_lms_service_delivery_master sdm where sm.status='ACTIVE' and sdm.status='ACTIVE' and sdm.service_id=sm.service_id&quot;;</span>
+				// String getPrivId = &quot;select distinct(upm.priv_id) from
+				// st_lms_role_priv_mapping rpm,st_lms_user_priv_mapping upm
+				// where upm.user_id=? and upm.role_id=? and rpm.status='ACTIVE'
+				// and upm.status='ACTIVE'and upm.role_id=rpm.role_id and
+				// upm.service_mapping_id=?&quot;;
+
+<span class="nc" id="L119">				pstmt = con.prepareStatement(getService);</span>
+<span class="nc" id="L120">				System.out.println(pstmt);</span>
+<span class="nc" id="L121">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L123">					ArrayList&lt;PriviledgeBean&gt; privListSec = new ArrayList&lt;PriviledgeBean&gt;();</span>
+<span class="nc" id="L124">					getAction = &quot;select distinct(action_mapping) from &quot;</span>
+							+ rs.getString(&quot;priv_rep_table&quot;)
+							+ &quot; pr where pr.status='INACTIVE' and pr.priv_owner='BO'&quot;;
+<span class="nc" id="L127">					getMenuTitle = &quot;select menu_disp_name,item_order,related_to,action_mapping from &quot;</span>
+							+ rs.getString(&quot;menu_master_table&quot;)
+							+ &quot; smm,&quot;
+							+ rs.getString(&quot;priv_rep_table&quot;)
+							+ &quot; pr where pr.status='INACTIVE' and pr.priv_owner='BO' and smm.action_id=pr.action_id order by related_to,item_order,menu_disp_name&quot;;
+<span class="nc" id="L132">					pstmtPriv = con.prepareStatement(getAction);</span>
+<span class="nc" id="L133">					System.out.println(pstmtPriv);</span>
+<span class="nc" id="L134">					rsPriv = pstmtPriv.executeQuery();</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">					while (rsPriv.next()) {</span>
+<span class="nc" id="L136">						userActionList.add(rsPriv.getString(&quot;action_mapping&quot;));</span>
+					}
+<span class="nc" id="L138">					pstmtPriv = con.prepareStatement(getMenuTitle);</span>
+<span class="nc" id="L139">					System.out.println(pstmtPriv);</span>
+<span class="nc" id="L140">					rsPriv = pstmtPriv.executeQuery();</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">					while (rsPriv.next()) {</span>
+<span class="nc" id="L142">						privBean = new PriviledgeBean();</span>
+<span class="nc" id="L143">						privBean.setPrivTitle(rsPriv</span>
+								.getString(&quot;menu_disp_name&quot;));
+<span class="nc" id="L145">						privBean.setActionMapping(rsPriv</span>
+								.getString(&quot;action_mapping&quot;));
+<span class="nc" id="L147">						privBean.setRelatedTo(rsPriv.getString(&quot;related_to&quot;));</span>
+<span class="nc" id="L148">						privListSec.add(privBean);</span>
+					}
+<span class="nc bnc" id="L150" title="All 2 branches missed.">					if (privListSec.size() &gt; 0) {</span>
+<span class="nc" id="L151">						actionServiceMap.put(rs</span>
+								.getString(&quot;service_display_name&quot;)
+								+ &quot;-&quot; + rs.getString(&quot;service_code&quot;),
+								privListSec);
+					}
+<span class="nc" id="L156">				}</span>
+
+<span class="nc" id="L158">				loginBean.setActionServiceMap(actionServiceMap);</span>
+<span class="nc" id="L159">				loginBean.setUserInfo(userInfo);</span>
+<span class="nc" id="L160">				loginBean.setUserActionList(userActionList);</span>
+
+<span class="nc" id="L162">				String insertLoginDate = &quot;update st_admin_user_master set  last_login_date=? where user_name='&quot;</span>
+						+ username + &quot;'&quot;;
+<span class="nc" id="L164">				pstmt = con.prepareStatement(insertLoginDate);</span>
+<span class="nc" id="L165">				pstmt.setTimestamp(1, new java.sql.Timestamp(new Date()</span>
+						.getTime()));
+<span class="nc" id="L167">				pstmt.executeUpdate();</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">				if (autoGenerate == 1) {</span>
+<span class="nc" id="L170">					loginBean.setStatus(&quot;FirstTime&quot;);</span>
+<span class="nc" id="L171">					return loginBean;</span>
+				}
+<span class="nc" id="L173">				loginBean.setStatus(&quot;success&quot;);</span>
+<span class="nc" id="L174">			} else {</span>
+<span class="nc" id="L175">				loginBean.setStatus(&quot;PASS_NOT_MATCH&quot;);</span>
+<span class="nc" id="L176">				String countLoginAttempt = &quot;update st_admin_user_master set login_attempt=login_attempt+1 where user_name='&quot;</span>
+						+ username + &quot;'&quot;;
+<span class="nc" id="L178">				pstmt = con.prepareStatement(countLoginAttempt);</span>
+<span class="nc" id="L179">				pstmt.executeUpdate();</span>
+			}
+<span class="nc" id="L181">			con.commit();</span>
+<span class="nc" id="L182">		} catch (Exception e) {</span>
+<span class="nc" id="L183">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L185">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L186">		}</span>
+
+<span class="nc" id="L188">		return loginBean;</span>
+	}
+
+	public boolean verifyPasswordChars(String newPassword) {
+<span class="nc" id="L192">		boolean isUpperThr = false;</span>
+<span class="nc" id="L193">		boolean isLowerThr = false;</span>
+<span class="nc" id="L194">		boolean isDigitThr = false;</span>
+<span class="nc" id="L195">		char[] passArr = newPassword.toCharArray();</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">		for(int i=0;i&lt;passArr.length;i++){</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">			if(Character.isUpperCase(passArr[i])){</span>
+<span class="nc" id="L198">				isUpperThr = true;</span>
+			}
+<span class="nc bnc" id="L200" title="All 2 branches missed.">			if(Character.isLowerCase(passArr[i])){</span>
+<span class="nc" id="L201">				isLowerThr = true;</span>
+			}
+<span class="nc bnc" id="L203" title="All 2 branches missed.">			if(Character.isDigit(passArr[i])){</span>
+<span class="nc" id="L204">				isDigitThr = true;</span>
+			}
+		}
+<span class="nc bnc" id="L207" title="All 4 branches missed.">		return (isUpperThr &amp;&amp; isLowerThr &amp; isDigitThr);</span>
+	}
+
+	public String changePassword(String username, String pass, String newpass,
+			String verifypass) throws LMSException {
+
+<span class="nc" id="L213">		Connection con = null;</span>
+<span class="nc" id="L214">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L215">		ResultSet rs = null;</span>
+<span class="nc" id="L216">		System.out.println(&quot;Inside change password helper.............&quot;);</span>
+		try {
+
+<span class="nc" id="L219">			con = DBConnect.getConnection();</span>
+
+<span class="nc" id="L221">			String pws = MD5Encoder.encode(pass);</span>
+<span class="nc" id="L222">			String newPws = MD5Encoder.encode(newpass);</span>
+<span class="nc" id="L223">			String dbPass = &quot;&quot;;</span>
+
+			// read the current password of user from database
+<span class="nc" id="L226">			pstmt = con</span>
+					.prepareStatement(&quot;select password, user_id from st_admin_user_master where user_name =?&quot;);
+<span class="nc" id="L228">			pstmt.setString(1, username);</span>
+<span class="nc" id="L229">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L230">			int uid = -1;</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L232">				dbPass = rs.getString(&quot;password&quot;);</span>
+<span class="nc" id="L233">				uid = rs.getInt(&quot;user_id&quot;);</span>
+			}
+
+<span class="nc" id="L236">			rs.close();</span>
+<span class="nc" id="L237">			pstmt.close();</span>
+
+<span class="nc bnc" id="L239" title="All 4 branches missed.">			if (newpass.equals(verifypass) &amp;&amp; dbPass.equals(pws)) {</span>
+				// retrieve the last 3 password from history tables
+				// pstmt = con.prepareStatement(&quot;&quot;); //check in history
+				// pstmt.setInt(1, uid);
+				// System.out.println(&quot;querty11:: &quot; + pstmt);
+				// rs = pstmt.executeQuery();
+				// while (rs.next()) {
+				// if (newPws.equals(rs.getString(&quot;password&quot;))) {
+				// return &quot;INPUT&quot;;
+				// }
+				// }
+				// rs.close();
+				// pstmt.close();
+
+<span class="nc" id="L253">				con.setAutoCommit(false);</span>
+				// insert new password into history table
+				// pstmt = con.prepareStatement(&quot;INSERT into
+				// st_lms_password_history(user_id, password, date_changed,
+				// type) VALUES (?, ?, ?, ?)&quot;);
+				// pstmt.setInt(1, uid);
+				// pstmt.setString(2, newPws);
+				// pstmt.setTimestamp(3, new java.sql.Timestamp(
+				// new java.util.Date().getTime()));
+				// pstmt.setString(4, &quot;0&quot;);
+				// pstmt.executeUpdate();
+				// pstmt.close();
+				// update password as new password into user_master table
+<span class="nc" id="L266">				pstmt = con</span>
+						.prepareStatement(&quot;update st_admin_user_master set  password = ? ,auto_password = 0 where user_id = ?&quot;);
+<span class="nc" id="L268">				pstmt.setString(1, newPws);</span>
+<span class="nc" id="L269">				pstmt.setInt(2, uid);</span>
+<span class="nc" id="L270">				pstmt.executeUpdate();</span>
+<span class="nc" id="L271">				con.commit();</span>
+<span class="nc" id="L272">				return &quot;SUCCESS&quot;;</span>
+			}
+<span class="nc bnc" id="L274" title="All 2 branches missed.">			if (!dbPass.equals(pws)) {</span>
+<span class="nc" id="L275">				return &quot;INCORRECT&quot;;</span>
+			}
+<span class="nc" id="L277">			return &quot;ERROR&quot;;</span>
+
+		}
+
+<span class="nc" id="L281">		catch (SQLException se) {</span>
+<span class="nc" id="L282">			System.err.println(&quot;Exception: &quot; + se);</span>
+<span class="nc" id="L283">			se.printStackTrace();</span>
+<span class="nc" id="L284">			throw new LMSException(se);</span>
+		} finally {
+<span class="nc" id="L286">			try {</span>
+<span class="nc bnc" id="L287" title="All 8 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L288">					con.close();</span>
+				}
+<span class="nc" id="L290">			} catch (SQLException e) {</span>
+<span class="nc" id="L291">				System.err.println(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L292">				e.printStackTrace();</span>
+<span class="nc" id="L293">			}</span>
+		}
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

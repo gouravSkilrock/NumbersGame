@@ -1,0 +1,697 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaCommissionHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.ola</a> &gt; <span class="el_source">OlaCommissionHelper.java</span></div><h1>OlaCommissionHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.ola;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+
+import com.ManualRequest;
+import com.skilrock.lms.beans.OlaCommissionBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.GenerateRecieptNo;
+import com.skilrock.lms.common.utility.OrgCreditUpdation;
+import com.skilrock.lms.coreEngine.ola.common.CommonFunctionsHelper;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L28">public class OlaCommissionHelper  {</span>
+
+	public void execute() {
+
+<span class="nc" id="L32">		int walletId = 2;</span>
+<span class="nc" id="L33">		Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L34">		java.sql.Date date = new java.sql.Date(calStart.getTime().getTime());</span>
+		//updateRetailerCommissionDetail(date, date, walletId,&quot;AUTO&quot;);
+<span class="nc" id="L36">	}</span>
+
+	public void updateRetailerCommissionDetail(Date startDate,
+			Date endDate ,String updateMode , String updateType) {
+		
+<span class="nc" id="L41">		Connection con = DBConnect.getConnection();</span>
+		
+		
+		try {
+<span class="nc" id="L45">			con.setAutoCommit(false);</span>
+<span class="nc" id="L46">			String walletQry = &quot;select wallet_id, wallet_name from st_ola_wallet_master&quot;;</span>
+<span class="nc" id="L47">			PreparedStatement walletPstmt = con.prepareStatement(walletQry);</span>
+<span class="nc" id="L48">			ResultSet rsWallet = walletPstmt.executeQuery();</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">			while (rsWallet.next()) {</span>
+<span class="nc" id="L50">				int walletId = rsWallet.getInt(&quot;wallet_id&quot;);</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">			if (updateType.equalsIgnoreCase(&quot;WEEKLY&quot;)) {</span>
+				
+<span class="nc" id="L53">				OlaCommissionBean olaCommissionBean = null;</span>
+<span class="nc" id="L54">				Map&lt;Integer, OlaCommissionBean&gt; commDetailMapForAgent = getCommWeeklyWiseForAgent(</span>
+						con, walletId, startDate, endDate);
+<span class="nc" id="L56">				Set&lt;Integer&gt; agentOrgSet = commDetailMapForAgent.keySet();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">				for (int agentOrgId : agentOrgSet) {</span>
+<span class="nc" id="L58">					olaCommissionBean = commDetailMapForAgent.get(agentOrgId);</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">					if(olaCommissionBean.getTotalPlayerNetGaming()&gt;0)</span>
+					{
+<span class="nc" id="L61">					updateAgentBackOfficeDetails(con, agentOrgId, walletId,</span>
+							olaCommissionBean.getTotalPlayerNetGaming(),
+							olaCommissionBean.getTotalCommissionCalculated(),
+							startDate, endDate,
+							olaCommissionBean.getBoUserId(), olaCommissionBean
+									.getBoUserOrgId(), updateMode,updateType,olaCommissionBean.getId());
+					}
+					else
+					{
+<span class="nc" id="L70">						PreparedStatement statement = con.prepareStatement(&quot;update st_ola_agent_weekly_commission_exp set status='NOT_PROCESSED' where id=&quot;+olaCommissionBean.getId()+&quot;&quot;);</span>
+<span class="nc" id="L71">						statement.executeUpdate();</span>
+					}
+					
+<span class="nc" id="L74">				}</span>
+<span class="nc" id="L75">				Map&lt;Integer, OlaCommissionBean&gt; commDetailMap = getCommWeeklyWiseForRetailer(</span>
+						con, walletId, startDate, endDate);
+<span class="nc" id="L77">				Set&lt;Integer&gt; retOrgSet = commDetailMap.keySet();</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">				for (int retOrgId : retOrgSet) {</span>
+<span class="nc" id="L79">					olaCommissionBean = commDetailMap.get(retOrgId);</span>
+//					if(olaCommissionBean.getPlayerNetGaming()&gt;0)
+<span class="nc bnc" id="L81" title="All 2 branches missed.">					if (olaCommissionBean.getTotalPlayerNetGaming()&gt;0) // by neeraj </span>
+					{
+<span class="nc" id="L83">					updateRetailerAgentDetails(con, retOrgId, walletId,</span>
+							olaCommissionBean.getTotalPlayerNetGaming(),
+							olaCommissionBean.getTotalCommissionCalculated(),
+							startDate, endDate, updateMode,updateType,olaCommissionBean.getId());
+					}
+					else
+					{
+<span class="nc" id="L90">						PreparedStatement statement1 = con.prepareStatement(&quot;update st_ola_retailer_weekly_commission_exp set status='NOT_PROCESSED' where id=&quot;+olaCommissionBean.getId()+&quot;&quot;);</span>
+<span class="nc" id="L91">						statement1.executeUpdate();</span>
+					}
+<span class="nc" id="L93">				}</span>
+<span class="nc" id="L94">				System.out.println(&quot;NetGaming Data Weekly Wise Updated Successfully&quot;);</span>
+<span class="nc" id="L95">				con.commit();</span>
+
+<span class="nc bnc" id="L97" title="All 2 branches missed.">			} else if (updateType.equalsIgnoreCase(&quot;MONTHLY&quot;)) {</span>
+<span class="nc" id="L98">				con.setAutoCommit(false);</span>
+<span class="nc" id="L99">				OlaCommissionBean olaCommissionBean = null;</span>
+<span class="nc" id="L100">				Map&lt;Integer, OlaCommissionBean&gt; commDetailMapForAgent = getCommMonthlyWiseForAgent(</span>
+						con, walletId, startDate, endDate);
+<span class="nc" id="L102">				Set&lt;Integer&gt; agentOrgSet = commDetailMapForAgent.keySet();</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">				for (int agentOrgId : agentOrgSet) {</span>
+<span class="nc" id="L104">					olaCommissionBean = commDetailMapForAgent.get(agentOrgId);</span>
+//					if(olaCommissionBean.getPlayerNetGaming()&gt;0)
+<span class="nc bnc" id="L106" title="All 2 branches missed.">					if (olaCommissionBean.getTotalPlayerNetGaming()&gt;0) // by neeraj </span>
+					{
+<span class="nc" id="L108">					updateAgentBackOfficeDetails(con, agentOrgId, walletId,</span>
+							olaCommissionBean.getTotalPlayerNetGaming(),
+							olaCommissionBean.getTotalCommissionCalculated(),
+							startDate, endDate,
+							olaCommissionBean.getBoUserId(), olaCommissionBean
+									.getBoUserOrgId(), updateMode ,updateType,olaCommissionBean.getId());
+					}
+					else
+					{
+<span class="nc" id="L117">						PreparedStatement statement3 = con.prepareStatement(&quot;update st_ola_agent_monthly_commission_exp set status='NOT_PROCESSED' where id=&quot;+olaCommissionBean.getId()+&quot;&quot;);</span>
+<span class="nc" id="L118">						statement3.executeUpdate();</span>
+					}
+<span class="nc" id="L120">				}</span>
+<span class="nc" id="L121">				Map&lt;Integer, OlaCommissionBean&gt; commDetailMap = getCommMonthlyWiseForRetailer(</span>
+						con, walletId, startDate, endDate);
+<span class="nc" id="L123">				Set&lt;Integer&gt; retOrgSet = commDetailMap.keySet();</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">				for (int retOrgId : retOrgSet) {</span>
+<span class="nc" id="L125">					olaCommissionBean = commDetailMap.get(retOrgId);</span>
+							//			if(olaCommissionBean.getPlayerNetGaming()&gt;0)
+<span class="nc bnc" id="L127" title="All 2 branches missed.">					if (olaCommissionBean.getTotalPlayerNetGaming()&gt;0) // by neeraj </span>
+					{
+					
+<span class="nc" id="L130">					updateRetailerAgentDetails(con, retOrgId, walletId,</span>
+							olaCommissionBean.getTotalPlayerNetGaming(),
+							olaCommissionBean.getTotalCommissionCalculated(),
+							startDate, endDate, updateMode,updateType,olaCommissionBean.getId());
+					}
+					else
+					{
+<span class="nc" id="L137">						PreparedStatement statement4 = con.prepareStatement(&quot;update st_ola_retailer_monthly_commission_exp set status='NOT_PROCESSED' where id=&quot;+olaCommissionBean.getId()+&quot;&quot;);</span>
+<span class="nc" id="L138">						statement4.executeUpdate();</span>
+					}
+<span class="nc" id="L140">				}</span>
+<span class="nc" id="L141">				System.out.println(&quot;NetGaming Data Monthly Wise Updated Successfully&quot;);</span>
+				
+
+			}
+<span class="nc" id="L145">		}</span>
+<span class="nc" id="L146">			con.commit();</span>
+<span class="nc" id="L147">		} catch (Exception e) {</span>
+<span class="nc" id="L148">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L150">			try {</span>
+<span class="nc" id="L151">				con.close();</span>
+<span class="nc" id="L152">			} catch (SQLException e) {</span>
+<span class="nc" id="L153">				e.printStackTrace();</span>
+<span class="nc" id="L154">			}</span>
+<span class="nc" id="L155">		}</span>
+<span class="nc" id="L156">	}</span>
+
+
+	public static void updateRetailerAgentDetails(Connection con, int retOrgId,
+			int walletId, double plrNetGaming, double commissionCalculated,
+			Date startDate, Date endDate, String updateMode,String updateType,int generatedId) throws LMSException
+	{
+<span class="nc" id="L163">		int isUpdate = 0;</span>
+		int id;
+		double agentCommission;
+		try {
+<span class="nc" id="L167">			UserInfoBean userBean = CommonFunctionsHelper.getAgentDetails(retOrgId, con);</span>
+<span class="nc" id="L168">			double agtCommRate = CommonFunctionsHelper.fetchOLACommOfOrganization(</span>
+					walletId, userBean.getUserOrgId(), &quot;NETGAMING&quot;, &quot;AGENT&quot;,
+					con);
+<span class="nc" id="L171">			agentCommission = (plrNetGaming * agtCommRate * .01);</span>
+<span class="nc" id="L172">			String insertInLMS = &quot;insert into st_lms_transaction_master(user_type,service_code,interface) values('AGENT','OLA','WEB')&quot;;</span>
+<span class="nc" id="L173">			PreparedStatement pstmt1 = con.prepareStatement(insertInLMS);</span>
+<span class="nc" id="L174">			long transactionId = 0;</span>
+<span class="nc" id="L175">			pstmt1.executeUpdate();</span>
+<span class="nc" id="L176">			ResultSet rs1 = pstmt1.getGeneratedKeys();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			if (rs1.next()) {</span>
+<span class="nc" id="L178">				transactionId = rs1.getLong(1);</span>
+<span class="nc" id="L179">				pstmt1 = con</span>
+						.prepareStatement(&quot;INSERT INTO st_lms_agent_transaction_master (transaction_id,user_id,user_org_id,party_type,party_id,transaction_type,transaction_date) VALUES (?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L181">				pstmt1.setLong(1, transactionId);</span>
+<span class="nc" id="L182">				pstmt1.setInt(2, userBean.getUserId());</span>
+<span class="nc" id="L183">				pstmt1.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L184">				pstmt1.setString(4, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L185">				pstmt1.setInt(5, retOrgId);</span>
+<span class="nc" id="L186">				pstmt1.setString(6, &quot;OLA_COMMISSION&quot;);</span>
+<span class="nc" id="L187">				pstmt1.setTimestamp(7, new java.sql.Timestamp(new Date()</span>
+						.getTime()));
+
+<span class="nc" id="L190">				pstmt1.executeUpdate();</span>
+			}
+
+<span class="nc" id="L193">			pstmt1 = con</span>
+					.prepareStatement(&quot;insert into st_ola_agt_ret_commission(agt_org_id,ret_org_id,wallet_id,plr_net_gaming,commission_calculated,agent_commission,agt_comm_rate,transaction_id,start_date,end_date,claim_status,update_mode) values (?,?,?,?,?,?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L195">			pstmt1.setInt(1, userBean.getUserOrgId());</span>
+<span class="nc" id="L196">			pstmt1.setInt(2, retOrgId);</span>
+<span class="nc" id="L197">			pstmt1.setInt(3, walletId);</span>
+<span class="nc" id="L198">			pstmt1.setDouble(4, plrNetGaming);</span>
+<span class="nc" id="L199">			pstmt1.setDouble(5, commissionCalculated);</span>
+<span class="nc" id="L200">			pstmt1.setDouble(6, agentCommission);</span>
+<span class="nc" id="L201">			pstmt1.setDouble(7, agtCommRate);</span>
+<span class="nc" id="L202">			pstmt1.setLong(8, transactionId);</span>
+<span class="nc" id="L203">			pstmt1.setDate(9, new java.sql.Date(startDate.getTime()));</span>
+<span class="nc" id="L204">			pstmt1.setDate(10, new java.sql.Date(endDate.getTime()));</span>
+<span class="nc" id="L205">			pstmt1.setString(11, &quot;DONE_CLAIM&quot;);</span>
+<span class="nc" id="L206">			pstmt1.setString(12, updateMode);</span>
+<span class="nc" id="L207">			isUpdate = pstmt1.executeUpdate();</span>
+<span class="nc" id="L208">			System.out.println(&quot;isUpdate&quot; + isUpdate);</span>
+<span class="nc bnc" id="L209" title="All 4 branches missed.">			if (isUpdate == 1 &amp;&amp; updateType.equalsIgnoreCase(&quot;WEEKLY&quot;)) {</span>
+<span class="nc" id="L210">				pstmt1 = con.prepareStatement(&quot;update st_ola_retailer_weekly_commission_exp set status='DONE',refTransactionId = &quot;+ transactionId+ &quot;, updated_date='&quot;+ new java.sql.Timestamp(new Date().getTime())+&quot;' , updated_mode='AUTO' where id=&quot;+generatedId+&quot;&quot;);</span>
+<span class="nc" id="L211">				pstmt1.executeUpdate();</span>
+			}
+<span class="nc bnc" id="L213" title="All 4 branches missed.">			else if(isUpdate == 1 &amp;&amp; updateType.equalsIgnoreCase(&quot;MONTHLY&quot;))</span>
+			{
+<span class="nc" id="L215">				pstmt1 = con.prepareStatement(&quot;update st_ola_retailer_monthly_commission_exp set status='DONE',refTransactionId = &quot;+ transactionId+ &quot;, updated_date='&quot;+ new java.sql.Timestamp(new Date().getTime())+&quot;' , updated_mode='AUTO' where id=&quot;+generatedId+&quot;&quot;);</span>
+<span class="nc" id="L216">				pstmt1.executeUpdate();</span>
+			}
+			
+			// update retailers available balance
+<span class="nc" id="L220">			OrgCreditUpdation.updateCreditLimitForRetailer(retOrgId,</span>
+					&quot;OLA_COMMISSION&quot;, commissionCalculated, con);
+		
+			// insert into receipt master
+<span class="nc" id="L224">			PreparedStatement preState5 = con.prepareStatement(QueryManager</span>
+					.getAGENTLatestReceiptNb());
+<span class="nc" id="L226">			preState5.setString(1, &quot;RECEIPT&quot;);</span>
+<span class="nc" id="L227">			preState5.setInt(2, userBean.getUserOrgId());</span>
+<span class="nc" id="L228">			ResultSet recieptRs = preState5.executeQuery();</span>
+<span class="nc" id="L229">			String lastRecieptNoGenerated = null;</span>
+
+<span class="nc bnc" id="L231" title="All 2 branches missed.">			while (recieptRs.next()) {</span>
+<span class="nc" id="L232">				lastRecieptNoGenerated = recieptRs.getString(&quot;generated_id&quot;);</span>
+			}
+
+<span class="nc" id="L235">			String autoGeneRecieptNo = GenerateRecieptNo.getRecieptNoAgt(</span>
+					&quot;RECEIPT&quot;, lastRecieptNoGenerated, &quot;AGENT&quot;, userBean
+							.getUserOrgId());
+
+			// insert into receipt master table
+<span class="nc" id="L240">			PreparedStatement preState4 = con.prepareStatement(QueryManager</span>
+					.insertInReceiptMaster());
+<span class="nc" id="L242">			preState4.setString(1, &quot;AGENT&quot;);</span>
+<span class="nc" id="L243">			preState4.executeUpdate();</span>
+
+<span class="nc" id="L245">			ResultSet rs12 = preState4.getGeneratedKeys();</span>
+<span class="nc" id="L246">			rs12.next();</span>
+<span class="nc" id="L247">			id = rs12.getInt(1);</span>
+
+			// insert into agent reciept table
+<span class="nc" id="L250">			preState4 = con.prepareStatement(QueryManager</span>
+					.insertInAgentReceipts());
+
+<span class="nc" id="L253">			preState4.setInt(1, id);</span>
+<span class="nc" id="L254">			preState4.setString(2, &quot;RECEIPT&quot;);</span>
+<span class="nc" id="L255">			preState4.setInt(3, userBean.getUserOrgId());</span>
+<span class="nc" id="L256">			preState4.setInt(4, retOrgId);</span>
+<span class="nc" id="L257">			preState4.setString(5, &quot;RETAILER&quot;);</span>
+<span class="nc" id="L258">			preState4.setString(6, autoGeneRecieptNo);</span>
+<span class="nc" id="L259">			preState4.setTimestamp(7, Util.getCurrentTimeStamp());</span>
+
+<span class="nc" id="L261">			preState4.executeUpdate();</span>
+<span class="nc" id="L262">			PreparedStatement preState3 = con.prepareStatement(QueryManager</span>
+					.insertAgentReceiptTrnMapping());
+<span class="nc" id="L264">			preState3.setInt(1, id);</span>
+<span class="nc" id="L265">			preState3.setLong(2, transactionId);</span>
+<span class="nc" id="L266">			preState3.executeUpdate();</span>
+<span class="nc" id="L267">		} catch (Exception e) {</span>
+<span class="nc" id="L268">			e.printStackTrace();</span>
+<span class="nc" id="L269">			throw new LMSException();</span>
+<span class="nc" id="L270">		}</span>
+<span class="nc" id="L271">	}</span>
+
+	public static Map&lt;Integer, OlaCommissionBean&gt; getCommWeeklyWiseForRetailer(
+			Connection con, int walletId, Date startDate, Date endDate)
+			throws SQLException {
+<span class="nc" id="L276">		Map&lt;Integer, OlaCommissionBean&gt; olaMap = new TreeMap&lt;Integer, OlaCommissionBean&gt;();</span>
+<span class="nc" id="L277">		String commQuery = &quot;select id,sum(net_gaming) plr_net_gaming,sum(comm_amt) commission_calculated,retailer_org_id from st_ola_retailer_weekly_commission_exp where status='PENDING' and date&gt;='&quot;+ startDate+ &quot;' and  date&lt;='&quot; + endDate + &quot;' and wallet_id=&quot;+walletId+&quot; group by retailer_org_id&quot;;</span>
+<span class="nc" id="L278">		System.out.println(commQuery);</span>
+<span class="nc" id="L279">		PreparedStatement pstmt = con.prepareStatement(commQuery);</span>
+<span class="nc" id="L280">		ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L282">			int retOrgId = rs.getInt(&quot;retailer_org_id&quot;);</span>
+<span class="nc" id="L283">			OlaCommissionBean olaCommissionBean = new OlaCommissionBean();</span>
+<span class="nc" id="L284">			olaCommissionBean.setTotalPlayerNetGaming(rs</span>
+					.getDouble(&quot;plr_net_gaming&quot;));
+<span class="nc" id="L286">			olaCommissionBean.setTotalCommissionCalculated(rs</span>
+					.getDouble(&quot;commission_calculated&quot;));
+<span class="nc" id="L288">			olaCommissionBean.setId(rs.getInt(&quot;id&quot;));</span>
+<span class="nc" id="L289">			olaMap.put(retOrgId, olaCommissionBean);</span>
+<span class="nc" id="L290">		}</span>
+<span class="nc" id="L291">		return olaMap;</span>
+	}
+	public static Map&lt;Integer, OlaCommissionBean&gt; getCommMonthlyWiseForRetailer(
+			Connection con, int walletId, Date startDate, Date endDate)
+			throws SQLException {
+<span class="nc" id="L296">		Map&lt;Integer, OlaCommissionBean&gt; olaMap = new TreeMap&lt;Integer, OlaCommissionBean&gt;();</span>
+<span class="nc" id="L297">		String commQuery = &quot;select id,sum(net_gaming) plr_net_gaming,sum(comm_amt) commission_calculated,retailer_org_id from st_ola_retailer_monthly_commission_exp where status='PENDING' and date&gt;='&quot;+ startDate+ &quot;' and  date&lt;='&quot; + endDate + &quot;' and wallet_id=&quot;+walletId+&quot; group by retailer_org_id&quot;;</span>
+<span class="nc" id="L298">		System.out.println(commQuery);</span>
+<span class="nc" id="L299">		PreparedStatement pstmt = con.prepareStatement(commQuery);</span>
+<span class="nc" id="L300">		ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L302">			int retOrgId = rs.getInt(&quot;retailer_org_id&quot;);</span>
+<span class="nc" id="L303">			OlaCommissionBean olaCommissionBean = new OlaCommissionBean();</span>
+<span class="nc" id="L304">			olaCommissionBean.setTotalPlayerNetGaming(rs</span>
+					.getDouble(&quot;plr_net_gaming&quot;));
+<span class="nc" id="L306">			olaCommissionBean.setTotalCommissionCalculated(rs</span>
+					.getDouble(&quot;commission_calculated&quot;));
+<span class="nc" id="L308">			olaCommissionBean.setId(rs.getInt(&quot;id&quot;));</span>
+<span class="nc" id="L309">			olaMap.put(retOrgId, olaCommissionBean);</span>
+<span class="nc" id="L310">		}</span>
+<span class="nc" id="L311">		return olaMap;</span>
+	}
+
+	public static Map&lt;Integer, OlaCommissionBean&gt; getCommWeeklyWiseForAgent(
+			Connection con, int walletId, Date startDate, Date endDate)
+			throws SQLException {
+<span class="nc" id="L317">		Map&lt;Integer, OlaCommissionBean&gt; olaMap = new TreeMap&lt;Integer, OlaCommissionBean&gt;();</span>
+<span class="nc" id="L318">		String commQuery = &quot;select id,sum(net_gaming) plr_net_gaming,sum(comm_amt) commission_calculated,agent_org_id,boUserId,boOrgId from ((select id,sum(net_gaming) net_gaming,sum(comm_amt) comm_amt,agent_org_id from st_ola_agent_weekly_commission_exp where status='PENDING' and date&gt;='&quot;+ startDate+ &quot;' and  date&lt;='&quot;+ endDate+ &quot;' and wallet_id=&quot;+walletId+&quot; group by agent_org_id)netGaming inner join(select um.user_id agtUserId,um.organization_id agtOrgId,um.parent_user_id boUserId,om.parent_id boOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='AGENT')orgDetails on netGaming.agent_org_id=orgDetails.agtOrgId) group by agent_org_id&quot;;</span>
+<span class="nc" id="L319">		System.out.println(commQuery);</span>
+<span class="nc" id="L320">		PreparedStatement pstmt = con.prepareStatement(commQuery);</span>
+<span class="nc" id="L321">		ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L323">			int agtOrgId = rs.getInt(&quot;agent_org_id&quot;);</span>
+<span class="nc" id="L324">			OlaCommissionBean olaCommissionBean = new OlaCommissionBean();</span>
+<span class="nc" id="L325">			olaCommissionBean.setBoUserId(rs.getInt(&quot;boUserId&quot;));</span>
+<span class="nc" id="L326">			olaCommissionBean.setBoUserOrgId(rs.getInt(&quot;boOrgId&quot;));</span>
+<span class="nc" id="L327">			olaCommissionBean.setTotalPlayerNetGaming(rs</span>
+					.getDouble(&quot;plr_net_gaming&quot;));
+<span class="nc" id="L329">			olaCommissionBean.setTotalCommissionCalculated(rs</span>
+					.getDouble(&quot;commission_calculated&quot;));
+<span class="nc" id="L331">			olaCommissionBean.setId(rs.getInt(&quot;id&quot;));</span>
+<span class="nc" id="L332">			olaMap.put(agtOrgId, olaCommissionBean);</span>
+<span class="nc" id="L333">		}</span>
+<span class="nc" id="L334">		return olaMap;</span>
+	}
+
+	public static Map&lt;Integer, OlaCommissionBean&gt; getCommMonthlyWiseForAgent(
+			Connection con, int walletId, Date startDate, Date endDate)
+			throws SQLException {
+<span class="nc" id="L340">		Map&lt;Integer, OlaCommissionBean&gt; olaMap = new TreeMap&lt;Integer, OlaCommissionBean&gt;();</span>
+<span class="nc" id="L341">		String commQuery = &quot;select id,sum(net_gaming) plr_net_gaming,sum(comm_amt) commission_calculated,agent_org_id,boUserId,boOrgId from ((select id,sum(net_gaming) net_gaming,sum(comm_amt) comm_amt,agent_org_id from st_ola_agent_monthly_commission_exp where status='PENDING' and date&gt;='&quot;+ startDate+ &quot;' and  date&lt;='&quot;+ endDate+ &quot;' and wallet_id=&quot;+walletId+&quot; group by agent_org_id)netGaming inner join(select um.user_id agtUserId,um.organization_id agtOrgId,um.parent_user_id boUserId,om.parent_id boOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='AGENT')orgDetails on netGaming.agent_org_id=orgDetails.agtOrgId) group by agent_org_id&quot;;</span>
+<span class="nc" id="L342">		System.out.println(commQuery);</span>
+<span class="nc" id="L343">		PreparedStatement pstmt = con.prepareStatement(commQuery);</span>
+<span class="nc" id="L344">		ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L346">			int agtOrgId = rs.getInt(&quot;agent_org_id&quot;);</span>
+<span class="nc" id="L347">			OlaCommissionBean olaCommissionBean = new OlaCommissionBean();</span>
+<span class="nc" id="L348">			olaCommissionBean.setBoUserId(rs.getInt(&quot;boUserId&quot;));</span>
+<span class="nc" id="L349">			olaCommissionBean.setBoUserOrgId(rs.getInt(&quot;boOrgId&quot;));</span>
+<span class="nc" id="L350">			olaCommissionBean.setTotalPlayerNetGaming(rs</span>
+					.getDouble(&quot;plr_net_gaming&quot;));
+<span class="nc" id="L352">			olaCommissionBean.setTotalCommissionCalculated(rs</span>
+					.getDouble(&quot;commission_calculated&quot;));
+<span class="nc" id="L354">			olaCommissionBean.setId(rs.getInt(&quot;id&quot;));</span>
+<span class="nc" id="L355">			olaMap.put(agtOrgId, olaCommissionBean);</span>
+<span class="nc" id="L356">		}</span>
+<span class="nc" id="L357">		return olaMap;</span>
+	}
+
+	public static int updateAgentBackOfficeDetails(Connection con,
+			int agentOrgId, int walletId, double plrNetGaming,
+			double commissionCalculated, Date startDate, Date endDate,
+			int boUserID, int boUserOrgId, String updateMode , String updateType , int generatedId) 
+			{
+<span class="nc" id="L365">		int isUpdate = 0;</span>
+<span class="nc" id="L366">		int id = 0;</span>
+		//SimpleDateFormat format = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);
+<span class="nc" id="L368">		Calendar cal = Calendar.getInstance();</span>
+		try {
+<span class="nc" id="L370">			double agtCommRate = CommonFunctionsHelper.fetchOLACommOfOrganization(</span>
+					walletId, agentOrgId, &quot;NETGAMING&quot;, &quot;AGENT&quot;, con);
+<span class="nc" id="L372">			String insertInLMS = &quot;insert into st_lms_transaction_master(user_type,service_code,interface) values('BO','OLA','WEB')&quot;;</span>
+<span class="nc" id="L373">			PreparedStatement pstmt1 = con.prepareStatement(insertInLMS);</span>
+<span class="nc" id="L374">			long transactionId = 0;</span>
+<span class="nc" id="L375">			pstmt1.executeUpdate();</span>
+<span class="nc" id="L376">			ResultSet rs1 = pstmt1.getGeneratedKeys();</span>
+<span class="nc bnc" id="L377" title="All 2 branches missed.">			if (rs1.next()) {</span>
+<span class="nc" id="L378">				transactionId = rs1.getLong(1);</span>
+<span class="nc" id="L379">				pstmt1 = con</span>
+						.prepareStatement(&quot;INSERT INTO st_lms_bo_transaction_master (transaction_id,user_id,user_org_id,party_type,party_id,transaction_type,transaction_date) VALUES (?,?,?,?,?,?,?)&quot;);
+<span class="nc" id="L381">				pstmt1.setLong(1, transactionId);</span>
+<span class="nc" id="L382">				pstmt1.setInt(2, boUserID);</span>
+<span class="nc" id="L383">				pstmt1.setInt(3, boUserOrgId);</span>
+<span class="nc" id="L384">				pstmt1.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L385">				pstmt1.setInt(5, agentOrgId);</span>
+<span class="nc" id="L386">				pstmt1.setString(6, &quot;OLA_COMMISSION&quot;);</span>
+<span class="nc" id="L387">				pstmt1.setTimestamp(7, new java.sql.Timestamp(new Date()</span>
+						.getTime()));
+
+<span class="nc" id="L390">				pstmt1.executeUpdate();</span>
+			}
+			
+<span class="nc" id="L393">			PreparedStatement pstmt2 = con.prepareStatement(&quot;insert into st_ola_bo_agt_commission (agt_org_id, net_gaming, commission_calculated, comm_rate, transaction_id, start_date, end_date,wallet_id,update_mode,status)values(?,?,?,?,?,?,?,?,?,?)&quot;);</span>
+<span class="nc" id="L394">			pstmt2.setInt(1, agentOrgId);</span>
+<span class="nc" id="L395">			pstmt2.setDouble(2, plrNetGaming);</span>
+<span class="nc" id="L396">			pstmt2.setDouble(3, commissionCalculated);</span>
+<span class="nc" id="L397">			pstmt2.setDouble(4, agtCommRate);</span>
+<span class="nc" id="L398">			pstmt2.setLong(5, transactionId);</span>
+<span class="nc" id="L399">			pstmt2.setDate(6, new java.sql.Date(startDate.getTime()));</span>
+<span class="nc" id="L400">			pstmt2.setDate(7, new java.sql.Date(endDate.getTime()));</span>
+<span class="nc" id="L401">			pstmt2.setInt(8, walletId);</span>
+<span class="nc" id="L402">			pstmt2.setString(9, updateMode);</span>
+<span class="nc" id="L403">			pstmt2.setString(10, &quot;DONE_CLAIM&quot;);</span>
+<span class="nc" id="L404">			isUpdate = pstmt2.executeUpdate();</span>
+			
+<span class="nc bnc" id="L406" title="All 4 branches missed.">			if (isUpdate == 1 &amp;&amp; updateType.equalsIgnoreCase(&quot;WEEKLY&quot;)) {</span>
+<span class="nc" id="L407">				pstmt1 = con.prepareStatement(&quot;update st_ola_agent_weekly_commission_exp set status='DONE',refTransactionId = &quot;+ transactionId+ &quot;, updated_date='&quot;+ new java.sql.Timestamp(new Date().getTime())+&quot;' , updated_mode='&quot;+updateMode+&quot;' where id=&quot;+generatedId+&quot;&quot;);</span>
+<span class="nc" id="L408">				pstmt1.executeUpdate();</span>
+			}
+<span class="nc bnc" id="L410" title="All 4 branches missed.">			else if(isUpdate == 1 &amp;&amp; updateType.equalsIgnoreCase(&quot;MONTHLY&quot;))</span>
+			{
+<span class="nc" id="L412">				pstmt1 = con.prepareStatement(&quot;update st_ola_agent_monthly_commission_exp set status='DONE',refTransactionId = &quot;+ transactionId+ &quot;, updated_date='&quot;+ new java.sql.Timestamp(new Date().getTime())+&quot;' , updated_mode='&quot;+updateMode+&quot;' where id=&quot;+generatedId+&quot;&quot;);</span>
+<span class="nc" id="L413">				pstmt1.executeUpdate();</span>
+			}
+			
+			// update retailers available balance
+		 
+<span class="nc" id="L418">			OrgCreditUpdation.updateCreditLimitForAgent(agentOrgId,</span>
+					&quot;OLA_COMMISSION&quot;, commissionCalculated, con);
+			// Manual request is made for updation automatically
+
+			// insert into receipt master
+<span class="nc" id="L423">			PreparedStatement preState4 = con.prepareStatement(QueryManager</span>
+					.insertInReceiptMaster());
+<span class="nc" id="L425">			preState4.setString(1, &quot;BO&quot;);</span>
+<span class="nc" id="L426">			preState4.executeUpdate();</span>
+
+<span class="nc" id="L428">			ResultSet rs12 = preState4.getGeneratedKeys();</span>
+<span class="nc" id="L429">			rs12.next();</span>
+<span class="nc" id="L430">			id = rs12.getInt(1);</span>
+
+			// get auto generated receipt number
+
+<span class="nc" id="L434">			PreparedStatement preState5 = con.prepareStatement(QueryManager</span>
+					.getBOLatestReceiptNb());
+<span class="nc" id="L436">			preState5.setString(1, &quot;RECEIPT&quot;);</span>
+<span class="nc" id="L437">			ResultSet recieptRs = preState5.executeQuery();</span>
+<span class="nc" id="L438">			String lastRecieptNoGenerated = null;</span>
+
+<span class="nc bnc" id="L440" title="All 2 branches missed.">			while (recieptRs.next()) {</span>
+<span class="nc" id="L441">				lastRecieptNoGenerated = recieptRs.getString(&quot;generated_id&quot;);</span>
+			}
+
+<span class="nc" id="L444">			String autoGeneRecieptNo = GenerateRecieptNo.getRecieptNo(</span>
+					&quot;RECEIPT&quot;, lastRecieptNoGenerated, &quot;BO&quot;);
+
+			// insert in st bo receipts
+<span class="nc" id="L448">			PreparedStatement preState6 = con.prepareStatement(QueryManager.insertInBOReceipts());</span>
+
+<span class="nc" id="L450">			preState6.setInt(1, id);</span>
+<span class="nc" id="L451">			preState6.setString(2, &quot;RECEIPT&quot;);</span>
+<span class="nc" id="L452">			preState6.setInt(3, agentOrgId);</span>
+<span class="nc" id="L453">			preState6.setString(4, &quot;AGENT&quot;);</span>
+<span class="nc" id="L454">			preState6.setString(5, autoGeneRecieptNo);</span>
+<span class="nc" id="L455">			preState6.setTimestamp(6, Util.getCurrentTimeStamp());</span>
+
+<span class="nc" id="L457">			preState6.executeUpdate();</span>
+
+<span class="nc" id="L459">			PreparedStatement preState3 = con.prepareStatement(QueryManager</span>
+					.insertBOReceiptTrnMapping());
+<span class="nc" id="L461">			preState3.setInt(1, id);</span>
+<span class="nc" id="L462">			preState3.setLong(2, transactionId);</span>
+<span class="nc" id="L463">			preState3.executeUpdate();</span>
+			
+<span class="nc bnc" id="L465" title="All 4 branches missed.">			if (isUpdate == 1 &amp;&amp; updateType.equalsIgnoreCase(&quot;WEEKLY&quot;)) {</span>
+<span class="nc" id="L466">				PreparedStatement	pstmt = con.prepareStatement(&quot;update st_ola_agent_weekly_commission_exp set credit_note_number = ? where id=&quot;+generatedId+&quot;&quot;);</span>
+<span class="nc" id="L467">				pstmt.setString(1, autoGeneRecieptNo);</span>
+<span class="nc" id="L468">				pstmt.executeUpdate();</span>
+<span class="nc" id="L469">			}</span>
+<span class="nc bnc" id="L470" title="All 4 branches missed.">			else if(isUpdate == 1 &amp;&amp; updateType.equalsIgnoreCase(&quot;MONTHLY&quot;))</span>
+			{
+<span class="nc" id="L472">				PreparedStatement	pstmt = con.prepareStatement(&quot;update st_ola_agent_monthly_commission_exp set credit_note_number = ? where id=&quot;+generatedId+&quot;&quot;);</span>
+<span class="nc" id="L473">				pstmt.setString(1, autoGeneRecieptNo);</span>
+<span class="nc" id="L474">				pstmt.executeUpdate();</span>
+			}
+<span class="nc" id="L476">		} catch (Exception e) {</span>
+<span class="nc" id="L477">			e.printStackTrace();</span>
+		try {
+<span class="nc" id="L479">			throw new LMSException();</span>
+<span class="nc" id="L480">		} catch (LMSException e1) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L482">			e1.printStackTrace();</span>
+		}
+<span class="nc" id="L484">		}</span>
+<span class="nc" id="L485">		return isUpdate;</span>
+	}
+	
+	public static void updateNetGamingDataMonthlyWise() {
+<span class="nc" id="L489">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L490">		Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L491">		Calendar calEnd = Calendar.getInstance();</span>
+<span class="nc" id="L492">		calStart.add(Calendar.DAY_OF_MONTH, -2);</span>
+<span class="nc" id="L493">		calEnd.add(Calendar.DAY_OF_MONTH, -2);</span>
+<span class="nc" id="L494">		java.sql.Date startDate1 = new java.sql.Date(calStart</span>
+				.getTime().getTime()); //by neeraj
+<span class="nc" id="L496">		calStart.add(Calendar.MONTH, -1); // by neeraj </span>
+<span class="nc" id="L497">		java.sql.Date startDate = new java.sql.Date(calStart</span>
+				.getTime().getTime());
+		// calEnd.add(Calendar.MONTH, 1);
+<span class="nc" id="L500">		calEnd.add(Calendar.DAY_OF_MONTH, -1);//by neeraj</span>
+<span class="nc" id="L501">		java.sql.Date endDate = new java.sql.Date(calEnd</span>
+				.getTime().getTime());
+<span class="nc" id="L503">		Double commAmt = 0.0;</span>
+		try {
+<span class="nc" id="L505">			con.setAutoCommit(false);</span>
+<span class="nc" id="L506">			String walletQry = &quot;select wallet_id, wallet_name from st_ola_wallet_master&quot;;</span>
+<span class="nc" id="L507">			PreparedStatement walletPstmt = con.prepareStatement(walletQry);</span>
+<span class="nc" id="L508">			ResultSet rsWallet = walletPstmt.executeQuery();</span>
+<span class="nc bnc" id="L509" title="All 2 branches missed.">			while (rsWallet.next()) {</span>
+<span class="nc" id="L510">				int walletId = rsWallet.getInt(&quot;wallet_id&quot;);</span>
+			
+			//For Agent
+<span class="nc" id="L513">			PreparedStatement pstmt = con.prepareStatement(&quot;select sum(plr_net_gaming) plr_net_gaming,agentOrgId from (select sum(plr_net_gaming) plr_net_gaming,ret_org_id from st_ola_daily_retailer_commission_&quot;+walletId+&quot; where status='PENDING' and date&gt;='&quot;+startDate+&quot;' and  date&lt;='&quot;+endDate+&quot;' group by ret_org_id)netGaming inner join (select um.user_id retailerUserId,um.organization_id retalierOrgId,um.parent_user_id agentUserId,om.parent_id agentOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER') om on ret_org_id=retalierOrgId group by agentOrgId&quot;);</span>
+			
+<span class="nc" id="L515">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L516" title="All 2 branches missed.">			while(rs.next())</span>
+			{
+<span class="nc" id="L518">				double agtCommRate = CommonFunctionsHelper.fetchOLACommOfOrganization(walletId, rs.getInt(&quot;agentOrgId&quot;), &quot;NETGAMING&quot;, &quot;AGENT&quot;, con);</span>
+<span class="nc" id="L519">				commAmt = agtCommRate*(rs.getDouble(&quot;plr_net_gaming&quot;))*.01;</span>
+<span class="nc" id="L520">				PreparedStatement pstmt2 = con.prepareStatement(&quot;insert into st_ola_agent_monthly_commission_exp(wallet_id, date, agent_org_id, net_gaming, comm_rate, comm_amt, refTransactionId, status) values (?, ?, ?, ?, ?, ?, ?, ?)&quot;);</span>
+<span class="nc" id="L521">				pstmt2.setInt(1, walletId);</span>
+			//	pstmt2.setDate(2, endDate);
+<span class="nc" id="L523">				pstmt2.setDate(2, startDate1);// by neeraj</span>
+<span class="nc" id="L524">				pstmt2.setInt(3, rs.getInt(&quot;agentOrgId&quot;));</span>
+<span class="nc" id="L525">				pstmt2.setDouble(4, rs.getDouble(&quot;plr_net_gaming&quot;));</span>
+<span class="nc" id="L526">				pstmt2.setDouble(5, agtCommRate);</span>
+<span class="nc" id="L527">				pstmt2.setDouble(6, commAmt);</span>
+<span class="nc" id="L528">				pstmt2.setInt(7, 0);</span>
+<span class="nc" id="L529">				pstmt2.setString(8, &quot;PENDING&quot;);</span>
+<span class="nc" id="L530">				pstmt2.executeUpdate();</span>
+<span class="nc" id="L531">			}</span>
+			
+			
+			//For Retailer
+<span class="nc" id="L535">			PreparedStatement pstmt3 = con.prepareStatement(&quot;select ret_org_id,sum(plr_net_gaming) net_gaming from st_ola_daily_retailer_commission_&quot;+walletId+&quot; where date&gt;='&quot;+startDate+&quot;' and date&lt;='&quot;+endDate+&quot;' and status='PENDING' group by ret_org_id&quot;);</span>
+		
+			
+<span class="nc" id="L538">			ResultSet rs1 = pstmt3.executeQuery();</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">			while(rs1.next())</span>
+			{
+<span class="nc" id="L541">				double retCommRate = CommonFunctionsHelper.fetchOLACommOfOrganization(walletId, rs1.getInt(&quot;ret_org_id&quot;), &quot;NETGAMING&quot;, &quot;RETAILER&quot;, con);</span>
+<span class="nc" id="L542">				commAmt = retCommRate*(rs1.getDouble(&quot;net_gaming&quot;))*.01;</span>
+<span class="nc" id="L543">				PreparedStatement pstmt4 = con.prepareStatement(&quot;insert into st_ola_retailer_monthly_commission_exp(wallet_id, date, retailer_org_id, net_gaming, comm_rate, comm_amt, refTransactionId, status) values (?, ?, ?, ?, ?, ?, ?, ?)&quot;);</span>
+<span class="nc" id="L544">				pstmt4.setInt(1, walletId);</span>
+			//	 pstmt4.setDate(2, endDate);
+<span class="nc" id="L546">				pstmt4.setDate(2,startDate1);// by neeraj</span>
+<span class="nc" id="L547">				pstmt4.setInt(3, rs1.getInt(&quot;ret_org_id&quot;));</span>
+<span class="nc" id="L548">				pstmt4.setDouble(4, rs1.getDouble(&quot;net_gaming&quot;));</span>
+<span class="nc" id="L549">				pstmt4.setDouble(5, retCommRate);</span>
+<span class="nc" id="L550">				pstmt4.setDouble(6, commAmt);</span>
+<span class="nc" id="L551">				pstmt4.setInt(7, 0);</span>
+<span class="nc" id="L552">				pstmt4.setString(8, &quot;PENDING&quot;);</span>
+<span class="nc" id="L553">				pstmt4.executeUpdate();</span>
+				
+				// Added To Make Status Done 
+<span class="nc" id="L556">				PreparedStatement pstmt5 = con.prepareStatement(&quot;update st_ola_daily_retailer_commission_&quot;+walletId+&quot; set status='DONE' where date&gt;='&quot;+startDate+&quot;' and date&lt;='&quot;+endDate+&quot;' and status='PENDING' and ret_org_id = &quot;+rs1.getInt(&quot;ret_org_id&quot;)+&quot;&quot;);</span>
+<span class="nc" id="L557">				pstmt5.executeUpdate();</span>
+<span class="nc" id="L558">			}</span>
+			
+			
+<span class="nc" id="L561">			}</span>
+<span class="nc" id="L562">			con.commit();</span>
+<span class="nc" id="L563">		} catch (Exception e) {</span>
+<span class="nc" id="L564">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L566">				throw new LMSException();</span>
+<span class="nc" id="L567">			} catch (LMSException e1) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L569">				e1.printStackTrace();</span>
+			}
+		}
+		finally {
+
+<span class="nc" id="L574">			try {</span>
+<span class="nc bnc" id="L575" title="All 6 branches missed.">				if (con != null) {</span>
+					
+<span class="nc" id="L577">					con.close();</span>
+				}
+<span class="nc" id="L579">			} catch (SQLException se) {</span>
+<span class="nc" id="L580">				se.printStackTrace();</span>
+				try {
+<span class="nc" id="L582">					throw new LMSException();</span>
+<span class="nc" id="L583">				} catch (LMSException e1) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L585">					e1.printStackTrace();</span>
+				}
+<span class="nc" id="L587">			}</span>
+
+<span class="nc" id="L589">		}</span>
+<span class="nc" id="L590">	}</span>
+
+	public static void updateNetGamingDataWeeklyWise() {
+<span class="nc" id="L593">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L594">		Calendar calStart = Calendar.getInstance();</span>
+<span class="nc" id="L595">		Calendar calEnd = Calendar.getInstance();</span>
+<span class="nc" id="L596">		calStart.add(Calendar.DAY_OF_MONTH, -2);</span>
+<span class="nc" id="L597">		calEnd.add(Calendar.DAY_OF_MONTH, -2);</span>
+<span class="nc" id="L598">		java.sql.Date startDate1 = new java.sql.Date(calStart</span>
+				.getTime().getTime());//by neeraj
+<span class="nc" id="L600">		calStart.add(Calendar.WEEK_OF_MONTH, -1); //  by neeraj </span>
+<span class="nc" id="L601">		java.sql.Date startDate = new java.sql.Date(calStart</span>
+				.getTime().getTime());
+		
+<span class="nc" id="L604">		calEnd.add(Calendar.DAY_OF_MONTH,-1); // value changed from 1 to -1 by neeraj </span>
+		
+<span class="nc" id="L606">		java.sql.Date endDate = new java.sql.Date(calEnd</span>
+				.getTime().getTime());
+<span class="nc" id="L608">		double commAmt = 0.0;</span>
+		try {
+			//set auto commit to false ...
+<span class="nc" id="L611">			con.setAutoCommit(false);</span>
+<span class="nc" id="L612">			String walletQry = &quot;select wallet_id, wallet_name from st_ola_wallet_master&quot;;</span>
+<span class="nc" id="L613">			PreparedStatement walletPstmt = con.prepareStatement(walletQry);</span>
+<span class="nc" id="L614">			ResultSet rsWallet = walletPstmt.executeQuery();</span>
+<span class="nc bnc" id="L615" title="All 2 branches missed.">			while (rsWallet.next()) {</span>
+<span class="nc" id="L616">				int walletId = rsWallet.getInt(&quot;wallet_id&quot;);</span>
+			
+			//For Agent
+<span class="nc" id="L619">			PreparedStatement pstmt = con.prepareStatement(&quot;select sum(plr_net_gaming) plr_net_gaming,agentOrgId from (select sum(plr_net_gaming) plr_net_gaming,ret_org_id from st_ola_daily_retailer_commission_&quot;+walletId+&quot; where status='PENDING' and date&gt;='&quot;+startDate+&quot;' and  date&lt;='&quot;+endDate+&quot;' group by ret_org_id)netGaming inner join (select um.user_id retailerUserId,um.organization_id retalierOrgId,um.parent_user_id agentUserId,om.parent_id agentOrgId from st_lms_organization_master om inner join st_lms_user_master um on om.organization_id=um.organization_id where om.organization_type='RETAILER') om on ret_org_id=retalierOrgId group by agentOrgId&quot;);</span>
+			
+<span class="nc" id="L621">			ResultSet rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L622" title="All 2 branches missed.">			while(rs.next())</span>
+			{
+<span class="nc" id="L624">				double agtCommRate = CommonFunctionsHelper.fetchOLACommOfOrganization(walletId, rs.getInt(&quot;agentOrgId&quot;), &quot;NETGAMING&quot;, &quot;AGENT&quot;, con);</span>
+<span class="nc" id="L625">				commAmt = agtCommRate*(rs.getDouble(&quot;plr_net_gaming&quot;))*.01;</span>
+<span class="nc" id="L626">				PreparedStatement pstmt2 = con.prepareStatement(&quot;insert into st_ola_agent_weekly_commission_exp(wallet_id, date, agent_org_id, net_gaming, comm_rate, comm_amt, refTransactionId, status) values (?, ?, ?, ?, ?, ?, ?, ?)&quot;);</span>
+<span class="nc" id="L627">				pstmt2.setInt(1, walletId);</span>
+<span class="nc" id="L628">				pstmt2.setDate(2, startDate1);//change endDate to startDate1 by neeraj</span>
+<span class="nc" id="L629">				pstmt2.setInt(3, rs.getInt(&quot;agentOrgId&quot;));</span>
+<span class="nc" id="L630">				pstmt2.setDouble(4, rs.getDouble(&quot;plr_net_gaming&quot;));</span>
+<span class="nc" id="L631">				pstmt2.setDouble(5, agtCommRate);</span>
+<span class="nc" id="L632">				pstmt2.setDouble(6, commAmt);</span>
+<span class="nc" id="L633">				pstmt2.setInt(7, 0);</span>
+<span class="nc" id="L634">				pstmt2.setString(8, &quot;PENDING&quot;);</span>
+<span class="nc" id="L635">				pstmt2.executeUpdate();</span>
+			
+<span class="nc" id="L637">			}</span>
+			
+			
+			//For Retailer
+<span class="nc" id="L641">			PreparedStatement pstmt3 = con.prepareStatement(&quot;select ret_org_id,sum(plr_net_gaming) net_gaming from st_ola_daily_retailer_commission_&quot;+walletId+&quot; where date&gt;='&quot;+startDate+&quot;' and date&lt;='&quot;+endDate+&quot;' and status='PENDING' group by ret_org_id&quot;);</span>
+<span class="nc" id="L642">			ResultSet rs1 = pstmt3.executeQuery();</span>
+<span class="nc bnc" id="L643" title="All 2 branches missed.">			while(rs1.next())</span>
+			{
+<span class="nc" id="L645">				double retCommRate = CommonFunctionsHelper.fetchOLACommOfOrganization(walletId, rs1.getInt(&quot;ret_org_id&quot;), &quot;NETGAMING&quot;, &quot;RETAILER&quot;, con);</span>
+<span class="nc" id="L646">				commAmt = retCommRate*(rs1.getDouble(&quot;net_gaming&quot;))*.01;</span>
+<span class="nc" id="L647">				PreparedStatement pstmt4 = con.prepareStatement(&quot;insert into st_ola_retailer_weekly_commission_exp(wallet_id, date, retailer_org_id, net_gaming, comm_rate, comm_amt, refTransactionId, status)values(?, ?, ?, ?, ?, ?, ?, ?)&quot;);</span>
+<span class="nc" id="L648">				pstmt4.setInt(1, walletId);</span>
+<span class="nc" id="L649">				pstmt4.setDate(2, startDate1);//change endDate to startDate1 by neeraj</span>
+<span class="nc" id="L650">				pstmt4.setInt(3, rs1.getInt(&quot;ret_org_id&quot;));</span>
+<span class="nc" id="L651">				pstmt4.setDouble(4, rs1.getDouble(&quot;net_gaming&quot;));</span>
+<span class="nc" id="L652">				pstmt4.setDouble(5, retCommRate);</span>
+<span class="nc" id="L653">				pstmt4.setDouble(6, commAmt);</span>
+<span class="nc" id="L654">				pstmt4.setInt(7, 0);</span>
+<span class="nc" id="L655">				pstmt4.setString(8, &quot;PENDING&quot;);</span>
+<span class="nc" id="L656">				pstmt4.executeUpdate();</span>
+				
+				// Added To Make Status Done 
+<span class="nc" id="L659">				PreparedStatement pstmt5 = con.prepareStatement(&quot;update st_ola_daily_retailer_commission_&quot;+walletId+&quot; set status='DONE' where date&gt;='&quot;+startDate+&quot;' and date&lt;='&quot;+endDate+&quot;' and status='PENDING' and ret_org_id = &quot;+rs1.getInt(&quot;ret_org_id&quot;)+&quot;&quot;);</span>
+<span class="nc" id="L660">				pstmt5.executeUpdate();</span>
+<span class="nc" id="L661">			}</span>
+				
+<span class="nc" id="L663">			}</span>
+<span class="nc" id="L664">			con.commit();</span>
+<span class="nc" id="L665">		} catch (Exception e) {</span>
+<span class="nc" id="L666">			e.printStackTrace();</span>
+			try {
+<span class="nc" id="L668">				throw new LMSException();</span>
+<span class="nc" id="L669">			} catch (LMSException e1) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L671">				e1.printStackTrace();</span>
+			}
+		}
+		finally {
+
+<span class="nc" id="L676">			try {</span>
+<span class="nc bnc" id="L677" title="All 6 branches missed.">				if (con != null) {					</span>
+<span class="nc" id="L678">					con.close();</span>
+				}
+<span class="nc" id="L680">			} catch (SQLException se) {</span>
+<span class="nc" id="L681">				se.printStackTrace();</span>
+				try {
+<span class="nc" id="L683">					throw new LMSException();</span>
+<span class="nc" id="L684">				} catch (LMSException e1) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L686">					e1.printStackTrace();</span>
+				}
+<span class="nc" id="L688">			}</span>
+
+<span class="nc" id="L690">		}</span>
+<span class="nc" id="L691">	}</span>
+
+
+
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZimLottoBonusTwoFreeHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">ZimLottoBonusTwoFreeHelper.java</span></div><h1>ZimLottoBonusTwoFreeHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.google.gson.Gson;
+import com.skilrock.itg.IDBarcode.IDBarcode;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.PromoGameBean;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.common.utility.orgOnLineSaleCreditUpdation;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.dge.beans.LottoPurchaseBean;
+import com.skilrock.lms.dge.beans.LottoRequestBean;
+import com.skilrock.lms.dge.beans.LottoResponseBean;
+import com.skilrock.lms.dge.beans.RafflePurchaseBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L32">public class ZimLottoBonusTwoFreeHelper {</span>
+
+<span class="nc" id="L34">	static Log logger = LogFactory.getLog(ZimLottoBonusTwoFreeHelper.class);</span>
+
+	public static LottoPurchaseBean zimLottoBonusTwoFreePurchaseTicket(UserInfoBean userBean,
+			LottoPurchaseBean lottoPurchaseBean, LottoPurchaseBean mainGamePurchaseBean) throws Exception {
+		//ServiceResponse sRes = new ServiceResponse();
+<span class="nc" id="L39">		ServiceRequest sReq = new ServiceRequest();</span>
+<span class="nc" id="L40">		sReq.setServiceName(ServiceName.ZIMLOTTOBONUSTWOFREE_MGMT);</span>
+<span class="nc" id="L41">		sReq.setServiceMethod(ServiceMethodName.ZIMLOTTOBONUSTWOFREE_PURCHASE_TICKET);</span>
+<span class="nc" id="L42">		LottoRequestBean requestBean = new LottoRequestBean();</span>
+<span class="nc" id="L43">		sReq.setServiceData(requestBean);</span>
+		//sReq.setServiceData(lottoPurchaseBean);
+<span class="nc" id="L45">		IServiceDelegate delegate = ServiceDelegate.getInstance();</span>
+<span class="nc" id="L46">		double oldTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L47">		double modifiedTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L48">		String status = &quot;&quot;;</span>
+<span class="nc" id="L49">		long balDed = 0;</span>
+<span class="nc" id="L50">		Connection con = null;</span>
+
+<span class="nc" id="L52">		DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+
+		/*
+		if(lottoPurchaseBean.getLastSoldTicketNo() != null){
+			if(!&quot;0&quot;.equalsIgnoreCase(lottoPurchaseBean.getLastSoldTicketNo())){
+				Util.insertLastSoldTicketTeminal(lottoPurchaseBean.getUserId(), lottoPurchaseBean.getLastSoldTicketNo(), lottoPurchaseBean.getPurchaseTime());
+			}
+		}
+		*/
+
+		try {
+<span class="nc" id="L63">			lottoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L64">			int noOfLines = lottoPurchaseBean.getPicknumbers().length;</span>
+<span class="nc" id="L65">			con=DBConnect.getConnection();</span>
+<span class="nc" id="L66">            con.setAutoCommit(false);</span>
+
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			if (&quot;Perm6&quot;.equals(lottoPurchaseBean.getPlayType())) {</span>
+<span class="nc" id="L69">				int n = lottoPurchaseBean.getNoPicked();</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">				if (n &lt; 7) {</span>
+<span class="nc" id="L71">					lottoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L72">					return lottoPurchaseBean;</span>
+				}
+<span class="nc" id="L74">				noOfLines = (n * (n - 1) * (n - 2) * (n - 3) * (n - 4) * (n - 5)) / 720;</span>
+			}
+<span class="nc" id="L76">			lottoPurchaseBean.setNoOfLines(noOfLines);</span>
+<span class="nc" id="L77">			double unitPrice = Util.getUnitPrice(</span>
+					lottoPurchaseBean.getGameId(), lottoPurchaseBean
+							.getPlayType());
+<span class="nc" id="L80">			lottoPurchaseBean.setUnitPrice(unitPrice);</span>
+			
+<span class="nc" id="L82">			double totPurAmt=0.0;</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">			if(lottoPurchaseBean.isPromotkt()){</span>
+<span class="nc" id="L84">				lottoPurchaseBean.setTotalPurchaseAmt(totPurAmt);</span>
+			}else{	
+			
+<span class="nc" id="L87">			 totPurAmt = noOfLines * unitPrice</span>
+					* lottoPurchaseBean.getNoOfDraws();
+<span class="nc" id="L89">			totPurAmt = CommonMethods.fmtToTwoDecimal(totPurAmt);</span>
+			}
+
+<span class="nc" id="L92">			logger.debug(&quot;Total Purchase Amount - &quot; + totPurAmt);</span>
+
+<span class="nc" id="L94">			lottoPurchaseBean.setTotalPurchaseAmt(totPurAmt);</span>
+
+<span class="nc" id="L96">			logger.debug(&quot;Inside  FE1*******&quot;);</span>
+			// rg calling
+<span class="nc" id="L98">			boolean isFraud = ResponsibleGaming.respGaming(userBean,</span>
+					&quot;DG_SALE&quot;, totPurAmt + &quot;&quot;,con);
+<span class="nc bnc" id="L100" title="All 2 branches missed.">			if (!isFraud) {</span>
+<span class="nc" id="L101">				balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDeduction(userBean,lottoPurchaseBean.getGameId(),</span>
+															lottoPurchaseBean.getTotalPurchaseAmt(),lottoPurchaseBean.getPlrMobileNumber(), con);
+<span class="nc" id="L103">				oldTotalPurchaseAmt = lottoPurchaseBean</span>
+						.getTotalPurchaseAmt();
+
+<span class="nc" id="L106">				logger.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper Just Before  getting Success :&quot; + oldTotalPurchaseAmt);</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">				if (balDed &gt; 0) {</span>
+<span class="nc" id="L109">					lottoPurchaseBean.setRefTransId(balDed + &quot;&quot;);</span>
+<span class="nc" id="L110">					con.commit();</span>
+				} else {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">					if (balDed == -1) {</span>
+<span class="nc" id="L113">						status = &quot;AGT_INS_BAL&quot;;// Agent has insufficient</span>
+						// Balance
+<span class="nc bnc" id="L115" title="All 2 branches missed.">					} else if (balDed == -2) {</span>
+<span class="nc" id="L116">						status = &quot;FAILED&quot;;// Error LMS</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">					} else if (balDed == 0) {</span>
+<span class="nc" id="L118">						status = &quot;RET_INS_BAL&quot;;// Retailer has insufficient</span>
+						// Balance
+					}
+<span class="nc" id="L121">					lottoPurchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L122">					return lottoPurchaseBean;</span>
+				}
+			} else {
+<span class="nc" id="L125">				System.out.println(&quot;Responsing Gaming not allowed to sale&quot;);</span>
+<span class="nc" id="L126">				lottoPurchaseBean.setSaleStatus(&quot;FRAUD&quot;);</span>
+<span class="nc" id="L127">				return lottoPurchaseBean;</span>
+			}
+<span class="nc" id="L129">		} catch (SQLException se) {</span>
+<span class="nc" id="L130">			se.printStackTrace();</span>
+<span class="nc" id="L131">			throw new LMSException();</span>
+<span class="nc" id="L132">		}catch (Exception e) {</span>
+<span class="nc" id="L133">			e.printStackTrace();</span>
+<span class="nc" id="L134">			throw new LMSException();</span>
+		}finally{
+<span class="nc" id="L136">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L137">		}</span>
+
+		try {
+<span class="nc" id="L140">			lottoPurchaseBean.setRefTransId(balDed + &quot;&quot;);</span>
+<span class="nc" id="L141">			lottoPurchaseBean.setRefTransId(balDed + &quot;&quot;);</span>
+<span class="nc" id="L142">			requestBean.setDrawIdTableMap(lottoPurchaseBean.getDrawIdTableMap());</span>
+<span class="nc" id="L143">			requestBean.setDrawDateTime(lottoPurchaseBean.getDrawDateTime());</span>
+<span class="nc" id="L144">			requestBean.setGame_no(lottoPurchaseBean.getGame_no());</span>
+<span class="nc" id="L145">			requestBean.setGameId(lottoPurchaseBean.getGameId());</span>
+<span class="nc" id="L146">			requestBean.setIsAdvancedPlay(lottoPurchaseBean.getIsAdvancedPlay());</span>
+<span class="nc" id="L147">			requestBean.setNoOfDraws(lottoPurchaseBean.getNoOfDraws());</span>
+<span class="nc" id="L148">			requestBean.setNoPicked(lottoPurchaseBean.getNoPicked());</span>
+<span class="nc" id="L149">			requestBean.setPartyId(lottoPurchaseBean.getPartyId());</span>
+<span class="nc" id="L150">			requestBean.setPartyType(lottoPurchaseBean.getPartyType());</span>
+<span class="nc" id="L151">			requestBean.setPlayerData(lottoPurchaseBean.getPickedNumbers());</span>
+<span class="nc" id="L152">			requestBean.setPlayType(lottoPurchaseBean.getPlayType());</span>
+<span class="nc" id="L153">			requestBean.setPurchaseChannel(lottoPurchaseBean.getPurchaseChannel());</span>
+<span class="nc" id="L154">			requestBean.setRefMerchantId(lottoPurchaseBean.getRefMerchantId());</span>
+<span class="nc" id="L155">			requestBean.setRefTransId(lottoPurchaseBean.getRefTransId());</span>
+<span class="nc" id="L156">			requestBean.setUserId(lottoPurchaseBean.getUserId());</span>
+<span class="nc" id="L157">			requestBean.setUserMappingId(lottoPurchaseBean.getUserMappingId());</span>
+<span class="nc" id="L158">			requestBean.setServiceId(lottoPurchaseBean.getServiceId());</span>
+<span class="nc" id="L159">			requestBean.setPicknumbers(lottoPurchaseBean.getPicknumbers());</span>
+<span class="nc" id="L160">			requestBean.setPromotkt(lottoPurchaseBean.isPromotkt());</span>
+<span class="nc" id="L161">			requestBean.setUnitPrice(lottoPurchaseBean.getUnitPrice());</span>
+<span class="nc" id="L162">			requestBean.setTotalPurchaseAmt(lottoPurchaseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L163">			requestBean.setPicknumbers(lottoPurchaseBean.getPicknumbers());</span>
+<span class="nc" id="L164">			requestBean.setPickedNumbers(lottoPurchaseBean.getPickedNumbers());</span>
+
+			//sRes = delegate.getResponse(sReq);
+			//String responseString = sRes.getResponseData().toString();
+			//Type elementType = new TypeToken&lt;LottoPurchaseBean&gt;(){}.getType();
+
+<span class="nc" id="L170">			String responseString = delegate.getResponseString(sReq);</span>
+<span class="nc" id="L171">			LottoResponseBean responseBean = new Gson().fromJson(responseString, LottoResponseBean.class);</span>
+
+<span class="nc bnc" id="L173" title="All 2 branches missed.">			if (responseBean.getIsSuccess()) {</span>
+<span class="nc" id="L174">				lottoPurchaseBean.setSaleStatus(responseBean.getSaleStatus());</span>
+<span class="nc" id="L175">				lottoPurchaseBean.setTicket_no(responseBean.getTicketNo());</span>
+<span class="nc" id="L176">				lottoPurchaseBean.setBarcodeCount(responseBean.getBarcodeCount());</span>
+<span class="nc" id="L177">				lottoPurchaseBean.setNoOfDraws(responseBean.getNoOfDraws());</span>
+<span class="nc" id="L178">				lottoPurchaseBean.setPurchaseTime(responseBean.getPurchaseTime());</span>
+<span class="nc" id="L179">				lottoPurchaseBean.setReprintCount(responseBean.getReprintCount());</span>
+<span class="nc" id="L180">				lottoPurchaseBean.setPlayerPicked(responseBean.getPlayerPicked());</span>
+<span class="nc" id="L181">				lottoPurchaseBean.setTotalPurchaseAmt(responseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L182">				lottoPurchaseBean.setDrawDateTime(responseBean.getDrawDateTime());</span>
+<span class="nc" id="L183">				lottoPurchaseBean.setIsQuickPick(responseBean.getIsQuickPick());</span>
+<span class="nc" id="L184">				lottoPurchaseBean.setPanel_id(responseBean.getPanel_id());</span>
+				//lottoPurchaseBean = new Gson().fromJson(responseString, elementType);
+<span class="nc" id="L186">				modifiedTotalPurchaseAmt = lottoPurchaseBean</span>
+						.getTotalPurchaseAmt();
+
+				// rouding
+
+<span class="nc" id="L191">				modifiedTotalPurchaseAmt = CommonMethods</span>
+						.roundDrawTktAmt(modifiedTotalPurchaseAmt);
+
+<span class="nc" id="L194">				logger</span>
+						.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper After getting Success :&quot;
+								+ modifiedTotalPurchaseAmt);
+<span class="nc" id="L197">				con=DBConnect.getConnection();</span>
+<span class="nc" id="L198">                con.setAutoCommit(false);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">				if (oldTotalPurchaseAmt != modifiedTotalPurchaseAmt) {</span>
+<span class="nc" id="L200">					lottoPurchaseBean</span>
+							.setTotalPurchaseAmt(modifiedTotalPurchaseAmt);
+<span class="nc" id="L202">					balDed = orgOnLineSaleCreditUpdation</span>
+							.drawTcketSaleBalDedUpdate(userBean,
+									lottoPurchaseBean.getGameId(),
+									modifiedTotalPurchaseAmt,
+									oldTotalPurchaseAmt, balDed, con);
+
+				}
+<span class="nc" id="L209">				int tickUpd = orgOnLineSaleCreditUpdation</span>
+						.drawTicketSaleTicketUpdate(balDed,
+								lottoPurchaseBean.getTicket_no(),
+								lottoPurchaseBean.getGameId(),
+								userBean,lottoPurchaseBean.getPurchaseChannel(), con);
+
+<span class="nc bnc" id="L215" title="All 2 branches missed.">				if (tickUpd == 1) {</span>
+<span class="nc" id="L216">					AjaxRequestHelper ajxHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L217">					ajxHelper.getAvlblCreditAmt(userBean,con);</span>
+<span class="nc" id="L218">					status = &quot;SUCCESS&quot;;</span>
+<span class="nc" id="L219">					lottoPurchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L220">					lottoPurchaseBean.setAdvMsg(Util.getDGSaleAdvMessage(userBean.getUserOrgId(), lottoPurchaseBean.getGameId()));</span>
+					
+<span class="nc bnc" id="L222" title="All 2 branches missed.">					if (!&quot;applet&quot;.equals(lottoPurchaseBean.getBarcodeType())) {</span>
+<span class="nc" id="L223">						IDBarcode</span>
+								.getBarcode(lottoPurchaseBean
+										.getTicket_no()
+										+ lottoPurchaseBean
+												.getReprintCount());
+					}
+<span class="nc" id="L229">					 con.commit();</span>
+					// call promo purchase process here
+<span class="nc" id="L231">					List&lt;RafflePurchaseBean&gt; rafflePurchaseBeanList = new ArrayList&lt;RafflePurchaseBean&gt;();</span>
+					//CommonFunctionsHelper commonHelper = new CommonFunctionsHelper();
+
+					/*
+					String gameName = Util
+							.getGameName(lottoPurchaseBean
+									.getGame_no());
+					List&lt;PromoGameBean&gt; promoGameslist = DGPromoScheme
+							.getAvailablePromoGamesNew(gameName,
+									totPurAmt, null);
+					*/
+
+<span class="nc" id="L243">					List&lt;PromoGameBean&gt; promoGameslist = Util.promoGameBeanMap.get(lottoPurchaseBean.getGameId());</span>
+					// String gameType =
+					// getGameType(fortunePurchaseBean.getGame_no());
+					// List&lt;PromoGameBean&gt; promoGameslist =
+					// commonHelper.getAvailablePromoGames(gameType);
+<span class="nc" id="L248">					boolean isLoopAgain=true;</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">					for (int i = 0; i &lt; promoGameslist.size(); i++) {</span>
+<span class="nc" id="L250">						PromoGameBean promobean = promoGameslist</span>
+								.get(i);
+<span class="nc" id="L252">						List&lt;LottoPurchaseBean&gt; lottoBeanList=new ArrayList&lt;LottoPurchaseBean&gt;();</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">						for(int k=0;k&lt;promobean.getNoOfPromoTickets();k++){</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">						if (promobean.getPromoGametype()</span>
+								.equalsIgnoreCase(&quot;RAFFLE&quot;)) {
+<span class="nc" id="L256">							lottoPurchaseBean.setRaffleNo(promobean</span>
+									.getPromoGameNo());
+<span class="nc" id="L258">							RafflePurchaseBean rafflePurchaseBean = (RafflePurchaseBean) helper.rafflePurchaseTicket(</span>
+									userBean, lottoPurchaseBean,
+									true);
+<span class="nc" id="L261">							rafflePurchaseBean</span>
+									.setRaffleTicketType(promobean
+											.getPromoTicketType());
+<span class="nc bnc" id="L264" title="All 2 branches missed.">							if (rafflePurchaseBean.getSaleStatus()</span>
+									.equalsIgnoreCase(&quot;FAILED&quot;)) {
+<span class="nc" id="L266">								status = &quot;FAILED&quot;;</span>
+<span class="nc" id="L267">								lottoPurchaseBean</span>
+										.setSaleStatus(status);
+								// Code for cancelling the Ticket to
+								// be send to Draw Game Engine
+<span class="nc" id="L271">								helper.cancelTicket(</span>
+										lottoPurchaseBean
+												.getTicket_no()
+												+ lottoPurchaseBean
+														.getReprintCount(),
+										lottoPurchaseBean
+												.getPurchaseChannel(),
+										lottoPurchaseBean
+												.getDrawIdTableMap(),
+										lottoPurchaseBean
+												.getGame_no(),
+										lottoPurchaseBean
+												.getPartyId(),
+										lottoPurchaseBean
+												.getPartyType(),
+										lottoPurchaseBean
+												.getRefMerchantId(),
+										userBean, lottoPurchaseBean
+												.getRefTransId());
+<span class="nc" id="L290">								lottoPurchaseBean</span>
+										.setSaleStatus(&quot;FAILED&quot;);
+<span class="nc" id="L292">								return lottoPurchaseBean;</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">							} else if (rafflePurchaseBean</span>
+									.getSaleStatus()
+									.equalsIgnoreCase(&quot;SUCCESS&quot;)) {
+								// here insert entry into the promo
+								// ticket mapping table
+<span class="nc" id="L298">								int tktlen = rafflePurchaseBean</span>
+										.getRaffleTicket_no()
+										.length();
+<span class="nc" id="L301">								orgOnLineSaleCreditUpdation</span>
+										.drawTicketNPromoMappigUpdate(
+												1,
+												rafflePurchaseBean
+														.getGame_no(),
+												rafflePurchaseBean
+														.getParentTktNo(),
+												rafflePurchaseBean
+														.getRaffleTicket_no()
+														.substring(
+																0,
+																tktlen - 2));
+<span class="nc" id="L313">								rafflePurchaseBeanList</span>
+										.add(rafflePurchaseBean);
+							}
+						}
+					}
+					}
+					/*
+					 * String gameType =
+					 * getGameType(lottoPurchaseBean.getGame_no());
+					 * List&lt;PromoGameBean&gt; promoGameslist =
+					 * commonHelper.getAvailablePromoGames(gameType);
+					 * 
+					 * for(int i=0;i&lt;promoGameslist.size();i++){
+					 * PromoGameBean
+					 * promobean=promoGameslist.get(i);
+					 * if(promobean.getPromoGametype().equalsIgnoreCase(&quot;RAFFLE&quot;)){
+					 * lottoPurchaseBean.setRaffleNo(promobean.getPromoGameNo());
+					 * RafflePurchaseBean rafflePurchaseBean =
+					 * (RafflePurchaseBean) rafflePurchaseTicket(
+					 * userBean, lottoPurchaseBean,true);
+					 * rafflePurchaseBean.setRaffleTicketType(promobean.getPromoTicketType());
+					 * if (rafflePurchaseBean.getSaleStatus()
+					 * .equalsIgnoreCase(&quot;FAILED&quot;)) { status =
+					 * &quot;FAILED&quot;; lottoPurchaseBean
+					 * .setSaleStatus(status); // Code for
+					 * cancelling the Ticket to be send to Draw Game
+					 * Engine
+					 * cancelTicket(lottoPurchaseBean.getTicket_no(),
+					 * lottoPurchaseBean.getPurchaseChannel(),
+					 * lottoPurchaseBean.getDrawIdTableMap(),
+					 * lottoPurchaseBean.getGame_no(),
+					 * lottoPurchaseBean.getPartyId(),
+					 * lottoPurchaseBean.getPartyType(),
+					 * lottoPurchaseBean.getRefMerchantId(),
+					 * userBean, lottoPurchaseBean
+					 * .getRefTransId());
+					 * lottoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);
+					 * return lottoPurchaseBean; }else if
+					 * (rafflePurchaseBean.getSaleStatus().equalsIgnoreCase(&quot;SUCCESS&quot;)){
+					 * //here insert entry into the promo ticket
+					 * mapping table int
+					 * tktlen=rafflePurchaseBean.getRaffleTicket_no().length();
+					 * orgOnLineSaleCreditUpdation.drawTicketNPromoMappigUpdate(1,
+					 * rafflePurchaseBean.getGame_no(),
+					 * rafflePurchaseBean.getParentTktNo(),
+					 * (rafflePurchaseBean.getRaffleTicket_no()).substring(0,
+					 * tktlen - 2));
+					 * rafflePurchaseBeanList.add(rafflePurchaseBean); } } }
+					 */
+
+<span class="nc" id="L363">					lottoPurchaseBean</span>
+							.setRafflePurchaseBeanList(rafflePurchaseBeanList);
+
+<span class="nc" id="L366">					return lottoPurchaseBean;</span>
+				} else {
+<span class="nc" id="L368">					status = &quot;FAILED&quot;;</span>
+<span class="nc" id="L369">					lottoPurchaseBean.setSaleStatus(status);</span>
+					// Code for cancelling the Ticket to be send to
+					// Draw
+					// Game Engine
+<span class="nc" id="L373">					helper.cancelTicket(lottoPurchaseBean.getTicket_no()+lottoPurchaseBean.getReprintCount(),</span>
+							lottoPurchaseBean.getPurchaseChannel(),
+							lottoPurchaseBean.getDrawIdTableMap(),
+							lottoPurchaseBean.getGame_no(),
+							lottoPurchaseBean.getPartyId(),
+							lottoPurchaseBean.getPartyType(),
+							lottoPurchaseBean.getRefMerchantId(),
+							userBean, lottoPurchaseBean
+									.getRefTransId());
+					
+<span class="nc" id="L383">					helper.cancelTicket(mainGamePurchaseBean.getTicket_no()+mainGamePurchaseBean.getReprintCount(),</span>
+							mainGamePurchaseBean.getPurchaseChannel(),
+							mainGamePurchaseBean.getDrawIdTableMap(),
+							mainGamePurchaseBean.getGame_no(),
+							mainGamePurchaseBean.getPartyId(),
+							mainGamePurchaseBean.getPartyType(),
+							mainGamePurchaseBean.getRefMerchantId(),
+							userBean, mainGamePurchaseBean
+									.getRefTransId());
+
+<span class="nc" id="L393">					return lottoPurchaseBean;</span>
+				}
+			} else {
+<span class="nc" id="L396">				lottoPurchaseBean.setSaleStatus(responseBean.getSaleStatus());</span>
+				//lottoPurchaseBean = new Gson().fromJson(responseString, elementType);
+<span class="nc bnc" id="L398" title="All 2 branches missed.">				if(lottoPurchaseBean.getSaleStatus() == null){</span>
+<span class="nc" id="L399">					lottoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+<span class="nc" id="L400">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+							userBean, lottoPurchaseBean.getGameId(),
+							&quot;FAILED&quot;, balDed);
+<span class="nc" id="L403">					return lottoPurchaseBean;</span>
+				}else{
+<span class="nc" id="L405">					orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+							userBean, lottoPurchaseBean.getGameId(),
+							&quot;FAILED&quot;, balDed);
+<span class="nc" id="L408">					return lottoPurchaseBean;</span>
+				}
+			}
+<span class="nc" id="L411">		} catch (Exception e) {</span>
+<span class="nc" id="L412">			e.printStackTrace();</span>
+			// commented by amit as not relevant here
+
+			/*
+			 * lottoPurchaseBean = (LottoPurchaseBean)
+			 * sRes.getResponseData(); String ticketNo =
+			 * lottoPurchaseBean.getTicket_no(); String cancelChannel =
+			 * lottoPurchaseBean.getPurchaseChannel(); Map&lt;Integer, Map&lt;Integer,
+			 * String&gt;&gt; drawIdTableMap = lottoPurchaseBean
+			 * .getDrawIdTableMap(); int gameNo =
+			 * lottoPurchaseBean.getGame_no(); int partyId =
+			 * lottoPurchaseBean.getPartyId(); String partyType =
+			 * lottoPurchaseBean.getPartyType(); String refTransId =
+			 * lottoPurchaseBean.getRefTransId();
+			 * 
+			 * cancelTicket(ticketNo, cancelChannel, drawIdTableMap, gameNo,
+			 * partyId, partyType, refTransId);
+			 * 
+			 */
+<span class="nc bnc" id="L431" title="All 2 branches missed.">			if(lottoPurchaseBean.getSaleStatus() == null){</span>
+<span class="nc" id="L432">				lottoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+<span class="nc" id="L433">				orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+						userBean, lottoPurchaseBean.getGameId(),
+						&quot;FAILED&quot;, balDed);
+			}else{
+<span class="nc" id="L437">				orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+						userBean, lottoPurchaseBean.getGameId(),
+						&quot;FAILED&quot;, balDed);
+				
+			}
+			
+<span class="nc" id="L443">			helper.cancelTicket(mainGamePurchaseBean.getTicket_no()+mainGamePurchaseBean.getReprintCount(),</span>
+					mainGamePurchaseBean.getPurchaseChannel(),
+					mainGamePurchaseBean.getDrawIdTableMap(),
+					mainGamePurchaseBean.getGame_no(),
+					mainGamePurchaseBean.getPartyId(),
+					mainGamePurchaseBean.getPartyType(),
+					mainGamePurchaseBean.getRefMerchantId(),
+					userBean, mainGamePurchaseBean
+							.getRefTransId());
+			
+				
+		}
+		finally {
+<span class="nc" id="L456">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L457">		}</span>
+		/*
+		} else {
+			logger.debug(&quot;Data validation returns false&quot;);
+			lottoPurchaseBean.setSaleStatus(&quot;FAILED&quot;);
+		}
+		*/
+<span class="nc" id="L464">		return lottoPurchaseBean;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

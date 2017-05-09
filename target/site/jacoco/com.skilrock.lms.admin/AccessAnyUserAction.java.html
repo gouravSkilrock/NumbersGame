@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AccessAnyUserAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.admin</a> &gt; <span class="el_source">AccessAnyUserAction.java</span></div><h1>AccessAnyUserAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.admin;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import org.apache.struts2.interceptor.ServletResponseAware;
+
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.admin.common.AccessAnyUserHelper;
+import com.skilrock.lms.beans.LoginBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.ConfigurationVariables;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.MailSend;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameOfflineHelper;
+import com.skilrock.lms.coreEngine.loginMgmt.common.AuthenticationHelperforBOMaster;
+import com.skilrock.lms.coreEngine.loginMgmt.common.UserAuthenticationHelper;
+import com.skilrock.lms.rolemgmt.beans.userPrivBean;
+import com.skilrock.lms.web.drawGames.common.CookieMgmtForTicketNumber;
+
+<span class="nc" id="L37">public class AccessAnyUserAction extends ActionSupport implements</span>
+		ServletRequestAware, ServletResponseAware {
+
+	private static final long serialVersionUID = 1L;
+	private HttpServletRequest request;
+	private HttpServletResponse response;
+	private String userData;
+<span class="nc" id="L44">	private String userName = null;</span>
+<span class="nc" id="L45">	private Map&lt;String, TreeMap&lt;String, TreeMap&lt;String, List&lt;userPrivBean&gt;&gt;&gt;&gt; userPriviledgeMap = new TreeMap&lt;String, TreeMap&lt;String, TreeMap&lt;String, List&lt;userPrivBean&gt;&gt;&gt;&gt;();</span>
+	private int[] mappingId;
+	private String[] groupName;
+	private int[] privCount;
+	@Override
+	public String execute() throws Exception {
+<span class="nc" id="L51">		AccessAnyUserHelper user = new AccessAnyUserHelper();</span>
+<span class="nc" id="L52">		userData = user.getAllLMSUser().toString();</span>
+<span class="nc" id="L53">		return SUCCESS;</span>
+	}
+
+	public String getUserLogin() throws ServletException, IOException{
+<span class="nc" id="L57">		LoginBean loginBean = null;</span>
+<span class="nc" id="L58">		String uname = getUserName().toLowerCase(); // stores the username</span>
+		
+<span class="nc" id="L60">		HttpSession session = null;</span>
+<span class="nc" id="L61">		session = getRequest().getSession();</span>
+<span class="nc" id="L62">		session.setMaxInactiveInterval(3600); // adde by yogesh</span>
+<span class="nc" id="L63">		session.setAttribute(&quot;ROOT_PATH&quot;, ServletActionContext</span>
+				.getServletContext().getRealPath(&quot;/&quot;).toString());
+<span class="nc" id="L65">		session.setAttribute(&quot;date_format&quot;, ServletActionContext</span>
+				.getServletContext().getAttribute(&quot;date_format&quot;));
+
+<span class="nc" id="L68">		session.setAttribute(&quot;presentDate&quot;, new java.sql.Date(new Date()</span>
+				.getTime()).toString());
+
+		/*AccessAnyUserHelper loginAuth = new AccessAnyUserHelper();*/
+<span class="nc" id="L72">		AuthenticationHelperforBOMaster loginAuth = new AuthenticationHelperforBOMaster();</span>
+<span class="nc" id="L73">		loginBean = loginAuth.loginAuthentication(uname,&quot;WEB&quot;,session.getId());</span>
+<span class="nc" id="L74">		String returntype = loginBean.getStatus();</span>
+
+<span class="nc bnc" id="L76" title="All 2 branches missed.">		if (returntype.equals(&quot;ERROR_TIME_LIMIT&quot;)) {</span>
+<span class="nc" id="L77">			errorMap(session.getId(), &quot;Login Not Allowed.&quot;);</span>
+<span class="nc" id="L78">			return ERROR;</span>
+		}
+<span class="nc bnc" id="L80" title="All 4 branches missed.">		if (returntype.equals(&quot;success&quot;) || returntype.equals(&quot;FirstTime&quot;)) {</span>
+<span class="nc" id="L81">			loggedInUser(uname, session);</span>
+<span class="nc" id="L82">			UserInfoBean userInfo = loginBean.getUserInfo();</span>
+<span class="nc" id="L83">			HashMap actionServiceMap = loginBean.getActionServiceMap();</span>
+<span class="nc" id="L84">			ArrayList&lt;String&gt; userActionList = loginBean.getUserActionList();</span>
+
+<span class="nc bnc" id="L86" title="All 2 branches missed.">			if (&quot;Yes&quot;.equalsIgnoreCase((String) ServletActionContext</span>
+					.getServletContext().getAttribute(&quot;RET_OFFLINE&quot;))) {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">				if (DrawGameOfflineHelper</span>
+						.checkOfflineUser(userInfo.getUserId())) {
+<span class="nc" id="L90">					errorMap(session.getId(), &quot;USER status is set to OFFLINE&quot;);</span>
+<span class="nc" id="L91">					return ERROR;</span>
+
+				}
+			}
+
+<span class="nc" id="L96">			session.setAttribute(&quot;USER_INFO&quot;, userInfo);</span>
+<span class="nc" id="L97">			session.setAttribute(&quot;PRIV_MAP&quot;, actionServiceMap);</span>
+<span class="nc" id="L98">			session.setAttribute(&quot;ACTION_LIST&quot;, userActionList);</span>
+
+			// check priv on web
+<span class="nc bnc" id="L101" title="All 2 branches missed.">			if (actionServiceMap.size() == 0) {</span>
+<span class="nc" id="L102">				errorMap(session.getId(),</span>
+						&quot;You are not Authorized to access WEB&quot;);
+<span class="nc" id="L104">				return ERROR;</span>
+			}
+			// check responsible gaming limits
+<span class="nc bnc" id="L107" title="All 2 branches missed.">			if (&quot;RETAILER&quot;.equalsIgnoreCase(userInfo.getUserType())) {</span>
+				
+<span class="nc" id="L109">				String rgResult = ResponsibleGaming.chkRGCriteOnLogIn(userInfo);</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">				if (!&quot;SUCCESS&quot;.equalsIgnoreCase(rgResult)) {</span>
+<span class="nc" id="L111">					errorMap(session.getId(), rgResult);</span>
+<span class="nc" id="L112">					return ERROR;</span>
+				}
+				
+				long ticketNumber;
+				try {
+<span class="nc" id="L117">					ticketNumber = CookieMgmtForTicketNumber.getTicketNumberFromCookie(request,userInfo.getUserName());</span>
+<span class="nc" id="L118">					CookieMgmtForTicketNumber.checkAndUpdateTicketsDetails(request, response, userInfo.getUserName(), String.valueOf(ticketNumber));</span>
+<span class="nc" id="L119">				} catch (Exception e) {</span>
+					// TODO Auto-generated catch block
+<span class="nc" id="L121">					e.printStackTrace();</span>
+<span class="nc" id="L122">				}</span>
+			
+			}
+
+<span class="nc bnc" id="L126" title="All 2 branches missed.">			if (returntype.equals(&quot;FirstTime&quot;)) {</span>
+<span class="nc" id="L127">				session.setAttribute(&quot;FIRST&quot;, true);</span>
+<span class="nc" id="L128">				return &quot;SuccessFirstTime&quot;;</span>
+			}
+<span class="nc" id="L130">			String isMailAlert = LMSFilterDispatcher.loginMailAlert;</span>
+			// String isMailSend = LMSFilterDispatcher.isMailSend;
+<span class="nc bnc" id="L132" title="All 4 branches missed.">			if (((UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;))</span>
+					.getUserType().equalsIgnoreCase(&quot;BO&quot;)
+					&amp;&amp; isMailAlert.equalsIgnoreCase(&quot;YES&quot;)) {
+<span class="nc" id="L135">				UserInfoBean userBean = (UserInfoBean) session</span>
+						.getAttribute(&quot;USER_INFO&quot;);
+<span class="nc" id="L137">				String msgFor = &quot;Login into LMS by &quot;</span>
+						+ UserAuthenticationHelper
+								.fetchUserFirstLastName(userBean.getUserId());
+<span class="nc" id="L140">				String loginTime = &quot;&quot; + new Date().toString();</span>
+<span class="nc" id="L141">				String local = request.getLocalAddr() + &quot;/&quot;</span>
+						+ request.getLocalName();
+<span class="nc" id="L143">				String remote = request.getRemoteAddr() + &quot; OrgName &quot;</span>
+						+ userBean.getOrgName();
+<span class="nc" id="L145">				String userName = userBean.getUserName();</span>
+<span class="nc" id="L146">				String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;&quot; + msgFor</span>
+						+ &quot;&lt;/td&gt;&lt;tr&gt;&lt;td&gt;UserName: &lt;/td&gt;&lt;td&gt;&quot; + userName
+						+ &quot;&lt;/td&gt;&lt;tr&gt;&lt;td&gt;LoginTime: &lt;/td&gt;&lt;td&gt;&quot; + loginTime
+						+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;td&gt;Local: &lt;/td&gt;&lt;td&gt;&quot; + local
+						+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;td&gt;Remote:&lt;/td&gt;&lt;td&gt;&quot; + remote
+						+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L152">				MailSend mailSend = new MailSend(UserAuthenticationHelper</span>
+						.fetchOrgMasterUserEmail(userBean.getUserOrgId()),
+						emailMsgTxt);
+<span class="nc" id="L155">				mailSend.setDaemon(true);</span>
+<span class="nc" id="L156">				mailSend.start();</span>
+			}
+<span class="nc" id="L158">			return &quot;success&quot;;</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">		} else if (returntype.equals(&quot;BALANCE_NOT_POSITIVE&quot;)) {</span>
+<span class="nc" id="L160">			errorMap(session.getId(),</span>
+					&quot;Your Balance is Negative.Please Contact BO&quot;);
+<span class="nc" id="L162">			return ERROR;</span>
+<span class="nc bnc" id="L163" title="All 6 branches missed.">		} else if (returntype.equals(&quot;ERROR&quot;)</span>
+				|| returntype.equals(&quot;USER_NAME_NOT_MATCH&quot;)
+				|| returntype.equals(&quot;PASS_NOT_MATCH&quot;)) {
+			// addActionError(&quot;Please Enter Correct Login Name and Password
+			// !!&quot;);
+<span class="nc" id="L168">			errorMap(session.getId(),</span>
+					&quot;Please Enter Correct Login Name and Password !!&quot;);
+<span class="nc" id="L170">			return ERROR;</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">		} else if (returntype.equals(&quot;ERRORINACTIVE&quot;)) {</span>
+			// addActionError(&quot;Your status has been set to Inactive or Terminate
+			// Please contact Back Office immediately&quot;);
+<span class="nc" id="L174">			errorMap(</span>
+					session.getId(),
+					&quot;Your status has been set to Inactive or Terminate Please contact  Back Office immediately&quot;);
+<span class="nc" id="L177">			return ERROR;</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">		} else if (returntype.equals(&quot;ALREADY_LOGGED_IN&quot;)) {</span>
+<span class="nc" id="L179">			return &quot;ALREADY_LOGGED_IN&quot;;</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">		} else if (returntype.equals(&quot;TIER_INACTIVE&quot;)) {</span>
+<span class="nc" id="L181">			return &quot;TIER_INACTIVE&quot;;</span>
+		}
+
+<span class="nc" id="L184">		addActionError(&quot;Enter Correct name password&quot;);</span>
+<span class="nc" id="L185">		errorMap(session.getId(), &quot;Enter Correct name password&quot;);</span>
+<span class="nc" id="L186">		return ERROR;</span>
+	}
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public void loggedInUser(String user, HttpSession session) {
+<span class="nc" id="L191">		String oldUser = null;</span>
+		if (ConfigurationVariables.USER_RELOGIN_SESSION_TERMINATE) {
+<span class="nc" id="L193">			ServletContext sc = ServletActionContext.getServletContext();</span>
+
+<span class="nc" id="L195">			Map&lt;String, HttpSession&gt; currentUserSessionMap = (Map&lt;String, HttpSession&gt;) sc</span>
+					.getAttribute(&quot;LOGGED_IN_USERS&quot;);
+<span class="nc bnc" id="L197" title="All 2 branches missed.">			if (currentUserSessionMap == null) {</span>
+<span class="nc" id="L198">				oldUser = createCookie(user);</span>
+<span class="nc" id="L199">				currentUserSessionMap = new HashMap&lt;String, HttpSession&gt;();</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">				if (oldUser.equals(user)) {</span>
+<span class="nc" id="L201">					currentUserSessionMap.put(user, session);</span>
+				} else {
+<span class="nc" id="L203">					currentUserSessionMap.put(user, session);</span>
+<span class="nc" id="L204">					currentUserSessionMap.put(oldUser, session);</span>
+				}
+<span class="nc" id="L206">				sc.setAttribute(&quot;LOGGED_IN_USERS&quot;, currentUserSessionMap);</span>
+			} else {
+<span class="nc bnc" id="L208" title="All 2 branches missed.">				if (currentUserSessionMap.containsKey(user)) {</span>
+<span class="nc" id="L209">					oldUser = createCookie(user);</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">					if (oldUser.equals(user)) {</span>
+<span class="nc" id="L211">						currentUserSessionMap.put(user, session);</span>
+					} else {
+<span class="nc" id="L213">						currentUserSessionMap.put(user, session);</span>
+<span class="nc" id="L214">						currentUserSessionMap.put(oldUser, session);</span>
+					}
+					
+				} else {
+<span class="nc" id="L218">					oldUser = createCookie(user);</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">					if (oldUser.equals(user)) {</span>
+<span class="nc" id="L220">						currentUserSessionMap.put(user, session);</span>
+					} else {
+<span class="nc" id="L222">						currentUserSessionMap.put(user, session);</span>
+<span class="nc" id="L223">						currentUserSessionMap.put(oldUser, session);</span>
+					}
+				}
+			}
+
+		}
+
+<span class="nc" id="L230">	}</span>
+	public void errorMap(String sessionId, String error) {
+<span class="nc" id="L232">		ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L233">		Map&lt;String, String&gt; errorSessionMap = (Map&lt;String, String&gt;) sc.getAttribute(&quot;ERROR_SESSION_MAP&quot;);</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">		if (errorSessionMap == null) {</span>
+<span class="nc" id="L235">			errorSessionMap = new HashMap&lt;String, String&gt;();</span>
+		}
+<span class="nc" id="L237">		errorSessionMap.put(sessionId, error);</span>
+<span class="nc" id="L238">		sc.setAttribute(&quot;ERROR_SESSION_MAP&quot;, errorSessionMap);</span>
+<span class="nc" id="L239">	}</span>
+	public String createCookie(String user) {
+<span class="nc" id="L241">		boolean found = false;</span>
+<span class="nc" id="L242">		Cookie userSessionId = null;</span>
+<span class="nc" id="L243">		String oldUser = null;</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">		if (request.getCookies() != null) {</span>
+<span class="nc" id="L245">			Cookie[] cookies = request.getCookies();</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">			for (Cookie element : cookies) {</span>
+<span class="nc" id="L247">				userSessionId = element;</span>
+				
+<span class="nc bnc" id="L249" title="All 2 branches missed.">				if (userSessionId.getName().equals(&quot;LMSCookie&quot;)) {</span>
+<span class="nc" id="L250">					found = true;</span>
+<span class="nc" id="L251">					break;</span>
+				}
+			}
+		}
+<span class="nc bnc" id="L255" title="All 2 branches missed.">		if (!found) {</span>
+<span class="nc" id="L256">			userSessionId = new Cookie(&quot;LMSCookie&quot;, user);</span>
+<span class="nc" id="L257">			oldUser = user;</span>
+<span class="nc" id="L258">			userSessionId.setMaxAge(24 * 60 * 60);</span>
+<span class="nc" id="L259">			userSessionId.setPath(&quot;/&quot;);</span>
+<span class="nc" id="L260">			response.addCookie(userSessionId);</span>
+			
+		} else {
+<span class="nc" id="L263">			oldUser = userSessionId.getValue();</span>
+<span class="nc" id="L264">			userSessionId.setMaxAge(24 * 60 * 60);</span>
+<span class="nc" id="L265">			userSessionId.setValue(user);</span>
+<span class="nc" id="L266">			userSessionId.setPath(&quot;/&quot;);</span>
+<span class="nc" id="L267">			response.addCookie(userSessionId);</span>
+		}
+<span class="nc" id="L269">		return oldUser;</span>
+
+	}
+	
+	public String getUserPriviledges() throws LMSException{
+<span class="nc" id="L274">		AccessAnyUserHelper helper = new AccessAnyUserHelper();</span>
+<span class="nc" id="L275">		setUserPriviledgeMap(helper.getUserPriviledges(getUserName()));</span>
+<span class="nc" id="L276">		return SUCCESS;</span>
+	}
+	
+	public String saveUserPriviledges() throws LMSException {
+<span class="nc" id="L280">		HttpSession session = getRequest().getSession();</span>
+<span class="nc" id="L281">		AccessAnyUserHelper userHelper = new AccessAnyUserHelper();</span>
+<span class="nc" id="L282">		userHelper.saveUserPriv(getUserName(), getGroupName(),</span>
+					mappingId, privCount);
+<span class="nc" id="L284">		session.setAttribute(&quot;USER_NAME&quot;, getUserName());</span>
+<span class="nc" id="L285">		return SUCCESS;</span>
+	}
+	
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L289">		return request;</span>
+	}
+
+	public HttpServletResponse getResponse() {
+<span class="nc" id="L293">		return response;</span>
+	}
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L297">		this.request = request;</span>
+<span class="nc" id="L298">	}</span>
+
+	public void setServletResponse(HttpServletResponse response) {
+<span class="nc" id="L301">		this.response = response;</span>
+
+<span class="nc" id="L303">	}</span>
+
+	public String getUserData() {
+<span class="nc" id="L306">		return userData;</span>
+	}
+
+	public void setUserData(String userData) {
+<span class="nc" id="L310">		this.userData = userData;</span>
+<span class="nc" id="L311">	}</span>
+
+	public String getUserName() {
+<span class="nc" id="L314">		return userName;</span>
+	}
+
+	public void setUserName(String userName) {
+<span class="nc" id="L318">		this.userName = userName;</span>
+<span class="nc" id="L319">	}</span>
+
+	public Map&lt;String, TreeMap&lt;String, TreeMap&lt;String, List&lt;userPrivBean&gt;&gt;&gt;&gt; getUserPriviledgeMap() {
+<span class="nc" id="L322">		return userPriviledgeMap;</span>
+	}
+
+	public void setUserPriviledgeMap(
+			Map&lt;String, TreeMap&lt;String, TreeMap&lt;String, List&lt;userPrivBean&gt;&gt;&gt;&gt; userPriviledgeMap) {
+<span class="nc" id="L327">		this.userPriviledgeMap = userPriviledgeMap;</span>
+<span class="nc" id="L328">	}</span>
+
+	public int[] getMappingId() {
+<span class="nc" id="L331">		return mappingId;</span>
+	}
+
+	public void setMappingId(int[] mappingId) {
+<span class="nc" id="L335">		this.mappingId = mappingId;</span>
+<span class="nc" id="L336">	}</span>
+
+	public String[] getGroupName() {
+<span class="nc" id="L339">		return groupName;</span>
+	}
+
+	public void setGroupName(String[] groupName) {
+<span class="nc" id="L343">		this.groupName = groupName;</span>
+<span class="nc" id="L344">	}</span>
+
+	public int[] getPrivCount() {
+<span class="nc" id="L347">		return privCount;</span>
+	}
+
+	public void setPrivCount(int[] privCount) {
+<span class="nc" id="L351">		this.privCount = privCount;</span>
+<span class="nc" id="L352">	}</span>
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

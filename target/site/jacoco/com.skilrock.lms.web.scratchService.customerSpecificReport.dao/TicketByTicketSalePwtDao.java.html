@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TicketByTicketSalePwtDao.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.scratchService.customerSpecificReport.dao</a> &gt; <span class="el_source">TicketByTicketSalePwtDao.java</span></div><h1>TicketByTicketSalePwtDao.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.scratchService.customerSpecificReport.dao;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.HashMap;
+import java.util.Map;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.web.scratchService.customerSpecificReport.beans.TicketByTicketSalePwt;
+
+
+<span class="nc" id="L18">public class TicketByTicketSalePwtDao {</span>
+  
+	public static Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt;  ticketByTicketSaleRetailerWiseForAllAgent(Timestamp startDate, Timestamp endDate, Connection con, int roleId) throws LMSException{
+<span class="nc" id="L21">		Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapOrgWiseTicketByTicket = new HashMap&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt;();</span>
+		try {	
+			//String agentOrgId=CommonMethods.appendRoleAgentMappingQueryForJoin(roleId);
+			/*String fetchQuery = &quot;SELECT game_name, user_name, sum(sale), game_id, ret_org_id FROM ( &quot;
+					+ &quot; SELECT gm.game_name, usr.user_name, (sum(setkt.ticket_price)) sale, gm.game_id, setkt.ret_org_id  FROM st_se_ticket_by_ticket_sale_txn setkt  &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  where ticket_status = 'SOLD' &quot;
+					+ &quot; AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id IN &quot;+ agentOrgId +&quot;)&quot;
+					+ &quot; AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND usr.role_id = 3 AND usr.isrolehead='Y' group by ret_user_id, game_name &quot;
+					+ &quot; UNION ALL &quot;
+					+ &quot; SELECT gm.game_name, usr.user_name, (-sum(setkt.ticket_price)) sale, gm.game_id, setkt.ret_org_id  FROM st_se_ticket_by_ticket_sale_txn setkt  &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  where ticket_status = 'UNSOLD' &quot;
+					+ &quot; AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id IN &quot;+ agentOrgId +&quot; ) &quot;
+					+ &quot; AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND usr.role_id=3 AND usr.isrolehead='Y' group by ret_user_id, game_name&quot;
+					+ &quot;)main group by ret_org_id, game_name &quot;;*/
+<span class="nc" id="L35">			String fetchQuery =&quot;SELECT game_name,NAME,SUM(IF(setkt.ticket_status='SOLD',setkt.ticket_price,-setkt.ticket_price)) totalprice ,gm.game_id,organization_id FROM st_se_ticket_by_ticket_sale_txn setkt INNER JOIN st_lms_organization_master ON ret_org_id = organization_id INNER JOIN st_lms_role_agent_mapping agtMap ON agent_id =parent_id INNER JOIN st_se_game_master gm ON gm.game_id = setkt.game_id WHERE    agtMap.role_id = &quot;+roleId+&quot;  AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' GROUP BY ret_org_id,gm.game_id&quot;;</span>
+			
+<span class="nc" id="L37">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L38">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc" id="L39">		    extractingSaleData(mapOrgWiseTicketByTicket, rs);	  </span>
+			
+<span class="nc" id="L41">		} catch (Exception e) {</span>
+<span class="nc" id="L42">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L43">		}</span>
+<span class="nc" id="L44">		return mapOrgWiseTicketByTicket;		</span>
+	}
+	
+	public static  Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt;  ticketByTicketSaleRetailerWiseForSingleAgent(Integer agentOrgId, Timestamp startDate, Timestamp endDate, Connection con) throws LMSException{
+<span class="nc" id="L48">		Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapOrgWiseTicketByTicket = new HashMap&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt;();</span>
+		try {
+			/*String fetchQuery = &quot;SELECT game_name, user_name, sum(sale), game_id, ret_org_id FROM ( &quot;
+					+ &quot; SELECT gm.game_name, usr.user_name, (sum(setkt.ticket_price)) sale, gm.game_id, setkt.ret_org_id  FROM st_se_ticket_by_ticket_sale_txn setkt  &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  where ticket_status = 'SOLD' &quot;
+					+ &quot; AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id = &quot;+ agentOrgId +&quot;)&quot;
+					+ &quot; AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND usr.role_id = 3 AND usr.isrolehead='Y' group by ret_user_id, game_name &quot;
+					+ &quot; UNION ALL &quot;
+					+ &quot; SELECT gm.game_name, usr.user_name, (-sum(setkt.ticket_price)) sale, gm.game_id, setkt.ret_org_id  FROM st_se_ticket_by_ticket_sale_txn setkt  &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  where ticket_status = 'UNSOLD' &quot;
+					+ &quot; AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id = &quot;+ agentOrgId +&quot; ) &quot;
+					+ &quot; AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND usr.role_id=3 AND usr.isrolehead='Y' group by ret_user_id, game_name&quot;
+					+ &quot;)main group by ret_org_id, game_name &quot;;*/
+<span class="nc" id="L61">			String fetchQuery =&quot;SELECT game_name,NAME,SUM(IF(setkt.ticket_status='SOLD',setkt.ticket_price,-setkt.ticket_price)) totalprice ,gm.game_id,organization_id FROM st_se_ticket_by_ticket_sale_txn setkt INNER JOIN st_lms_organization_master ON ret_org_id = organization_id INNER JOIN st_se_game_master gm ON gm.game_id = setkt.game_id WHERE    parent_id = &quot;+agentOrgId+&quot;  AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' GROUP BY ret_org_id,gm.game_id&quot;;</span>
+
+<span class="nc" id="L63">			System.out.println(&quot;fetchQuery&quot;+fetchQuery);</span>
+<span class="nc" id="L64">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L65">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc" id="L66">		    extractingSaleData(mapOrgWiseTicketByTicket, rs);</span>
+			
+			
+<span class="nc" id="L69">		} catch (Exception e) {</span>
+<span class="nc" id="L70">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L71">		}</span>
+<span class="nc" id="L72">		return mapOrgWiseTicketByTicket;		</span>
+	}
+	
+	public static Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; ticketByTicketSaleForAllAgentWise(Timestamp startDate, Timestamp endDate, Connection con,int roleId) throws LMSException{
+<span class="nc" id="L76">		Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapOrgWiseTicketByTicket = new HashMap&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt;();</span>
+		try {
+			
+		//	String agentOrgId=CommonMethods.appendRoleAgentMappingQueryForJoin( roleId);
+			
+			/*String fetchQuery = &quot;SELECT game_name, name, sum(sale), game_id, organization_id from ( &quot;
+					+ &quot; SELECT gm.game_name, org.name, (sum(setkt.ticket_price)) sale, gm.game_id, org.organization_id   from st_se_ticket_by_ticket_sale_txn setkt &quot;
+					+ &quot; JOIN st_lms_organization_master org ON org.organization_id IN &quot;+ agentOrgId +&quot; &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  &quot;
+					+ &quot; JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  &quot;
+					+ &quot; where ticket_status = 'SOLD' AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id IN &quot;+ agentOrgId +&quot;) AND &quot;
+					+ &quot; sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND usr.role_id=3 AND usr.isrolehead='Y' group by ret_user_id,org.organization_id, game_name &quot;
+					+ &quot; UNION  ALL &quot;
+					+ &quot; SELECT gm.game_name, org.name, (-sum(setkt.ticket_price)) sale, gm.game_id, org.organization_id from st_se_ticket_by_ticket_sale_txn setkt  &quot;
+					+ &quot; JOIN st_lms_organization_master org ON org.organization_id IN &quot;+ agentOrgId +&quot; &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  &quot;
+					+ &quot; JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  where ticket_status = 'UNSOLD' AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id IN &quot;+ agentOrgId +&quot;) &quot;
+					+ &quot; AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND usr.role_id=3 AND usr.isrolehead='Y' group by ret_user_id, game_name &quot;
+					+ &quot;)main group by organization_id, game_name  &quot;;*/
+			
+<span class="nc" id="L96">			String fetchQuery =&quot;SELECT game_name,agtUsr.NAME,SUM(IF(setkt.ticket_status='SOLD',setkt.ticket_price,-setkt.ticket_price)) totalprice ,gm.game_id,agtUsr.organization_id FROM st_se_ticket_by_ticket_sale_txn setkt INNER JOIN st_lms_organization_master retusr ON ret_org_id = retusr.organization_id INNER JOIN st_lms_role_agent_mapping agtMap ON agent_id =parent_id INNER JOIN st_se_game_master gm ON gm.game_id = setkt.game_id INNER JOIN st_lms_organization_master agtUsr ON agtUsr. organization_id= retusr.parent_id  WHERE    agtMap.role_id = &quot;+roleId+&quot;  AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' GROUP BY  agtUsr. organization_id,gm.game_id   &quot; ;</span>
+			
+<span class="nc" id="L98">			System.out.println(&quot;fetchQuery&quot;+fetchQuery);</span>
+<span class="nc" id="L99">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L100">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc" id="L101">		    extractingSaleData(mapOrgWiseTicketByTicket, rs);</span>
+			
+<span class="nc" id="L103">		} catch (Exception e) {</span>
+<span class="nc" id="L104">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L105">		}</span>
+<span class="nc" id="L106">		return mapOrgWiseTicketByTicket;		</span>
+	}
+	
+	public static Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; ticketByTicketSaleForSingleAgentWise(Integer agentOrgId, Timestamp startDate, Timestamp endDate, Connection con) throws LMSException{
+<span class="nc" id="L110">		Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapOrgWiseTicketByTicket = new HashMap&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt;();</span>
+		try {			
+		/*	String fetchQuery = &quot;SELECT game_name, name, sum(sale), game_id, organization_id from ( &quot;
+					+ &quot; SELECT gm.game_name, org.name, (sum(setkt.ticket_price)) sale, gm.game_id, org.organization_id   from st_se_ticket_by_ticket_sale_txn setkt &quot;
+					+ &quot; JOIN st_lms_organization_master org ON org.organization_id = &quot;+ agentOrgId +&quot; &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  &quot;
+					+ &quot; JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  &quot;
+					+ &quot; where ticket_status = 'SOLD' AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id = &quot;+ agentOrgId +&quot;) AND &quot;
+					+ &quot; sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND usr.role_id=3 AND usr.isrolehead='Y' group by ret_user_id, game_name &quot;
+					+ &quot; UNION  ALL &quot;
+					+ &quot; SELECT gm.game_name, org.name, (-sum(setkt.ticket_price)) sale, gm.game_id, org.organization_id from st_se_ticket_by_ticket_sale_txn setkt  &quot;
+					+ &quot; JOIN st_lms_organization_master org ON org.organization_id = &quot;+ agentOrgId +&quot; &quot;
+					+ &quot; JOIN st_se_game_master gm ON gm.game_id = setkt.game_id  &quot;
+					+ &quot; JOIN st_lms_user_master usr ON usr.user_id = setkt.ret_user_id  where ticket_status = 'UNSOLD' AND usr.parent_user_id IN (Select user_id From st_lms_user_master Where organization_id = &quot;+ agentOrgId +&quot;) &quot;
+					+ &quot; AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND usr.role_id=3 AND usr.isrolehead='Y' group by ret_user_id, game_name &quot;
+					+ &quot;)main group by organization_id, game_name  &quot;;
+			*/
+			
+<span class="nc" id="L128">			String fetchQuery =&quot;SELECT game_name,agtUsr.NAME,SUM(IF(setkt.ticket_status='SOLD',setkt.ticket_price,-setkt.ticket_price)) totalprice ,gm.game_id,agtUsr.organization_id FROM st_se_ticket_by_ticket_sale_txn setkt INNER JOIN st_lms_organization_master retusr ON ret_org_id = retusr.organization_id INNER JOIN st_se_game_master gm ON gm.game_id = setkt.game_id INNER JOIN st_lms_organization_master agtUsr ON agtUsr. organization_id= retusr.parent_id  WHERE    agtUsr.organization_id = &quot;+agentOrgId+&quot;  AND sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' GROUP BY  agtUsr. organization_id,gm.game_id   &quot; ;</span>
+			
+<span class="nc" id="L130">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L131">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc" id="L132">		    extractingSaleData(mapOrgWiseTicketByTicket, rs);</span>
+			
+<span class="nc" id="L134">		} catch (Exception e) {</span>
+<span class="nc" id="L135">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L136">		}</span>
+<span class="nc" id="L137">		return mapOrgWiseTicketByTicket;		</span>
+	}
+
+	private static void extractingSaleData(Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapOrgWiseTicketByTicket, ResultSet rs) throws SQLException {
+<span class="nc" id="L141">		Map&lt;Integer, TicketByTicketSalePwt&gt; gameTicketMap = null;</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">		while (rs.next()) {</span>
+<span class="nc" id="L143">			String orgName = rs.getString(2);</span>
+<span class="nc" id="L144">			int gameId = rs.getInt(4);</span>
+<span class="nc" id="L145">			int orgId = rs.getInt(5);</span>
+			
+<span class="nc" id="L147">			TicketByTicketSalePwt ticketByTicketSalePwt = new TicketByTicketSalePwt();				</span>
+<span class="nc" id="L148">			ticketByTicketSalePwt.setGameName(rs.getString(1));</span>
+<span class="nc" id="L149">			ticketByTicketSalePwt.setOrgName(orgName);</span>
+<span class="nc" id="L150">			ticketByTicketSalePwt.setSale(rs.getDouble(3));</span>
+<span class="nc" id="L151">			ticketByTicketSalePwt.setGameId(gameId);</span>
+<span class="nc" id="L152">			ticketByTicketSalePwt.setOrgId(orgId);</span>
+			
+<span class="nc bnc" id="L154" title="All 2 branches missed.">			if (mapOrgWiseTicketByTicket.containsKey(orgName)) {</span>
+<span class="nc" id="L155">				mapOrgWiseTicketByTicket.get(orgName).put(gameId, ticketByTicketSalePwt);</span>
+			} else {
+<span class="nc" id="L157">				gameTicketMap = new HashMap&lt;Integer, TicketByTicketSalePwt&gt;();</span>
+<span class="nc" id="L158">				gameTicketMap.put(gameId, ticketByTicketSalePwt);	</span>
+<span class="nc" id="L159">				mapOrgWiseTicketByTicket.put(orgName, gameTicketMap);</span>
+			}
+<span class="nc" id="L161">		}</span>
+<span class="nc" id="L162">	}</span>
+	
+	
+	public static void getPwtRetailerWise(Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapTktByTkt, Timestamp startDate, Timestamp endDate, Connection con,int roleId) throws LMSException{
+		try {			
+<span class="nc" id="L167">			String fetchQuery = &quot;SELECT name, sum(pwt_amt), se.game_id FROM st_se_retailer_pwt se &quot;</span>
+					+ &quot; JOIN st_lms_organization_master usr  ON usr.organization_id = se.retailer_org_id &quot;
+					+ &quot; JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id &quot;
+					+ &quot; INNER JOIN  st_lms_role_agent_mapping ON agent_id=usr.parent_id where transaction_date BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND  transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')  AND role_id=&quot;+roleId+&quot;  group by name, se.game_id&quot;;
+			
+			
+<span class="nc" id="L173">			System.out.println(&quot;fetchQuery&quot;+fetchQuery);</span>
+			
+<span class="nc" id="L175">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L176">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">		    while (rs.next()) {</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">		    	if(mapTktByTkt.containsKey(rs.getString(1))){</span>
+<span class="nc bnc" id="L179" title="All 2 branches missed.">			    	for(Map.Entry&lt;Integer, TicketByTicketSalePwt&gt; map : mapTktByTkt.get(rs.getString(1)).entrySet()){</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">			    		if(map.getKey() == rs.getInt(3)){</span>
+<span class="nc" id="L181">				    		TicketByTicketSalePwt tkt = map.getValue();</span>
+<span class="nc" id="L182">					    	tkt.setWinning(rs.getDouble(2));</span>
+				    	}
+<span class="nc" id="L184">			    	}</span>
+		    	}else{
+<span class="nc" id="L186">		    		Map&lt;Integer, TicketByTicketSalePwt&gt;   ticketGameMap = new HashMap&lt;Integer, TicketByTicketSalePwt&gt;();</span>
+<span class="nc" id="L187">		    		TicketByTicketSalePwt   tkt = new TicketByTicketSalePwt();</span>
+<span class="nc" id="L188">			    	tkt.setWinning(rs.getDouble(2));</span>
+<span class="nc" id="L189">		    		ticketGameMap.put(rs.getInt(3), tkt);</span>
+<span class="nc" id="L190">		    		mapTktByTkt.put(rs.getString(1), ticketGameMap);</span>
+<span class="nc" id="L191">		    	}		    				</span>
+		    }
+<span class="nc" id="L193">		} catch (Exception e) {</span>
+<span class="nc" id="L194">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L195">		}</span>
+		
+<span class="nc" id="L197">	}</span>
+	
+	public static void getPwtAgentWise(Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapTktByTkt, Timestamp startDate, Timestamp endDate, Connection con,int roleId) throws LMSException{
+		try {
+		/*	String fetchQuery = &quot;SELECT name, sum(pwt), game_id from (&quot;
+		    		+ &quot; SELECT agusr.name, sum(se.pwt_amt) pwt, se.game_id FROM st_se_agt_direct_player_pwt se  &quot;
+		    		+ &quot; JOIN st_lms_organization_master agusr ON agusr.organization_id = se.agent_org_id  &quot;
+		    		+ &quot; WHERE transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' group by agusr.name, se.game_id &quot;
+		    		+ &quot; UNION ALL &quot;
+		    		+ &quot; SELECT agusr.name, sum(pwt_amt) pwt, se.game_id FROM st_se_retailer_pwt se  &quot;
+		    		+ &quot; JOIN st_lms_organization_master usr ON usr.organization_id = se.retailer_org_id  &quot;
+		    		+ &quot; JOIN st_lms_organization_master agusr ON agusr.organization_id = usr.parent_id  &quot;
+		    		+ &quot; JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id  &quot;
+		    		+ &quot; where transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')  group by usr.parent_id, se.game_id &quot;
+		    		+ &quot; )main group by name, game_id&quot;;*/
+			
+<span class="nc" id="L213">			String fetchQuery =&quot;SELECT NAME, SUM(pwt), game_id FROM ( SELECT agusr.name, SUM(se.pwt_amt) pwt, se.game_id FROM st_se_agt_direct_player_pwt se   JOIN st_lms_organization_master agusr ON agusr.organization_id = se.agent_org_id INNER JOIN st_lms_role_agent_mapping agtMap ON agent_id =agusr.organization_id WHERE transaction_date BETWEEN &quot;</span>
+					+ &quot;  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND  agtMap.role_id=&quot;+roleId+&quot; GROUP BY agusr.name, se.game_id  UNION ALL  SELECT agusr.name, SUM(pwt_amt) pwt, se.game_id FROM st_se_retailer_pwt se   JOIN st_lms_organization_master usr ON usr.organization_id = se.retailer_org_id   JOIN st_lms_organization_master agusr ON agusr.organization_id = usr.parent_id   JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id INNER JOIN st_lms_role_agent_mapping agtMap ON agent_id =agusr.organization_id WHERE transaction_date BETWEEN   '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')    AND agtMap.role_id=&quot;+roleId+&quot; GROUP BY  agusr.organization_id , se.game_id  )main GROUP BY NAME, game_id&quot; ;
+			
+			
+<span class="nc" id="L217">			System.out.println(&quot;fetchQuerypwt&quot;+fetchQuery);</span>
+<span class="nc" id="L218">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L219">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">		    while (rs.next()) {	</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">		    	if(mapTktByTkt.containsKey(rs.getString(1))){</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">			    	for(Map.Entry&lt;Integer, TicketByTicketSalePwt&gt; map : mapTktByTkt.get(rs.getString(1)).entrySet()){</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">			    		if(map.getKey() == rs.getInt(3)){</span>
+<span class="nc" id="L224">				    		TicketByTicketSalePwt tkt = map.getValue();</span>
+<span class="nc" id="L225">					    	tkt.setWinning(rs.getDouble(2));</span>
+				    	}
+<span class="nc" id="L227">			    	}</span>
+		    	}		    				
+		    }
+		    
+<span class="nc" id="L231">		} catch (Exception e) {</span>
+<span class="nc" id="L232">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L233">		}</span>
+<span class="nc" id="L234">	}</span>
+	public static Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; ticketByTicketSaleForAllAgentRegionalOfficeWise(Timestamp startDate, Timestamp endDate, Connection con,int roleId) throws LMSException{
+<span class="nc" id="L236">		Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapOrgWiseTicketByTicket = new HashMap&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt;();</span>
+		try {
+			
+		//	String agentOrgId1=CommonMethods.appendRoleAgentMappingQueryForJoin( roleId);
+			
+<span class="nc" id="L241">			String fetchQuery = &quot;SELECT gm.game_name,user_name,SUM(IF(setkt.ticket_status='SOLD',setkt.ticket_price,-setkt.ticket_price)) totalprice ,gm.game_id,agtMap.role_id FROM st_se_ticket_by_ticket_sale_txn setkt INNER JOIN st_lms_organization_master ON ret_org_id = organization_id INNER JOIN st_lms_role_agent_mapping agtMap ON agent_id =parent_id INNER JOIN st_se_game_master gm ON gm.game_id = setkt.game_id INNER JOIN st_lms_user_master um ON    um.role_id= agtMap.role_id WHERE   sale_time BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND  agtMap.role_id!=1  AND um.isrolehead='Y'  GROUP BY agtMap.role_id,gm.game_id&quot;;</span>
+			
+<span class="nc" id="L243">			System.out.println(&quot;fetchQuery&quot;+fetchQuery);</span>
+<span class="nc" id="L244">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L245">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc" id="L246">		    extractingSaleData(mapOrgWiseTicketByTicket, rs);</span>
+		  
+<span class="nc" id="L248">		} catch (Exception e) {</span>
+<span class="nc" id="L249">			e.printStackTrace();</span>
+<span class="nc" id="L250">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L251">		}</span>
+<span class="nc" id="L252">		return mapOrgWiseTicketByTicket;		</span>
+	}
+	public static Map&lt;Integer, String&gt; getGameMap() throws LMSException{
+<span class="nc" id="L255">		Connection con =  DBConnect.getConnection();</span>
+<span class="nc" id="L256">		Map&lt;Integer, String&gt; gameMap = new HashMap&lt;Integer, String&gt;();</span>
+		try {
+<span class="nc" id="L258">			String fetchQuery = &quot;select game_id, game_name from st_se_game_master where game_status = 'OPEN'&quot;;</span>
+<span class="nc" id="L259">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L260">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">		    while (rs.next()) {</span>
+<span class="nc" id="L262">		    	gameMap.put(rs.getInt(1), rs.getString(2));</span>
+		    }
+<span class="nc" id="L264">		} catch (Exception e) {</span>
+<span class="nc" id="L265">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L266">		}</span>
+<span class="nc" id="L267">		return gameMap;</span>
+	}
+	public static void getPwtAgentRegionalOfficeWise(Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapTktByTkt, Timestamp startDate, Timestamp endDate, Connection con) throws LMSException{
+		try {
+		/*	String fetchQuery = &quot;SELECT name, sum(pwt), game_id from (&quot;
+		    		+ &quot; SELECT agusr.name, sum(se.pwt_amt) pwt, se.game_id FROM st_se_agt_direct_player_pwt se  &quot;
+		    		+ &quot; JOIN st_lms_organization_master agusr ON agusr.organization_id = se.agent_org_id  &quot;
+		    		+ &quot; WHERE transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' group by agusr.name, se.game_id &quot;
+		    		+ &quot; UNION ALL &quot;
+		    		+ &quot; SELECT agusr.name, sum(pwt_amt) pwt, se.game_id FROM st_se_retailer_pwt se  &quot;
+		    		+ &quot; JOIN st_lms_organization_master usr ON usr.organization_id = se.retailer_org_id  &quot;
+		    		+ &quot; JOIN st_lms_organization_master agusr ON agusr.organization_id = usr.parent_id  &quot;
+		    		+ &quot; JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id  &quot;
+		    		+ &quot; where transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')  group by usr.parent_id, se.game_id &quot;
+		    		+ &quot; )main group by name, game_id&quot;;
+			*/
+<span class="nc" id="L283">			String fetchQuery =&quot;SELECT user_name, SUM(pwt), game_id FROM ( SELECT um.user_name,agtMap.role_id, SUM(se.pwt_amt) pwt, se.game_id FROM st_se_agt_direct_player_pwt se   JOIN st_lms_organization_master agusr ON agusr.organization_id = se.agent_org_id INNER JOIN st_lms_role_agent_mapping agtMap ON agent_id =agusr.organization_id INNER JOIN st_lms_user_master um ON um.role_id=agtMap.role_id WHERE transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'   AND agtMap.role_id!=1 AND isrolehead='Y'   GROUP BY agtMap.role_id, se.game_id UNION ALL  SELECT um.user_name,agtMap.role_id, SUM(pwt_amt) pwt, se.game_id FROM st_se_retailer_pwt se   JOIN st_lms_organization_master usr ON usr.organization_id = se.retailer_org_id   JOIN st_lms_organization_master agusr ON agusr.organization_id = usr.parent_id   JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id INNER JOIN st_lms_role_agent_mapping agtMap ON agent_id =agusr.organization_id INNER JOIN st_lms_user_master um ON um.role_id=agtMap.role_id WHERE transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')     AND agtMap.role_id!=1 AND isrolehead='Y'    GROUP BY agtMap.role_id, se.game_id UNION ALL SELECT   user_name,role_id,SUM(pwt_amt) pwt,game_id FROM st_se_direct_player_pwt  pwtTickets  INNER JOIN st_lms_bo_transaction_master  stm ON stm.transaction_id=pwtTickets.transaction_id INNER JOIN st_lms_user_master um ON  stm.user_id=um.user_id  WHERE  stm.`transaction_date`  BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND isrolehead='Y'  GROUP BY role_id, game_id)main GROUP BY role_id, game_id&quot;;</span>
+			
+
+<span class="nc" id="L286">			System.out.println(&quot;fetchQuerypwt&quot;+fetchQuery);</span>
+<span class="nc" id="L287">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L288">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">		    while (rs.next()) {	</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">		    	if(mapTktByTkt.containsKey(rs.getString(1))){</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">			    	for(Map.Entry&lt;Integer, TicketByTicketSalePwt&gt; map : mapTktByTkt.get(rs.getString(1)).entrySet()){</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">			    		if(map.getKey() == rs.getInt(3)){</span>
+<span class="nc" id="L293">				    		TicketByTicketSalePwt tkt = map.getValue();</span>
+<span class="nc" id="L294">					    	tkt.setWinning(rs.getDouble(2));</span>
+				    	}
+<span class="nc" id="L296">			    	}</span>
+		    	}		    				
+		    }
+		    
+<span class="nc" id="L300">		} catch (Exception e) {</span>
+<span class="nc" id="L301">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L302">		}</span>
+<span class="nc" id="L303">	}</span>
+	
+	public static void getPwtForAgent(Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapTktByTkt, Timestamp startDate, Timestamp endDate, Connection con,int agentOrgId) throws LMSException{
+		try {
+		/*	String fetchQuery = &quot;SELECT name, sum(pwt), game_id from (&quot;
+		    		+ &quot; SELECT agusr.name, sum(se.pwt_amt) pwt, se.game_id FROM st_se_agt_direct_player_pwt se  &quot;
+		    		+ &quot; JOIN st_lms_organization_master agusr ON agusr.organization_id = se.agent_org_id  &quot;
+		    		+ &quot; WHERE transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' group by agusr.name, se.game_id &quot;
+		    		+ &quot; UNION ALL &quot;
+		    		+ &quot; SELECT agusr.name, sum(pwt_amt) pwt, se.game_id FROM st_se_retailer_pwt se  &quot;
+		    		+ &quot; JOIN st_lms_organization_master usr ON usr.organization_id = se.retailer_org_id  &quot;
+		    		+ &quot; JOIN st_lms_organization_master agusr ON agusr.organization_id = usr.parent_id  &quot;
+		    		+ &quot; JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id  &quot;
+		    		+ &quot; where transaction_date BETWEEN  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')  group by usr.parent_id, se.game_id &quot;
+		    		+ &quot; )main group by name, game_id&quot;;*/
+<span class="nc" id="L318">			String fetchQuery =&quot;SELECT NAME, SUM(pwt), game_id FROM ( SELECT agusr.name, SUM(se.pwt_amt) pwt, se.game_id FROM st_se_agt_direct_player_pwt se   JOIN st_lms_organization_master agusr ON agusr.organization_id = se.agent_org_id  WHERE transaction_date BETWEEN &quot;</span>
+					+ &quot;  '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND se.agent_org_id =&quot;+agentOrgId+&quot;  GROUP BY agusr.name, se.game_id  UNION ALL  SELECT agusr.name, SUM(pwt_amt) pwt, se.game_id FROM st_se_retailer_pwt se   JOIN st_lms_organization_master usr ON usr.organization_id = se.retailer_org_id   JOIN st_lms_organization_master agusr ON agusr.organization_id = usr.parent_id   JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id  WHERE transaction_date BETWEEN   '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;' AND transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')    AND agusr.organization_id=&quot;+agentOrgId+&quot; GROUP BY  agusr.organization_id , se.game_id  )main GROUP BY NAME, game_id&quot; ;
+			
+<span class="nc" id="L321">			System.out.println(&quot;fetchQuerypwt&quot;+fetchQuery);</span>
+<span class="nc" id="L322">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L323">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc bnc" id="L324" title="All 2 branches missed.">		    while (rs.next()) {	</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">		    	if(mapTktByTkt.containsKey(rs.getString(1))){</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">			    	for(Map.Entry&lt;Integer, TicketByTicketSalePwt&gt; map : mapTktByTkt.get(rs.getString(1)).entrySet()){</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">			    		if(map.getKey() == rs.getInt(3)){</span>
+<span class="nc" id="L328">				    		TicketByTicketSalePwt tkt = map.getValue();</span>
+<span class="nc" id="L329">					    	tkt.setWinning(rs.getDouble(2));</span>
+				    	}
+<span class="nc" id="L331">			    	}</span>
+		    	}		    				
+		    }
+		    
+<span class="nc" id="L335">		} catch (Exception e) {</span>
+<span class="nc" id="L336">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L337">		}</span>
+<span class="nc" id="L338">	}</span>
+	public static void getPwtForSingleAgentRetailerWise(Map&lt;String, Map&lt;Integer, TicketByTicketSalePwt&gt;&gt; mapTktByTkt, Timestamp startDate, Timestamp endDate, Connection con,int agentOrgId) throws LMSException{
+		try {			
+<span class="nc" id="L341">			String fetchQuery = &quot;SELECT name, sum(pwt_amt), se.game_id FROM st_se_retailer_pwt se &quot;</span>
+					+ &quot; JOIN st_lms_organization_master usr  ON usr.organization_id = se.retailer_org_id &quot;
+					+ &quot; JOIN st_lms_retailer_transaction_master txn ON txn.transaction_id = se.transaction_id &quot;
+					+ &quot; INNER JOIN  st_lms_role_agent_mapping ON agent_id=usr.parent_id where transaction_date BETWEEN '&quot;+startDate+&quot;' AND '&quot;+endDate+&quot;'  AND  transaction_type IN ('PWT', 'PWT_AUTO', 'PWT_PLR')  AND agent_id=&quot;+agentOrgId+&quot;  AND role_id!=1 group by name, se.game_id&quot;;
+			
+			
+<span class="nc" id="L347">			System.out.println(&quot;fetchQuery&quot;+fetchQuery);</span>
+			
+<span class="nc" id="L349">			PreparedStatement ps  = con.prepareStatement(fetchQuery);</span>
+<span class="nc" id="L350">		    ResultSet rs =	ps.executeQuery();</span>
+<span class="nc bnc" id="L351" title="All 2 branches missed.">		    while (rs.next()) {</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">		    	if(mapTktByTkt.containsKey(rs.getString(1))){</span>
+<span class="nc bnc" id="L353" title="All 2 branches missed.">			    	for(Map.Entry&lt;Integer, TicketByTicketSalePwt&gt; map : mapTktByTkt.get(rs.getString(1)).entrySet()){</span>
+<span class="nc bnc" id="L354" title="All 2 branches missed.">			    		if(map.getKey() == rs.getInt(3)){</span>
+<span class="nc" id="L355">				    		TicketByTicketSalePwt tkt = map.getValue();</span>
+<span class="nc" id="L356">					    	tkt.setWinning(rs.getDouble(2));</span>
+				    	}
+<span class="nc" id="L358">			    	}</span>
+		    	}else{
+<span class="nc" id="L360">		    		Map&lt;Integer, TicketByTicketSalePwt&gt;   ticketGameMap = new HashMap&lt;Integer, TicketByTicketSalePwt&gt;();</span>
+<span class="nc" id="L361">		    		TicketByTicketSalePwt   tkt = new TicketByTicketSalePwt();</span>
+<span class="nc" id="L362">			    	tkt.setWinning(rs.getDouble(2));</span>
+<span class="nc" id="L363">		    		ticketGameMap.put(rs.getInt(3), tkt);</span>
+<span class="nc" id="L364">		    		mapTktByTkt.put(rs.getString(1), ticketGameMap);</span>
+<span class="nc" id="L365">		    	}		    				</span>
+		    }
+<span class="nc" id="L367">		} catch (Exception e) {</span>
+<span class="nc" id="L368">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L369">		}</span>
+		
+<span class="nc" id="L371">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

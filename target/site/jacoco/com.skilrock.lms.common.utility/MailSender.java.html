@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MailSender.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.common.utility</a> &gt; <span class="el_source">MailSender.java</span></div><h1>MailSender.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.common.utility;
+
+import java.io.File;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Properties;
+
+import javax.activation.DataHandler;
+import javax.activation.FileDataSource;
+import javax.mail.Address;
+import javax.mail.AuthenticationFailedException;
+import javax.mail.Authenticator;
+import javax.mail.Multipart;
+import javax.mail.PasswordAuthentication;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.Message.RecipientType;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
+import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.scheduler.MailBean;
+
+/**
+ * This class is used to send mail
+ * 
+ * @author SkilRockTechnologies
+ * 
+ */
+public class MailSender extends Thread {
+<span class="nc" id="L38">	private class SMTPAuthenticator extends javax.mail.Authenticator {</span>
+
+		@Override
+		public PasswordAuthentication getPasswordAuthentication() {
+<span class="nc" id="L42">			String username = SMTP_AUTH_USER;</span>
+<span class="nc" id="L43">			String password = SMTP_AUTH_PWD;</span>
+<span class="nc bnc" id="L44" title="All 2 branches missed.">			if (LMSFilterDispatcher.isMailSend.equalsIgnoreCase(&quot;yes&quot;)) {</span>
+<span class="nc" id="L45">				return new PasswordAuthentication(username, password);</span>
+			} else {
+<span class="nc" id="L47">				logger.debug(&quot;Mailing is disabled from Property file&quot;);</span>
+<span class="nc" id="L48">				return new PasswordAuthentication(&quot;&quot;, &quot;&quot;);</span>
+
+			}
+
+		}
+	}
+
+<span class="nc" id="L55">	static Log logger = LogFactory.getLog(MailSender.class);</span>
+<span class="nc" id="L56">	private static final String SMTP_HOST_NAME = LMSFilterDispatcher.mailSmtpIPAddress;</span>
+	private static final String SMTP_PORT = &quot;465&quot;;
+	private String bodyText;
+	private int count;
+
+	private String filename;
+
+	private File fileObj;
+
+<span class="nc" id="L65">	boolean flag = false;</span>
+<span class="nc" id="L66">	private List&lt;MailBean&gt; mailbean = null;</span>
+<span class="nc" id="L67">	private Properties props = null;</span>
+	private String realFileName;
+	private String SMTP_AUTH_PWD;
+	private String SMTP_AUTH_USER;
+
+	private String subject;
+
+	private List&lt;String&gt; to;
+
+	/*
+	 * Default Constructor set the host smtp address detail into property file
+	 */
+<span class="nc" id="L79">	public MailSender(String FROM, String PASSWORD) {</span>
+<span class="nc" id="L80">		setProperties(FROM, PASSWORD);</span>
+<span class="nc" id="L81">	}</span>
+
+<span class="nc" id="L83">	public MailSender(String FROM, String PASSWORD, List&lt;MailBean&gt; mailbean) {</span>
+<span class="nc" id="L84">		setProperties(FROM, PASSWORD);</span>
+<span class="nc" id="L85">		this.mailbean = mailbean;</span>
+<span class="nc" id="L86">	}</span>
+
+	public MailSender(String FROM, String PASSWORD, List&lt;String&gt; to,
+<span class="nc" id="L89">			String subject, String bodyText, File fileObj, String realFileName) {</span>
+<span class="nc" id="L90">		setProperties(FROM, PASSWORD);</span>
+<span class="nc" id="L91">		this.to = to;</span>
+<span class="nc" id="L92">		this.subject = subject;</span>
+<span class="nc" id="L93">		this.bodyText = bodyText;</span>
+<span class="nc" id="L94">		this.filename = null;</span>
+<span class="nc" id="L95">		this.fileObj = fileObj;</span>
+<span class="nc" id="L96">		this.realFileName = realFileName;</span>
+<span class="nc" id="L97">		props = System.getProperties();</span>
+<span class="nc" id="L98">		props.setProperty(&quot;mail.transport.protocol&quot;, &quot;smtp&quot;);</span>
+<span class="nc" id="L99">		props.setProperty(&quot;mail.user&quot;, SMTP_AUTH_USER);</span>
+<span class="nc" id="L100">		props.setProperty(&quot;mail.password&quot;, SMTP_AUTH_PWD);</span>
+
+<span class="nc" id="L102">		props.put(&quot;mail.smtp.host&quot;, SMTP_HOST_NAME);</span>
+<span class="nc" id="L103">		props.setProperty(&quot;mail.smtp.port&quot;, SMTP_PORT);</span>
+<span class="nc" id="L104">		props.put(&quot;mail.smtp.auth&quot;, &quot;true&quot;);</span>
+		// props.put(&quot;mail.debug&quot;, &quot;true&quot;);
+<span class="nc" id="L106">		props.put(&quot;mail.smtp.socketFactory.port&quot;, SMTP_PORT);</span>
+<span class="nc" id="L107">		props.put(&quot;mail.smtp.socketFactory.class&quot;,</span>
+				&quot;javax.net.ssl.SSLSocketFactory&quot;);
+<span class="nc" id="L109">		props.put(&quot;mail.smtp.socketFactory.fallback&quot;, &quot;false&quot;);</span>
+<span class="nc" id="L110">	}</span>
+
+	public MailSender(String FROM, String PASSWORD, List&lt;String&gt; to,
+<span class="nc" id="L113">			String subject, String bodyText, String filename) {</span>
+<span class="nc" id="L114">		setProperties(FROM, PASSWORD);</span>
+<span class="nc" id="L115">		this.to = to;</span>
+<span class="nc" id="L116">		this.subject = subject;</span>
+<span class="nc" id="L117">		this.bodyText = bodyText;</span>
+<span class="nc" id="L118">		this.filename = filename;</span>
+<span class="nc" id="L119">		this.fileObj = null;</span>
+<span class="nc" id="L120">		props = System.getProperties();</span>
+<span class="nc" id="L121">		props.setProperty(&quot;mail.transport.protocol&quot;, &quot;smtp&quot;);</span>
+<span class="nc" id="L122">		props.setProperty(&quot;mail.user&quot;, SMTP_AUTH_USER);</span>
+<span class="nc" id="L123">		props.setProperty(&quot;mail.password&quot;, SMTP_AUTH_PWD);</span>
+
+<span class="nc" id="L125">		props.put(&quot;mail.smtp.host&quot;, SMTP_HOST_NAME);</span>
+<span class="nc" id="L126">		props.setProperty(&quot;mail.smtp.port&quot;, SMTP_PORT);</span>
+<span class="nc" id="L127">		props.put(&quot;mail.smtp.auth&quot;, &quot;true&quot;);</span>
+		// props.put(&quot;mail.debug&quot;, &quot;true&quot;);
+<span class="nc" id="L129">		props.put(&quot;mail.smtp.socketFactory.port&quot;, SMTP_PORT);</span>
+<span class="nc" id="L130">		props.put(&quot;mail.smtp.socketFactory.class&quot;,</span>
+				&quot;javax.net.ssl.SSLSocketFactory&quot;);
+<span class="nc" id="L132">		props.put(&quot;mail.smtp.socketFactory.fallback&quot;, &quot;false&quot;);</span>
+<span class="nc" id="L133">	}</span>
+
+	@Override
+	public void run() {
+<span class="nc bnc" id="L137" title="All 2 branches missed.">		if (mailbean == null) {</span>
+<span class="nc" id="L138">			logger.debug(SMTP_HOST_NAME);</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">			if (fileObj == null) {</span>
+<span class="nc" id="L140">				sendEmail(to, subject, bodyText, filename);</span>
+			} else {
+<span class="nc" id="L142">				sendEmail(to, subject, bodyText, fileObj, realFileName);</span>
+			}
+
+		} else {
+<span class="nc" id="L146">			logger.debug(SMTP_HOST_NAME);</span>
+<span class="nc" id="L147">			sendEmailToAgent(mailbean);</span>
+		}
+<span class="nc" id="L149">	}</span>
+
+	// Added by Vaibhav for file Object
+	public void sendEmail(List&lt;String&gt; to, String subject, String bodyText,
+			File fileObj, String realFileName) {
+<span class="nc" id="L154">		count = count + 1;</span>
+<span class="nc" id="L155">		Authenticator auth = new SMTPAuthenticator();</span>
+		try {
+<span class="nc" id="L157">			Session session = Session.getInstance(props, auth);</span>
+<span class="nc" id="L158">			Transport tr = session.getTransport(&quot;smtp&quot;);</span>
+<span class="nc" id="L159">			tr.connect(SMTP_HOST_NAME, SMTP_AUTH_USER, SMTP_AUTH_PWD);</span>
+<span class="nc" id="L160">			logger.debug(&quot;connected***********&quot;);</span>
+<span class="nc" id="L161">			Address addressTo[] = new Address[to.size()];</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">			for (int i = 0; i &lt; to.size(); i++) {</span>
+<span class="nc" id="L163">				addressTo[i] = new InternetAddress(to.get(i));</span>
+			}
+
+<span class="nc" id="L166">			MimeMessage message = new MimeMessage(session);</span>
+<span class="nc" id="L167">			message.setFrom(new InternetAddress(SMTP_AUTH_USER));</span>
+
+			// set the message subject
+<span class="nc" id="L170">			message.setSubject(subject);</span>
+<span class="nc" id="L171">			message.setSentDate(new Date());</span>
+
+			// Set the email message text.
+<span class="nc" id="L174">			MimeBodyPart messagePart = new MimeBodyPart();</span>
+<span class="nc" id="L175">			messagePart.setContent(bodyText, &quot;text/html&quot;);</span>
+//			messagePart.setText(bodyText);
+<span class="nc" id="L177">			Multipart multipart = new MimeMultipart();</span>
+			// Set the email attachment file
+<span class="nc bnc" id="L179" title="All 2 branches missed.">			if (fileObj != null) {</span>
+<span class="nc" id="L180">				MimeBodyPart attachmentPart = new MimeBodyPart();</span>
+<span class="nc" id="L181">				FileDataSource fileDataSource = new FileDataSource(fileObj);</span>
+
+<span class="nc" id="L183">				logger.debug(&quot;asfdhgfgh    &quot; + fileDataSource.getName());</span>
+<span class="nc" id="L184">				logger.debug(&quot;asfdhgfgh    &quot; + fileObj.getAbsolutePath());</span>
+<span class="nc" id="L185">				attachmentPart.attachFile(fileObj);</span>
+<span class="nc" id="L186">				attachmentPart.setFileName(realFileName);</span>
+<span class="nc" id="L187">				multipart.addBodyPart(attachmentPart);</span>
+			}
+<span class="nc" id="L189">			multipart.addBodyPart(messagePart);</span>
+
+			// set the all parts into message
+<span class="nc" id="L192">			message.setContent(multipart);</span>
+
+<span class="nc" id="L194">			message.setSender(new InternetAddress(SMTP_AUTH_USER));</span>
+			// addressTo[i]=new InternetAddress(emailAdd);
+<span class="nc" id="L196">			message.setRecipients(RecipientType.TO, addressTo);</span>
+<span class="nc" id="L197">			Transport.send(message);</span>
+<span class="nc" id="L198">			logger.debug(&quot;mail sending completed to &quot;</span>
+					+ Arrays.asList(addressTo));
+
+<span class="nc" id="L201">			tr.close();</span>
+<span class="nc" id="L202">			logger.debug(&quot;trnasport closed successfully ....&quot;);</span>
+<span class="nc" id="L203">		}catch(AuthenticationFailedException AFE){</span>
+<span class="nc" id="L204">			LMSException LMSe = new LMSException(&quot;Mailing May be disbaled from property file&quot;,AFE);</span>
+<span class="nc" id="L205">			logger.debug(LMSe.getMessage());</span>
+<span class="nc" id="L206">			logger.debug(AFE.getMessage());</span>
+		} 
+<span class="nc" id="L208">		catch (Exception e) {</span>
+<span class="nc" id="L209">			e.printStackTrace();</span>
+<span class="nc" id="L210">			flag = true;</span>
+		} finally {
+<span class="nc bnc" id="L212" title="All 16 branches missed.">			if (flag &amp;&amp; count == 1) {</span>
+<span class="nc" id="L213">				flag = false;</span>
+<span class="nc" id="L214">				sendEmail(this.to, this.subject, this.bodyText, this.filename);</span>
+			}
+		}
+<span class="nc" id="L217">	}</span>
+
+	public void sendEmail(List&lt;String&gt; to, String subject, String bodyText,
+			String filename) {
+<span class="nc" id="L221">		count = count + 1;</span>
+<span class="nc" id="L222">		Authenticator auth = new SMTPAuthenticator();</span>
+		try {
+<span class="nc" id="L224">			Session session = Session.getInstance(props, auth);</span>
+<span class="nc" id="L225">			Transport tr = session.getTransport(&quot;smtp&quot;);</span>
+<span class="nc" id="L226">			tr.connect(SMTP_HOST_NAME, SMTP_AUTH_USER, SMTP_AUTH_PWD);</span>
+<span class="nc" id="L227">			logger.debug(&quot;connected***********&quot;);</span>
+<span class="nc" id="L228">			Address addressTo[] = new Address[to.size()];</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">			for (int i = 0; i &lt; to.size(); i++) {</span>
+<span class="nc" id="L230">				addressTo[i] = new InternetAddress(to.get(i));</span>
+			}
+
+<span class="nc" id="L233">			MimeMessage message = new MimeMessage(session);</span>
+<span class="nc" id="L234">			message.setFrom(new InternetAddress(SMTP_AUTH_USER));</span>
+
+			// set the message subject
+<span class="nc" id="L237">			message.setSubject(subject);</span>
+<span class="nc" id="L238">			message.setSentDate(new Date());</span>
+
+			// Set the email message text.
+<span class="nc" id="L241">			MimeBodyPart messagePart = new MimeBodyPart();</span>
+<span class="nc" id="L242">			messagePart.setContent(bodyText, &quot;text/html&quot;);</span>
+
+<span class="nc" id="L244">			Multipart multipart = new MimeMultipart();</span>
+			// Set the email attachment file
+<span class="nc bnc" id="L246" title="All 2 branches missed.">			if (filename != &quot;&quot;) {</span>
+<span class="nc" id="L247">				MimeBodyPart attachmentPart = new MimeBodyPart();</span>
+
+<span class="nc" id="L249">				FileDataSource fileDataSource = new FileDataSource(filename) {</span>
+					@Override
+					public String getContentType() {
+<span class="nc" id="L252">						return &quot;application/octet-stream&quot;;</span>
+					}
+				};
+<span class="nc" id="L255">				attachmentPart.setDataHandler(new DataHandler(fileDataSource));</span>
+<span class="nc" id="L256">				attachmentPart.setFileName(filename);</span>
+<span class="nc" id="L257">				multipart.addBodyPart(attachmentPart);</span>
+			}
+<span class="nc" id="L259">			multipart.addBodyPart(messagePart);</span>
+
+			// set the all parts into message
+<span class="nc" id="L262">			message.setContent(multipart);</span>
+
+<span class="nc" id="L264">			message.setSender(new InternetAddress(SMTP_AUTH_USER));</span>
+			// addressTo[i]=new InternetAddress(emailAdd);
+<span class="nc" id="L266">			message.setRecipients(RecipientType.TO, addressTo);</span>
+<span class="nc" id="L267">			Transport.send(message);</span>
+<span class="nc" id="L268">			logger.debug(&quot;mail sending completed to &quot;</span>
+					+ Arrays.asList(addressTo));
+
+<span class="nc" id="L271">			tr.close();</span>
+<span class="nc" id="L272">			logger.debug(&quot;trnasport closed successfully ....&quot;);</span>
+<span class="nc" id="L273">		}catch(AuthenticationFailedException AFE){</span>
+<span class="nc" id="L274">			LMSException LMSe =  new LMSException(&quot;Mailing May Be Disabled From Property File!&quot;, AFE);</span>
+<span class="nc" id="L275">			logger.debug(LMSe.getMessage());</span>
+<span class="nc" id="L276">			logger.debug(AFE.getMessage());</span>
+		} 
+<span class="nc" id="L278">		catch (Exception e) {</span>
+<span class="nc" id="L279">			e.printStackTrace();</span>
+<span class="nc" id="L280">			flag = true;</span>
+		} finally {
+<span class="nc bnc" id="L282" title="All 16 branches missed.">			if (flag &amp;&amp; count == 1) {</span>
+<span class="nc" id="L283">				flag = false;</span>
+<span class="nc" id="L284">				sendEmail(this.to, this.subject, this.bodyText, this.filename);</span>
+			}
+		}
+<span class="nc" id="L287">	}</span>
+
+	public void sendEmailToAgent(List&lt;MailBean&gt; mailbean) {
+<span class="nc" id="L290">		count = count + 1;</span>
+<span class="nc" id="L291">		Authenticator auth = new SMTPAuthenticator();</span>
+<span class="nc" id="L292">		this.mailbean = mailbean;</span>
+		try {
+<span class="nc" id="L294">			Session session = Session.getInstance(props, auth);</span>
+<span class="nc" id="L295">			Transport tr = session.getTransport(&quot;smtp&quot;);</span>
+<span class="nc" id="L296">			tr.connect(SMTP_HOST_NAME, SMTP_AUTH_USER, SMTP_AUTH_PWD);</span>
+<span class="nc" id="L297">			logger.debug(&quot;connected***********&quot;);</span>
+
+<span class="nc bnc" id="L299" title="All 2 branches missed.">			for (MailBean mail : mailbean) {</span>
+
+<span class="nc" id="L301">				MimeMessage message = new MimeMessage(session);</span>
+<span class="nc" id="L302">				message.setFrom(new InternetAddress(SMTP_AUTH_USER));</span>
+
+<span class="nc" id="L304">				message.setSubject(mail.subject);</span>
+<span class="nc" id="L305">				message.setSentDate(new Date());</span>
+
+				// Set the email message text.
+<span class="nc" id="L308">				MimeBodyPart messagePart = new MimeBodyPart();</span>
+<span class="nc" id="L309">				messagePart.setContent(mail.boTextBody, &quot;text/html&quot;);</span>
+
+				// Set the email attachment file
+<span class="nc" id="L312">				MimeBodyPart attachmentPart = new MimeBodyPart();</span>
+<span class="nc" id="L313">				FileDataSource fileDataSource = new FileDataSource(</span>
+<span class="nc" id="L314">						mail.AGENT_FILE_NAME) {</span>
+
+					@Override
+					public String getContentType() {
+<span class="nc" id="L318">						return &quot;application/octet-stream&quot;;</span>
+					}
+				};
+
+<span class="nc" id="L322">				attachmentPart.setDataHandler(new DataHandler(fileDataSource));</span>
+<span class="nc" id="L323">				attachmentPart.setFileName(mail.AGENT_FILE_NAME);</span>
+
+<span class="nc" id="L325">				Multipart multipart = new MimeMultipart();</span>
+<span class="nc" id="L326">				multipart.addBodyPart(messagePart);</span>
+<span class="nc" id="L327">				multipart.addBodyPart(attachmentPart);</span>
+<span class="nc" id="L328">				message.setSender(new InternetAddress(SMTP_AUTH_USER));</span>
+
+				// set the all parts into message
+<span class="nc" id="L331">				message.setContent(multipart);</span>
+
+<span class="nc" id="L333">				message.setRecipient(RecipientType.TO, new InternetAddress(</span>
+						mail.reciepient.toLowerCase()));
+<span class="nc" id="L335">				Transport.send(message);</span>
+<span class="nc" id="L336">				logger.debug(&quot;mail sending completed to &quot;</span>
+						+ mail.reciepient.toLowerCase());
+<span class="nc" id="L338">			}</span>
+
+<span class="nc" id="L340">			tr.close();</span>
+<span class="nc" id="L341">			logger.debug(&quot;tranasport closed successfully ....&quot;);</span>
+
+<span class="nc" id="L343">		}catch(AuthenticationFailedException AFE){</span>
+<span class="nc" id="L344">			LMSException LMSe = new LMSException(&quot;Mailing may be disabled from property file&quot;,AFE);</span>
+<span class="nc" id="L345">			logger.debug(LMSe.getLocalizedMessage());</span>
+<span class="nc" id="L346">			logger.debug(AFE.getMessage());</span>
+<span class="nc" id="L347">		}catch (Exception e) {</span>
+<span class="nc" id="L348">			e.printStackTrace();</span>
+<span class="nc" id="L349">			flag = true;</span>
+		} finally {
+<span class="nc bnc" id="L351" title="All 16 branches missed.">			if (flag &amp;&amp; count == 1) {</span>
+<span class="nc" id="L352">				flag = false;</span>
+<span class="nc" id="L353">				sendEmailToAgent(this.mailbean);</span>
+
+			}
+		}
+
+<span class="nc" id="L358">	}</span>
+
+	private void setProperties(String FROM, String PASSWORD) {
+<span class="nc" id="L361">		SMTP_AUTH_USER = FROM;</span>
+<span class="nc" id="L362">		SMTP_AUTH_PWD = PASSWORD;</span>
+<span class="nc" id="L363">		props = System.getProperties();</span>
+<span class="nc" id="L364">		props.setProperty(&quot;mail.transport.protocol&quot;, &quot;smtp&quot;);</span>
+<span class="nc" id="L365">		props.setProperty(&quot;mail.user&quot;, SMTP_AUTH_USER);</span>
+<span class="nc" id="L366">		props.setProperty(&quot;mail.password&quot;, SMTP_AUTH_PWD);</span>
+
+<span class="nc" id="L368">		props.put(&quot;mail.smtp.host&quot;, SMTP_HOST_NAME);</span>
+<span class="nc" id="L369">		props.setProperty(&quot;mail.smtp.port&quot;, SMTP_PORT);</span>
+<span class="nc" id="L370">		props.put(&quot;mail.smtp.auth&quot;, &quot;true&quot;);</span>
+		// props.put(&quot;mail.debug&quot;, &quot;true&quot;);
+<span class="nc" id="L372">		props.put(&quot;mail.smtp.socketFactory.port&quot;, SMTP_PORT);</span>
+<span class="nc" id="L373">		props.put(&quot;mail.smtp.socketFactory.class&quot;,</span>
+				&quot;javax.net.ssl.SSLSocketFactory&quot;);
+<span class="nc" id="L375">		props.put(&quot;mail.smtp.socketFactory.fallback&quot;, &quot;false&quot;);</span>
+<span class="nc" id="L376">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

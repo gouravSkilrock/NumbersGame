@@ -1,0 +1,1623 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CashChqReportsHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">CashChqReportsHelper.java</span></div><h1>CashChqReportsHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import jxl.write.WriteException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.CashChqPmntBean;
+import com.skilrock.lms.beans.CashChqReportBean;
+import com.skilrock.lms.beans.CashierDrawerDataForPWTBean;
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.db.TableConstants;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.web.drawGames.common.Util;
+import com.skilrock.lms.web.reportsMgmt.common.ReportUtility;
+import com.skilrock.lms.web.reportsMgmt.common.WriteExcelForCashChq;
+
+public class CashChqReportsHelper implements ICashChqReportsHelper {
+
+<span class="nc" id="L43">	private Connection con = null;</span>
+	private Date endDate;
+<span class="nc" id="L45">	private PreparedStatement pstmt = null;</span>
+<span class="nc" id="L46">	private ResultSet rs = null;</span>
+	private Date startDate;
+<span class="nc" id="L48">	Log logger = LogFactory.getLog(CashChqReportsHelper.class);</span>
+<span class="nc" id="L49">	public CashChqReportsHelper(Date firstDate, Date lastDate) {</span>
+<span class="nc" id="L50">		this.startDate = firstDate;</span>
+<span class="nc" id="L51">		this.endDate = lastDate;</span>
+<span class="nc" id="L52">	}</span>
+
+<span class="nc" id="L54">	public CashChqReportsHelper(DateBeans dateBeans) {</span>
+<span class="nc" id="L55">		this.startDate = dateBeans.getFirstdate();</span>
+<span class="nc" id="L56">		this.endDate = dateBeans.getLastdate();</span>
+<span class="nc" id="L57">		System.out.println(this.startDate + &quot;  &quot; + this.endDate);</span>
+<span class="nc" id="L58">	}</span>
+
+	private void fillReportBean(CashChqReportBean reportbean) {
+<span class="nc" id="L61">		reportbean.setTotalCash(&quot;0.0&quot;);</span>
+<span class="nc" id="L62">		reportbean.setTotalChq(&quot;0.0&quot;);</span>
+<span class="nc" id="L63">		reportbean.setDebit(&quot;0.0&quot;);</span>
+<span class="nc" id="L64">		reportbean.setCredit(&quot;0.0&quot;);</span>
+<span class="nc" id="L65">		reportbean.setCheqBounce(&quot;0.0&quot;);</span>
+<span class="nc" id="L66">		reportbean.setNetAmt(&quot;0.0&quot;);</span>
+<span class="nc" id="L67">		reportbean.setBankDeposit(&quot;0.0&quot;);</span>
+<span class="nc" id="L68">	}</span>
+
+	private void fillReportBean(CashChqReportBean reportbean, String trxType,
+			Double value) {
+<span class="nc bnc" id="L72" title="All 2 branches missed.">		if (trxType.equals(&quot;CASH&quot;)) {</span>
+<span class="nc" id="L73">			reportbean.setTotalCash(FormatNumber.formatNumber(value));</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">		} else if (trxType.equals(&quot;CHEQUE&quot;)) {</span>
+<span class="nc" id="L75">			reportbean.setTotalChq(FormatNumber.formatNumber(value));</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">		} else if (trxType.equals(&quot;DEBIT_NOTE&quot;)) {</span>
+<span class="nc" id="L77">			reportbean.setDebit(FormatNumber.formatNumber(value));</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">		} else if (trxType.equals(&quot;CREDIT_NOTE&quot;)) {</span>
+<span class="nc" id="L79">			reportbean.setCredit(FormatNumber.formatNumber(value));</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">		} else if (trxType.equals(&quot;CHQ_BOUNCE&quot;)) {</span>
+<span class="nc" id="L81">			reportbean.setCheqBounce(FormatNumber.formatNumber(value));</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">		} else if (trxType.equals(&quot;BANK_DEPOSIT&quot;)) {</span>
+<span class="nc" id="L83">			reportbean.setBankDeposit(FormatNumber.formatNumber(value));</span>
+		}
+<span class="nc" id="L85">	}</span>
+
+	public List&lt;Integer&gt; getAgentId() throws LMSException {
+<span class="nc" id="L88">		List&lt;Integer&gt; list = new ArrayList&lt;Integer&gt;();</span>
+
+		try {
+<span class="nc" id="L91">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L92">			pstmt = con.prepareStatement(QueryManager</span>
+					.getST_CASH_CHEQ_REPORT_BO1());
+<span class="nc" id="L94">			pstmt.setDate(1, startDate);</span>
+<span class="nc" id="L95">			pstmt.setDate(2, endDate);</span>
+<span class="nc" id="L96">			pstmt.setDate(3, startDate);</span>
+<span class="nc" id="L97">			pstmt.setDate(4, endDate);</span>
+<span class="nc" id="L98">			pstmt.setDate(5, startDate);</span>
+<span class="nc" id="L99">			pstmt.setDate(6, endDate);</span>
+<span class="nc" id="L100">			pstmt.setDate(7, startDate);</span>
+<span class="nc" id="L101">			pstmt.setDate(8, endDate);</span>
+<span class="nc" id="L102">			ResultSet rss = pstmt.executeQuery();</span>
+<span class="nc" id="L103">			System.out.println(&quot;get agent org ids details  query : &quot; + pstmt);</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">			while (rss.next()) {</span>
+<span class="nc" id="L105">				int id = rss.getInt(&quot;agent_org_id&quot;);</span>
+				// System.out.print(&quot;, agent org id : &quot;+id);
+<span class="nc" id="L107">				list.add(id);</span>
+<span class="nc" id="L108">			}</span>
+<span class="nc" id="L109">		} catch (SQLException e) {</span>
+<span class="nc" id="L110">			e.printStackTrace();</span>
+<span class="nc" id="L111">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L113">			try {</span>
+<span class="nc bnc" id="L114" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L115">					rs.close();</span>
+				}
+<span class="nc bnc" id="L117" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L118">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L120" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L121">					con.close();</span>
+				}
+<span class="nc" id="L123">			} catch (SQLException e) {</span>
+<span class="nc" id="L124">				e.printStackTrace();</span>
+<span class="nc" id="L125">				throw new LMSException(e);</span>
+<span class="nc" id="L126">			}</span>
+		}
+
+<span class="nc" id="L129">		return list;</span>
+	}
+
+	public List&lt;Integer&gt; getAgentOrgList() {
+<span class="nc" id="L133">		List&lt;Integer&gt; list = new ArrayList&lt;Integer&gt;();</span>
+		try {
+<span class="nc" id="L135">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L136">			pstmt = con.prepareStatement(QueryManager</span>
+					.getST_RECEIPT_SEARCH_AGENT_ORGID());
+<span class="nc" id="L138">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L140">				list.add(result.getInt(TableConstants.ORG_ID));</span>
+			}
+<span class="nc" id="L142">		} catch (SQLException e) {</span>
+<span class="nc" id="L143">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L145">			try {</span>
+<span class="nc" id="L146">				con.close();</span>
+<span class="nc" id="L147">			} catch (SQLException e) {</span>
+<span class="nc" id="L148">				e.printStackTrace();</span>
+<span class="nc" id="L149">			}</span>
+<span class="nc" id="L150">		}</span>
+<span class="nc" id="L151">		return list;</span>
+	}
+
+	/**
+	 * @deprecated Use getCashChqDetail() Method Instead
+	 */
+	public List&lt;CashChqReportBean&gt; getCashChqDetail(List&lt;Integer&gt; agtidlist,int userId, boolean isExpand) throws LMSException {
+<span class="nc" id="L158">		List&lt;CashChqReportBean&gt; list = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L159">		CashChqReportBean reportbean = null;</span>
+<span class="nc" id="L160">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L161">		System.out.println(&quot;size of agent org id list &quot; + agtidlist.size());</span>
+<span class="nc" id="L162">		StringBuilder query = null;</span>
+<span class="nc" id="L163">		double totalCash = 0;</span>
+<span class="nc" id="L164">		double totalCheque = 0;</span>
+<span class="nc" id="L165">		double totalDebit = 0;</span>
+<span class="nc" id="L166">		double totalCredit = 0;</span>
+<span class="nc" id="L167">		double totalBounce = 0;</span>
+<span class="nc" id="L168">		double totalDeposit = 0;</span>
+<span class="nc" id="L169">		double totalAmount = 0;</span>
+<span class="nc" id="L170">		Map&lt;Integer, String&gt; agtNameOrgIdMap = new LinkedHashMap&lt;Integer, String&gt;();</span>
+
+		try {
+<span class="nc bnc" id="L173" title="All 2 branches missed.">			if (agtidlist.size() &gt; 0) {</span>
+<span class="nc" id="L174">				ReportUtility.getOrgNameMap(con, agtNameOrgIdMap, agtidlist</span>
+						.toString().replace(&quot;[&quot;, &quot; &quot;).replace(&quot;]&quot;, &quot; &quot;));
+			}
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			if (!isExpand) {</span>
+<span class="nc" id="L178">				query = new StringBuilder(</span>
+						&quot;select sum(total_cash) 'total_cash', sum(credit) 'credit', sum(debit) 'debit', sum(cheque_coll) 'cheque_coll', sum(bounce) 'bounce',sum(bank_deposit) bank_deposit,sum(net_amount) 'net_amount' from (select aa.a 'total_cash', bb.b 'cheque_coll', cc.c 'bounce' , gg.debit_amt 'debit', dd.credit_amt 'credit',bd.d 'bank_deposit', ((aa.a+bb.b+dd.credit_amt+bd.d)-(cc.c+gg.debit_amt))'net_amount' from (( select ifnull(sum(cash.amount),0) 'a' from st_lms_bo_cash_transaction cash, st_lms_bo_transaction_master btm where cash.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and cash.transaction_id=btm.transaction_id ) aa, ( select ifnull(sum(chq.cheque_amt),0) 'b' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type IN ('CHEQUE','CLOSED') and chq.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and chq.transaction_id=btm.transaction_id ) bb, ( select ifnull(sum(chq.cheque_amt),0) 'c' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type='CHQ_BOUNCE' and chq.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and chq.transaction_id=btm.transaction_id ) cc,(select ifnull(sum(bo.amount),0) 'debit_amt'  from st_lms_bo_debit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='DR_NOTE_CASH' or bo.transaction_type ='DR_NOTE') and agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) )gg,(select ifnull(sum(bo.amount),0) 'credit_amt'  from st_lms_bo_credit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='CR_NOTE_CASH') and agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) )dd,(select ifnull(sum(bank.amount),0) 'd' from st_lms_bo_bank_deposit_transaction bank, st_lms_bo_transaction_master btm where bank.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and bank.transaction_id=btm.transaction_id ) bd)) ee&quot;);
+<span class="nc bnc" id="L180" title="All 2 branches missed.">				if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L181">					query</span>
+							.append(&quot; union all select sum(cash_amt) 'total_cash', sum(credit_note) 'credit', sum(debit_note) 'debit', sum(cheque_amt) 'cheque_coll', sum(cheque_bounce_amt) 'bounce', sum(bank_deposit) 'bank_deposit',sum(((cash_amt+cheque_amt+credit_note+bank_deposit)-(cheque_bounce_amt+debit_note))) as 'net_amount' from st_rep_bo_payments where agent_org_id = ? and finaldate &gt;= ? and finaldate &lt;= ?&quot;);
+				}
+<span class="nc bnc" id="L184" title="All 2 branches missed.">				for (Integer agentorgId : agtidlist) {</span>
+<span class="nc" id="L185">					totalCash = 0;</span>
+<span class="nc" id="L186">					totalCheque = 0;</span>
+<span class="nc" id="L187">					totalDebit = 0;</span>
+<span class="nc" id="L188">					totalCredit = 0;</span>
+<span class="nc" id="L189">					totalBounce = 0;</span>
+<span class="nc" id="L190">					totalDeposit = 0;</span>
+<span class="nc" id="L191">					totalAmount = 0;</span>
+<span class="nc" id="L192">					pstmt = con.prepareStatement(query.toString());</span>
+<span class="nc" id="L193">					pstmt.setInt(1, agentorgId);</span>
+<span class="nc" id="L194">					pstmt.setInt(2, userId);</span>
+<span class="nc" id="L195">					pstmt.setDate(3, startDate);</span>
+<span class="nc" id="L196">					pstmt.setDate(4, endDate);</span>
+<span class="nc" id="L197">					pstmt.setInt(5, agentorgId);</span>
+<span class="nc" id="L198">					pstmt.setInt(6, userId);</span>
+<span class="nc" id="L199">					pstmt.setDate(7, startDate);</span>
+<span class="nc" id="L200">					pstmt.setDate(8, endDate);</span>
+<span class="nc" id="L201">					pstmt.setInt(9, agentorgId);</span>
+<span class="nc" id="L202">					pstmt.setInt(10, userId);</span>
+<span class="nc" id="L203">					pstmt.setDate(11, startDate);</span>
+<span class="nc" id="L204">					pstmt.setDate(12, endDate);</span>
+<span class="nc" id="L205">					pstmt.setInt(13, agentorgId);</span>
+<span class="nc" id="L206">					pstmt.setInt(14, userId);</span>
+<span class="nc" id="L207">					pstmt.setDate(15, startDate);</span>
+<span class="nc" id="L208">					pstmt.setDate(16, endDate);</span>
+<span class="nc" id="L209">					pstmt.setInt(17, agentorgId);</span>
+<span class="nc" id="L210">					pstmt.setInt(18, userId);</span>
+<span class="nc" id="L211">					pstmt.setDate(19, startDate);</span>
+<span class="nc" id="L212">					pstmt.setDate(20, endDate);</span>
+<span class="nc" id="L213">					pstmt.setInt(21, agentorgId);</span>
+<span class="nc" id="L214">					pstmt.setInt(22, userId);</span>
+<span class="nc" id="L215">					pstmt.setDate(23, startDate);</span>
+<span class="nc" id="L216">					pstmt.setDate(24, endDate);</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">					if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L218">						pstmt.setInt(25, agentorgId);</span>
+<span class="nc" id="L219">						pstmt.setDate(26, startDate);</span>
+<span class="nc" id="L220">						pstmt.setDate(27, endDate);</span>
+					}
+<span class="nc" id="L222">					rs = pstmt.executeQuery();</span>
+					// System.out.println(&quot;result set : --------------&quot;+rs);
+					// System.out.println(&quot;get cash cheque details Query : &quot; +
+					// pstmt);
+<span class="nc bnc" id="L226" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L227">						totalCash += rs.getDouble(&quot;total_cash&quot;);</span>
+<span class="nc" id="L228">						totalCheque += rs.getDouble(&quot;cheque_coll&quot;);</span>
+<span class="nc" id="L229">						totalDebit += rs.getDouble(&quot;debit&quot;);</span>
+<span class="nc" id="L230">						totalCredit += rs.getDouble(&quot;credit&quot;);</span>
+<span class="nc" id="L231">						totalBounce += rs.getDouble(&quot;bounce&quot;);</span>
+<span class="nc" id="L232">						totalDeposit += rs.getDouble(&quot;bank_deposit&quot;);</span>
+<span class="nc" id="L233">						totalAmount += rs.getDouble(&quot;net_amount&quot;);</span>
+					}
+<span class="nc" id="L235">					reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L236">					reportbean.setTotalCash(FormatNumber</span>
+							.formatNumber(totalCash));
+<span class="nc" id="L238">					reportbean.setTotalChq(FormatNumber</span>
+							.formatNumber(totalCheque));
+<span class="nc" id="L240">					reportbean.setDebit(FormatNumber.formatNumber(totalDebit));</span>
+<span class="nc" id="L241">					reportbean</span>
+							.setCredit(FormatNumber.formatNumber(totalCredit));
+<span class="nc" id="L243">					reportbean.setCheqBounce(FormatNumber</span>
+							.formatNumber(totalBounce));
+<span class="nc" id="L245">					reportbean.setBankDeposit(FormatNumber</span>
+							.formatNumber(totalDeposit));
+<span class="nc" id="L247">					reportbean</span>
+							.setNetAmt(FormatNumber.formatNumber(totalAmount));
+					/*
+					 * reportbean.setName(ReportUtility.getOrgNameFromOrgId(con,
+					 * agentorgId));
+					 */
+<span class="nc" id="L253">					reportbean.setName(agtNameOrgIdMap.get(agentorgId));</span>
+
+<span class="nc" id="L255">					reportbean.setOrgId(agentorgId);</span>
+<span class="nc" id="L256">					list.add(reportbean);</span>
+<span class="nc" id="L257">				}</span>
+				
+			} else {
+<span class="nc" id="L260">				query = new StringBuilder(</span>
+						&quot;select sum(total_cash) 'total_cash', sum(credit) 'credit', sum(debit) 'debit', sum(cheque_coll) 'cheque_coll', sum(bounce) 'bounce',sum(bank_deposit) bank_deposit,sum(net_amount) 'net_amount' from (select aa.a 'total_cash', bb.b 'cheque_coll', cc.c 'bounce' , gg.debit_amt 'debit', dd.credit_amt 'credit',bd.d 'bank_deposit', ((aa.a+bb.b+dd.credit_amt+bd.d)-(cc.c+gg.debit_amt))'net_amount' from (( select ifnull(sum(cash.amount),0) 'a' from st_lms_bo_cash_transaction cash, st_lms_bo_transaction_master btm where cash.agent_org_id = ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) and cash.transaction_id=btm.transaction_id ) aa, ( select ifnull(sum(chq.cheque_amt),0) 'b' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type IN ('CHEQUE','CLOSED') and chq.agent_org_id = ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) and chq.transaction_id=btm.transaction_id ) bb, ( select ifnull(sum(chq.cheque_amt),0) 'c' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type='CHQ_BOUNCE' and chq.agent_org_id = ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) and chq.transaction_id=btm.transaction_id ) cc,(select ifnull(sum(bo.amount),0) 'debit_amt'  from st_lms_bo_debit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='DR_NOTE_CASH' or bo.transaction_type ='DR_NOTE') and agent_org_id = ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) )gg,(select ifnull(sum(bo.amount),0) 'credit_amt'  from st_lms_bo_credit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='CR_NOTE_CASH') and agent_org_id = ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) )dd,(select ifnull(sum(bank.amount),0) 'd' from st_lms_bo_bank_deposit_transaction bank, st_lms_bo_transaction_master btm where bank.agent_org_id = ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) and bank.transaction_id=btm.transaction_id ) bd)) ee&quot;);
+<span class="nc bnc" id="L262" title="All 2 branches missed.">				if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L263">					query</span>
+							.append(&quot; union all select sum(cash_amt) 'total_cash',  sum(credit_note) 'credit', sum(debit_note) 'debit', sum(cheque_amt) 'cheque_coll', sum(cheque_bounce_amt) 'bounce', sum(bank_deposit) 'bank_deposit',sum(((cash_amt+cheque_amt+credit_note+bank_deposit)-(cheque_bounce_amt+debit_note))) as 'net_amount' from st_rep_bo_payments where agent_org_id = ? and finaldate &gt;= ? and finaldate &lt; ?&quot;);
+				}
+<span class="nc bnc" id="L266" title="All 2 branches missed.">				for (Integer agentorgId : agtidlist) {</span>
+<span class="nc" id="L267">					totalCash = 0;</span>
+<span class="nc" id="L268">					totalCheque = 0;</span>
+<span class="nc" id="L269">					totalDebit = 0;</span>
+<span class="nc" id="L270">					totalCredit = 0;</span>
+<span class="nc" id="L271">					totalBounce = 0;</span>
+<span class="nc" id="L272">					totalDeposit = 0;</span>
+<span class="nc" id="L273">					totalAmount = 0;</span>
+<span class="nc" id="L274">					pstmt = con.prepareStatement(query.toString());</span>
+<span class="nc" id="L275">					pstmt.setInt(1, agentorgId);</span>
+<span class="nc" id="L276">					pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L277">					pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L278">					pstmt.setInt(4, agentorgId);</span>
+<span class="nc" id="L279">					pstmt.setDate(5, startDate);</span>
+<span class="nc" id="L280">					pstmt.setDate(6, endDate);</span>
+<span class="nc" id="L281">					pstmt.setInt(7, agentorgId);</span>
+<span class="nc" id="L282">					pstmt.setDate(8, startDate);</span>
+<span class="nc" id="L283">					pstmt.setDate(9, endDate);</span>
+<span class="nc" id="L284">					pstmt.setInt(10, agentorgId);</span>
+<span class="nc" id="L285">					pstmt.setDate(11, startDate);</span>
+<span class="nc" id="L286">					pstmt.setDate(12, endDate);</span>
+<span class="nc" id="L287">					pstmt.setInt(13, agentorgId);</span>
+<span class="nc" id="L288">					pstmt.setDate(14, startDate);</span>
+<span class="nc" id="L289">					pstmt.setDate(15, endDate);</span>
+<span class="nc" id="L290">					pstmt.setInt(16, agentorgId);</span>
+<span class="nc" id="L291">					pstmt.setDate(17, startDate);</span>
+<span class="nc" id="L292">					pstmt.setDate(18, endDate);</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">					if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L294">						pstmt.setInt(19, agentorgId);</span>
+<span class="nc" id="L295">						pstmt.setDate(20, startDate);</span>
+<span class="nc" id="L296">						pstmt.setDate(21, endDate);</span>
+					}
+<span class="nc" id="L298">					rs = pstmt.executeQuery();</span>
+					// System.out.println(&quot;result set : --------------&quot;+rs);
+					// System.out.println(&quot;get cash cheque details Query : &quot; +
+					// pstmt);
+<span class="nc bnc" id="L302" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L303">						totalCash += rs.getDouble(&quot;total_cash&quot;);</span>
+<span class="nc" id="L304">						totalCheque += rs.getDouble(&quot;cheque_coll&quot;);</span>
+<span class="nc" id="L305">						totalDebit += rs.getDouble(&quot;debit&quot;);</span>
+<span class="nc" id="L306">						totalCredit += rs.getDouble(&quot;credit&quot;);</span>
+<span class="nc" id="L307">						totalBounce += rs.getDouble(&quot;bounce&quot;);</span>
+<span class="nc" id="L308">						totalDeposit += rs.getDouble(&quot;bank_deposit&quot;);</span>
+<span class="nc" id="L309">						totalAmount += rs.getDouble(&quot;net_amount&quot;);</span>
+					}
+<span class="nc" id="L311">					reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L312">					reportbean.setTotalCash(FormatNumber</span>
+							.formatNumber(totalCash));
+<span class="nc" id="L314">					reportbean.setTotalChq(FormatNumber</span>
+							.formatNumber(totalCheque));
+<span class="nc" id="L316">					reportbean.setDebit(FormatNumber.formatNumber(totalDebit));</span>
+<span class="nc" id="L317">					reportbean</span>
+							.setCredit(FormatNumber.formatNumber(totalCredit));
+<span class="nc" id="L319">					reportbean.setCheqBounce(FormatNumber</span>
+							.formatNumber(totalBounce));
+<span class="nc" id="L321">					reportbean.setBankDeposit(FormatNumber</span>
+							.formatNumber(totalDeposit));
+<span class="nc" id="L323">					reportbean</span>
+							.setNetAmt(FormatNumber.formatNumber(totalAmount));
+					/*
+					 * reportbean.setName(ReportUtility.getOrgNameFromOrgId(con,
+					 * agentorgId));
+					 */
+<span class="nc" id="L329">					reportbean.setName(agtNameOrgIdMap.get(agentorgId));</span>
+<span class="nc" id="L330">					reportbean.setOrgId(agentorgId);</span>
+<span class="nc" id="L331">					list.add(reportbean);</span>
+<span class="nc" id="L332">				}</span>
+			}
+			
+<span class="nc" id="L335">		} catch (SQLException e) {</span>
+<span class="nc" id="L336">			e.printStackTrace();</span>
+<span class="nc" id="L337">			System.out.println(&quot;get cash cheque details faulty Query : &quot;</span>
+					+ pstmt);
+<span class="nc" id="L339">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L341">			try {</span>
+<span class="nc bnc" id="L342" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L343">					rs.close();</span>
+				}
+<span class="nc bnc" id="L345" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L346">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L348" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L349">					con.close();</span>
+				}
+<span class="nc" id="L351">			} catch (SQLException e) {</span>
+<span class="nc" id="L352">				e.printStackTrace();</span>
+<span class="nc" id="L353">				throw new LMSException(e);</span>
+<span class="nc" id="L354">			}</span>
+		}
+
+<span class="nc bnc" id="L357" title="All 2 branches missed.">		if ((LMSFilterDispatcher.orgOrderBy).equalsIgnoreCase(&quot;ORG_ID&quot;)) {</span>
+<span class="nc" id="L358">			Collections.sort(list, new Comparator&lt;CashChqReportBean&gt;() {</span>
+
+				@Override
+				public int compare(CashChqReportBean o1, CashChqReportBean o2) {
+<span class="nc bnc" id="L362" title="All 2 branches missed.">					if (o1.getOrgId() &gt; o2.getOrgId()) {</span>
+<span class="nc" id="L363">						return 1;</span>
+					} else {
+<span class="nc" id="L365">						return -1;</span>
+					}
+
+				}
+			});
+
+<span class="nc bnc" id="L371" title="All 2 branches missed.">		} else if ((LMSFilterDispatcher.orgOrderBy).equalsIgnoreCase(&quot;DESC&quot;)) {</span>
+
+<span class="nc" id="L373">			Collections.sort(list, new Comparator&lt;CashChqReportBean&gt;() {</span>
+
+				@Override
+				public int compare(CashChqReportBean o1, CashChqReportBean o2) {
+
+<span class="nc" id="L378">					return (o2.getName().toUpperCase()).compareTo(o1.getName().toUpperCase());</span>
+				}
+			});
+
+		} else {
+<span class="nc" id="L383">			Collections.sort(list, new Comparator&lt;CashChqReportBean&gt;() {</span>
+
+				@Override
+				public int compare(CashChqReportBean o1, CashChqReportBean o2) {
+
+<span class="nc" id="L388">					return (o1.getName().toUpperCase()).compareTo(o2.getName().toUpperCase());</span>
+				}
+			});
+
+		}
+<span class="nc" id="L393">		return list;</span>
+	}
+
+	public List&lt;CashChqPmntBean&gt; getCashChqDetailAgentWise(String startDate,
+			String endDate, int userId, boolean isExpand, String state,String city) throws LMSException {
+<span class="nc" id="L398">		List&lt;CashChqPmntBean&gt; list = new ArrayList&lt;CashChqPmntBean&gt;();</span>
+<span class="nc" id="L399">		CashChqPmntBean reportbean = null;</span>
+<span class="nc" id="L400">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L401">		String appender = &quot;&quot;;</span>
+<span class="nc" id="L402">		String qry = null;</span>
+<span class="nc" id="L403">		Statement stmt = null;</span>
+<span class="nc" id="L404">		String cityName = null;</span>
+<span class="nc" id="L405">		String condition = null;</span>
+<span class="nc bnc" id="L406" title="All 4 branches missed.">		if (!isExpand &amp;&amp; userId != -1) {</span>
+<span class="nc" id="L407">			condition = &quot; btm.user_id=&quot; + userId</span>
+					+ &quot; and ( btm.transaction_date&gt;='&quot; + startDate
+					+ &quot;' and btm.transaction_date&lt;='&quot; + endDate
+					+ &quot;') and trxtable.transaction_id=btm.transaction_id&quot;;
+		} else {
+<span class="nc" id="L412">			condition = &quot; ( btm.transaction_date&gt;='&quot; + startDate</span>
+					+ &quot;' and btm.transaction_date&lt;='&quot; + endDate
+					+ &quot;') and trxtable.transaction_id=btm.transaction_id&quot;;
+		}
+<span class="nc" id="L416">		String appendQyr = QueryManager.getAppendOrgOrder();</span>
+<span class="nc" id="L417">		String orgCodeQry = &quot; name orgCode &quot;;</span>
+		try {
+<span class="nc bnc" id="L419" title="All 2 branches missed.">			if (!(&quot;-1&quot;.equalsIgnoreCase(state))){</span>
+<span class="nc" id="L420">				qry = &quot;select state_code from st_lms_state_master where name = '&quot;+state+&quot;';&quot;;</span>
+<span class="nc" id="L421">				stmt = con.createStatement();</span>
+<span class="nc" id="L422">				ResultSet rs = stmt.executeQuery(qry);</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">				if(rs.next())</span>
+<span class="nc" id="L424">					state = rs.getString(&quot;state_code&quot;);</span>
+<span class="nc" id="L425">				appender = &quot; and state_code='&quot; + state + &quot;' &quot;;</span>
+				
+			}
+
+<span class="nc bnc" id="L429" title="All 2 branches missed.">			if (!(&quot;-1&quot;.equalsIgnoreCase(city))) {</span>
+<span class="nc" id="L430">				qry = &quot;select city_name from st_lms_city_master where city_name='&quot;+ city + &quot;' and state_code='&quot;+state+&quot;';&quot;;</span>
+<span class="nc" id="L431">				stmt = con.createStatement();</span>
+<span class="nc" id="L432">				ResultSet rs = stmt.executeQuery(qry);</span>
+<span class="nc bnc" id="L433" title="All 2 branches missed.">				if (rs.next())</span>
+<span class="nc" id="L434">					cityName = rs.getString(&quot;city_name&quot;);</span>
+<span class="nc" id="L435">				appender = &quot; and state_code='&quot; + state + &quot;' and city='&quot;+ cityName + &quot;' &quot;;</span>
+			}
+
+<span class="nc bnc" id="L438" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L439">				orgCodeQry = &quot; org_code orgCode&quot;;</span>
+
+<span class="nc bnc" id="L441" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L443">				orgCodeQry = &quot; concat(org_code,'_',name)  orgCode &quot;;</span>
+
+<span class="nc bnc" id="L445" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType)</span>
+					.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L447">				orgCodeQry = &quot; concat(name,'_',org_code)  orgCode &quot;;</span>
+
+			}
+
+<span class="nc" id="L451">			String query = &quot;select data.amount,data.transaction_id,data.type,data.generated_id,data.orgCode,ifnull(bank_name,'-') bankName from st_lms_bo_bank_deposit_transaction tx right join (select amount,transaction_id,type,generated_id,orgCode from (&quot;</span>
+					+ &quot;select amount,transaction_id,type,generated_id, &quot;
+					+ orgCodeQry
+					+ &quot; from (select amount,trx.transaction_id,type,generated_id,transaction_date,trx.party_id from (select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'CASH' type,btm.transaction_date,btm.party_id from st_lms_bo_cash_transaction trxtable, st_lms_bo_transaction_master btm where &quot;
+					+ condition
+					+ &quot; union select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'BANK DEPOSIT' type,btm.transaction_date,btm.party_id from st_lms_bo_bank_deposit_transaction trxtable, st_lms_bo_transaction_master btm where &quot;
+					+ condition
+					+ &quot; union select ifnull(trxtable.cheque_amt,0) 'amount',btm.transaction_id,'CHEQUE' type,btm.transaction_date,btm.party_id from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type IN ('CHEQUE','CLOSED') and &quot;
+					+ condition
+					+ &quot; union select ifnull(trxtable.cheque_amt,0) 'amount',btm.transaction_id,'CHQ_BOUNCE' type,btm.transaction_date,btm.party_id from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type='CHQ_BOUNCE' and &quot;
+					+ condition
+					+ &quot; union select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'DEBIT NOTE' type,btm.transaction_date,btm.party_id  from st_lms_bo_debit_note trxtable, st_lms_bo_transaction_master btm where btm.transaction_id=trxtable.transaction_id and (trxtable.transaction_type ='DR_NOTE_CASH' or trxtable.transaction_type ='DR_NOTE') and &quot;
+					+ condition
+					+ &quot; union select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'CREDIT NOTE' type,btm.transaction_date,btm.party_id  from st_lms_bo_credit_note trxtable, st_lms_bo_transaction_master btm where btm.transaction_id=trxtable.transaction_id and (trxtable.transaction_type ='CR_NOTE_CASH' and trxtable.reason not in ('CR_DAILY_INCENTIVE','CR_WEEKLY_INCENTIVE')) and &quot;
+					+ condition
+					+ &quot;) trx,st_lms_bo_receipts_trn_mapping brm,st_lms_bo_receipts borec where brm.receipt_id= borec.receipt_id and trx.transaction_id=brm.transaction_id ) innertab ,st_lms_organization_master slom where innertab.party_id = slom.organization_id &quot;+appender+&quot; order by &quot;
+					+ appendQyr
+					+ &quot;,type) aa )  data on tx.transaction_id=data.transaction_id&quot;;
+
+<span class="nc" id="L470">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L471">			rs = pstmt.executeQuery();</span>
+			// System.out.println(&quot;result set : --------------&quot;+rs);
+			// System.out.println(&quot;get cash cheque details Query : &quot; + pstmt);
+<span class="nc bnc" id="L474" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L475">				reportbean = new CashChqPmntBean();</span>
+<span class="nc" id="L476">				reportbean.setPaymentAmount(rs.getDouble(&quot;amount&quot;));</span>
+<span class="nc" id="L477">				reportbean.setPaymentType(rs.getString(&quot;type&quot;));</span>
+<span class="nc" id="L478">				reportbean.setVouncherNo(rs.getString(&quot;generated_id&quot;));</span>
+<span class="nc" id="L479">				reportbean.setDate(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L480">				reportbean.setBankName(rs.getString(&quot;bankName&quot;));</span>
+<span class="nc" id="L481">				list.add(reportbean);</span>
+			}
+<span class="nc" id="L483">		} catch (SQLException e) {</span>
+<span class="nc" id="L484">			e.printStackTrace();</span>
+<span class="nc" id="L485">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L487">			try {</span>
+<span class="nc bnc" id="L488" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L489">					rs.close();</span>
+				}
+<span class="nc bnc" id="L491" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L492">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L494" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L495">					con.close();</span>
+				}
+<span class="nc" id="L497">			} catch (SQLException e) {</span>
+<span class="nc" id="L498">				System.out.println(&quot;get cash cheque details Query : &quot; + pstmt);</span>
+<span class="nc" id="L499">				e.printStackTrace();</span>
+<span class="nc" id="L500">				throw new LMSException(e);</span>
+<span class="nc" id="L501">			}</span>
+		}
+
+<span class="nc" id="L504">		return list;</span>
+	}
+
+	/**
+	 * @deprecated Use getCashChqDetailDateWise(int orgId) Instead
+	 * 
+	 */
+	public List&lt;CashChqPmntBean&gt; getCashChqDetailDateWise(int orgId, int userId)
+			throws LMSException {
+<span class="nc" id="L513">		List&lt;CashChqPmntBean&gt; list = new ArrayList&lt;CashChqPmntBean&gt;();</span>
+<span class="nc" id="L514">		CashChqPmntBean reportbean = null;</span>
+<span class="nc" id="L515">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L516">		System.out.println(&quot;Agent Date wise report for --&gt; &quot; + orgId);</span>
+<span class="nc" id="L517">		String condition = null;</span>
+<span class="nc bnc" id="L518" title="All 2 branches missed.">		if (userId != -1) {</span>
+<span class="nc" id="L519">			condition = &quot;  trxtable.agent_org_id =&quot; + orgId</span>
+					+ &quot; and btm.user_id=&quot; + userId
+					+ &quot; and ( btm.transaction_date&gt;='&quot; + startDate
+					+ &quot;' and btm.transaction_date&lt;'&quot; + endDate
+					+ &quot;') and trxtable.transaction_id=btm.transaction_id &quot;;
+		} else {
+<span class="nc" id="L525">			condition = &quot; trxtable.agent_org_id =&quot; + orgId</span>
+					+ &quot; and ( btm.transaction_date&gt;='&quot; + startDate
+					+ &quot;' and btm.transaction_date&lt;'&quot; + endDate
+					+ &quot;') and trxtable.transaction_id=btm.transaction_id &quot;;
+		}
+<span class="nc" id="L530">		String query = &quot;select data.amount,data.transaction_id,data.type,data.generated_id,data.transaction_date,ifnull(bank_name,'-') bankName from st_lms_bo_bank_deposit_transaction tx right join (select amount,trx.transaction_id,type,generated_id,transaction_date from (select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'CASH' type,btm.transaction_date from st_lms_bo_cash_transaction trxtable, st_lms_bo_transaction_master btm where &quot;</span>
+				+ condition
+				+ &quot; union select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'BANK DEPOSIT' type,btm.transaction_date from st_lms_bo_bank_deposit_transaction trxtable, st_lms_bo_transaction_master btm where &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.cheque_amt,0) 'amount',btm.transaction_id,'CHEQUE' type,btm.transaction_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type IN ('CHEQUE','CLOSED') and &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.cheque_amt,0) 'amount',btm.transaction_id,'CHQ_BOUNCE' type,btm.transaction_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type='CHQ_BOUNCE' and &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'DEBIT NOTE' type,btm.transaction_date  from st_lms_bo_debit_note trxtable, st_lms_bo_transaction_master btm where btm.transaction_id=trxtable.transaction_id and (trxtable.transaction_type ='DR_NOTE_CASH' or trxtable.transaction_type ='DR_NOTE') and &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.amount,0) 'amount',btm.transaction_id,'CREDIT NOTE' type,btm.transaction_date  from st_lms_bo_credit_note trxtable, st_lms_bo_transaction_master btm where btm.transaction_id=trxtable.transaction_id and (trxtable.transaction_type ='CR_NOTE_CASH' and trxtable.reason not in ('CR_DAILY_INCENTIVE','CR_WEEKLY_INCENTIVE')) and &quot;
+				+ condition
+				+ &quot;) trx,st_lms_bo_receipts_trn_mapping brm,st_lms_bo_receipts borec where brm.receipt_id= borec.receipt_id and borec.party_id=&quot;
+				+ orgId
+				+ &quot; and trx.transaction_id=brm.transaction_id order by transaction_date asc) data on tx.transaction_id=data.transaction_id&quot;;
+
+		try {
+
+<span class="nc" id="L548">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L549">			rs = pstmt.executeQuery();</span>
+			// System.out.println(&quot;result set : --------------&quot;+rs);
+			// System.out.println(&quot;get cash cheque details Query : &quot; + pstmt);
+<span class="nc bnc" id="L552" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L553">				reportbean = new CashChqPmntBean();</span>
+
+<span class="nc" id="L555">				reportbean.setPaymentAmount(rs.getDouble(&quot;amount&quot;));</span>
+<span class="nc" id="L556">				reportbean.setPaymentType(rs.getString(&quot;type&quot;));</span>
+<span class="nc" id="L557">				reportbean.setVouncherNo(rs.getString(&quot;generated_id&quot;));</span>
+<span class="nc" id="L558">				reportbean.setDate(rs.getString(&quot;transaction_date&quot;).replace(</span>
+						&quot;.0&quot;, &quot;&quot;));
+<span class="nc" id="L560">				reportbean.setBankName(rs.getString(&quot;bankName&quot;));</span>
+<span class="nc" id="L561">				list.add(reportbean);</span>
+			}
+<span class="nc" id="L563">		} catch (SQLException e) {</span>
+<span class="nc" id="L564">			System.out.println(&quot;get cash cheque details Query : &quot; + pstmt);</span>
+<span class="nc" id="L565">			e.printStackTrace();</span>
+<span class="nc" id="L566">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L568">			try {</span>
+<span class="nc bnc" id="L569" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L570">					rs.close();</span>
+				}
+<span class="nc bnc" id="L572" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L573">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L575" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L576">					con.close();</span>
+				}
+<span class="nc" id="L578">			} catch (SQLException e) {</span>
+<span class="nc" id="L579">				e.printStackTrace();</span>
+<span class="nc" id="L580">				throw new LMSException(e);</span>
+<span class="nc" id="L581">			}</span>
+		}
+
+<span class="nc" id="L584">		return list;</span>
+	}
+
+	public List&lt;CashChqPmntBean&gt; getCashChqDetailAgentWise(int orgId,Map&lt;Integer, List&lt;CashChqPmntBean&gt;&gt; detailDataMap, String stateName, String cityName)
+			throws LMSException {
+
+<span class="nc" id="L590">		CashChqPmntBean reportbean = null;</span>
+<span class="nc" id="L591">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L592">		System.out.println(&quot;Agent Date wise report for --&gt; &quot; + orgId);</span>
+<span class="nc" id="L593">		String condition = &quot; &quot;;</span>
+<span class="nc" id="L594">		String subQry = &quot; &quot;;</span>
+<span class="nc" id="L595">		String appenderQuery = &quot;&quot; ;</span>
+<span class="nc" id="L596">		PreparedStatement pstmt = null;</span>
+<span class="nc" id="L597">		ResultSet rs = null;</span>
+<span class="nc bnc" id="L598" title="All 2 branches missed.">		if (orgId != -1) {</span>
+<span class="nc" id="L599">			condition = &quot;trxtable.agent_org_id =&quot; + orgId</span>
+					+ &quot; and ( btm.transaction_date&gt;='&quot; + startDate
+					+ &quot;' and btm.transaction_date&lt;'&quot; + endDate
+					+ &quot;') and trxtable.transaction_id=btm.transaction_id&quot;;
+<span class="nc" id="L603">			subQry = &quot;and borec.party_id=&quot; + orgId;</span>
+		} else {
+<span class="nc" id="L605">			condition = &quot; ( btm.transaction_date&gt;='&quot; + startDate</span>
+					+ &quot;' and btm.transaction_date&lt;'&quot; + endDate
+					+ &quot;') and trxtable.transaction_id=btm.transaction_id&quot;;
+		}
+		
+<span class="nc bnc" id="L610" title="All 4 branches missed.">		if(!(&quot;ALL&quot;.equalsIgnoreCase(stateName)) || !(&quot;ALL&quot;.equalsIgnoreCase(cityName))){</span>
+<span class="nc bnc" id="L611" title="All 2 branches missed.">		if(!(&quot;ALL&quot;.equalsIgnoreCase(stateName))) { </span>
+<span class="nc" id="L612">			appenderQuery = appenderQuery.concat(&quot; where om.state_code = '&quot;+stateName+&quot;'&quot;);</span>
+		}
+<span class="nc bnc" id="L614" title="All 2 branches missed.">		if(!(&quot;ALL&quot;.equalsIgnoreCase(stateName))) {</span>
+<span class="nc" id="L615">			appenderQuery = appenderQuery.concat(&quot; and cm.city_name = '&quot;+cityName+&quot;'&quot;);</span>
+		}
+		}
+		
+<span class="nc" id="L619">		String query = &quot;create temporary table  data  as  select sm.name state_name, cm.city_name city_name, orgId,om.&quot;</span>
+				+ QueryManager.getOrgCodeQuery()
+				+ &quot;,amount,transaction_id,type,generated_id,transaction_date,bankName from ( select data.agent_org_id orgId,data.amount,data.transaction_id,data.type,data.generated_id,data.transaction_date,ifnull(bank_name,'-') bankName from st_lms_bo_bank_deposit_transaction tx right join (select amount,agent_org_id,trx.transaction_id,type,generated_id,transaction_date from (select ifnull(trxtable.amount,0) 'amount',agent_org_id,btm.transaction_id,'CASH' type,btm.transaction_date from st_lms_bo_cash_transaction trxtable, st_lms_bo_transaction_master btm where &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.amount,0) 'amount',agent_org_id,btm.transaction_id,'BANK DEPOSIT' type,btm.transaction_date from st_lms_bo_bank_deposit_transaction trxtable, st_lms_bo_transaction_master btm where &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.cheque_amt,0) 'amount',agent_org_id,btm.transaction_id,'CHEQUE' type,btm.transaction_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type IN ('CHEQUE','CLOSED') and &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.cheque_amt,0) 'amount',agent_org_id,btm.transaction_id,'CHQ_BOUNCE' type,btm.transaction_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type='CHQ_BOUNCE' and &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.amount,0) 'amount',agent_org_id,btm.transaction_id,'DEBIT NOTE' type,btm.transaction_date  from st_lms_bo_debit_note trxtable, st_lms_bo_transaction_master btm where btm.transaction_id=trxtable.transaction_id and (trxtable.transaction_type ='DR_NOTE_CASH' or trxtable.transaction_type ='DR_NOTE') and &quot;
+				+ condition
+				+ &quot; union select ifnull(trxtable.amount,0) 'amount',agent_org_id,btm.transaction_id,'CREDIT NOTE' type,btm.transaction_date  from st_lms_bo_credit_note trxtable, st_lms_bo_transaction_master btm where btm.transaction_id=trxtable.transaction_id and (trxtable.transaction_type ='CR_NOTE_CASH' and trxtable.reason not in ('CR_DAILY_INCENTIVE','CR_WEEKLY_INCENTIVE')) and &quot;
+				+ condition
+				+ &quot;) trx,st_lms_bo_receipts_trn_mapping brm,st_lms_bo_receipts borec where brm.receipt_id= borec.receipt_id &quot;
+				+ subQry
+				+ &quot; and trx.transaction_id=brm.transaction_id order by transaction_date asc) data on tx.transaction_id=data.transaction_id)main inner join st_lms_organization_master om on om.organization_id=main.orgId &quot; +
+						&quot; inner join st_lms_state_master sm on om.state_code = sm.state_code inner join st_lms_city_master cm on om.city = cm.city_name &quot;+ appenderQuery+&quot; order by &quot;
+				+ QueryManager.getAppendOrgOrder();
+
+		try {
+<span class="nc" id="L640">			logger.debug(&quot;Aget Wise Cash Collection Query&quot; + query);</span>
+<span class="nc" id="L641">			pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L642">			pstmt.executeUpdate();</span>
+<span class="nc" id="L643">			pstmt.close();</span>
+<span class="nc" id="L644">			pstmt = con.prepareStatement(&quot;select * from data &quot;);</span>
+<span class="nc" id="L645">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L646">			System.out.println(&quot;done&quot;);</span>
+			// System.out.println(&quot;result set : --------------&quot;+rs);
+			// System.out.println(&quot;get cash cheque details Query : &quot; + pstmt);
+<span class="nc bnc" id="L649" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L650">				reportbean = new CashChqPmntBean();</span>
+<span class="nc" id="L651">				reportbean.setOrgName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L652">				reportbean.setPaymentAmount(rs.getDouble(&quot;amount&quot;));</span>
+<span class="nc" id="L653">				reportbean.setPaymentType(rs.getString(&quot;type&quot;));</span>
+<span class="nc" id="L654">				reportbean.setVouncherNo(rs.getString(&quot;generated_id&quot;));</span>
+<span class="nc" id="L655">				reportbean.setDate(rs.getString(&quot;transaction_date&quot;).replace(&quot;.0&quot;, &quot;&quot;));</span>
+<span class="nc" id="L656">				reportbean.setBankName(rs.getString(&quot;bankName&quot;));</span>
+<span class="nc" id="L657">				reportbean.setStateName(rs.getString(&quot;state_name&quot;));</span>
+<span class="nc" id="L658">				reportbean.setCityName(rs.getString(&quot;city_name&quot;));</span>
+<span class="nc" id="L659">				int agtorgId = rs.getInt(&quot;orgId&quot;);</span>
+<span class="nc bnc" id="L660" title="All 2 branches missed.">				if (detailDataMap.containsKey(agtorgId)) {</span>
+<span class="nc" id="L661">					detailDataMap.get(agtorgId).add(reportbean);</span>
+				} else {
+<span class="nc" id="L663">					List&lt;CashChqPmntBean&gt; list = new ArrayList&lt;CashChqPmntBean&gt;();</span>
+<span class="nc" id="L664">					list.add(reportbean);</span>
+<span class="nc" id="L665">					detailDataMap.put(agtorgId, list);</span>
+
+				}
+<span class="nc" id="L668">			}</span>
+<span class="nc" id="L669">			pstmt = con.prepareStatement(&quot;drop table data&quot;);</span>
+<span class="nc" id="L670">			pstmt.executeUpdate();</span>
+<span class="nc" id="L671">		} catch (SQLException e) {</span>
+<span class="nc" id="L672">			System.out.println(&quot;get cash cheque details Query : &quot; + pstmt);</span>
+<span class="nc" id="L673">			e.printStackTrace();</span>
+<span class="nc" id="L674">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L676">			try {</span>
+<span class="nc bnc" id="L677" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L678">					rs.close();</span>
+				}
+<span class="nc bnc" id="L680" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L681">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L683" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L684">					con.close();</span>
+				}
+<span class="nc" id="L686">			} catch (SQLException e) {</span>
+<span class="nc" id="L687">				e.printStackTrace();</span>
+<span class="nc" id="L688">				throw new LMSException(e);</span>
+<span class="nc" id="L689">			}</span>
+		}
+
+<span class="nc" id="L692">		return null;</span>
+	}
+
+	/**
+	 * @deprecated use getCashChqDetailDayWise() instead
+	 * @date 30DEC2013
+	 */
+	public List&lt;CashChqReportBean&gt; getCashChqDetailDayWise(int userId,
+			boolean isExpand) throws LMSException {
+<span class="nc" id="L701">		List&lt;CashChqReportBean&gt; list = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L702">		Map&lt;String, CashChqReportBean&gt; repMap = new LinkedHashMap&lt;String, CashChqReportBean&gt;();</span>
+<span class="nc" id="L703">		CashChqReportBean reportbean = null;</span>
+<span class="nc" id="L704">		String date = null;</span>
+<span class="nc" id="L705">		String condition = null;</span>
+<span class="nc" id="L706">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L707">		System.out.println(startDate + &quot;Day wise report for --&gt; &quot; + endDate);</span>
+
+<span class="nc" id="L709">		Calendar startCal = Calendar.getInstance();</span>
+<span class="nc" id="L710">		startCal.setTime(startDate);</span>
+
+<span class="nc" id="L712">		Calendar endCal = Calendar.getInstance();</span>
+<span class="nc" id="L713">		endCal.setTime(endDate);</span>
+<span class="nc" id="L714">		StringBuilder query = new StringBuilder(&quot;&quot;);</span>
+<span class="nc bnc" id="L715" title="All 2 branches missed.">		while (startCal.getTime().before(endCal.getTime())) {</span>
+<span class="nc" id="L716">			date = new java.sql.Date(startCal.getTimeInMillis()).toString();</span>
+<span class="nc" id="L717">			reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L718">			fillReportBean(reportbean);</span>
+<span class="nc" id="L719">			reportbean.setName(date);</span>
+<span class="nc" id="L720">			repMap.put(date, reportbean);</span>
+<span class="nc" id="L721">			startCal.setTimeInMillis(startCal.getTimeInMillis() + 24 * 60 * 60</span>
+					* 1000);
+
+		}
+<span class="nc bnc" id="L725" title="All 2 branches missed.">		if (!isExpand) {</span>
+<span class="nc" id="L726">			condition = &quot;( btm.transaction_date&gt;='&quot;</span>
+					+ startDate
+					+ &quot;' and btm.transaction_date&lt;'&quot;
+					+ endDate
+					+ &quot;') and btm.user_id=&quot;
+					+ userId
+					+ &quot; and trxtable.transaction_id=btm.transaction_id group by trx_date&quot;;
+		} else {
+<span class="nc" id="L734">			condition = &quot;( btm.transaction_date&gt;='&quot;</span>
+					+ startDate
+					+ &quot;' and btm.transaction_date&lt;'&quot;
+					+ endDate
+					+ &quot;') and trxtable.transaction_id=btm.transaction_id group by trx_date&quot;;
+		}
+<span class="nc bnc" id="L740" title="All 2 branches missed.">		if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L741">			query</span>
+					.append(&quot;select sum(amount) amount,type,transaction_date from (&quot;);
+		}
+<span class="nc" id="L744">		query</span>
+				.append(&quot;select amount,type,trx_date transaction_date from (select ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'CASH' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from st_lms_bo_cash_transaction trxtable, st_lms_bo_transaction_master btm where &quot;
+						+ condition
+						+ &quot; union select ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'BANK_DEPOSIT' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from st_lms_bo_bank_deposit_transaction trxtable, st_lms_bo_transaction_master btm where &quot;
+						+ condition
+						+ &quot; union select ifnull(sum(trxtable.cheque_amt),0) 'amount',btm.transaction_id,'CHEQUE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type IN ('CHEQUE','CLOSED')  and &quot;
+						+ condition
+						+ &quot; union select ifnull(sum(trxtable.cheque_amt),0) 'amount',btm.transaction_id,'CHQ_BOUNCE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type='CHQ_BOUNCE' and &quot;
+						+ condition
+						+ &quot; union select ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'DEBIT_NOTE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date  from st_lms_bo_debit_note trxtable, st_lms_bo_transaction_master btm where (trxtable.transaction_type ='DR_NOTE_CASH' or trxtable.transaction_type ='DR_NOTE') and &quot;
+						+ condition
+						+ &quot; union select ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'CREDIT_NOTE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date  from st_lms_bo_credit_note trxtable, st_lms_bo_transaction_master btm where (trxtable.transaction_type ='CR_NOTE_CASH') and &quot;
+						+ condition + &quot;) trx &quot;);
+<span class="nc bnc" id="L757" title="All 2 branches missed.">		if (LMSFilterDispatcher.isRepFrmSP) {</span>
+<span class="nc" id="L758">			query</span>
+					.append(&quot;union all select sum(cash_amt),'CASH',finaldate from st_rep_bo_payments where finaldate&gt;='&quot;
+							+ startDate
+							+ &quot;' and finaldate&lt;'&quot;
+							+ endDate
+							+ &quot;' group by finaldate&quot;
+							+ &quot; union all select sum(credit_note),'CREDIT_NOTE',finaldate from st_rep_bo_payments where finaldate&gt;='&quot;
+							+ startDate
+							+ &quot;' and finaldate&lt;'&quot;
+							+ endDate
+							+ &quot;' group by finaldate&quot;
+							+ &quot; union all select sum(debit_note),'DEBIT_NOTE',finaldate from st_rep_bo_payments where finaldate&gt;='&quot;
+							+ startDate
+							+ &quot;' and finaldate&lt;'&quot;
+							+ endDate
+							+ &quot;' group by finaldate&quot;
+							+ &quot; union all select sum(cheque_amt),'CHEQUE',finaldate from st_rep_bo_payments where finaldate&gt;='&quot;
+							+ startDate
+							+ &quot;' and finaldate&lt;'&quot;
+							+ endDate
+							+ &quot;' group by finaldate&quot;
+							+ &quot; union all select sum(cheque_bounce_amt),'CHQ_BOUNCE',finaldate from st_rep_bo_payments where finaldate&gt;='&quot;
+							+ startDate
+							+ &quot;' and finaldate&lt;'&quot;
+							+ endDate
+							+ &quot;' group by finaldate&quot;
+							+ &quot; union all select sum(bank_deposit),'BANK_DEPOSIT',finaldate from st_rep_bo_payments where finaldate&gt;='&quot;
+							+ startDate
+							+ &quot;' and finaldate&lt;'&quot;
+							+ endDate
+							+ &quot;' group by finaldate) cash group by type,transaction_date&quot;);
+		}
+		try {
+<span class="nc" id="L791">			pstmt = con.prepareStatement(query.toString());</span>
+<span class="nc" id="L792">			rs = pstmt.executeQuery();</span>
+			// System.out.println(&quot;result set : --------------&quot;+rs);
+<span class="nc bnc" id="L794" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L795">				reportbean = repMap.get(rs.getString(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L796">				fillReportBean(reportbean, rs.getString(&quot;type&quot;), rs</span>
+						.getDouble(&quot;amount&quot;));
+			}
+<span class="nc" id="L799">			list.addAll(repMap.values());</span>
+<span class="nc" id="L800">		} catch (SQLException e) {</span>
+<span class="nc" id="L801">			e.printStackTrace();</span>
+<span class="nc" id="L802">			System.out.println(&quot;cash cheque details faulty Query : &quot; + pstmt);</span>
+<span class="nc" id="L803">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L805">			try {</span>
+<span class="nc bnc" id="L806" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L807">					rs.close();</span>
+				}
+<span class="nc bnc" id="L809" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L810">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L812" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L813">					con.close();</span>
+				}
+<span class="nc" id="L815">			} catch (SQLException e) {</span>
+<span class="nc" id="L816">				e.printStackTrace();</span>
+<span class="nc" id="L817">				throw new LMSException(e);</span>
+<span class="nc" id="L818">			}</span>
+		}
+
+<span class="nc" id="L821">		return list;</span>
+	}
+
+	public List&lt;CashChqReportBean&gt; getCashChqDetailUserWise()
+			throws LMSException {
+<span class="nc" id="L826">		List&lt;CashChqReportBean&gt; list = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L827">		CashChqReportBean reportbean = null;</span>
+<span class="nc" id="L828">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L829">		StringBuilder query = null;</span>
+<span class="nc" id="L830">		Map&lt;Integer, String&gt; userMap = new CashChqReportsAgentHelper()</span>
+				.getUserList();
+<span class="nc" id="L832">		Set&lt;Integer&gt; userIdlist = userMap.keySet();</span>
+<span class="nc" id="L833">		double totalCash = 0;</span>
+<span class="nc" id="L834">		double totalCheque = 0;</span>
+<span class="nc" id="L835">		double totalDebit = 0;</span>
+<span class="nc" id="L836">		double totalCredit = 0;</span>
+<span class="nc" id="L837">		double totalBounce = 0;</span>
+<span class="nc" id="L838">		double totalDeposit = 0;</span>
+<span class="nc" id="L839">		double totalAmount = 0;</span>
+<span class="nc" id="L840">		double totalPwt = 0;</span>
+		try {
+		
+<span class="nc" id="L843">			HashMap&lt;Integer, String&gt; gameMap = ReportUtility.fetchDrawDataMenu();</span>
+
+<span class="nc" id="L845">			query = new StringBuilder(</span>
+					&quot;select sum(total_cash) 'total_cash', sum(credit) 'credit', sum(debit) 'debit', sum(cheque_coll) 'cheque_coll', sum(bounce) 'bounce',sum(bank_deposit) bank_deposit,sum(net_amount) 'net_amount' from (select aa.a 'total_cash', bb.b 'cheque_coll', cc.c 'bounce' , gg.debit_amt 'debit', dd.credit_amt 'credit',bd.d 'bank_deposit', ((aa.a+bb.b+dd.credit_amt+bd.d)-(cc.c+gg.debit_amt))'net_amount' from (( select ifnull(sum(cash.amount),0) 'a' from st_lms_bo_cash_transaction cash, st_lms_bo_transaction_master btm where btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and cash.transaction_id=btm.transaction_id ) aa, ( select ifnull(sum(chq.cheque_amt),0) 'b' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type IN ('CHEQUE','CLOSED') and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and chq.transaction_id=btm.transaction_id ) bb, ( select ifnull(sum(chq.cheque_amt),0) 'c' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type='CHQ_BOUNCE' and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and chq.transaction_id=btm.transaction_id ) cc,(select ifnull(sum(bo.amount),0) 'debit_amt'  from st_lms_bo_debit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='DR_NOTE_CASH' or bo.transaction_type ='DR_NOTE') and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) )gg,(select ifnull(sum(bo.amount),0) 'credit_amt'  from st_lms_bo_credit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='CR_NOTE_CASH' and bo.reason NOT IN ('CR_DAILY_INCENTIVE','CR_WEEKLY_INCENTIVE')) and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) )dd,(select ifnull(sum(bank.amount),0) 'd' from st_lms_bo_bank_deposit_transaction bank, st_lms_bo_transaction_master btm where btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and bank.transaction_id=btm.transaction_id ) bd)) ee&quot;);
+<span class="nc bnc" id="L847" title="All 2 branches missed.">			for (Integer userId : userIdlist) {</span>
+<span class="nc" id="L848">				reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L849">				reportbean.setName(userMap.get(userId));</span>
+<span class="nc" id="L850">				reportbean.setOrgId(userId);</span>
+
+<span class="nc" id="L852">				pstmt = con.prepareStatement(query.toString());</span>
+<span class="nc" id="L853">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L854">				pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L855">				pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L856">				pstmt.setInt(4, userId);</span>
+<span class="nc" id="L857">				pstmt.setDate(5, startDate);</span>
+<span class="nc" id="L858">				pstmt.setDate(6, endDate);</span>
+<span class="nc" id="L859">				pstmt.setInt(7, userId);</span>
+<span class="nc" id="L860">				pstmt.setDate(8, startDate);</span>
+<span class="nc" id="L861">				pstmt.setDate(9, endDate);</span>
+<span class="nc" id="L862">				pstmt.setInt(10, userId);</span>
+<span class="nc" id="L863">				pstmt.setDate(11, startDate);</span>
+<span class="nc" id="L864">				pstmt.setDate(12, endDate);</span>
+<span class="nc" id="L865">				pstmt.setInt(13, userId);</span>
+<span class="nc" id="L866">				pstmt.setDate(14, startDate);</span>
+<span class="nc" id="L867">				pstmt.setDate(15, endDate);</span>
+<span class="nc" id="L868">				pstmt.setInt(16, userId);</span>
+<span class="nc" id="L869">				pstmt.setDate(17, startDate);</span>
+<span class="nc" id="L870">				pstmt.setDate(18, endDate);</span>
+<span class="nc" id="L871">				rs = pstmt.executeQuery();</span>
+				// System.out.println(&quot;result set : --------------&quot;+rs);
+				// System.out.println(&quot;get cash cheque details Query : &quot; +
+				// pstmt);
+
+<span class="nc" id="L876">				double netAmt = 0;</span>
+<span class="nc bnc" id="L877" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc bnc" id="L878" title="All 2 branches missed.">					if (rs.getDouble(&quot;net_amount&quot;) == 0) {</span>
+<span class="nc" id="L879">						continue;</span>
+					}
+<span class="nc" id="L881">					netAmt = rs.getDouble(&quot;net_amount&quot;);</span>
+
+<span class="nc" id="L883">					totalCash += rs.getDouble(&quot;total_cash&quot;);</span>
+<span class="nc" id="L884">					totalCheque += rs.getDouble(&quot;cheque_coll&quot;);</span>
+<span class="nc" id="L885">					totalDebit += rs.getDouble(&quot;debit&quot;);</span>
+<span class="nc" id="L886">					totalCredit += rs.getDouble(&quot;credit&quot;);</span>
+<span class="nc" id="L887">					totalBounce += rs.getDouble(&quot;bounce&quot;);</span>
+<span class="nc" id="L888">					totalDeposit += rs.getDouble(&quot;bank_deposit&quot;);</span>
+<span class="nc" id="L889">					totalAmount += rs.getDouble(&quot;net_amount&quot;);</span>
+					
+<span class="nc" id="L891">					reportbean.setTotalCash(FormatNumber.formatNumber(rs.getDouble(&quot;total_cash&quot;)));</span>
+<span class="nc" id="L892">					reportbean.setTotalChq(FormatNumber.formatNumber(rs.getDouble(&quot;cheque_coll&quot;)));</span>
+<span class="nc" id="L893">					reportbean.setDebit(FormatNumber.formatNumber(rs.getDouble(&quot;debit&quot;)));</span>
+<span class="nc" id="L894">					reportbean.setCredit(FormatNumber.formatNumber(rs.getDouble(&quot;credit&quot;)));					</span>
+<span class="nc" id="L895">					reportbean.setCheqBounce(FormatNumber.formatNumber(rs.getDouble(&quot;bounce&quot;)));</span>
+<span class="nc" id="L896">					reportbean.setBankDeposit(FormatNumber.formatNumber(rs.getDouble(&quot;bank_deposit&quot;)));</span>
+<span class="nc" id="L897">					reportbean.setNetAmt(FormatNumber.formatNumber(rs.getDouble(&quot;net_amount&quot;)));</span>
+				}
+
+<span class="nc" id="L900">				double pwtAmt = 0;</span>
+<span class="nc" id="L901">				pstmt = con.prepareStatement(&quot;SELECT um.organization_id user_org_id, um.user_id, user_name cashier_name, ticket_nbr, SUM(pwt_amt) pwt_amt, game_name,claimed_date, user_name FROM st_lms_user_master um, (SELECT user_org_id, user_id, ticket_nbr, SUM(pwt_amt) pwt_amt, ? game_name, btm.transaction_date claimed_date FROM st_dg_pwt_inv_?, st_lms_bo_transaction_master btm WHERE btm.transaction_id=bo_transaction_id AND user_id=? AND btm.transaction_date &gt;=? AND btm.transaction_date&lt;=? AND STATUS='CLAIM_PLR_BO' UNION ALL SELECT user_org_id, user_id, ticket_nbr, SUM(pwt_amt) pwt_amt, 'SOCCER' game_name, btm.transaction_date claimed_date FROM st_sle_pwt_inv, st_lms_bo_transaction_master btm WHERE btm.transaction_id=bo_transaction_id AND user_id=? AND btm.transaction_date&gt;=? AND btm.transaction_date&lt;=? AND STATUS='CLAIM_AT_BO') tktTbl WHERE tktTbl.user_id=um.user_id;&quot;);</span>
+<span class="nc bnc" id="L902" title="All 2 branches missed.">				for (Map.Entry&lt;Integer, String&gt; entry : gameMap.entrySet()) {</span>
+<span class="nc" id="L903">					pstmt.setString(1, entry.getValue());</span>
+<span class="nc" id="L904">					pstmt.setInt(2, entry.getKey());</span>
+<span class="nc" id="L905">					pstmt.setInt(3, userId);</span>
+<span class="nc" id="L906">					pstmt.setDate(4, startDate);</span>
+<span class="nc" id="L907">					pstmt.setDate(5, endDate);</span>
+<span class="nc" id="L908">					pstmt.setInt(6, userId);</span>
+<span class="nc" id="L909">					pstmt.setDate(7, startDate);</span>
+<span class="nc" id="L910">					pstmt.setDate(8, endDate);</span>
+					//pstmt.setInt(9, userId);
+					//pstmt.setDate(10, startDate);
+					//pstmt.setDate(11, endDate);
+<span class="nc" id="L914">					rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L915" title="All 2 branches missed.">					if(rs.next()) {</span>
+<span class="nc" id="L916">						pwtAmt += rs.getDouble(&quot;pwt_amt&quot;);</span>
+<span class="nc" id="L917">						reportbean.setClaimAmt(pwtAmt+&quot;&quot;);</span>
+<span class="nc" id="L918">						totalPwt += rs.getDouble(&quot;pwt_amt&quot;);</span>
+<span class="nc" id="L919">						totalAmount -= rs.getDouble(&quot;pwt_amt&quot;);</span>
+					}
+<span class="nc" id="L921">				}</span>
+				
+<span class="nc" id="L923">				pstmt = con.prepareStatement(&quot;SELECT um.organization_id user_org_id, um.user_id, user_name cashier_name, ticket_nbr, SUM(pwt_amt) pwt_amt, game_name,claimed_date, user_name FROM st_lms_user_master um, ( SELECT user_org_id, user_id, ticket_nbr, SUM(pwt_amt) pwt_amt, 'INSTANT WIN' game_name, btm.transaction_date claimed_date FROM st_iw_pwt_inv, st_lms_bo_transaction_master btm WHERE btm.transaction_id=bo_transaction_id AND user_id=? AND btm.transaction_date&gt;=? AND btm.transaction_date&lt;=? AND STATUS='CLAIM_AT_BO') tktTbl WHERE tktTbl.user_id=um.user_id;&quot;);				</span>
+<span class="nc" id="L924">				pstmt.setInt(1, userId);</span>
+<span class="nc" id="L925">				pstmt.setDate(2, startDate);</span>
+<span class="nc" id="L926">				pstmt.setDate(3, endDate);</span>
+<span class="nc" id="L927">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L928" title="All 2 branches missed.">				if(rs.next()) {</span>
+<span class="nc" id="L929">					pwtAmt += rs.getDouble(&quot;pwt_amt&quot;);</span>
+<span class="nc" id="L930">					reportbean.setClaimAmt(pwtAmt+&quot;&quot;);</span>
+<span class="nc" id="L931">					totalPwt += rs.getDouble(&quot;pwt_amt&quot;);</span>
+<span class="nc" id="L932">					totalAmount -= rs.getDouble(&quot;pwt_amt&quot;);</span>
+				}
+
+<span class="nc bnc" id="L935" title="All 4 branches missed.">				if(netAmt != 0 || pwtAmt != 0) {</span>
+<span class="nc bnc" id="L936" title="All 4 branches missed.">					if(netAmt == 0 &amp;&amp; pwtAmt != 0) {</span>
+<span class="nc" id="L937">						reportbean.setTotalCash(&quot;0.00&quot;);</span>
+<span class="nc" id="L938">						reportbean.setTotalChq(&quot;0.00&quot;);</span>
+<span class="nc" id="L939">						reportbean.setDebit(&quot;0.00&quot;);</span>
+<span class="nc" id="L940">						reportbean.setCredit(&quot;0.00&quot;);</span>
+<span class="nc" id="L941">						reportbean.setCheqBounce(&quot;0.00&quot;);</span>
+<span class="nc" id="L942">						reportbean.setBankDeposit(&quot;0.00&quot;);</span>
+						//reportbean.setNetAmt(FormatNumber.formatNumber(pwtAmt));
+<span class="nc bnc" id="L944" title="All 4 branches missed.">					} else if(netAmt != 0 &amp;&amp; pwtAmt == 0) {</span>
+<span class="nc" id="L945">						reportbean.setClaimAmt(&quot;0.00&quot;);</span>
+					}
+<span class="nc" id="L947">					reportbean.setNetAmt(FormatNumber.formatNumber(netAmt-pwtAmt));</span>
+<span class="nc" id="L948">					list.add(reportbean);</span>
+				}
+<span class="nc" id="L950">			}</span>
+<span class="nc" id="L951">			reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L952">			reportbean.setTotalCash(FormatNumber</span>
+					.formatNumber(totalCash));
+<span class="nc" id="L954">			reportbean.setTotalChq(FormatNumber</span>
+					.formatNumber(totalCheque));
+<span class="nc" id="L956">			reportbean.setDebit(FormatNumber.formatNumber(totalDebit));</span>
+<span class="nc" id="L957">			reportbean</span>
+					.setCredit(FormatNumber.formatNumber(totalCredit));
+<span class="nc" id="L959">			reportbean.setCheqBounce(FormatNumber</span>
+					.formatNumber(totalBounce));
+<span class="nc" id="L961">			reportbean.setBankDeposit(FormatNumber</span>
+					.formatNumber(totalDeposit));
+<span class="nc" id="L963">			reportbean</span>
+					.setNetAmt(FormatNumber.formatNumber(totalAmount));
+<span class="nc" id="L965">			reportbean.setTotalClaim(FormatNumber.formatNumber(totalPwt));</span>
+<span class="nc" id="L966">			reportbean.setName(&quot;-1&quot;);</span>
+<span class="nc" id="L967">			reportbean.setOrgId(-1);</span>
+<span class="nc" id="L968">			list.add(reportbean);</span>
+<span class="nc" id="L969">		} catch (SQLException e) {</span>
+<span class="nc" id="L970">			e.printStackTrace();</span>
+<span class="nc" id="L971">			System.out.println(&quot;get cash cheque details faulty Query : &quot; + pstmt);</span>
+<span class="nc" id="L972">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L974">			try {</span>
+<span class="nc bnc" id="L975" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L976">					rs.close();</span>
+				}
+<span class="nc bnc" id="L978" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L979">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L981" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L982">					con.close();</span>
+				}
+<span class="nc" id="L984">			} catch (SQLException e) {</span>
+<span class="nc" id="L985">				e.printStackTrace();</span>
+<span class="nc" id="L986">				throw new LMSException(e);</span>
+<span class="nc" id="L987">			}</span>
+		}
+
+<span class="nc" id="L990">		return list;</span>
+	}
+
+	public List&lt;CashChqReportBean&gt; getCashChqDetailUserAgentWise(
+			List&lt;Integer&gt; agtidlist, int userId) throws LMSException {
+<span class="nc" id="L995">		List&lt;CashChqReportBean&gt; list = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L996">		CashChqReportBean reportbean = null;</span>
+<span class="nc" id="L997">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L998">		StringBuilder query = null;</span>
+<span class="nc" id="L999">		Map&lt;Integer, String&gt; agtNameOrgIdMap = new LinkedHashMap&lt;Integer, String&gt;();</span>
+		try {
+<span class="nc bnc" id="L1001" title="All 2 branches missed.">			if (agtidlist.size() &gt; 0) {</span>
+<span class="nc" id="L1002">				ReportUtility.getOrgNameMap(con, agtNameOrgIdMap, agtidlist</span>
+						.toString().replace(&quot;[&quot;, &quot; &quot;).replace(&quot;]&quot;, &quot; &quot;));
+			}
+<span class="nc" id="L1005">			query = new StringBuilder(</span>
+					&quot;select sum(total_cash) 'total_cash', sum(credit) 'credit', sum(debit) 'debit', sum(cheque_coll) 'cheque_coll', sum(bounce) 'bounce',sum(bank_deposit) bank_deposit,sum(net_amount) 'net_amount' from (select aa.a 'total_cash', bb.b 'cheque_coll', cc.c 'bounce' , gg.debit_amt 'debit', dd.credit_amt 'credit',bd.d 'bank_deposit', ((aa.a+bb.b+dd.credit_amt+bd.d)-(cc.c+gg.debit_amt))'net_amount' from (( select ifnull(sum(cash.amount),0) 'a' from st_lms_bo_cash_transaction cash, st_lms_bo_transaction_master btm where cash.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and cash.transaction_id=btm.transaction_id ) aa, ( select ifnull(sum(chq.cheque_amt),0) 'b' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type IN ('CHEQUE','CLOSED') and chq.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and chq.transaction_id=btm.transaction_id ) bb, ( select ifnull(sum(chq.cheque_amt),0) 'c' from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type='CHQ_BOUNCE' and chq.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and chq.transaction_id=btm.transaction_id ) cc,(select ifnull(sum(bo.amount),0) 'debit_amt'  from st_lms_bo_debit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='DR_NOTE_CASH' or bo.transaction_type ='DR_NOTE') and agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) )gg,(select ifnull(sum(bo.amount),0) 'credit_amt'  from st_lms_bo_credit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='CR_NOTE_CASH' and bo.reason not in ('CR_DAILY_INCENTIVE','CR_WEEKLY_INCENTIVE')) and agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) )dd,(select ifnull(sum(bank.amount),0) 'd' from st_lms_bo_bank_deposit_transaction bank, st_lms_bo_transaction_master btm where bank.agent_org_id = ? and btm.user_id= ? and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt;= ?) and bank.transaction_id=btm.transaction_id ) bd)) ee&quot;);
+			/*
+			 * if(LMSFilterDispatcher.isRepFrmSP){query.append(
+			 * &quot; union all select sum(cash_amt) 'total_cash', sum(cheque_amt) 'cheque_coll', sum(cheque_bounce_amt) 'bounce', sum(debit_note) 'debit', sum(credit_note) 'credit',sum(bank_deposit) 'bank_deposit',sum(((cash_amt+cheque_amt+credit_note+bank_deposit)-(cheque_bounce_amt+debit_note))) as 'net_amount' from st_rep_bo_payments where agent_org_id = ? and finaldate &gt;= ? and finaldate &lt;= ?&quot;
+			 * ); }
+			 */
+<span class="nc bnc" id="L1012" title="All 2 branches missed.">			for (Integer agentorgId : agtidlist) {</span>
+<span class="nc" id="L1013">				double totalCash = 0;</span>
+<span class="nc" id="L1014">				double totalCheque = 0;</span>
+<span class="nc" id="L1015">				double totalDebit = 0;</span>
+<span class="nc" id="L1016">				double totalCredit = 0;</span>
+<span class="nc" id="L1017">				double totalBounce = 0;</span>
+<span class="nc" id="L1018">				double totalDeposit = 0;</span>
+<span class="nc" id="L1019">				double totalAmount = 0;</span>
+<span class="nc" id="L1020">				pstmt = con.prepareStatement(query.toString());</span>
+<span class="nc" id="L1021">				pstmt.setInt(1, agentorgId);</span>
+<span class="nc" id="L1022">				pstmt.setInt(2, userId);</span>
+<span class="nc" id="L1023">				pstmt.setDate(3, startDate);</span>
+<span class="nc" id="L1024">				pstmt.setDate(4, endDate);</span>
+<span class="nc" id="L1025">				pstmt.setInt(5, agentorgId);</span>
+<span class="nc" id="L1026">				pstmt.setInt(6, userId);</span>
+<span class="nc" id="L1027">				pstmt.setDate(7, startDate);</span>
+<span class="nc" id="L1028">				pstmt.setDate(8, endDate);</span>
+<span class="nc" id="L1029">				pstmt.setInt(9, agentorgId);</span>
+<span class="nc" id="L1030">				pstmt.setInt(10, userId);</span>
+<span class="nc" id="L1031">				pstmt.setDate(11, startDate);</span>
+<span class="nc" id="L1032">				pstmt.setDate(12, endDate);</span>
+<span class="nc" id="L1033">				pstmt.setInt(13, agentorgId);</span>
+<span class="nc" id="L1034">				pstmt.setInt(14, userId);</span>
+<span class="nc" id="L1035">				pstmt.setDate(15, startDate);</span>
+<span class="nc" id="L1036">				pstmt.setDate(16, endDate);</span>
+<span class="nc" id="L1037">				pstmt.setInt(17, agentorgId);</span>
+<span class="nc" id="L1038">				pstmt.setInt(18, userId);</span>
+<span class="nc" id="L1039">				pstmt.setDate(19, startDate);</span>
+<span class="nc" id="L1040">				pstmt.setDate(20, endDate);</span>
+<span class="nc" id="L1041">				pstmt.setInt(21, agentorgId);</span>
+<span class="nc" id="L1042">				pstmt.setInt(22, userId);</span>
+<span class="nc" id="L1043">				pstmt.setDate(23, startDate);</span>
+<span class="nc" id="L1044">				pstmt.setDate(24, endDate);</span>
+				/*
+				 * if(LMSFilterDispatcher.isRepFrmSP){ pstmt.setInt(25,
+				 * agentorgId); pstmt.setDate(26, startDate); pstmt.setDate(27,
+				 * endDate); }
+				 */
+<span class="nc" id="L1050">				rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1051" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L1052">					totalCash += rs.getDouble(&quot;total_cash&quot;);</span>
+<span class="nc" id="L1053">					totalCheque += rs.getDouble(&quot;cheque_coll&quot;);</span>
+<span class="nc" id="L1054">					totalDebit += rs.getDouble(&quot;debit&quot;);</span>
+<span class="nc" id="L1055">					totalCredit += rs.getDouble(&quot;credit&quot;);</span>
+<span class="nc" id="L1056">					totalBounce += rs.getDouble(&quot;bounce&quot;);</span>
+<span class="nc" id="L1057">					totalDeposit += rs.getDouble(&quot;bank_deposit&quot;);</span>
+<span class="nc" id="L1058">					totalAmount += rs.getDouble(&quot;net_amount&quot;);</span>
+				}
+<span class="nc" id="L1060">				reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L1061">				reportbean.setTotalCash(FormatNumber.formatNumber(totalCash));</span>
+<span class="nc" id="L1062">				reportbean.setTotalChq(FormatNumber.formatNumber(totalCheque));</span>
+<span class="nc" id="L1063">				reportbean.setDebit(FormatNumber.formatNumber(totalDebit));</span>
+<span class="nc" id="L1064">				reportbean.setCredit(FormatNumber.formatNumber(totalCredit));</span>
+<span class="nc" id="L1065">				reportbean</span>
+						.setCheqBounce(FormatNumber.formatNumber(totalBounce));
+<span class="nc" id="L1067">				reportbean.setBankDeposit(FormatNumber</span>
+						.formatNumber(totalDeposit));
+<span class="nc" id="L1069">				reportbean.setNetAmt(FormatNumber.formatNumber(totalAmount));</span>
+<span class="nc" id="L1070">				reportbean.setName(agtNameOrgIdMap.get(agentorgId.intValue()));</span>
+<span class="nc" id="L1071">				reportbean.setOrgId(agentorgId);</span>
+<span class="nc" id="L1072">				list.add(reportbean);</span>
+<span class="nc" id="L1073">			}</span>
+<span class="nc" id="L1074">		} catch (SQLException e) {</span>
+<span class="nc" id="L1075">			e.printStackTrace();</span>
+<span class="nc" id="L1076">			System.out.println(&quot;get cash cheque details faulty Query : &quot;</span>
+					+ pstmt);
+<span class="nc" id="L1078">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1080">			try {</span>
+<span class="nc bnc" id="L1081" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L1082">					rs.close();</span>
+				}
+<span class="nc bnc" id="L1084" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L1085">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L1087" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1088">					con.close();</span>
+				}
+<span class="nc" id="L1090">			} catch (SQLException e) {</span>
+<span class="nc" id="L1091">				e.printStackTrace();</span>
+<span class="nc" id="L1092">				throw new LMSException(e);</span>
+<span class="nc" id="L1093">			}</span>
+		}
+<span class="nc bnc" id="L1095" title="All 2 branches missed.">		if ((LMSFilterDispatcher.orgOrderBy).equalsIgnoreCase(&quot;ORG_ID&quot;)) {</span>
+<span class="nc" id="L1096">			Collections.sort(list, new Comparator&lt;CashChqReportBean&gt;() {</span>
+
+				@Override
+				public int compare(CashChqReportBean o1, CashChqReportBean o2) {
+<span class="nc bnc" id="L1100" title="All 2 branches missed.">					if (o1.getOrgId() &gt; o2.getOrgId()) {</span>
+<span class="nc" id="L1101">						return 1;</span>
+					} else {
+<span class="nc" id="L1103">						return -1;</span>
+					}
+
+				}
+			});
+
+<span class="nc bnc" id="L1109" title="All 2 branches missed.">		} else if ((LMSFilterDispatcher.orgOrderBy).equalsIgnoreCase(&quot;DESC&quot;)) {</span>
+
+<span class="nc" id="L1111">			Collections.sort(list, new Comparator&lt;CashChqReportBean&gt;() {</span>
+
+				@Override
+				public int compare(CashChqReportBean o1, CashChqReportBean o2) {
+
+<span class="nc" id="L1116">					return (o2.getName().toUpperCase()).compareTo(o1.getName().toUpperCase());</span>
+				}
+			});
+
+		} else {
+<span class="nc" id="L1121">			Collections.sort(list, new Comparator&lt;CashChqReportBean&gt;() {</span>
+
+				@Override
+				public int compare(CashChqReportBean o1, CashChqReportBean o2) {
+
+<span class="nc" id="L1126">					return (o1.getName().toUpperCase()).compareTo(o2.getName().toUpperCase());</span>
+				}
+			});
+
+		}
+
+<span class="nc" id="L1132">		return list;</span>
+	}
+
+	public List&lt;CashierDrawerDataForPWTBean&gt; getDetailsForPwtTicketsCashierWise(
+			DateBeans dateBeans, String cashierType, int userId)
+			throws LMSException, ParseException, WriteException {
+
+<span class="nc" id="L1139">		int diffInDays = 0;</span>
+<span class="nc" id="L1140">		int maxLimitDays = 7;</span>
+<span class="nc" id="L1141">		int oneDay = 1000 * 60 * 60 * 24;</span>
+
+<span class="nc" id="L1143">		StringBuilder query = null;</span>
+
+<span class="nc" id="L1145">		Timestamp startDate = null;</span>
+<span class="nc" id="L1146">		Timestamp endDate = null;</span>
+<span class="nc" id="L1147">		List&lt;CashierDrawerDataForPWTBean&gt; detailsForPwtTicketsCashierWise = null;</span>
+<span class="nc" id="L1148">		SimpleDateFormat sdf = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+/*
+		cashierType = &quot;ALL&quot;.equals(cashierType) ? &quot;&quot; : &quot; and user_id= &quot;
+				+ userId;
+*/
+<span class="nc" id="L1153">		diffInDays = (int) ((dateBeans.getEndDate().getTime() - dateBeans</span>
+				.getStartDate().getTime()) / oneDay);
+<span class="nc bnc" id="L1155" title="All 2 branches missed.">		if (diffInDays &gt; maxLimitDays) {</span>
+<span class="nc" id="L1156">			startDate = new Timestamp(sdf</span>
+					.parse(
+							new Timestamp(dateBeans.getEndDate().getTime()
+									- oneDay * 6).toString().substring(0, 10))
+					.getTime());
+<span class="nc" id="L1161">			endDate = new Timestamp(sdf.parse(new Timestamp(dateBeans.getEndDate().getTime()).toString().substring(0, 10)).getTime()</span>
+					+ oneDay - 1000);
+<span class="nc" id="L1163">			dateBeans.setStartDate(new java.util.Date(dateBeans.getEndDate().getTime()- oneDay* 6));</span>
+
+<span class="nc" id="L1165">			new WriteExcelForCashChq(dateBeans);</span>
+
+		} else {
+<span class="nc" id="L1168">			startDate = new Timestamp(sdf.parse(</span>
+					new Timestamp(dateBeans.getStartDate().getTime())
+							.toString().substring(0, 10)).getTime());
+<span class="nc" id="L1171">			endDate = new Timestamp(sdf.parse(</span>
+					new Timestamp(dateBeans.getEndDate().getTime()).toString()
+							.substring(0, 10)).getTime()
+					+ oneDay - 1000);
+		}
+
+<span class="nc" id="L1177">		return getCashierWisewtData(startDate, endDate, cashierType, userId);</span>
+	}
+
+	public List&lt;CashierDrawerDataForPWTBean&gt; getCashierWisewtData(
+			Timestamp startDate, Timestamp endDate, String cashierType,
+			int userId) throws LMSException {
+<span class="nc" id="L1183">		List&lt;CashierDrawerDataForPWTBean&gt; detailsForPwtTicketsCashierWise = null;</span>
+<span class="nc" id="L1184">		con = DBConnect.getConnection();</span>
+<span class="nc bnc" id="L1185" title="All 2 branches missed.">		cashierType = &quot;ALL&quot;.equals(cashierType) ? &quot;&quot; : &quot; and user_id= &quot;</span>
+				+ userId;
+<span class="nc" id="L1187">		HashMap&lt;Integer, String&gt; gameMap = ReportUtility.fetchDrawDataMenu();</span>
+<span class="nc" id="L1188">		Map&lt;Integer, String&gt; iwGameMap = ReportUtility.getIWGameMap(startDate);</span>
+<span class="nc" id="L1189">		StringBuilder query = new StringBuilder(&quot;&quot;);</span>
+		try {
+<span class="nc bnc" id="L1191" title="All 2 branches missed.">			for (Map.Entry&lt;Integer, String&gt; entry : gameMap.entrySet()) {</span>
+<span class="nc" id="L1192">				query</span>
+						.append(
+								&quot;select um.organization_id user_org_id, um.user_id,user_name cashier_name,ticket_nbr, pwt_amt, game_name,claimed_date, user_name from st_lms_user_master um,(select user_org_id, user_id,ticket_nbr,sum(pwt_amt) pwt_amt, '&quot;
+										+ entry.getValue()
+										+ &quot;' game_name,btm.transaction_date claimed_date from st_dg_pwt_inv_&quot;
+										+ entry.getKey()
+										+ &quot; ,st_lms_bo_transaction_master btm where  btm.transaction_id=bo_transaction_id  and ( btm.transaction_date &gt;= '&quot;
+										+ startDate
+										+ &quot;' and btm.transaction_date &lt;= '&quot;
+										+ endDate
+										+ &quot;') and status='CLAIM_PLR_BO' &quot;
+										+ cashierType
+										+ &quot; group by  ticket_nbr order by ticket_nbr) tktTbl where tktTbl.user_id=um.user_id&quot;)
+						.append(&quot; union &quot;);
+<span class="nc" id="L1206">			}</span>
+<span class="nc bnc" id="L1207" title="All 2 branches missed.">			for (Map.Entry&lt;Integer, String&gt; entry : iwGameMap.entrySet()) {</span>
+<span class="nc" id="L1208">				query</span>
+						.append(
+								&quot;select um.organization_id user_org_id, um.user_id,user_name cashier_name,ticket_nbr, pwt_amt, game_name,claimed_date, user_name from st_lms_user_master um,(select user_org_id, user_id,ticket_nbr,sum(pwt_amt) pwt_amt, '&quot;
+										+ entry.getValue()
+										+ &quot;' game_name,btm.transaction_date claimed_date from st_iw_pwt_inv&quot;
+										+ &quot; ,st_lms_bo_transaction_master btm where  btm.transaction_id=bo_transaction_id  and ( btm.transaction_date &gt;= '&quot;
+										+ startDate
+										+ &quot;' and btm.transaction_date &lt;= '&quot;
+										+ endDate
+										+ &quot;') and status='CLAIM_AT_BO' &quot;
+										+ cashierType
+										+ &quot; group by  ticket_nbr order by ticket_nbr) tktTbl where tktTbl.user_id=um.user_id&quot;)
+						.append(&quot; union &quot;);
+<span class="nc" id="L1221">			}</span>
+
+<span class="nc" id="L1223">			pstmt = con.prepareStatement(query.replace(</span>
+					query.lastIndexOf(&quot;union&quot;), query.length(), &quot;&quot;).append(
+					&quot; order by user_id&quot;).toString());
+<span class="nc" id="L1226">			rs = pstmt.executeQuery();</span>
+
+<span class="nc" id="L1228">			detailsForPwtTicketsCashierWise = new ArrayList&lt;CashierDrawerDataForPWTBean&gt;();</span>
+
+<span class="nc bnc" id="L1230" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1231">				CashierDrawerDataForPWTBean cashierDrawerDataForPWTBean = new CashierDrawerDataForPWTBean();</span>
+<span class="nc" id="L1232">				String ticketNumber = rs.getString(&quot;ticket_nbr&quot;);</span>
+				
+<span class="nc" id="L1234">				int tktLen = ticketNumber.length();</span>
+<span class="nc" id="L1235">				cashierDrawerDataForPWTBean.setCashierName(rs</span>
+						.getString(&quot;cashier_name&quot;));
+<span class="nc" id="L1237">				cashierDrawerDataForPWTBean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+				
+<span class="nc bnc" id="L1239" title="All 2 branches missed.">				if(&quot;INSTANT WIN&quot;.equalsIgnoreCase(rs.getString(&quot;game_name&quot;))){</span>
+<span class="nc" id="L1240">					cashierDrawerDataForPWTBean.setTicketNumber(ticketNumber);</span>
+				}else{
+<span class="nc" id="L1242">				String tktFormat = Util.getTicketNumberFormat(ticketNumber</span>
+						+ &quot;0&quot;);
+<span class="nc bnc" id="L1244" title="All 2 branches missed.">				if (tktFormat.equals(&quot;OLDTKTFORMAT&quot;)) {</span>
+<span class="nc" id="L1245">					cashierDrawerDataForPWTBean.setTicketNumber(ticketNumber</span>
+							.substring(0, tktLen - 4).concat(&quot;XXXX&quot;));
+				} else {
+<span class="nc" id="L1248">					cashierDrawerDataForPWTBean.setTicketNumber(ticketNumber</span>
+							.replace((ticketNumber.substring(0, 4)), &quot;XXXX&quot;));
+				}}
+
+<span class="nc" id="L1252">				cashierDrawerDataForPWTBean.setGameName(rs</span>
+						.getString(&quot;game_name&quot;));
+<span class="nc" id="L1254">				cashierDrawerDataForPWTBean.setClaimedTime(rs</span>
+						.getTimestamp(&quot;claimed_date&quot;));
+<span class="nc" id="L1256">				cashierDrawerDataForPWTBean.setClaimedAmount(rs</span>
+						.getDouble(&quot;pwt_amt&quot;));
+<span class="nc" id="L1258">				detailsForPwtTicketsCashierWise</span>
+						.add(cashierDrawerDataForPWTBean);
+<span class="nc" id="L1260">			}</span>
+
+<span class="nc" id="L1262">		} catch (SQLException e) {</span>
+<span class="nc" id="L1263">			e.printStackTrace();</span>
+<span class="nc" id="L1264">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1266">			try {</span>
+<span class="nc bnc" id="L1267" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L1268">					rs.close();</span>
+				}
+<span class="nc bnc" id="L1270" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L1271">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L1273" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1274">					con.close();</span>
+				}
+<span class="nc" id="L1276">			} catch (SQLException e) {</span>
+<span class="nc" id="L1277">				e.printStackTrace();</span>
+<span class="nc" id="L1278">				throw new LMSException(e);</span>
+<span class="nc" id="L1279">			}</span>
+		}
+
+<span class="nc" id="L1282">		return detailsForPwtTicketsCashierWise;</span>
+	}
+
+	public List&lt;CashChqReportBean&gt; getCashChqDetail(String state, String city)
+			throws LMSException {
+<span class="nc" id="L1287">		List&lt;CashChqReportBean&gt; list = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L1288">		CashChqReportBean reportbean = null;</span>
+<span class="nc" id="L1289">		StringBuilder query = null;</span>
+<span class="nc" id="L1290">		Statement stmt = null;</span>
+		String qry;
+<span class="nc" id="L1292">		double totalCash = 0;</span>
+<span class="nc" id="L1293">		double totalCheque = 0;</span>
+<span class="nc" id="L1294">		double totalDebit = 0;</span>
+<span class="nc" id="L1295">		double totalCredit = 0;</span>
+<span class="nc" id="L1296">		double totalBounce = 0;</span>
+<span class="nc" id="L1297">		double totalDeposit = 0;</span>
+<span class="nc" id="L1298">		double totalAmount = 0;</span>
+<span class="nc" id="L1299">		String cityName = null;</span>
+<span class="nc" id="L1300">		String appender = &quot;&quot;;</span>
+<span class="nc" id="L1301">		String orgCodeQry = null;</span>
+		try {
+<span class="nc" id="L1303">			boolean isArchData = ReportUtility.isArchData(startDate);</span>
+<span class="nc" id="L1304">			con = DBConnect.getConnection();</span>
+<span class="nc bnc" id="L1305" title="All 2 branches missed.">			if (!(&quot;-1&quot;.equalsIgnoreCase(state)))</span>
+<span class="nc" id="L1306">				appender = &quot; and sm.state_code='&quot; + state + &quot;' &quot;;</span>
+
+<span class="nc bnc" id="L1308" title="All 2 branches missed.">			if (!(&quot;-1&quot;.equalsIgnoreCase(city))) {</span>
+<span class="nc" id="L1309">				qry = &quot;select city_name from st_lms_city_master where city_code='&quot;</span>
+						+ city + &quot;' and state_code='&quot; + state + &quot;';&quot;;
+<span class="nc" id="L1311">				stmt = con.createStatement();</span>
+<span class="nc" id="L1312">				ResultSet rs = stmt.executeQuery(qry);</span>
+<span class="nc bnc" id="L1313" title="All 2 branches missed.">				if (rs.next())</span>
+<span class="nc" id="L1314">					cityName = rs.getString(&quot;city_name&quot;);</span>
+<span class="nc" id="L1315">				appender = &quot; and slom.state_code='&quot; + state + &quot;' and city='&quot;</span>
+						+ cityName + &quot;' &quot;;
+			}
+			
+<span class="nc bnc" id="L1319" title="All 2 branches missed.">			if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L1320">				orgCodeQry = &quot; slom.org_code orgCode &quot;;</span>
+<span class="nc bnc" id="L1321" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE_NAME&quot;)) {</span>
+<span class="nc" id="L1322">				orgCodeQry = &quot; concat(org_code,'_',slom.name)  orgCode  &quot;;</span>
+<span class="nc bnc" id="L1323" title="All 2 branches missed.">			} else if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;NAME_CODE&quot;)) {</span>
+<span class="nc" id="L1324">				orgCodeQry = &quot; concat(slom.name,'_',org_code)  orgCode  &quot;;</span>
+			} else{
+<span class="nc" id="L1326">				orgCodeQry = &quot; slom.name orgCode &quot;;</span>
+			}
+
+<span class="nc" id="L1329">			query = new StringBuilder(</span>
+					&quot;select state_name, city_name, sum(total_cash) total_cash,sum(cheque_coll) cheque_coll,sum(bounce)  bounce,sum(debit) debit,sum(credit) credit,sum(bank_deposit) bank_deposit, sum(net_amount) net_amount,orgCode,organization_id  from ( select state_name, city_name, ifnull(aa.a,0) 'total_cash',ifnull( bb.b,0) 'cheque_coll',ifnull( cc.c,0) 'bounce' ,ifnull( gg.debit_amt,0) 'debit',ifnull( dd.credit_amt,0) 'credit',ifnull(bd.d,0) 'bank_deposit', ((ifnull(aa.a,0)+ifnull( bb.b,0)+ifnull( dd.credit_amt,0)+ifnull(bd.d,0))-(ifnull( cc.c,0)+ifnull( gg.debit_amt,0)))'net_amount',orgCode,main.organization_id from  (select state_name, city_name, om.orgCode,om.organization_id from (select sm.name state_name, city city_name,&quot;
+							+ orgCodeQry
+							+ &quot;,organization_id from st_lms_organization_master slom inner join st_lms_state_master sm on slom.state_code =sm.state_code  where organization_type='AGENT' &quot;
+							+ appender
+							+ &quot;)om  left join (select organization_id,registration_date,termination_date from st_lms_user_master  where (termination_date &lt; ? or registration_date&gt;= ? ) and isrolehead='Y' and organization_type='AGENT')um  on um.organization_id=om.organization_id)main  left join (select ifnull(sum(cash.amount),0) 'a',cash.agent_org_id  from st_lms_bo_cash_transaction cash, st_lms_bo_transaction_master btm where ( btm.transaction_date &gt;=? and btm.transaction_date &lt; ?) and cash.transaction_id=btm.transaction_id group by  cash.agent_org_id ) aa   on main.organization_id=aa.agent_org_id    left join ( select ifnull(sum(chq.cheque_amt),0) 'b',chq.agent_org_id from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type IN ('CHEQUE','CLOSED') and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) and chq.transaction_id=btm.transaction_id group by  chq.agent_org_id ) bb    on main.organization_id=bb.agent_org_id    left join  ( select ifnull(sum(chq.cheque_amt),0) 'c',chq.agent_org_id from  st_lms_bo_sale_chq chq, st_lms_bo_transaction_master btm where chq.transaction_type='CHQ_BOUNCE'  and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) and chq.transaction_id=btm.transaction_id  group by  chq.agent_org_id ) cc   on main.organization_id=cc.agent_org_id   left join  (select ifnull(sum(bo.amount),0) 'debit_amt',agent_org_id  from st_lms_bo_debit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='DR_NOTE_CASH' or bo.transaction_type ='DR_NOTE')  and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) group by  agent_org_id  )gg   on main.organization_id=gg.agent_org_id left join (select ifnull(sum(bo.amount),0) 'credit_amt' ,agent_org_id from st_lms_bo_credit_note bo, st_lms_bo_transaction_master btm where btm.transaction_id=bo.transaction_id and (bo.transaction_type ='CR_NOTE_CASH' and bo.reason NOT IN ('CR_DAILY_INCENTIVE','CR_WEEKLY_INCENTIVE')) and ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?)  group by  agent_org_id )dd on main.organization_id=dd.agent_org_id left join (select ifnull(sum(bank.amount),0) 'd',bank.agent_org_id from st_lms_bo_bank_deposit_transaction bank, st_lms_bo_transaction_master btm where  ( btm.transaction_date &gt;= ? and btm.transaction_date &lt; ?) and bank.transaction_id=btm.transaction_id  group by  agent_org_id ) bd on main.organization_id= bd.agent_org_id  &quot;);
+<span class="nc bnc" id="L1335" title="All 2 branches missed.">			if (isArchData) {</span>
+
+<span class="nc" id="L1337">				query</span>
+						.append(&quot; union all select state_name, city_name, ifnull(total_cash,0),ifnull(cheque_coll,0), ifnull(bounce,0),ifnull(debit,0), ifnull(credit,0),   ifnull(bank_deposit,0), ifnull(net_amount,0),orgCode,organization_id from (select state_name, city_name, om.orgCode,om.organization_id from (select sm.name state_name, city city_name,&quot;
+								+ orgCodeQry
+								+ &quot;,organization_id from st_lms_organization_master  slom inner join st_lms_state_master sm on slom.state_code =sm.state_code where organization_type='AGENT' &quot;
+								+ appender
+								+ &quot;)om  left join (select organization_id,registration_date,termination_date from st_lms_user_master  where (termination_date &lt; ? or registration_date&gt;= ? ) and isrolehead='Y' and organization_type='AGENT')um  on um.organization_id=om.organization_id)main  left join (select sum(cash_amt) 'total_cash',  sum(credit_note) 'credit', sum(debit_note) 'debit', sum(cheque_amt) 'cheque_coll', sum(cheque_bounce_amt) 'bounce', sum(bank_deposit) 'bank_deposit',sum(((cash_amt+cheque_amt+credit_note+bank_deposit)-(cheque_bounce_amt+debit_note))) as 'net_amount',agent_org_id from st_rep_bo_payments where  finaldate &gt;= ?  and finaldate &lt;?  group by  agent_org_id)rep  on main.organization_id= rep.agent_org_id&quot;);
+			}
+<span class="nc" id="L1344">			query.append(&quot; )final  group by  organization_id  order by &quot;</span>
+					+ QueryManager.getAppendOrgOrder());
+<span class="nc" id="L1346">			totalCash = 0;</span>
+<span class="nc" id="L1347">			totalCheque = 0;</span>
+<span class="nc" id="L1348">			totalDebit = 0;</span>
+<span class="nc" id="L1349">			totalCredit = 0;</span>
+<span class="nc" id="L1350">			totalBounce = 0;</span>
+<span class="nc" id="L1351">			totalDeposit = 0;</span>
+<span class="nc" id="L1352">			totalAmount = 0;</span>
+<span class="nc" id="L1353">			pstmt = con.prepareStatement(query.toString());</span>
+<span class="nc" id="L1354">			pstmt.setDate(1, startDate);</span>
+<span class="nc" id="L1355">			pstmt.setDate(2, endDate);</span>
+<span class="nc" id="L1356">			pstmt.setDate(3, startDate);</span>
+<span class="nc" id="L1357">			pstmt.setDate(4, endDate);</span>
+<span class="nc" id="L1358">			pstmt.setDate(5, startDate);</span>
+<span class="nc" id="L1359">			pstmt.setDate(6, endDate);</span>
+<span class="nc" id="L1360">			pstmt.setDate(7, startDate);</span>
+<span class="nc" id="L1361">			pstmt.setDate(8, endDate);</span>
+<span class="nc" id="L1362">			pstmt.setDate(9, startDate);</span>
+<span class="nc" id="L1363">			pstmt.setDate(10, endDate);</span>
+<span class="nc" id="L1364">			pstmt.setDate(11, startDate);</span>
+<span class="nc" id="L1365">			pstmt.setDate(12, endDate);</span>
+<span class="nc" id="L1366">			pstmt.setDate(13, startDate);</span>
+<span class="nc" id="L1367">			pstmt.setDate(14, endDate);</span>
+<span class="nc bnc" id="L1368" title="All 2 branches missed.">			if (isArchData) {</span>
+<span class="nc" id="L1369">				pstmt.setDate(15, startDate);</span>
+<span class="nc" id="L1370">				pstmt.setDate(16, endDate);</span>
+<span class="nc" id="L1371">				pstmt.setDate(17, startDate);</span>
+<span class="nc" id="L1372">				pstmt.setDate(18, endDate);</span>
+			}
+<span class="nc" id="L1374">			logger.info(&quot;get cash cheque details  Query : &quot; + pstmt);</span>
+<span class="nc" id="L1375">			rs = pstmt.executeQuery();</span>
+			// System.out.println(&quot;result set : --------------&quot;+rs);
+			// System.out.println(&quot;get cash cheque details Query : &quot; +
+			// pstmt);
+<span class="nc bnc" id="L1379" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1380">				totalCash += rs.getDouble(&quot;total_cash&quot;);</span>
+<span class="nc" id="L1381">				totalCheque += rs.getDouble(&quot;cheque_coll&quot;);</span>
+<span class="nc" id="L1382">				totalDebit += rs.getDouble(&quot;debit&quot;);</span>
+<span class="nc" id="L1383">				totalCredit += rs.getDouble(&quot;credit&quot;);</span>
+<span class="nc" id="L1384">				totalBounce += rs.getDouble(&quot;bounce&quot;);</span>
+<span class="nc" id="L1385">				totalDeposit += rs.getDouble(&quot;bank_deposit&quot;);</span>
+<span class="nc" id="L1386">				totalAmount += rs.getDouble(&quot;net_amount&quot;);</span>
+
+<span class="nc" id="L1388">				reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L1389">				reportbean.setTotalCash(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;total_cash&quot;)));
+<span class="nc" id="L1391">				reportbean.setTotalChq(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;cheque_coll&quot;)));
+<span class="nc" id="L1393">				reportbean.setDebit(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;debit&quot;)));
+<span class="nc" id="L1395">				reportbean.setCredit(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;credit&quot;)));
+<span class="nc" id="L1397">				reportbean.setCheqBounce(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;bounce&quot;)));
+<span class="nc" id="L1399">				reportbean.setBankDeposit(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;bank_deposit&quot;)));
+<span class="nc" id="L1401">				reportbean.setNetAmt(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;net_amount&quot;)));
+
+<span class="nc" id="L1404">				reportbean.setName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L1405">				reportbean.setOrgId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L1406">				reportbean.setState(rs.getString(&quot;state_name&quot;));</span>
+<span class="nc" id="L1407">				reportbean.setCity(rs.getString(&quot;city_name&quot;));</span>
+<span class="nc" id="L1408">				list.add(reportbean);</span>
+
+			}
+<span class="nc" id="L1411">			reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L1412">			reportbean.setTotalCash(FormatNumber.formatNumber(totalCash));</span>
+<span class="nc" id="L1413">			reportbean.setTotalChq(FormatNumber.formatNumber(totalCheque));</span>
+<span class="nc" id="L1414">			reportbean.setDebit(FormatNumber.formatNumber(totalDebit));</span>
+<span class="nc" id="L1415">			reportbean.setCredit(FormatNumber.formatNumber(totalCredit));</span>
+<span class="nc" id="L1416">			reportbean.setCheqBounce(FormatNumber.formatNumber(totalBounce));</span>
+<span class="nc" id="L1417">			reportbean.setBankDeposit(FormatNumber.formatNumber(totalDeposit));</span>
+<span class="nc" id="L1418">			reportbean.setNetAmt(FormatNumber.formatNumber(totalAmount));</span>
+<span class="nc" id="L1419">			reportbean.setName(&quot;-1&quot;);</span>
+<span class="nc" id="L1420">			reportbean.setOrgId(-1);</span>
+<span class="nc" id="L1421">			list.add(reportbean);</span>
+
+<span class="nc" id="L1423">		} catch (SQLException e) {</span>
+<span class="nc" id="L1424">			e.printStackTrace();</span>
+<span class="nc" id="L1425">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1427">			try {</span>
+<span class="nc bnc" id="L1428" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L1429">					rs.close();</span>
+				}
+<span class="nc bnc" id="L1431" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L1432">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L1434" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1435">					con.close();</span>
+				}
+<span class="nc" id="L1437">			} catch (SQLException e) {</span>
+<span class="nc" id="L1438">				e.printStackTrace();</span>
+<span class="nc" id="L1439">				throw new LMSException(e);</span>
+<span class="nc" id="L1440">			}</span>
+		}
+
+<span class="nc" id="L1443">		return list;</span>
+	}
+
+	public List&lt;CashChqReportBean&gt; getCashChqDetailDayWise(String state,
+			String city) throws LMSException {
+<span class="nc" id="L1448">		List&lt;CashChqReportBean&gt; list = new ArrayList&lt;CashChqReportBean&gt;();</span>
+<span class="nc" id="L1449">		Map&lt;String, CashChqReportBean&gt; repMap = new LinkedHashMap&lt;String, CashChqReportBean&gt;();</span>
+<span class="nc" id="L1450">		CashChqReportBean reportbean = null;</span>
+<span class="nc" id="L1451">		String date = null;</span>
+<span class="nc" id="L1452">		double totalCash = 0;</span>
+<span class="nc" id="L1453">		double totalCheque = 0;</span>
+<span class="nc" id="L1454">		double totalDebit = 0;</span>
+<span class="nc" id="L1455">		double totalCredit = 0;</span>
+<span class="nc" id="L1456">		double totalBounce = 0;</span>
+<span class="nc" id="L1457">		double totalDeposit = 0;</span>
+<span class="nc" id="L1458">		double totalAmount = 0;</span>
+<span class="nc" id="L1459">		String qry = null;</span>
+<span class="nc" id="L1460">		Statement stmt = null;</span>
+<span class="nc" id="L1461">		String appender = &quot;&quot;;</span>
+<span class="nc" id="L1462">		String cityName = null;</span>
+<span class="nc" id="L1463">		String type = &quot;&quot;;</span>
+<span class="nc" id="L1464">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L1465">		System.out.println(startDate + &quot;Day wise report for --&gt; &quot; + endDate);</span>
+<span class="nc" id="L1466">		boolean isArchData = ReportUtility.isArchData(startDate);</span>
+<span class="nc" id="L1467">		Calendar startCal = Calendar.getInstance();</span>
+<span class="nc" id="L1468">		startCal.setTime(startDate);</span>
+
+<span class="nc" id="L1470">		Calendar endCal = Calendar.getInstance();</span>
+<span class="nc" id="L1471">		endCal.setTime(endDate);</span>
+<span class="nc" id="L1472">		StringBuilder query = new StringBuilder(&quot;&quot;);</span>
+<span class="nc bnc" id="L1473" title="All 2 branches missed.">		while (startCal.getTime().before(endCal.getTime())) {</span>
+<span class="nc" id="L1474">			date = new java.sql.Date(startCal.getTimeInMillis()).toString();</span>
+<span class="nc" id="L1475">			reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L1476">			fillReportBean(reportbean);</span>
+<span class="nc" id="L1477">			reportbean.setName(date);</span>
+<span class="nc" id="L1478">			repMap.put(date, reportbean);</span>
+<span class="nc" id="L1479">			startCal.setTimeInMillis(startCal.getTimeInMillis() + 24 * 60 * 60</span>
+					* 1000);
+
+		}
+		try {
+
+<span class="nc bnc" id="L1485" title="All 2 branches missed.">			if (!(&quot;-1&quot;.equalsIgnoreCase(state)))</span>
+<span class="nc" id="L1486">				appender = &quot; where state_code='&quot; + state + &quot;' &quot;;</span>
+
+<span class="nc bnc" id="L1488" title="All 2 branches missed.">			if (!(&quot;-1&quot;.equalsIgnoreCase(city))) {</span>
+<span class="nc" id="L1489">				qry = &quot;select city_name from st_lms_city_master where city_code='&quot;</span>
+						+ city + &quot;' and state_code='&quot; + state + &quot;';&quot;;
+<span class="nc" id="L1491">				stmt = con.createStatement();</span>
+<span class="nc" id="L1492">				ResultSet rs = stmt.executeQuery(qry);</span>
+<span class="nc bnc" id="L1493" title="All 2 branches missed.">				if (rs.next())</span>
+<span class="nc" id="L1494">					cityName = rs.getString(&quot;city_name&quot;);</span>
+<span class="nc" id="L1495">				appender = &quot; where state_code='&quot; + state + &quot;' and city='&quot;</span>
+						+ cityName + &quot;' &quot;;
+			}
+
+<span class="nc bnc" id="L1499" title="All 2 branches missed.">			if (isArchData) {</span>
+<span class="nc" id="L1500">				query</span>
+						.append(&quot;select sum(amount) amount,type,transaction_date from (&quot;);
+			}
+<span class="nc" id="L1503">			query</span>
+					.append(&quot;select sum(amount) amount,type, transaction_date from (select amount,type,trx_date transaction_date from (select party_id,ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'CASH' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from st_lms_bo_cash_transaction trxtable, st_lms_bo_transaction_master btm where  ( btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and trxtable.transaction_id=btm.transaction_id group by trx_date,party_id  union select party_id, ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'BANK_DEPOSIT' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from st_lms_bo_bank_deposit_transaction trxtable, st_lms_bo_transaction_master btm where  ( btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and trxtable.transaction_id=btm.transaction_id group by trx_date,party_id  union select party_id,ifnull(sum(trxtable.cheque_amt),0) 'amount',btm.transaction_id,'CHEQUE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type IN ('CHEQUE','CLOSED')  and  ( btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and trxtable.transaction_id=btm.transaction_id group by trx_date,party_id  union select party_id,ifnull(sum(trxtable.cheque_amt),0) 'amount',btm.transaction_id,'CHQ_BOUNCE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date from  st_lms_bo_sale_chq trxtable, st_lms_bo_transaction_master btm where trxtable.transaction_type='CHQ_BOUNCE' and ( btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and trxtable.transaction_id=btm.transaction_id group by trx_date,party_id  union select party_id,ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'DEBIT_NOTE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date  from st_lms_bo_debit_note trxtable, st_lms_bo_transaction_master btm where (trxtable.transaction_type ='DR_NOTE_CASH' or trxtable.transaction_type ='DR_NOTE') and  ( btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and trxtable.transaction_id=btm.transaction_id group by trx_date,party_id  union select party_id,ifnull(sum(trxtable.amount),0) 'amount',btm.transaction_id,'CREDIT_NOTE' type,SUBSTRING_INDEX(btm.transaction_date,' ',1) trx_date  from st_lms_bo_credit_note trxtable, st_lms_bo_transaction_master btm where (trxtable.transaction_type ='CR_NOTE_CASH' and trxtable.reason NOT IN ('CR_DAILY_INCENTIVE','CR_WEEKLY_INCENTIVE')) and  ( btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and trxtable.transaction_id=btm.transaction_id group by trx_date,party_id ) trx inner join st_lms_organization_master om on om.organization_id=trx.party_id&quot;
+							+ appender
+							+ &quot; )fg group by transaction_date, type &quot;);
+<span class="nc bnc" id="L1507" title="All 2 branches missed.">			if (isArchData) {</span>
+<span class="nc" id="L1508">				query</span>
+						.append(&quot; union all select sum(amt) as amount,CASH as type,finaldate from (select agent_org_id,sum(cash_amt) amt,'CASH',finaldate from st_rep_bo_payments where finaldate&gt;=? and finaldate&lt; ? group by finaldate,agent_org_id  union all select agent_org_id,sum(credit_note) amt,'CREDIT_NOTE',finaldate from st_rep_bo_payments where finaldate&gt;=? and finaldate&lt;? group by finaldate,agent_org_id union all select agent_org_id,sum(debit_note) amt,'DEBIT_NOTE',finaldate from st_rep_bo_payments where finaldate&gt;=? and finaldate&lt;? group by finaldate,agent_org_id  union all select agent_org_id,sum(cheque_amt) amt,'CHEQUE',finaldate from st_rep_bo_payments where finaldate&gt;=? and finaldate&lt;? group by finaldate,agent_org_id  union all select agent_org_id,sum(cheque_bounce_amt) amt,'CHQ_BOUNCE',finaldate from st_rep_bo_payments where finaldate&gt;=? and finaldate&lt;? group by finaldate,agent_org_id  union all select agent_org_id,sum(bank_deposit) amt,'BANK_DEPOSIT',finaldate from st_rep_bo_payments where finaldate&gt;=? and finaldate&lt;? group by finaldate,agent_org_id)fk inner join st_lms_organization_master om on om.organization_id=fk.agent_org_id &quot;
+								+ appender
+								+ &quot; group by finaldate,CASH) cash group by type,transaction_date&quot;);
+			}
+
+<span class="nc" id="L1514">			pstmt = con.prepareStatement(query.toString());</span>
+<span class="nc" id="L1515">			pstmt.setDate(1, startDate);</span>
+<span class="nc" id="L1516">			pstmt.setDate(2, endDate);</span>
+<span class="nc" id="L1517">			pstmt.setDate(3, startDate);</span>
+<span class="nc" id="L1518">			pstmt.setDate(4, endDate);</span>
+<span class="nc" id="L1519">			pstmt.setDate(5, startDate);</span>
+<span class="nc" id="L1520">			pstmt.setDate(6, endDate);</span>
+<span class="nc" id="L1521">			pstmt.setDate(7, startDate);</span>
+<span class="nc" id="L1522">			pstmt.setDate(8, endDate);</span>
+<span class="nc" id="L1523">			pstmt.setDate(9, startDate);</span>
+<span class="nc" id="L1524">			pstmt.setDate(10, endDate);</span>
+<span class="nc" id="L1525">			pstmt.setDate(11, startDate);</span>
+<span class="nc" id="L1526">			pstmt.setDate(12, endDate);</span>
+<span class="nc bnc" id="L1527" title="All 2 branches missed.">			if (isArchData) {</span>
+<span class="nc" id="L1528">				pstmt.setDate(13, startDate);</span>
+<span class="nc" id="L1529">				pstmt.setDate(14, endDate);</span>
+<span class="nc" id="L1530">				pstmt.setDate(15, startDate);</span>
+<span class="nc" id="L1531">				pstmt.setDate(16, endDate);</span>
+<span class="nc" id="L1532">				pstmt.setDate(17, startDate);</span>
+<span class="nc" id="L1533">				pstmt.setDate(18, endDate);</span>
+<span class="nc" id="L1534">				pstmt.setDate(19, startDate);</span>
+<span class="nc" id="L1535">				pstmt.setDate(20, endDate);</span>
+<span class="nc" id="L1536">				pstmt.setDate(21, startDate);</span>
+<span class="nc" id="L1537">				pstmt.setDate(22, endDate);</span>
+<span class="nc" id="L1538">				pstmt.setDate(23, startDate);</span>
+<span class="nc" id="L1539">				pstmt.setDate(24, endDate);</span>
+			}
+
+<span class="nc" id="L1542">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L1543">			logger.info(&quot;getCashChqDetailDayWise query&quot; + pstmt);</span>
+			// System.out.println(&quot;result set : --------------&quot;+rs);
+<span class="nc bnc" id="L1545" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L1546">				reportbean = repMap.get(rs.getString(&quot;transaction_date&quot;));</span>
+<span class="nc" id="L1547">				fillReportBean(reportbean, rs.getString(&quot;type&quot;), rs</span>
+						.getDouble(&quot;amount&quot;));
+<span class="nc" id="L1549">				type = rs.getString(&quot;type&quot;);</span>
+
+<span class="nc" id="L1551">				reportbean</span>
+						.setNetAmt(FormatNumber
+								.formatNumber((Double.parseDouble(reportbean
+										.getTotalCash())
+										+ Double.parseDouble(reportbean
+												.getTotalChq())
+										+ Double.parseDouble(reportbean
+												.getCredit()) + Double
+										.parseDouble(reportbean
+												.getBankDeposit()))
+										- (Double.parseDouble(reportbean
+												.getCheqBounce()) + Double
+												.parseDouble(reportbean
+														.getDebit()))));
+			}
+
+			// totalAmount += Double.parseDouble(reportbean.getNetAmt());
+<span class="nc" id="L1568">			list.addAll(repMap.values());</span>
+
+<span class="nc bnc" id="L1570" title="All 2 branches missed.">			for (Map.Entry&lt;String, CashChqReportBean&gt; mapItr : repMap</span>
+					.entrySet()) {
+<span class="nc" id="L1572">				totalCash += Double.parseDouble(mapItr.getValue()</span>
+						.getTotalCash());
+<span class="nc" id="L1574">				totalCheque += Double.parseDouble(mapItr.getValue()</span>
+						.getTotalChq());
+<span class="nc" id="L1576">				totalDebit += Double.parseDouble(mapItr.getValue().getDebit());</span>
+<span class="nc" id="L1577">				totalCredit += Double</span>
+						.parseDouble(mapItr.getValue().getCredit());
+<span class="nc" id="L1579">				totalBounce += Double.parseDouble(mapItr.getValue()</span>
+						.getCheqBounce());
+<span class="nc" id="L1581">				totalDeposit += Double.parseDouble(mapItr.getValue()</span>
+						.getBankDeposit());
+<span class="nc" id="L1583">				totalAmount += Double</span>
+						.parseDouble(mapItr.getValue().getNetAmt());
+<span class="nc" id="L1585">			}</span>
+
+<span class="nc" id="L1587">			reportbean = new CashChqReportBean();</span>
+<span class="nc" id="L1588">			reportbean.setTotalCash(FormatNumber.formatNumber(totalCash));</span>
+<span class="nc" id="L1589">			reportbean.setTotalChq(FormatNumber.formatNumber(totalCheque));</span>
+<span class="nc" id="L1590">			reportbean.setDebit(FormatNumber.formatNumber(totalDebit));</span>
+<span class="nc" id="L1591">			reportbean.setCredit(FormatNumber.formatNumber(totalCredit));</span>
+<span class="nc" id="L1592">			reportbean.setCheqBounce(FormatNumber.formatNumber(totalBounce));</span>
+<span class="nc" id="L1593">			reportbean.setBankDeposit(FormatNumber.formatNumber(totalDeposit));</span>
+<span class="nc" id="L1594">			reportbean.setNetAmt(FormatNumber.formatNumber(totalAmount));</span>
+<span class="nc" id="L1595">			reportbean.setName(&quot;-1&quot;);</span>
+<span class="nc" id="L1596">			reportbean.setOrgId(-1);</span>
+<span class="nc" id="L1597">			list.add(reportbean);</span>
+
+<span class="nc" id="L1599">		} catch (SQLException e) {</span>
+<span class="nc" id="L1600">			e.printStackTrace();</span>
+<span class="nc" id="L1601">			System.out.println(&quot;cash cheque details faulty Query : &quot; + pstmt);</span>
+<span class="nc" id="L1602">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L1604">			try {</span>
+<span class="nc bnc" id="L1605" title="All 4 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L1606">					rs.close();</span>
+				}
+<span class="nc bnc" id="L1608" title="All 4 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L1609">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L1611" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L1612">					con.close();</span>
+				}
+<span class="nc" id="L1614">			} catch (SQLException e) {</span>
+<span class="nc" id="L1615">				e.printStackTrace();</span>
+<span class="nc" id="L1616">				throw new LMSException(e);</span>
+<span class="nc" id="L1617">			}</span>
+		}
+
+<span class="nc" id="L1620">		return list;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

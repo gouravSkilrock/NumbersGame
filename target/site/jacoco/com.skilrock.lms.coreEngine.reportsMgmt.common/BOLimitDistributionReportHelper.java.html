@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BOLimitDistributionReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">BOLimitDistributionReportHelper.java</span></div><h1>BOLimitDistributionReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.LimitDistributionBean;
+import com.skilrock.lms.beans.LimitDistributionReportBean;
+import com.skilrock.lms.beans.OrganizationBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.coreEngine.drawGames.reportMgmt.DGSaleReportsHelper;
+
+<span class="nc" id="L27">public class BOLimitDistributionReportHelper {</span>
+
+<span class="nc" id="L29">	static Log logger = LogFactory.getLog(DGSaleReportsHelper.class);</span>
+<span class="nc" id="L30">	private Connection con = null;</span>
+
+	public Map&lt;String, LimitDistributionReportBean&gt; LimitDistributionOfAgentsForBO()
+			throws LMSException {
+<span class="nc" id="L34">		Map&lt;String, LimitDistributionReportBean&gt; map = new LinkedHashMap&lt;String, LimitDistributionReportBean&gt;();</span>
+<span class="nc" id="L35">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L36">		LimitDistributionReportBean tempBean = null;</span>
+		
+	
+		
+<span class="nc" id="L40">		String query = &quot;select organization_id,limitTable.orgCode orgCode, credit_limit, extended_credit_limit,extends_credit_limit_upto, live_balance, distributed ,distributable,ifnull(count,0) terminal from (select organization_id,orgCode, credit_limit, extended_credit_limit,extends_credit_limit_upto, live_balance, ifnull(distributed,0) as distributed ,ifnull((live_balance - ifnull(distributed,0)),0) as distributable from (select organization_id, &quot;</span>
+				+ QueryManager.getOrgCodeQuery()
+				+ &quot; , organization_type, credit_limit, extended_credit_limit,extends_credit_limit_upto,(available_credit-claimable_bal)as live_balance from st_lms_organization_master where organization_type='AGENT')main left outer join (select parent_id, ifnull(sum(if((available_credit-claimable_bal)&gt;0,(available_credit-claimable_bal),0)),0) as distributed from st_lms_organization_master where organization_type = 'RETAILER' and parent_id in (select organization_id from st_lms_organization_master where organization_type= 'AGENT')group by parent_id)sub on main.organization_id = sub.parent_id  ) limitTable left join &quot;
+				+ &quot;(select a.orgCode,a.model_name,a.organization_id orgId,a.inv_model_id,sum(a.count) count,a.current_owner_type from(select (select  &quot;
+				+ QueryManager.getOrgCodeQuery()
+				+ &quot; from st_lms_organization_master where organization_id=invTlb.organization_id) orgCode,&quot;
+				+ &quot;organization_id,inv_model_id,sum(count) count, (select model_name from st_lms_inv_model_master where model_id=invTlb.inv_model_id) model_name,current_owner_type &quot;
+				+ &quot;from (select  &quot;
+				+ QueryManager.getOrgCodeQuery()
+				+ &quot;, organization_id,inv_model_id,count(serial_no) count,current_owner_type from st_lms_organization_master inner join st_lms_inv_status on current_owner_type=organization_type&quot;
+				+ &quot; and current_owner_id=organization_id where organization_type='AGENT' group by current_owner_id,inv_model_id union all select  &quot;
+				+ QueryManager.getOrgCodeQuery()
+				+ &quot;, parent_id,inv_model_id,count(inv_model_id)&quot;
+				+ &quot; count,current_owner_type from st_lms_organization_master inner join st_lms_inv_status on current_owner_type=organization_type and current_owner_id=organization_id where organization_type='RETAILER'&quot;
+				+ &quot; group by current_owner_id,inv_model_id) invTlb group by organization_id,inv_model_id) a inner join st_lms_inv_model_master b on b.model_id = a.inv_model_id where b.inv_id=1 group by a.orgCode) terCount on limitTable.organization_id=terCount.orgId order by &quot;
+				+ QueryManager.getAppendOrgOrder();
+
+		try {
+<span class="nc" id="L58">			PreparedStatement pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L59">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L61" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L62">				tempBean = new LimitDistributionReportBean();</span>
+<span class="nc" id="L63">				tempBean.setOrgId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L64">				tempBean.setName(rs.getString(&quot;orgCode&quot;));</span>
+<span class="nc" id="L65">				tempBean.setCrLimit(rs.getDouble(&quot;credit_limit&quot;));</span>
+<span class="nc" id="L66">				tempBean.setXcrLimit(rs.getDouble(&quot;extended_credit_limit&quot;));</span>
+<span class="nc" id="L67">				tempBean.setLiveBal(rs.getDouble(&quot;live_balance&quot;));</span>
+<span class="nc" id="L68">				tempBean.setDistributedBal(rs.getDouble(&quot;distributed&quot;));</span>
+<span class="nc" id="L69">				tempBean.setDistributableBal(rs.getDouble(&quot;distributable&quot;));</span>
+<span class="nc" id="L70">				tempBean.setXcrLimitUpto(calculateExtendsCreditLimitUpto(rs</span>
+						.getDate(&quot;extends_credit_limit_upto&quot;)));
+<span class="nc" id="L72">				tempBean.setTerminalCount(rs.getInt(&quot;terminal&quot;));</span>
+<span class="nc" id="L73">				map.put(rs.getInt(&quot;organization_id&quot;) + &quot;&quot;, tempBean);</span>
+			}
+
+<span class="nc" id="L76">		} catch (SQLException e) {</span>
+<span class="nc" id="L77">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L78">			e.printStackTrace();</span>
+<span class="nc" id="L79">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L81">			try {</span>
+<span class="nc bnc" id="L82" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L83">					con.close();</span>
+				}
+<span class="nc" id="L85">			} catch (SQLException e) {</span>
+<span class="nc" id="L86">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L87">				e.printStackTrace();</span>
+<span class="nc" id="L88">				throw new LMSException(e);</span>
+<span class="nc" id="L89">			}</span>
+		}
+<span class="nc" id="L91">		return map;</span>
+	}
+	private int calculateExtendsCreditLimitUpto(java.sql.Date date) {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">		if (date == null) {</span>
+<span class="nc" id="L95">			return 0;</span>
+		}
+<span class="nc" id="L97">		long days = 0, hours = 0;</span>
+
+<span class="nc" id="L99">		Calendar today = Calendar.getInstance();</span>
+<span class="nc" id="L100">		today.set(today.get(Calendar.YEAR), today.get(Calendar.MONTH), today</span>
+				.get(Calendar.DAY_OF_MONTH), 0, 0, 0);
+
+<span class="nc" id="L103">		Calendar extendedDate = Calendar.getInstance();</span>
+<span class="nc" id="L104">		extendedDate.setTimeInMillis(date.getTime());</span>
+<span class="nc" id="L105">		extendedDate.set(extendedDate.get(Calendar.YEAR), extendedDate</span>
+				.get(Calendar.MONTH), extendedDate.get(Calendar.DAY_OF_MONTH),
+				0, 0, 1);
+
+<span class="nc" id="L109">		long timeDiff = extendedDate.getTimeInMillis()</span>
+				- today.getTimeInMillis();
+<span class="nc bnc" id="L111" title="All 2 branches missed.">		if (timeDiff &gt; 0) {</span>
+<span class="nc" id="L112">			days = timeDiff / (1000 * 60 * 60 * 24);</span>
+<span class="nc" id="L113">			hours = timeDiff / (1000 * 60 * 60);</span>
+		}
+		// System.out.println(&quot; dd days : &quot;+days +&quot; hours = &quot;+hours);
+		// System.out.println(date +&quot;, extendedDate = &quot;+extendedDate.getTime()
+		// +&quot; ,today : &quot;+today.getTime());
+
+<span class="nc" id="L119">		return (int) days;</span>
+	}
+	
+	public Map&lt;String, List&lt;OrganizationBean&gt;&gt; fetchRetCreditUpdateReport(DateBeans dbean, int agtOrgId)throws LMSException{
+<span class="nc" id="L123">		Map&lt;String, List&lt;OrganizationBean&gt;&gt; map = new HashMap&lt;String, List&lt;OrganizationBean&gt;&gt;();</span>
+<span class="nc" id="L124">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L125">		OrganizationBean tempBean = null;</span>
+
+<span class="nc" id="L127">		String orgCodeQry = &quot;om.name  orgCode&quot;;</span>
+
+		
+<span class="nc bnc" id="L130" title="All 2 branches missed.">		if ((LMSFilterDispatcher.orgFieldType).equalsIgnoreCase(&quot;CODE&quot;)) {</span>
+<span class="nc" id="L131">			orgCodeQry = &quot; om.org_code orgCode &quot;;</span>
+
+
+<span class="nc bnc" id="L134" title="All 2 branches missed.">		} else if ((LMSFilterDispatcher.orgFieldType)</span>
+				.equalsIgnoreCase(&quot;CODE_NAME&quot;)) {
+<span class="nc" id="L136">			orgCodeQry = &quot; concat(om.org_code,'_',om.name)  orgCode &quot;;</span>
+		
+
+<span class="nc bnc" id="L139" title="All 2 branches missed.">		} else if ((LMSFilterDispatcher.orgFieldType)</span>
+				.equalsIgnoreCase(&quot;NAME_CODE&quot;)) {
+<span class="nc" id="L141">			orgCodeQry = &quot; concat(om.name,'_',om.org_code)  orgCode &quot;;</span>
+		
+
+		}
+		//String query = &quot;select um.user_name,&quot;+orgCodeQry+&quot;, omh.organization_id, omh.credit_limit, reason, comment, omh.organization_status, date_changed from st_lms_organization_master_history omh, st_lms_organization_master om, st_lms_organization_master oom, st_lms_user_master um where um.user_id = omh.user_id and um.organization_id = oom.organization_id and om.organization_id = omh.organization_id and om.organization_type='RETAILER' and om.parent_id = ?  and date(omh.date_changed)&gt;=?and date(omh.date_changed) &lt;= ? and omh.reason like 'CREDIT_CHANGED%'&quot;;
+<span class="nc" id="L146">		String  query =&quot;select  &quot;+orgCodeQry+&quot;, omh.organization_id, omh.amount, date_time from st_lms_cl_xcl_update_history omh, st_lms_organization_master om where  om.organization_id = omh.organization_id and om.organization_type='RETAILER' and om.parent_id = ?  and date(omh.date_time)&gt;=? and date(omh.date_time) &lt;= ? and omh.type=?&quot;;</span>
+		try {
+<span class="nc" id="L148">			PreparedStatement pstmt = con.prepareStatement(query);</span>
+<span class="nc" id="L149">			pstmt.setInt(1, agtOrgId);</span>
+<span class="nc" id="L150">			pstmt.setDate(2, dbean.getFirstdate());</span>
+<span class="nc" id="L151">			pstmt.setDate(3, new java.sql.Date(dbean.getLastdate().getTime()));</span>
+<span class="nc" id="L152">			pstmt.setString(4,&quot;CL&quot;);</span>
+<span class="nc" id="L153">			logger.debug(&quot;org credit update report qry &quot;+pstmt);</span>
+<span class="nc" id="L154">			ResultSet rs = pstmt.executeQuery();</span>
+
+<span class="nc bnc" id="L156" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L157">				tempBean = new OrganizationBean();</span>
+<span class="nc" id="L158">				tempBean.setOrgId(rs.getInt(&quot;organization_id&quot;));</span>
+<span class="nc" id="L159">				tempBean.setOrgName(rs.getString(&quot;orgCode&quot;));</span>
+				//	tempBean.setOrgCountry(rs.getString(&quot;user_name&quot;));
+			//	tempBean.setScrapLimit(rs.getString(&quot;reason&quot;));
+			//	tempBean.setOrgCity(rs.getString(&quot;date_changed&quot;));
+				
+<span class="nc" id="L164">				tempBean.setOrgCity(rs.getString(&quot;date_time&quot;));</span>
+			//	tempBean.setOrgAddr1(rs.getString(&quot;doneOrgCode&quot;));
+	
+<span class="nc bnc" id="L167" title="All 2 branches missed.">					if(rs.getDouble(&quot;amount&quot;)&lt;=0){</span>
+<span class="nc" id="L168">						tempBean.setOrgStatus(&quot;decreased&quot;);</span>
+					}else{
+<span class="nc" id="L170">						tempBean.setOrgStatus(&quot;increased&quot;);</span>
+					}
+<span class="nc" id="L172">					tempBean.setOrgCreditLimit(rs.getDouble(&quot;amount&quot;));</span>
+					// tempBean.setOrgState(rs.getString(&quot;comment&quot;));
+				
+<span class="nc bnc" id="L175" title="All 2 branches missed.">				if(!map.containsKey(rs.getString(&quot;orgCode&quot;))){</span>
+<span class="nc" id="L176">					List&lt;OrganizationBean&gt; tempList = new ArrayList&lt;OrganizationBean&gt;();</span>
+<span class="nc" id="L177">					tempList.add(tempBean);</span>
+<span class="nc" id="L178">					map.put(rs.getString(&quot;orgCode&quot;), tempList);</span>
+<span class="nc" id="L179">				}</span>
+				else{
+<span class="nc" id="L181">					map.get(rs.getString(&quot;orgCode&quot;)).add(tempBean);</span>
+				}
+				
+			}	
+		
+
+<span class="nc" id="L187">		} catch (SQLException e) {</span>
+<span class="nc" id="L188">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L189">			e.printStackTrace();</span>
+<span class="nc" id="L190">			throw new LMSException(e);</span>
+		} finally {
+<span class="nc" id="L192">			try {</span>
+<span class="nc bnc" id="L193" title="All 8 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L194">					con.close();</span>
+				}
+<span class="nc" id="L196">			} catch (SQLException e) {</span>
+<span class="nc" id="L197">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L198">				e.printStackTrace();</span>
+<span class="nc" id="L199">				throw new LMSException(e);</span>
+<span class="nc" id="L200">			}</span>
+		}
+<span class="nc" id="L202">		logger.debug(&quot;org credit update report data: &quot;+map);</span>
+<span class="nc" id="L203">		return map;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

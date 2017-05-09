@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GraphicalRepOfActInactInvStatusReportHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.drawables</a> &gt; <span class="el_source">GraphicalRepOfActInactInvStatusReportHelper.java</span></div><h1>GraphicalRepOfActInactInvStatusReportHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.drawables;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.TitleBeanForDrawables;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.web.common.drawables.CommonMethods;
+import com.skilrock.lms.web.common.drawables.PrepareDrawables;
+
+<span class="nc" id="L22">public class GraphicalRepOfActInactInvStatusReportHelper {</span>
+<span class="nc" id="L23">	static Log logger = LogFactory.getLog(GraphicalRepOfActInactInvStatusReportHelper.class);</span>
+	
+public String getActInactInvStatus(Timestamp startDate, Timestamp endDate ,String reportType, String region,String[] zoneNamesArray,String cityName, String chartType) {
+		
+<span class="nc" id="L27">	String mainQuery = null;</span>
+<span class="nc" id="L28">	String commonQuery = null;</span>
+
+<span class="nc" id="L30">	ResultSet rs= null;</span>
+<span class="nc" id="L31">	Connection con= null;</span>
+<span class="nc" id="L32">	PreparedStatement pstmt = null;</span>
+
+<span class="nc" id="L34">	List&lt;Object&gt; regions = null ;</span>
+<span class="nc" id="L35">	StringBuilder chartSubTitle = null;</span>
+<span class="nc" id="L36">	LinkedHashMap&lt;String, Object&gt; pieSeriesMap = null;</span>
+<span class="nc" id="L37">	LinkedHashMap&lt;String, List&lt;Object&gt;&gt; actInactBeanMap = null;</span>
+<span class="nc" id="L38">	String jsonString = null;</span>
+		try {
+<span class="nc" id="L40">			SimpleDateFormat format1 = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L41">			SimpleDateFormat format2 = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+<span class="nc" id="L42">			Date date1 = format1.parse(startDate.toString());</span>
+<span class="nc" id="L43">			Date date2 = format1.parse(endDate.toString());</span>
+<span class="nc" id="L44">			chartSubTitle= new StringBuilder(&quot;FROM &quot;).append(format2.format(date1)).append(&quot; TO &quot;).append(format2.format(date2));</span>
+<span class="nc" id="L45">			con =  DBConnect.getConnection();</span>
+<span class="nc" id="L46">			commonQuery = &quot;(select agent_id , max(assigned_total+notAssigned_total) totalPos, max( active_Ret) activeRet , (max(assigned_total+notAssigned_total) - max( active_Ret)) inactiveRet from  st_lms_ret_activityHistory_agentwise  where date &gt;= ? and date&lt;=? group by agent_id) his &quot;;</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">			if(reportType.equalsIgnoreCase(&quot;REGION&quot;)){ // STATE </span>
+<span class="nc" id="L48">				mainQuery=&quot;select  name,totalPos, activeRet , inactiveRet  from st_lms_state_master sm inner join (select  state_code ,sum( totalPos)totalPos, sum(activeRet)activeRet , sum(inactiveRet)inactiveRet  from (select  state_code ,sum( totalPos)totalPos, sum(activeRet)activeRet , sum(inactiveRet)inactiveRet  from st_lms_organization_master om inner join &quot;+commonQuery+ &quot; on his.agent_id=om.organization_id group by state_code union all select state_code ,0 totalPos, 0 activeRet , 0  inactiveRet  from st_lms_state_master)his group by state_code) his on sm.state_code= his.state_code&quot; ;</span>
+<span class="nc" id="L49">				pstmt =  con.prepareStatement(mainQuery);</span>
+<span class="nc" id="L50">				pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L51">				pstmt.setTimestamp(2, endDate);</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">			}else if(reportType.equalsIgnoreCase(&quot;CITY&quot;)){ // CITY</span>
+<span class="nc" id="L53">				mainQuery = &quot;select name, agent_id ,sum( totalPos)totalPos, sum(activeRet)activeRet , sum(inactiveRet)inactiveRet  from ( select city name, agent_id ,sum( totalPos)totalPos, sum(activeRet)activeRet , sum(inactiveRet)inactiveRet  from st_lms_organization_master om inner join &quot;+ commonQuery +&quot; on his.agent_id=om.organization_id and city in ((select city_name from st_lms_state_master sm inner join st_lms_city_master cm  on cm.state_code =sm.state_code and  sm.name=?))group by city union all select city_name name ,0 agent_id, 0 totalPos , 0 activeRet, 0 inactiveRet from st_lms_state_master sm inner join st_lms_city_master cm  on cm.state_code =sm.state_code and  sm.name=?) a group by name&quot; ;</span>
+<span class="nc" id="L54">				pstmt =  con.prepareStatement(mainQuery);</span>
+<span class="nc" id="L55">				pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L56">				pstmt.setTimestamp(2, endDate);</span>
+<span class="nc" id="L57">				pstmt.setString(3, region.trim());</span>
+<span class="nc" id="L58">				pstmt.setString(4, region.trim());</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">			}else if(reportType.equalsIgnoreCase(&quot;ZONE&quot;)){  // ZONES</span>
+<span class="nc bnc" id="L60" title="All 4 branches missed.">				mainQuery =&quot;select  name,sum(totalPos) totalPos , sum(activeRet)activeRet, sum(inactiveRet)inactiveRet from (select  area_name name,totalPos, activeRet , inactiveRet  from st_lms_area_master sm inner join (select  area_code ,sum( totalPos)totalPos, sum(activeRet)activeRet , sum(inactiveRet)inactiveRet  from st_lms_organization_master om inner join&quot; + commonQuery + &quot;  on his.agent_id=om.organization_id  and area_code in (&quot;+(zoneNamesArray==null ? &quot;-1&quot; :CommonMethods.getArrayAsString(zoneNamesArray))+&quot;)group by area_code) his on sm.area_code= his.area_code union all select area_name name , 0 totalPos, 0 activeRet , 0 inactiveRet from st_lms_area_master where area_code in (&quot;+(zoneNamesArray==null ? &quot;-1&quot; :CommonMethods.getArrayAsString(zoneNamesArray))+&quot;)) a group by name;&quot;;</span>
+<span class="nc" id="L61">				pstmt =  con.prepareStatement(mainQuery);</span>
+<span class="nc" id="L62">				pstmt.setTimestamp(1, startDate);</span>
+<span class="nc" id="L63">				pstmt.setTimestamp(2, endDate);</span>
+			}
+			
+<span class="nc" id="L66">			rs =  pstmt.executeQuery();</span>
+<span class="nc" id="L67">			actInactBeanMap =  new LinkedHashMap&lt;String, List&lt;Object&gt;&gt;();</span>
+<span class="nc" id="L68">			List&lt;Object&gt; liveRetList = new ArrayList&lt;Object&gt;();</span>
+<span class="nc" id="L69">			List&lt;Object&gt; noSaleRetList = new ArrayList&lt;Object&gt;();</span>
+<span class="nc" id="L70">			List&lt;Object&gt; totRetList = new ArrayList&lt;Object&gt;();</span>
+<span class="nc" id="L71">			List&lt;String&gt; categoryList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L72">			categoryList.add(&quot;TOTAL RET&quot;);</span>
+<span class="nc" id="L73">			categoryList.add(&quot;ACTIVE RET&quot;);</span>
+<span class="nc" id="L74">			categoryList.add(&quot;INACTIVE RET&quot;);</span>
+<span class="nc" id="L75">			regions = new ArrayList&lt;Object&gt;();</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L77">				totRetList.add(rs.getInt(&quot;totalPos&quot;));</span>
+<span class="nc" id="L78">				liveRetList.add(rs.getInt(&quot;activeRet&quot;));</span>
+<span class="nc" id="L79">				noSaleRetList.add(rs.getInt(&quot;inactiveRet&quot;));</span>
+<span class="nc" id="L80">				regions.add(rs.getString(&quot;name&quot;));</span>
+			}
+<span class="nc" id="L82">			actInactBeanMap.put(&quot;totalPos&quot;, totRetList);</span>
+<span class="nc" id="L83">			actInactBeanMap.put(&quot;activeRet&quot;, liveRetList);</span>
+<span class="nc" id="L84">			actInactBeanMap.put(&quot;inactiveRet&quot;, noSaleRetList);</span>
+			
+<span class="nc" id="L86">			TitleBeanForDrawables titleBeanForDrawables= new TitleBeanForDrawables(); </span>
+<span class="nc" id="L87">			titleBeanForDrawables.setChartTitle(&quot;ACTIVE INACTIVE STATUS&quot;);</span>
+<span class="nc" id="L88">			titleBeanForDrawables.setxAxisTitle(&quot;Retailer status Analytics For All Regions&quot;);</span>
+<span class="nc" id="L89">			titleBeanForDrawables.setyAxisTitle(&quot;Terminal Count&quot;);</span>
+<span class="nc" id="L90">			titleBeanForDrawables.setChartSubTitle(chartSubTitle.toString());</span>
+<span class="nc" id="L91">			titleBeanForDrawables.setData(regions);</span>
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">			if(chartType.equals(&quot;pie&quot;))</span>
+<span class="nc" id="L94">				pieSeriesMap =preparePieChart(titleBeanForDrawables ,actInactBeanMap);</span>
+
+<span class="nc" id="L96">			jsonString = PrepareDrawables.prepareDrawablesJSON(titleBeanForDrawables, chartType, actInactBeanMap ,pieSeriesMap);</span>
+		}
+<span class="nc" id="L98">		catch (Exception e) {</span>
+<span class="nc" id="L99">			logger.error(&quot;EXCEPTION :- &quot; , e);</span>
+		}finally{
+<span class="nc" id="L101">			DBConnect.closeConnection(con, pstmt, rs);</span>
+<span class="nc" id="L102">		}</span>
+<span class="nc" id="L103">		System.out.println(jsonString);</span>
+<span class="nc" id="L104">		return jsonString;</span>
+		
+	}
+
+private LinkedHashMap&lt;String, Object&gt; preparePieChart(TitleBeanForDrawables titleBeanForDrawables ,LinkedHashMap&lt;String, List&lt;Object&gt;&gt; actInactBeanMap) {
+	
+<span class="nc" id="L110">	int total = 0;</span>
+<span class="nc" id="L111">	int totalActive = 0;</span>
+<span class="nc" id="L112">	int totalInActive = 0;</span>
+
+<span class="nc" id="L114">	LinkedHashMap&lt;String, Object&gt; pieSeriesMap = new LinkedHashMap&lt;String, Object&gt;();</span>
+<span class="nc" id="L115">	Iterator&lt;Object&gt; it = actInactBeanMap.get(&quot;activeRet&quot;).iterator();</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">	while(it.hasNext()){</span>
+<span class="nc" id="L117">		totalActive+=(Integer)it.next();</span>
+	}
+<span class="nc" id="L119">	it = actInactBeanMap.get(&quot;inactiveRet&quot;).iterator();</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">	while(it.hasNext()){</span>
+<span class="nc" id="L121">		totalInActive+=(Integer)it.next();</span>
+	}
+<span class="nc" id="L123">	it = actInactBeanMap.get(&quot;totalPos&quot;).iterator();</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">	while(it.hasNext()){</span>
+<span class="nc" id="L125">		total+=(Integer)it.next();</span>
+	}
+<span class="nc bnc" id="L127" title="All 2 branches missed.">	titleBeanForDrawables.setChartSubTitle((total==0)?&quot;NO DATA AVAILABLE&quot;:&quot;OF &quot;+total+&quot; TERMINALS&quot;);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">	if(total!=0){</span>
+<span class="nc" id="L129">		pieSeriesMap.put(&quot;activeRet&quot;, (totalActive*100)/total);</span>
+<span class="nc" id="L130">		pieSeriesMap.put(&quot;inactiveRet&quot; , (totalInActive*100)/total);</span>
+	}
+<span class="nc" id="L132">	return pieSeriesMap;</span>
+}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

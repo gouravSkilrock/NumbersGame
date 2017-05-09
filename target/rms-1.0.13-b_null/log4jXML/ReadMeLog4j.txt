@@ -1,0 +1,1 @@
+Copy jboss-log4j.xml to your server/default/conf folder of your jboss

@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AgentPaymentSubmit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.accMgmt.common</a> &gt; <span class="el_source">AgentPaymentSubmit.java</span></div><h1>AgentPaymentSubmit.java</h1><pre class="source lang-java linenums">/***
+ *  * ï¿½ copyright 2007, SkilRock Technologies, A division of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * All Rights Reserved
+ * The contents of this file are the property of Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * and are subject to a License agreement with Sugal &amp; Damani Lottery Agency Pvt. Ltd.; you may
+ * not use this file except in compliance with that License.  You may obtain a
+ * copy of that license from:
+ * Legal Department
+ * Sugal &amp; Damani Lottery Agency Pvt. Ltd.
+ * 6/35,WEA, Karol Bagh,
+ * New Delhi
+ * India - 110005
+ * This software is distributed under the License and is provided on an ï¿½AS ISï¿½
+ * basis, without warranty of any kind, either express or implied, unless
+ * otherwise provided in the License.  See the License for governing rights and
+ * limitations under the License.
+ * 
+ */
+package com.skilrock.lms.web.accMgmt.common;
+
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+import org.apache.struts2.interceptor.ServletRequestAware;
+import com.opensymphony.xwork2.ActionSupport;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryHelper;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.coreEngine.accMgmt.common.AgentPaymentSubmitHelper;
+import com.skilrock.lms.coreEngine.accMgmt.common.CashRegisterHelper;
+import com.skilrock.lms.coreEngine.accMgmt.common.RetailerPaymentSubmitHelper;
+import com.skilrock.lms.coreEngine.reportsMgmt.common.GraphReportHelper;
+
+
+/**
+ * This class is used to submit the total payment from Agent. Agent
+ * 
+ * @author Skilrock Technologies
+ * 
+ */
+<span class="nc" id="L57">public class AgentPaymentSubmit  extends ActionSupport implements</span>
+		ServletRequestAware {
+<span class="nc" id="L59">	static Log logger= LogFactory.getLog(AgentPaymentSubmit.class);</span>
+	
+	private static final long serialVersionUID = 1271130427666936592L;
+	
+<span class="nc" id="L63">	private HttpServletRequest request = null;</span>
+	private int orgId;
+<span class="nc" id="L65">	private String orgType = null;</span>
+	private double cashAmnt;
+	private double totalAmount;
+	private double totalPay;
+	int transaction_id;
+	private int id;
+	private String[] multiples;
+	private String[] retDenoType;
+	private String[] retMultiples;
+	private String agentNameValue ;// it can be organization name/code/code_name etc 
+	private Map&lt;Integer, String&gt; agentInfoMap;
+	private String isCashRegister;
+	private String retOrgName;
+	/**
+	 * This method is used to submit the payment made by the Agent
+	 * 
+	 * @return SUCCESS
+	 * @throws LMSException
+	 */
+	public String start() {
+<span class="nc" id="L85">		HttpSession session = null;</span>
+<span class="nc" id="L86">		String isCREnable = &quot;INACTIVE&quot;;</span>
+		try{
+<span class="nc" id="L88">			session = getRequest().getSession();</span>
+<span class="nc" id="L89">			ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L90">			UserInfoBean userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L91">			logger.info(&quot;REQUEST_CASH_PAYMENT_MENU-&quot;+request.getAttribute(&quot;AUDIT_ID&quot;)+&quot;:&quot;+userBean.getUserId());</span>
+<span class="nc" id="L92">			isCREnable = (String)sc.getAttribute(&quot;IS_CASH_REGISTER&quot;);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equalsIgnoreCase(isCREnable))</span>
+			{
+<span class="nc" id="L95">				QueryHelper qp = new QueryHelper();</span>
+<span class="nc" id="L96">				isCREnable = qp.checkDrawerAvailablity(userBean.getUserId());</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">				if(&quot;INACTIVE&quot;.equals(isCREnable)){</span>
+<span class="nc" id="L98">					throw new LMSException(LMSErrors.DRAWER_NOT_ASSIGN_ERROR_CODE,LMSErrors.DRAWER_NOT_ASSIGN_ERROR_MESSAGE);</span>
+				}
+			}
+<span class="nc" id="L101">			isCashRegister=isCREnable;</span>
+			//session.setAttribute(&quot;isCashRegister&quot;,isCREnable);
+<span class="nc" id="L103">			agentInfoMap=CommonMethods.getOrgInfoMap(userBean.getUserOrgId(),&quot;AGENT&quot;,userBean.getRoleId());</span>
+<span class="nc" id="L104">			logger.info(&quot;RESPONSE_CASH_PAYMENT_MENU-:  cash register&quot;+isCREnable);</span>
+<span class="nc" id="L105">		} catch (LMSException le) {</span>
+<span class="nc" id="L106">				logger.error(&quot;Exception&quot;,le);</span>
+<span class="nc" id="L107">				logger.info(&quot;RESPONSE_CASH_PAYMENT_MENU-: ErrorCode:&quot;+le.getErrorCode()+&quot; ErrorMessage:&quot;+le.getErrorMessage());</span>
+<span class="nc" id="L108">	        	request.setAttribute(&quot;LMS_EXCEPTION&quot;,le.getErrorMessage());</span>
+<span class="nc" id="L109">	    		return &quot;applicationException&quot;;</span>
+<span class="nc" id="L110">		} catch (Exception e) {</span>
+<span class="nc" id="L111">				e.printStackTrace();</span>
+<span class="nc" id="L112">				logger.info(&quot;RESPONSE_CASH_PAYMENT_MENU-: ErrorCode:&quot;+LMSErrors.GENERAL_EXCEPTION_ERROR_CODE+&quot; ErrorMessage:&quot;+LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L113">				request.setAttribute(&quot;LMS_EXCEPTION&quot;,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L114">		    	return &quot;applicationException&quot;;</span>
+<span class="nc" id="L115">		}</span>
+<span class="nc" id="L116">		return SUCCESS;</span>
+	}
+
+
+    public String agentPayment() throws Exception {
+<span class="nc" id="L121">		logger.info(&quot;REQUEST_CASH_PAYMENT_SUBMIT-&quot;+this);</span>
+<span class="nc" id="L122">		HttpSession session = null;</span>
+<span class="nc" id="L123">		UserInfoBean userBean = null,agentInfoBean=null;</span>
+<span class="nc" id="L124">		String[] denoType=null;</span>
+<span class="nc" id="L125">		Connection con=null;</span>
+		try
+		{
+<span class="nc" id="L128">			session = getRequest().getSession();</span>
+<span class="nc" id="L129">			userBean = (UserInfoBean) session.getAttribute(&quot;USER_INFO&quot;);</span>
+<span class="nc" id="L130">			agentInfoBean=CommonMethods.fetchUserData(orgId);</span>
+<span class="nc" id="L131">			logger.info(&quot;REQUEST_CASH_PAYMENT_SUBMIT-&quot;+request.getAttribute(&quot;AUDIT_ID&quot;)+&quot;:&quot;+userBean.getUserId());</span>
+<span class="nc" id="L132">			String currencySymbol = (String) ServletActionContext.getServletContext().getAttribute(&quot;CURRENCY_SYMBOL&quot;);</span>
+<span class="nc" id="L133">			logger.info(&quot;user_id is-&quot;+userBean.getUserId());</span>
+<span class="nc" id="L134">			ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L135">			String isCREnable = (String)sc.getAttribute(&quot;IS_CASH_REGISTER&quot;);</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">			if(totalAmount!=cashAmnt){</span>
+<span class="nc" id="L137">				throw new LMSException(LMSErrors.CASH_PAYMENT_INVALIDATE_DATA_ERROR_CODE,LMSErrors.CASH_PAYMENT_INVALIDATE_DATA_ERROR_MESSAGE);</span>
+			}
+<span class="nc bnc" id="L139" title="All 2 branches missed.">			if(&quot;ACTIVE&quot;.equalsIgnoreCase(isCREnable)){</span>
+<span class="nc" id="L140">				CashRegisterHelper drawerHelper = new CashRegisterHelper();</span>
+<span class="nc" id="L141">				List&lt;String&gt; denoList = drawerHelper.getReceivedDenoList();</span>
+<span class="nc" id="L142">				denoType = (String[]) denoList.toArray(new String[denoList.size()]);</span>
+			}
+<span class="nc" id="L144">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L145">			con.setAutoCommit(false);</span>
+<span class="nc" id="L146">			int retOrgId=Integer.parseInt(retOrgName);</span>
+<span class="nc" id="L147">			int agentId=agentInfoBean.getUserId();</span>
+<span class="nc" id="L148">			AgentPaymentSubmitHelper helper=new AgentPaymentSubmitHelper();</span>
+<span class="nc" id="L149">			String autoGeneRecieptNoAndId=helper.submitCashAgentAmt(orgId, &quot;AGENT&quot;, totalAmount, userBean.getUserId(),userBean.getUserOrgId(),userBean.getUserType(),denoType,multiples,retDenoType,retMultiples,con);</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">			if(orgType.equalsIgnoreCase(&quot;RETAILER&quot;)){</span>
+<span class="nc" id="L151">				RetailerPaymentSubmitHelper retailerPaymentSubmit=new RetailerPaymentSubmitHelper();</span>
+<span class="nc" id="L152">			    autoGeneRecieptNoAndId=retailerPaymentSubmit.retailerCashPaySubmit(retOrgId, &quot;RETAILER&quot;,retOrgId, totalAmount, agentId, orgId, &quot;AGENT&quot;, con);</span>
+			}
+<span class="nc" id="L154">			con.commit();</span>
+<span class="nc" id="L155">			String[] autoGeneReceipt=autoGeneRecieptNoAndId.split(&quot;#&quot;);</span>
+<span class="nc" id="L156">			String autoGeneRecieptNo=autoGeneReceipt[0];</span>
+<span class="nc" id="L157">			int id=Integer.parseInt(autoGeneReceipt[1]);</span>
+<span class="nc" id="L158">			java.util.Date d=new java.util.Date();</span>
+			
+<span class="nc" id="L160">			SimpleDateFormat sdf=new SimpleDateFormat(&quot;dd-MM-yyyy HH:mm:ss&quot;);</span>
+<span class="nc" id="L161">			String generationTime=sdf.format(d.getTime());</span>
+<span class="nc" id="L162">			logger.info(&quot;Generation time:&quot;+generationTime);</span>
+<span class="nc" id="L163">			boolean isThermalRcptRequired = &quot;true&quot;.equals((String) ServletActionContext.getServletContext().getAttribute(&quot;IS_CASH_RCPT_ON_THERMAL_PRINTER&quot;));</span>
+			
+<span class="nc bnc" id="L165" title="All 2 branches missed.">			if(isThermalRcptRequired){</span>
+<span class="nc" id="L166">				NumberFormat nf = NumberFormat.getInstance();</span>
+<span class="nc" id="L167">				nf.setMinimumFractionDigits(2);</span>
+				
+<span class="nc" id="L169">				String amountCash = nf.format(totalAmount);</span>
+<span class="nc" id="L170">				String data=&quot;data=0|txType=RECEIPT|address=&quot;+CommonMethods.getOrgAddress(String.valueOf(userBean.getUserOrgId()))+&quot;|genTime=&quot;+generationTime+&quot;|mode=Voucher|voucherNo=&quot;+autoGeneRecieptNo+&quot;|txDate=&quot;+sdf.format(d.getTime())+&quot;|amount=&quot;+amountCash+&quot;|orgName=&quot;+agentNameValue+&quot;|ctr=200|parentOrgName=&quot;+userBean.getOrgName()+&quot;|curSymbol=&quot;+currencySymbol;</span>
+<span class="nc" id="L171">				session.setAttribute(&quot;APP_DATA&quot;,data);</span>
+			}
+<span class="nc" id="L173">			    session.setAttribute(&quot;totalPay&quot;, totalAmount);</span>
+<span class="nc" id="L174">			    session.setAttribute(&quot;orgName&quot;,agentNameValue);</span>
+<span class="nc" id="L175">				session.setAttribute(&quot;Receipt_Id&quot;, autoGeneRecieptNo);</span>
+<span class="nc" id="L176">				GraphReportHelper graphReportHelper = new GraphReportHelper();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">				if(&quot;AGENT&quot;.equalsIgnoreCase(orgType)){</span>
+<span class="nc" id="L178">					String parentOrgName = null;</span>
+<span class="nc" id="L179">					int userOrgID = 0;</span>
+<span class="nc" id="L180">					parentOrgName = userBean.getOrgName();</span>
+<span class="nc" id="L181">					userOrgID = userBean.getUserOrgId();</span>
+<span class="nc" id="L182">					graphReportHelper.createTextReportBO(id, parentOrgName, userOrgID,</span>
+							(String) session.getAttribute(&quot;ROOT_PATH&quot;));
+<span class="nc" id="L184">				}else{</span>
+<span class="nc" id="L185">					graphReportHelper.createTextReportAgent(id, (String) session.getAttribute(&quot;ROOT_PATH&quot;), orgId, agentInfoBean.getOrgName());</span>
+				}
+<span class="nc" id="L187">		}catch (LMSException le) {</span>
+<span class="nc" id="L188">				logger.info(&quot;RESPONSE_CASH_PAYMENT_SUBMIT-: ErrorCode:&quot;+le.getErrorCode()+&quot; ErrorMessage:&quot;+le.getErrorMessage());</span>
+<span class="nc" id="L189">	        	request.setAttribute(&quot;LMS_EXCEPTION&quot;,le.getErrorMessage());</span>
+<span class="nc" id="L190">	    		return &quot;applicationException&quot;;</span>
+<span class="nc" id="L191">			}catch (Exception e) {</span>
+<span class="nc" id="L192">				logger.error(&quot;Exception&quot;,e);</span>
+<span class="nc" id="L193">				logger.info(&quot;RESPONSE_CASH_PAYMENT_SUBMIT-: ErrorCode:&quot;+LMSErrors.GENERAL_EXCEPTION_ERROR_CODE+&quot; ErrorMessage:&quot;+LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L194">				request.setAttribute(&quot;LMS_EXCEPTION&quot;,LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L195">		    	return &quot;applicationException&quot;;</span>
+			}finally{
+<span class="nc" id="L197">				try{</span>
+<span class="nc bnc" id="L198" title="All 8 branches missed.">					if(con!=null){</span>
+<span class="nc" id="L199">						con.close();</span>
+					}
+<span class="nc" id="L201">				}catch (SQLException e) {</span>
+<span class="nc" id="L202">					e.printStackTrace();</span>
+<span class="nc" id="L203">				}</span>
+<span class="nc" id="L204">			}</span>
+
+<span class="nc" id="L206">		return SUCCESS;</span>
+	}
+	public int getOrgId() {
+<span class="nc" id="L209">		return orgId;</span>
+	}
+
+
+	public void setOrgId(int orgId) {
+<span class="nc" id="L214">		this.orgId = orgId;</span>
+<span class="nc" id="L215">	}</span>
+	
+	
+	public int getId() {
+<span class="nc" id="L219">		return id;</span>
+	}
+
+	
+
+	public String getOrgType() {
+<span class="nc" id="L225">		return orgType;</span>
+	}
+
+	public HttpServletRequest getRequest() {
+<span class="nc" id="L229">		return request;</span>
+	}
+
+	public double getTotalAmount() {
+<span class="nc" id="L233">		return totalAmount;</span>
+	}
+	public double getCashAmnt() {
+<span class="nc" id="L236">		return cashAmnt;</span>
+	}
+
+	public double getTotalPay() {
+<span class="nc" id="L240">		return totalPay;</span>
+	}
+
+	public int getTransaction_id() {
+<span class="nc" id="L244">		return transaction_id;</span>
+	}
+
+	public void setId(int id) {
+<span class="nc" id="L248">		this.id = id;</span>
+<span class="nc" id="L249">	}</span>
+	public void setCashAmnt(double cashAmnt) {
+<span class="nc" id="L251">		this.cashAmnt = cashAmnt;</span>
+<span class="nc" id="L252">	}</span>
+
+	public void setOrgType(String orgType) {
+<span class="nc" id="L255">		this.orgType = orgType;</span>
+<span class="nc" id="L256">	}</span>
+
+	public void setServletRequest(HttpServletRequest request) {
+<span class="nc" id="L259">		this.request = request;</span>
+<span class="nc" id="L260">	}</span>
+
+	public void setTotalAmount(double totalAmount) {
+<span class="nc" id="L263">		this.totalAmount = totalAmount;</span>
+<span class="nc" id="L264">	}</span>
+
+	public void setTotalPay(double totalPay) {
+<span class="nc" id="L267">		this.totalPay = totalPay;</span>
+<span class="nc" id="L268">	}</span>
+
+	public void setTransaction_id(int transaction_id) {
+<span class="nc" id="L271">		this.transaction_id = transaction_id;</span>
+<span class="nc" id="L272">	}</span>
+
+	public String[] getMultiples() {
+<span class="nc" id="L275">		return multiples;</span>
+	}
+
+	public void setMultiples(String[] multiples) {
+<span class="nc" id="L279">		this.multiples = multiples;</span>
+<span class="nc" id="L280">	}</span>
+
+	public String[] getRetDenoType() {
+<span class="nc" id="L283">		return retDenoType;</span>
+	}
+
+	public void setRetDenoType(String[] retDenoType) {
+<span class="nc" id="L287">		this.retDenoType = retDenoType;</span>
+<span class="nc" id="L288">	}</span>
+
+	public String[] getRetMultiples() {
+<span class="nc" id="L291">		return retMultiples;</span>
+	}
+
+	public void setRetMultiples(String[] retMultiples) {
+<span class="nc" id="L295">		this.retMultiples = retMultiples;</span>
+<span class="nc" id="L296">	}</span>
+	public String getAgentNameValue() {
+<span class="nc" id="L298">		return agentNameValue;</span>
+	}
+
+	public void setAgentNameValue(String agentNameValue) {
+<span class="nc" id="L302">		this.agentNameValue = agentNameValue;</span>
+<span class="nc" id="L303">	}</span>
+
+
+	public Map&lt;Integer, String&gt; getAgentInfoMap() {
+<span class="nc" id="L307">		return agentInfoMap;</span>
+	}
+
+
+	public void setAgentInfoMap(Map&lt;Integer, String&gt; agentInfoMap) {
+<span class="nc" id="L312">		this.agentInfoMap = agentInfoMap;</span>
+<span class="nc" id="L313">	}</span>
+
+
+	@Override
+	public String toString() {
+<span class="nc" id="L318">		return &quot;AgentPaymentSubmit [agentNameValue=&quot; + agentNameValue</span>
+				+ &quot;, agentOrgMap=&quot; + agentInfoMap + &quot;, cashAmnt=&quot; + cashAmnt
+				+ &quot;, multiples=&quot; + Arrays.toString(multiples) + &quot;, orgId=&quot;
+				+ orgId + &quot;,  orgType=&quot; + orgType
+				+ &quot;, retDenoType=&quot; + Arrays.toString(retDenoType)
+				+ &quot;, retMultiples=&quot; + Arrays.toString(retMultiples)
+				+ &quot;, totalAmount=&quot; + totalAmount + &quot;, totalPay=&quot; + totalPay
+				+ &quot;, transaction_id=&quot; + transaction_id + &quot;]&quot;;
+	}
+
+
+	public void setIsCashRegister(String isCashRegister) {
+<span class="nc" id="L330">		this.isCashRegister = isCashRegister;</span>
+<span class="nc" id="L331">	}</span>
+	public String getIsCashRegister() {
+<span class="nc" id="L333">		return isCashRegister;</span>
+	}
+	public void setRetOrgName(String retOrgName) {
+<span class="nc" id="L336">		this.retOrgName = retOrgName;</span>
+<span class="nc" id="L337">	}</span>
+	public String getRetOrgName() {
+<span class="nc" id="L339">		return retOrgName;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

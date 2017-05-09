@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZeroToNineHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">ZeroToNineHelper.java</span></div><h1>ZeroToNineHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.sql.Connection;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.google.gson.Gson;
+import com.skilrock.itg.IDBarcode.IDBarcode;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.common.utility.orgOnLineSaleCreditUpdation;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.dge.beans.ZeroToNinePurchaseBean;
+import com.skilrock.lms.dge.beans.ZeroToNineRequestBean;
+import com.skilrock.lms.dge.beans.ZeroToNineResponseBean;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class ZeroToNineHelper {
+<span class="nc" id="L28">	static Log logger = LogFactory.getLog(ZeroToNineHelper.class);</span>
+
+<span class="nc" id="L30">	private static ZeroToNineHelper classInstance = null;</span>
+
+<span class="nc" id="L32">	private ZeroToNineHelper() {</span>
+<span class="nc" id="L33">	}</span>
+
+	public static synchronized ZeroToNineHelper getInstance() {
+<span class="nc bnc" id="L36" title="All 2 branches missed.">		if (classInstance == null)</span>
+<span class="nc" id="L37">			classInstance = new ZeroToNineHelper();</span>
+<span class="nc" id="L38">		return classInstance;</span>
+	}
+
+	public ZeroToNinePurchaseBean zeroToNinePurchaseTicket(UserInfoBean userBean, ZeroToNinePurchaseBean zeroToNinePurchaseBean) throws LMSException {
+
+<span class="nc bnc" id="L43" title="All 4 branches missed.">		if (isDrawAvailable(zeroToNinePurchaseBean.getGameId()) || DrawGameRPOSHelper.chkFreezeTimeSale(zeroToNinePurchaseBean.getGameId())) {</span>
+<span class="nc" id="L44">			zeroToNinePurchaseBean.setSaleStatus(&quot;NO_DRAWS&quot;);</span>
+<span class="nc" id="L45">			return zeroToNinePurchaseBean;</span>
+		}
+
+<span class="nc" id="L48">		long balDed = 0;</span>
+<span class="nc" id="L49">		int tickUpd = 0;</span>
+<span class="nc" id="L50">		String status = &quot;&quot;;</span>
+<span class="nc" id="L51">		double oldTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L52">		double modifiedTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L53">		Connection con = null;</span>
+<span class="nc" id="L54">		DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+		try {
+<span class="nc bnc" id="L56" title="All 2 branches missed.">			if (zeroToNineDataValidation(zeroToNinePurchaseBean)) {</span>
+<span class="nc" id="L57">				zeroToNinePurchaseBean.setAdvMsg(Util.getAdvMessage(userBean.getUserOrgId(), zeroToNinePurchaseBean.getGameId(), &quot;PLAYER&quot;, &quot;SALE&quot;, &quot;DG&quot;));</span>
+<span class="nc" id="L58">				zeroToNinePurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L59">				double dgeTicketPrice = 0.0;</span>
+<span class="nc" id="L60">				double lmsTicketPrice = 0.0;</span>
+<span class="nc" id="L61">				int noOfPanel = zeroToNinePurchaseBean.getTotalNoOfPanels();</span>
+<span class="nc" id="L62">				int noOfLines[] = new int[noOfPanel];</span>
+<span class="nc" id="L63">				int betAmtMulArr[] = zeroToNinePurchaseBean.getBetAmountMultiple();</span>
+<span class="nc" id="L64">				double unitPrice = Util.getUnitPrice(zeroToNinePurchaseBean.getGameId(), zeroToNinePurchaseBean.getPlayType()[0]);</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">				for (int i = 0; i &lt; noOfPanel; i++) {</span>
+<span class="nc" id="L66">					noOfLines[i] = 1;</span>
+<span class="nc" id="L67">					dgeTicketPrice += unitPrice * zeroToNinePurchaseBean.getNoOfDraws() * betAmtMulArr[i];</span>
+				}
+
+<span class="nc" id="L70">				lmsTicketPrice = CommonMethods.roundDrawTktAmt(dgeTicketPrice);</span>
+<span class="nc" id="L71">				lmsTicketPrice = CommonMethods.fmtToTwoDecimal(lmsTicketPrice);</span>
+<span class="nc" id="L72">				logger.debug(&quot;DGE Purchase Amount - &quot; + dgeTicketPrice);</span>
+<span class="nc" id="L73">				logger.debug(&quot;LMS Purchase Amount - &quot; + lmsTicketPrice);</span>
+<span class="nc" id="L74">				zeroToNinePurchaseBean.setUnitPrice(unitPrice);</span>
+<span class="nc" id="L75">				zeroToNinePurchaseBean.setNoOfLines(noOfLines);</span>
+
+<span class="nc" id="L77">				zeroToNinePurchaseBean.setTotalPurchaseAmt(dgeTicketPrice);</span>
+<span class="nc" id="L78">				zeroToNinePurchaseBean.setUnitPrice(Util.getUnitPrice(zeroToNinePurchaseBean.getGameId(), zeroToNinePurchaseBean.getPlayType()[0]));</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">				if (!userBean.getUserType().equals(&quot;RETAILER&quot;)) {</span>
+<span class="nc" id="L80">					return zeroToNinePurchaseBean;</span>
+				}
+<span class="nc" id="L82">				con = DBConnect.getConnection();</span>
+<span class="nc" id="L83">				con.setAutoCommit(false);</span>
+	
+<span class="nc" id="L85">				int autoCancelHoldDays = Integer.parseInt(Utility.getPropertyValue(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));</span>
+<span class="nc" id="L86">				helper.checkLastPrintedTicketStatusAndUpdate(userBean, Long.parseLong(zeroToNinePurchaseBean.getLastSoldTicketNo()), &quot;TERMINAL&quot;, zeroToNinePurchaseBean.getRefMerchantId(), autoCancelHoldDays, zeroToNinePurchaseBean.getActionName(), zeroToNinePurchaseBean.getLastGameId(), con);</span>
+
+<span class="nc" id="L88">				boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;DG_SALE&quot;, lmsTicketPrice + &quot;&quot;, con);</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">				if (!isFraud) {</span>
+<span class="nc" id="L90">					balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDeduction(userBean, zeroToNinePurchaseBean.getGameId(), lmsTicketPrice, zeroToNinePurchaseBean.getPlrMobileNumber(), con);</span>
+<span class="nc" id="L91">					oldTotalPurchaseAmt = zeroToNinePurchaseBean.getTotalPurchaseAmt();</span>
+				} else {
+<span class="nc" id="L93">					logger.debug(&quot;Responsing Gaming not allowed to sale&quot;);</span>
+<span class="nc" id="L94">					zeroToNinePurchaseBean.setSaleStatus(&quot;FRAUD&quot;);</span>
+<span class="nc" id="L95">					return zeroToNinePurchaseBean;</span>
+				}
+<span class="nc" id="L97">			} else {</span>
+<span class="nc" id="L98">				logger.debug(&quot;Data validation returns false&quot;);</span>
+<span class="nc" id="L99">				zeroToNinePurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L100">				return zeroToNinePurchaseBean;</span>
+			}
+<span class="nc" id="L102">		} catch (Exception e) {</span>
+<span class="nc" id="L103">			e.printStackTrace();</span>
+<span class="nc" id="L104">		}</span>
+
+<span class="nc" id="L106">		ServiceRequest sReq = null;</span>
+		try {
+<span class="nc bnc" id="L108" title="All 2 branches missed.">			if (balDed &gt; 0) {</span>
+<span class="nc" id="L109">				zeroToNinePurchaseBean.setRefTransId(balDed + &quot;&quot;);</span>
+<span class="nc" id="L110">				con.commit();</span>
+
+<span class="nc" id="L112">				ZeroToNineRequestBean requestBean = new ZeroToNineRequestBean();</span>
+<span class="nc" id="L113">				requestBean.setBetAmountMultiple(zeroToNinePurchaseBean.getBetAmountMultiple());</span>
+<span class="nc" id="L114">				requestBean.setDrawIdTableMap(zeroToNinePurchaseBean.getDrawIdTableMap());</span>
+<span class="nc" id="L115">				requestBean.setDrawDateTime(zeroToNinePurchaseBean.getDrawDateTime());</span>
+<span class="nc" id="L116">				requestBean.setGame_no(zeroToNinePurchaseBean.getGame_no());</span>
+<span class="nc" id="L117">				requestBean.setGameId(zeroToNinePurchaseBean.getGameId());</span>
+<span class="nc" id="L118">				requestBean.setIsAdvancedPlay(zeroToNinePurchaseBean.getIsAdvancedPlay());</span>
+<span class="nc" id="L119">				requestBean.setIsQP(zeroToNinePurchaseBean.getIsQP());</span>
+<span class="nc" id="L120">				requestBean.setIsQuickPick(zeroToNinePurchaseBean.getIsQuickPick());</span>
+<span class="nc" id="L121">				requestBean.setNoOfDraws(zeroToNinePurchaseBean.getNoOfDraws());</span>
+<span class="nc" id="L122">				requestBean.setNoOfLines(zeroToNinePurchaseBean.getNoOfLines());</span>
+<span class="nc" id="L123">				requestBean.setNoPicked(zeroToNinePurchaseBean.getNoPicked());</span>
+<span class="nc" id="L124">				requestBean.setPartyId(zeroToNinePurchaseBean.getPartyId());</span>
+<span class="nc" id="L125">				requestBean.setPartyType(zeroToNinePurchaseBean.getPartyType());</span>
+<span class="nc" id="L126">				requestBean.setPlayerData(zeroToNinePurchaseBean.getPlayerData());</span>
+<span class="nc" id="L127">				requestBean.setPlayType(zeroToNinePurchaseBean.getPlayType());</span>
+<span class="nc" id="L128">				requestBean.setPurchaseChannel(zeroToNinePurchaseBean.getPurchaseChannel());</span>
+<span class="nc" id="L129">				requestBean.setRefMerchantId(zeroToNinePurchaseBean.getRefMerchantId());</span>
+<span class="nc" id="L130">				requestBean.setRefTransId(zeroToNinePurchaseBean.getRefTransId());</span>
+<span class="nc" id="L131">				requestBean.setUserId(zeroToNinePurchaseBean.getUserId());</span>
+<span class="nc" id="L132">				requestBean.setUserMappingId(zeroToNinePurchaseBean.getUserMappingId());</span>
+<span class="nc" id="L133">				requestBean.setServiceId(zeroToNinePurchaseBean.getServiceId());</span>
+<span class="nc" id="L134">				requestBean.setUnitPrice(zeroToNinePurchaseBean.getUnitPrice());</span>
+<span class="nc" id="L135">				requestBean.setTotalPurchaseAmt(zeroToNinePurchaseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L136">				requestBean.setTotalNoOfPanels(zeroToNinePurchaseBean.getTotalNoOfPanels());</span>
+
+<span class="nc" id="L138">				sReq = new ServiceRequest();</span>
+<span class="nc" id="L139">				sReq.setServiceName(ServiceName.ZEROTONINE_MGMT);</span>
+<span class="nc" id="L140">				sReq.setServiceMethod(ServiceMethodName.ZEROTONINE_PURCHASE_TICKET);</span>
+<span class="nc" id="L141">				sReq.setServiceData(requestBean);</span>
+<span class="nc" id="L142">				IServiceDelegate delegate = ServiceDelegate.getInstance();</span>
+<span class="nc" id="L143">				String responseString = delegate.getResponseString(sReq);</span>
+<span class="nc" id="L144">				ZeroToNineResponseBean responseBean = new Gson().fromJson(responseString, ZeroToNineResponseBean.class);</span>
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">				if (responseBean.getIsSuccess()) {</span>
+<span class="nc" id="L147">					zeroToNinePurchaseBean.setSaleStatus(responseBean.getSaleStatus());</span>
+<span class="nc" id="L148">					zeroToNinePurchaseBean.setTicket_no(responseBean.getTicketNo());</span>
+<span class="nc" id="L149">					zeroToNinePurchaseBean.setBarcodeCount(responseBean.getBarcodeCount());</span>
+<span class="nc" id="L150">					zeroToNinePurchaseBean.setReprintCount(responseBean.getReprintCount());</span>
+<span class="nc" id="L151">					zeroToNinePurchaseBean.setNoOfDraws(responseBean.getNoOfDraws());</span>
+<span class="nc" id="L152">					zeroToNinePurchaseBean.setPurchaseTime(responseBean.getPurchaseTime());</span>
+<span class="nc" id="L153">					zeroToNinePurchaseBean.setIsQuickPick(responseBean.getIsQuickPick());</span>
+<span class="nc" id="L154">					zeroToNinePurchaseBean.setPickedNumbers(responseBean.getPickedNumbers());</span>
+<span class="nc" id="L155">					zeroToNinePurchaseBean.setTotalPurchaseAmt(responseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L156">					zeroToNinePurchaseBean.setDrawDateTime(responseBean.getDrawDateTime());</span>
+<span class="nc" id="L157">					zeroToNinePurchaseBean.setBetAmountMultiple(responseBean.getBetAmountMultiple());</span>
+<span class="nc" id="L158">					zeroToNinePurchaseBean.setClaimEndTime(responseBean.getClaimEndTime());</span>
+					
+
+<span class="nc" id="L161">					modifiedTotalPurchaseAmt = zeroToNinePurchaseBean.getTotalPurchaseAmt();</span>
+
+<span class="nc" id="L163">					con = DBConnect.getConnection();</span>
+<span class="nc bnc" id="L164" title="All 2 branches missed.">					if (oldTotalPurchaseAmt != modifiedTotalPurchaseAmt) {</span>
+<span class="nc" id="L165">						balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDedUpdate(userBean, zeroToNinePurchaseBean.getGameId(), modifiedTotalPurchaseAmt, oldTotalPurchaseAmt, balDed, con);</span>
+					}
+<span class="nc" id="L167">					tickUpd = orgOnLineSaleCreditUpdation.drawTicketSaleTicketUpdate(balDed, zeroToNinePurchaseBean.getTicket_no(), zeroToNinePurchaseBean.getGameId(), userBean, zeroToNinePurchaseBean.getPurchaseChannel(), con);</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">					if (tickUpd == 1) {</span>
+<span class="nc" id="L170">						status = &quot;SUCCESS&quot;;</span>
+<span class="nc" id="L171">						zeroToNinePurchaseBean.setSaleStatus(status);</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">						if (!zeroToNinePurchaseBean.getBarcodeType().equals(&quot;applet&quot;)) {</span>
+<span class="nc" id="L173">							 IDBarcode.getBarcode(zeroToNinePurchaseBean.getTicket_no() + zeroToNinePurchaseBean.getReprintCount());</span>
+						}
+<span class="nc" id="L175">						return zeroToNinePurchaseBean;</span>
+					} else {
+<span class="nc" id="L177">						status = &quot;FAILED&quot;;</span>
+<span class="nc" id="L178">						zeroToNinePurchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L179">						helper.cancelTicket(zeroToNinePurchaseBean.getTicket_no() + zeroToNinePurchaseBean.getReprintCount(),</span>
+								zeroToNinePurchaseBean.getPurchaseChannel(),
+								zeroToNinePurchaseBean.getDrawIdTableMap(),
+								zeroToNinePurchaseBean.getGame_no(),
+								zeroToNinePurchaseBean.getPartyId(),
+								zeroToNinePurchaseBean.getPartyType(),
+								zeroToNinePurchaseBean.getRefMerchantId(), userBean,
+								zeroToNinePurchaseBean.getRefTransId());
+
+<span class="nc" id="L188">						return zeroToNinePurchaseBean;</span>
+					}
+				} else {
+<span class="nc bnc" id="L191" title="All 2 branches missed.">					if(zeroToNinePurchaseBean.getSaleStatus() == null) {</span>
+<span class="nc" id="L192">						zeroToNinePurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L193">						orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, zeroToNinePurchaseBean.getGame_no(), &quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L194">						return zeroToNinePurchaseBean;</span>
+<span class="nc bnc" id="L195" title="All 2 branches missed.">					} else if(&quot;ERROR_TICKET_LIMIT&quot;.equalsIgnoreCase(zeroToNinePurchaseBean.getSaleStatus())) {</span>
+<span class="nc" id="L196">						orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, zeroToNinePurchaseBean.getGame_no(), &quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L197">						return zeroToNinePurchaseBean;</span>
+					} else {
+<span class="nc" id="L199">						orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, zeroToNinePurchaseBean.getGame_no(), &quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L200">						return zeroToNinePurchaseBean;</span>
+					}
+				}
+			} else {
+<span class="nc bnc" id="L204" title="All 2 branches missed.">				if (balDed == -1) {</span>
+<span class="nc" id="L205">					status = &quot;AGT_INS_BAL&quot;;</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">				} else if (balDed == -2) {</span>
+<span class="nc" id="L207">					status = &quot;FAILED&quot;;</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">				} else if (balDed == 0) {</span>
+<span class="nc" id="L209">					status = &quot;RET_INS_BAL&quot;;</span>
+				}
+<span class="nc" id="L211">				zeroToNinePurchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L212">				return zeroToNinePurchaseBean;</span>
+			}
+<span class="nc" id="L214">		} catch (Exception ex) {</span>
+<span class="nc" id="L215">			ex.printStackTrace();</span>
+		}
+
+<span class="nc" id="L218">		return zeroToNinePurchaseBean;	</span>
+	}
+
+	public boolean zeroToNineDataValidation(ZeroToNinePurchaseBean zeroToNinePurchaseBean) {
+<span class="nc" id="L222">		int maxBetSize = Util.getGameMasterLMSBean(zeroToNinePurchaseBean.getGameId()).getPriceMap().get(&quot;zeroToNine&quot;).getMaxBetAmtMultiple();</span>
+
+<span class="nc" id="L224">		int isQP = zeroToNinePurchaseBean.getIsQP();</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">		if (isQP == 1) {</span>
+<span class="nc bnc" id="L226" title="All 2 branches missed.">			if (zeroToNinePurchaseBean.getTotalNoOfPanels() &gt; maxBetSize) {</span>
+<span class="nc" id="L227">				return false;</span>
+			}
+
+<span class="nc" id="L230">			return true;</span>
+		} else {
+<span class="nc" id="L232">			String[] pickedNumbers = zeroToNinePurchaseBean.getPlayerData();</span>
+<span class="nc" id="L233">			int pick = 0;</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">			for(int i=0; i&lt;pickedNumbers.length; i++) {</span>
+<span class="nc" id="L235">				pick = Integer.parseInt(pickedNumbers[i]);</span>
+<span class="nc bnc" id="L236" title="All 4 branches missed.">				if(pick&lt;0 || pick&gt;9) {</span>
+<span class="nc" id="L237">					return false;</span>
+				}
+			}
+
+<span class="nc" id="L241">			int betSize = 0;</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">			for(int i=0; i&lt;zeroToNinePurchaseBean.getBetAmountMultiple().length; i++) {</span>
+<span class="nc" id="L243">				betSize += zeroToNinePurchaseBean.getBetAmountMultiple()[i];</span>
+			}
+<span class="nc bnc" id="L245" title="All 2 branches missed.">			if(betSize&gt;maxBetSize) {</span>
+<span class="nc" id="L246">				return false;</span>
+			}
+
+<span class="nc" id="L249">			return true;</span>
+		}
+	}
+
+	private boolean isDrawAvailable(int gameNo) {
+<span class="nc" id="L254">		return Util.drawIdTableMap.get(gameNo).isEmpty();</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

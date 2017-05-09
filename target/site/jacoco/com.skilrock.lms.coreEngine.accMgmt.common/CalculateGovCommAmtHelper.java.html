@@ -1,0 +1,889 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CalculateGovCommAmtHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.accMgmt.common</a> &gt; <span class="el_source">CalculateGovCommAmtHelper.java</span></div><h1>CalculateGovCommAmtHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.accMgmt.common;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.lms.beans.GovCommBean;
+import com.skilrock.lms.beans.TaskBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.utility.FormatNumber;
+import com.skilrock.lms.common.utility.LMSUtility;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L31">public class CalculateGovCommAmtHelper {</span>
+
+<span class="nc" id="L33">	static Log logger = LogFactory.getLog(CalculateGovCommAmtHelper.class);</span>
+
+<span class="nc" id="L35">	private static final DateFormat sqlDateFormatter = new SimpleDateFormat(</span>
+			&quot;yyyy-MM-dd&quot;);
+<span class="nc" id="L37">	private static final DateFormat utilDateFormatter = new SimpleDateFormat(</span>
+			&quot;dd-MM-yyyy&quot;);
+
+	public static void main(String[] args) {
+		// logger.debug(&quot;&quot; &amp;&amp; &quot;&quot; );
+		// new CalculateGovCommAmtHelper().getLastAproveDateOfGovCommAmt();
+<span class="nc" id="L43">	}</span>
+
+	private Connection con;
+
+	private PreparedStatement pstmt;
+
+	double totalGovCommAmt;
+
+	private Date add(Date date, int value) {
+
+<span class="nc" id="L53">		Date newDate = null;</span>
+		try {
+<span class="nc" id="L55">			java.util.Date utilDate = utilDateFormatter.parse(utilDateFormatter</span>
+					.format(date));
+<span class="nc" id="L57">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L58">			cal.setTime(utilDate);</span>
+<span class="nc" id="L59">			cal.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc" id="L60">			newDate = new Date(cal.getTime().getTime());</span>
+<span class="nc" id="L61">		} catch (ParseException e) {</span>
+<span class="nc" id="L62">			e.printStackTrace();</span>
+<span class="nc" id="L63">		}</span>
+<span class="nc" id="L64">		logger.debug(&quot;Date after addition Date : &quot; + newDate);</span>
+<span class="nc" id="L65">		return newDate;</span>
+	}
+
+	public void approveGovCommDetails(long[] taskIds, String status) {
+<span class="nc" id="L69">		Connection connection = null;</span>
+		try {
+<span class="nc" id="L71">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L72">			connection.setAutoCommit(false);</span>
+
+<span class="nc" id="L74">			Timestamp updateTime = Util.getCurrentTimeStamp();</span>
+<span class="nc" id="L75">			pstmt = connection.prepareStatement(&quot;UPDATE st_lms_bo_tasks SET status=?, approve_date=? WHERE task_id=?;&quot;);</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">			for (long taskId : taskIds) {</span>
+<span class="nc" id="L77">				pstmt.setString(1, status);</span>
+<span class="nc" id="L78">				pstmt.setTimestamp(2, updateTime);</span>
+<span class="nc" id="L79">				pstmt.setLong(3, taskId);</span>
+<span class="nc" id="L80">				pstmt.addBatch();</span>
+			}
+<span class="nc" id="L82">			pstmt.executeBatch();</span>
+<span class="nc" id="L83">			connection.commit();</span>
+<span class="nc" id="L84">		} catch(Exception ex) {</span>
+<span class="nc" id="L85">			ex.printStackTrace();</span>
+		}  finally {
+<span class="nc" id="L87">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L88">			DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L89">		}</span>
+<span class="nc" id="L90">	}</span>
+
+	// It return date till government commission submitted
+	public Map&lt;Integer, GovCommBean&gt; getGovCommAmtDetailToApprove(String endDate) {
+<span class="nc" id="L94">		GovCommBean gameBean = null;</span>
+<span class="nc" id="L95">		this.totalGovCommAmt = 0;</span>
+
+<span class="nc" id="L97">		Map&lt;Integer, GovCommBean&gt; map = new TreeMap&lt;Integer, GovCommBean&gt;();</span>
+<span class="nc" id="L98">		this.con = DBConnect.getConnection();</span>
+		try {
+
+<span class="nc" id="L101">			pstmt = con</span>
+					.prepareStatement(&quot;select game_id, game_nbr, game_name, start_date from st_se_game_master where game_status!='NEW'&quot;);
+<span class="nc" id="L103">			ResultSet result = pstmt.executeQuery();</span>
+<span class="nc" id="L104">			logger.debug(&quot;query to get game details from game master = &quot;</span>
+					+ pstmt);
+<span class="nc bnc" id="L106" title="All 2 branches missed.">			while (result.next()) {</span>
+<span class="nc" id="L107">				gameBean = new GovCommBean();</span>
+<span class="nc" id="L108">				Date startDate = result.getDate(&quot;start_date&quot;);</span>
+<span class="nc" id="L109">				int gameId = result.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L110">				String gameName = result.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L111">				int gameNbr = result.getInt(&quot;game_nbr&quot;);</span>
+				// logger.debug(gameId+gameName+&quot; start date = &quot;+startDate);
+
+				// check whether this game entries in st_lms_bo_tasks
+<span class="nc" id="L115">				pstmt = con</span>
+						.prepareStatement(&quot;select end_date from st_lms_bo_tasks where transaction_type='GOVT_COMM' and (status='APPROVED' or status='DONE') and service_code = 'SE' and game_id =? order by end_date desc limit 1&quot;);
+<span class="nc" id="L117">				pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L118">				ResultSet rs = pstmt.executeQuery();</span>
+				// logger.debug(&quot;query to check whether game gov tax is aprove
+				// before that = &quot;+pstmt);
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">				if (rs.next()) {</span>
+<span class="nc" id="L123">					startDate = add(new java.sql.Date(sqlDateFormatter.parse(</span>
+							rs.getDate(&quot;end_date&quot;).toString()).getTime()), 1);
+					// logger.debug(gameId+gameName+&quot; now changed start date =
+					// &quot;+startDate);
+				}
+<span class="nc" id="L128">				rs.close();</span>
+
+				// set game details into bean
+<span class="nc" id="L131">				gameBean.setGameId(gameId);</span>
+<span class="nc" id="L132">				gameBean.setGameNbr(gameNbr);</span>
+<span class="nc" id="L133">				gameBean.setGameName(gameName);</span>
+<span class="nc" id="L134">				gameBean.setStartDate(startDate.toString());</span>
+<span class="nc" id="L135">				gameBean.setEndDate(endDate);</span>
+
+				// getting the details of SALE Amount and SALE_RET Amount
+<span class="nc" id="L138">				Date edDate = add(new java.sql.Date(sqlDateFormatter.parse(</span>
+						endDate).getTime()), 1);
+<span class="nc" id="L140">				Date stDate = startDate;</span>
+				// logger.debug(&quot;st date is &quot;+stDate);
+				
+<span class="nc" id="L143">				double govtCommRate = 100/Double.parseDouble((String)LMSUtility.sc.getAttribute(&quot;GOVT_COMM_RATE&quot;));</span>
+<span class="nc" id="L144">				pstmt = con</span>
+						.prepareStatement(&quot;select aa.sale, bb.sale_ret, (aa.sale - bb.sale_ret - cc.cr_note + dd.dr_note) 'gov_comm_amt' from (( select ifnull(sum(gov_comm_amt), 0) 'sale' from  st_se_bo_agent_transaction bat, st_lms_bo_transaction_master btm where bat.transaction_type='SALE' and bat.game_id=? and bat.transaction_id = btm.transaction_id   and (btm.transaction_date&gt;=? and btm.transaction_date&lt;?) ) aa, ( select ifnull(sum(gov_comm_amt),0) 'sale_ret' from  st_se_bo_agent_transaction bat, st_lms_bo_transaction_master btm where bat.transaction_type='SALE_RET' and bat.game_id=? and bat.transaction_id = btm.transaction_id   and (btm.transaction_date&gt;=? and btm.transaction_date&lt;?)  ) bb, (select ifnull(sum(amount)/?,0) 'cr_note' from st_lms_bo_credit_note bcn, st_lms_bo_transaction_master btm where btm.transaction_type=? AND bcn.reason=? and btm.transaction_id=bcn.transaction_id and (btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and bcn.ref_id=?) cc, (select ifnull(sum(amount)/?,0) 'dr_note' from st_lms_bo_debit_note bdn, st_lms_bo_transaction_master btm where btm.transaction_type=? AND bdn.reason=? and btm.transaction_id=bdn.transaction_id and (btm.transaction_date&gt;=? and btm.transaction_date&lt;?) and bdn.ref_id=?) dd)&quot;);
+<span class="nc" id="L146">				pstmt.setInt(1, gameId);</span>
+<span class="nc" id="L147">				pstmt.setDate(2, stDate);</span>
+<span class="nc" id="L148">				pstmt.setDate(3, edDate);</span>
+<span class="nc" id="L149">				pstmt.setInt(4, gameId);</span>
+<span class="nc" id="L150">				pstmt.setDate(5, stDate);</span>
+<span class="nc" id="L151">				pstmt.setDate(6, edDate);</span>
+				
+<span class="nc" id="L153">				pstmt.setDouble(7, govtCommRate); </span>
+<span class="nc" id="L154">				pstmt.setString(8, &quot;CR_NOTE_CASH&quot;);</span>
+<span class="nc" id="L155">				pstmt.setString(9, &quot;AGAINST_LOOSE_BOOKS_RETURN&quot;);</span>
+<span class="nc" id="L156">				pstmt.setDate(10, stDate);</span>
+<span class="nc" id="L157">				pstmt.setDate(11, edDate);</span>
+<span class="nc" id="L158">				pstmt.setInt(12, gameId);</span>
+				
+<span class="nc" id="L160">				pstmt.setDouble(13, govtCommRate); </span>
+<span class="nc" id="L161">				pstmt.setString(14, &quot;DR_NOTE_CASH&quot;);</span>
+<span class="nc" id="L162">				pstmt.setString(15, &quot;AGAINST_LOOSE_BOOKS_RETURN&quot;);</span>
+<span class="nc" id="L163">				pstmt.setDate(16, stDate);</span>
+<span class="nc" id="L164">				pstmt.setDate(17, edDate);</span>
+<span class="nc" id="L165">				pstmt.setInt(18, gameId);</span>
+				
+<span class="nc" id="L167">				rs = pstmt.executeQuery();</span>
+<span class="nc" id="L168">				logger.debug(&quot;getUnApprovedGovComm ==== query === &quot; + pstmt);</span>
+
+<span class="nc" id="L170">				double sale = 0;</span>
+<span class="nc" id="L171">				double saleRet = 0;</span>
+<span class="nc" id="L172">				double govComm = 0;</span>
+
+<span class="nc bnc" id="L174" title="All 2 branches missed.">				if (rs.next()) {</span>
+<span class="nc" id="L175">					sale = rs.getDouble(&quot;sale&quot;);</span>
+<span class="nc" id="L176">					saleRet = rs.getDouble(&quot;sale_ret&quot;);</span>
+<span class="nc" id="L177">					govComm = rs.getDouble(&quot;gov_comm_amt&quot;);</span>
+				}
+<span class="nc" id="L179">				rs.close();</span>
+
+<span class="nc" id="L181">				gameBean.setSaleAmount(sale);</span>
+<span class="nc" id="L182">				gameBean.setSaleRetAmount(saleRet);</span>
+<span class="nc" id="L183">				gameBean.setGovAmount(FormatNumber.formatNumber(govComm));</span>
+
+<span class="nc" id="L185">				this.totalGovCommAmt = this.totalGovCommAmt + govComm;</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">				if (Double.parseDouble(gameBean.getGovAmount()) != 0) {</span>
+<span class="nc" id="L187">					map.put(gameId, gameBean);</span>
+				}
+
+<span class="nc" id="L190">			}</span>
+
+<span class="nc" id="L192">			result.close();</span>
+<span class="nc" id="L193">		} catch (SQLException e) {</span>
+<span class="nc" id="L194">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L195">			e.printStackTrace();</span>
+<span class="nc" id="L196">		} catch (ParseException e) {</span>
+<span class="nc" id="L197">			logger.error(&quot;Exception: &quot; + e);</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L199">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L201">			try {</span>
+<span class="nc bnc" id="L202" title="All 8 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L203">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L205" title="All 16 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L206">					con.close();</span>
+				}
+<span class="nc" id="L208">			} catch (SQLException e) {</span>
+<span class="nc" id="L209">				logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L210">				e.printStackTrace();</span>
+<span class="nc" id="L211">			}</span>
+
+<span class="nc" id="L213">		}</span>
+
+<span class="nc" id="L215">		return map;</span>
+	}
+
+	/*public Map&lt;Integer, GovCommBean&gt; getGovCommAmtDetailToApproveForDG(Timestamp startDate, Timestamp endDate, String serviceCode, String type) {
+		Map&lt;Integer, GovCommBean&gt; map = new TreeMap&lt;Integer, GovCommBean&gt;();
+		Map&lt;Integer, Timestamp&gt; startDateMap = new TreeMap&lt;Integer, Timestamp&gt;();
+		con = DBConnect.getConnection();
+		GovCommBean GovBean = null;
+		ResultSet mainRs = null;
+		ResultSet mainRsRef = null;
+		String queryMain = &quot;select total, game_name, game_nbr as gameNbr,top.game_id gameId from (select sum(govt_comm)as total, game_id from st_dg_bo_sale where transaction_id in (select transaction_id from st_lms_bo_transaction_master where (transaction_date &gt;=? and transaction_date&lt;?) and transaction_type='DG_SALE') and game_id = ? group by game_id )as myn, (select game_nbr, game_id, game_name from st_dg_game_master)as top where myn.game_id = top.game_id&quot;;
+		String queryMainRef = &quot;select total, game_name, game_nbr as gameNbr,top.game_id gameId from (select sum(govt_comm)as total, game_id from st_dg_bo_sale_refund where transaction_id in (select transaction_id from st_lms_bo_transaction_master where (transaction_date &gt;=? and transaction_date&lt;?) and transaction_type in ('DG_REFUND_CANCEL','DG_REFUND_FAILED')) and game_id = ? group by game_id )as myn, (select game_nbr, game_id, game_name from st_dg_game_master)as top where myn.game_id = top.game_id&quot;;
+		try {
+
+			pstmt = con
+					.prepareStatement(&quot;select game_id from st_dg_game_master&quot;);
+			logger.debug(&quot;******Query for game master*******&quot; + pstmt);
+			ResultSet st = pstmt.executeQuery();
+			Timestamp localStartDate = null;
+			while (st.next()) {
+				pstmt = con
+						.prepareStatement(&quot;select max(end_date) as start_date from st_lms_bo_tasks where &quot;+(&quot;ALL&quot;.equalsIgnoreCase(type) ? &quot;&quot; : (&quot;SALE&quot;.equalsIgnoreCase(type) ? &quot;transaction_type='GOVT_COMM' and &quot; : &quot;transaction_type='GOVT_COMM_PWT' and &quot; ))+&quot; (status='APPROVED' or status='DONE') and service_code = ? and game_id = ?&quot;);
+				pstmt.setString(1, serviceCode);
+				pstmt.setInt(2, st.getInt(&quot;game_id&quot;));
+				logger.debug(&quot;******Query for start date game_wise******&quot;
+						+ pstmt);
+				ResultSet resultSet = pstmt.executeQuery();
+				if (resultSet.next()) {
+					if (resultSet.getTimestamp(&quot;start_date&quot;) != null) {
+						localStartDate = new Timestamp(add(
+								new Date(resultSet.getTimestamp(&quot;start_date&quot;)
+										.getTime()), 1).getTime());
+					} else {
+						localStartDate = startDate;
+					}
+				}
+				startDateMap.put(st.getInt(&quot;game_id&quot;), localStartDate);
+			}
+			Iterator&lt;Map.Entry&lt;Integer, Timestamp&gt;&gt; itr = startDateMap
+					.entrySet().iterator();
+			while (itr.hasNext()) {
+				Map.Entry&lt;Integer, Timestamp&gt; pair = itr.next();
+				pstmt = con.prepareStatement(queryMain);
+				logger.debug(&quot;******startDate for gameid&quot; + pair.getKey()
+						+ &quot;is&quot; + pair.getValue());
+				pstmt.setTimestamp(1, pair.getValue());
+				pstmt.setTimestamp(2, endDate);
+				pstmt.setInt(3, pair.getKey());
+				logger.debug(&quot;*******QueryMain****&quot; + pstmt);
+				mainRs = pstmt.executeQuery();
+
+				pstmt = con.prepareStatement(queryMainRef);
+				logger.debug(&quot;******startDate for gameid&quot; + pair.getKey()
+						+ &quot;is&quot; + pair.getValue());
+				pstmt.setTimestamp(1, pair.getValue());
+				pstmt.setTimestamp(2, endDate);
+				pstmt.setInt(3, pair.getKey());
+				logger.debug(&quot;*******QueryMainRef****&quot; + pstmt);
+				mainRsRef = pstmt.executeQuery();
+
+				while (mainRs.next()) {
+					GovBean = new GovCommBean();
+					if (mainRsRef.next()) {
+						GovBean.setGovAmount(mainRs.getDouble(&quot;total&quot;)
+								- mainRsRef.getDouble(&quot;total&quot;) + &quot;&quot;);
+						totalGovCommAmt += mainRs.getDouble(&quot;total&quot;)
+								- mainRsRef.getDouble(&quot;total&quot;);
+					} else {
+						GovBean.setGovAmount(mainRs.getString(&quot;total&quot;));
+						totalGovCommAmt += mainRs.getDouble(&quot;total&quot;);
+					}
+					GovBean.setGameNbr(mainRs.getInt(&quot;gameNbr&quot;));
+					GovBean.setGameId(mainRs.getInt(&quot;gameId&quot;));
+					GovBean.setGameName(mainRs.getString(&quot;game_name&quot;));
+					GovBean.setStartDate(new Date(pair.getValue().getTime())
+							.toString());
+					GovBean.setEndDate(new Date(endDate.getTime() - 24 * 60
+							* 60 * 1000).toString());
+					map.put(mainRs.getInt(&quot;gameId&quot;), GovBean);
+				}
+			}
+			// insert the entry for this approval in st_lms_bo_tasks
+		DBConnect.closeCon(con);
+		} catch (Exception e) {
+			logger.error(&quot;Exception: &quot; + e);
+			e.printStackTrace();
+		}
+		return map;
+	}*/
+
+	public Map&lt;Integer, GovCommBean&gt; getGovCommAmtDetailToApproveForDG(Timestamp startDate, Timestamp endDate, String serviceCode, String type, Connection connection) {
+<span class="nc" id="L306">		ResultSet rs = null;</span>
+<span class="nc" id="L307">		ResultSet dateRs = null;</span>
+<span class="nc" id="L308">		Map&lt;Integer, Timestamp&gt; startDateMap = new TreeMap&lt;Integer, Timestamp&gt;();</span>
+<span class="nc" id="L309">		Map&lt;Integer, GovCommBean&gt; commissionMap = new TreeMap&lt;Integer, GovCommBean&gt;();</span>
+<span class="nc" id="L310">		GovCommBean commissionBean = null;</span>
+		try {
+<span class="nc" id="L312">			pstmt = connection.prepareStatement(&quot;SELECT game_id FROM st_dg_game_master;&quot;);</span>
+<span class="nc" id="L313">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L314">			Timestamp localStartDate = null;</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc bnc" id="L316" title="All 4 branches missed.">				pstmt = connection.prepareStatement(&quot;SELECT MAX(end_date) AS start_date FROM st_lms_bo_tasks WHERE &quot;+(&quot;ALL&quot;.equalsIgnoreCase(type) ? &quot;&quot; : (&quot;SALE&quot;.equalsIgnoreCase(type) ? &quot;transaction_type='GOVT_COMM' AND &quot; : &quot;transaction_type='GOVT_COMM_PWT' AND &quot; ))+&quot; service_code=? AND game_id=?;&quot;);</span>
+<span class="nc" id="L317">				pstmt.setString(1, serviceCode);</span>
+<span class="nc" id="L318">				pstmt.setInt(2, rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L319">				dateRs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">				if (dateRs.next()) {</span>
+<span class="nc bnc" id="L321" title="All 2 branches missed.">					if (dateRs.getTimestamp(&quot;start_date&quot;) != null) {</span>
+<span class="nc" id="L322">						localStartDate = new Timestamp(add(new Date(dateRs.getTimestamp(&quot;start_date&quot;).getTime()), 1).getTime());</span>
+					} else {
+<span class="nc" id="L324">						localStartDate = startDate;</span>
+					}
+				}
+<span class="nc" id="L327">				startDateMap.put(rs.getInt(&quot;game_id&quot;), localStartDate);</span>
+			}
+
+<span class="nc" id="L330">			Iterator&lt;Map.Entry&lt;Integer, Timestamp&gt;&gt; itr = startDateMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L331" title="All 2 branches missed.">			while (itr.hasNext()) {</span>
+<span class="nc" id="L332">				Map.Entry&lt;Integer, Timestamp&gt; pair = itr.next();</span>
+
+<span class="nc bnc" id="L334" title="All 4 branches missed.">				if(&quot;ALL&quot;.equals(type) || &quot;SALE&quot;.equals(type)) {</span>
+					//	For Sale
+<span class="nc" id="L336">					pstmt = connection.prepareStatement(&quot;SELECT total, game_name, game_nbr AS gameNbr, top.game_id gameId FROM (SELECT SUM(good_cause_amt) AS total, rs.game_id FROM st_dg_ret_sale_? rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_date&gt;=? AND transaction_date&lt;? AND transaction_type='DG_SALE' AND rs.game_id=? GROUP BY rs.game_id)AS main, (SELECT game_nbr, game_id, game_name FROM st_dg_game_master)AS top WHERE main.game_id=top.game_id;&quot;);</span>
+<span class="nc" id="L337">					pstmt.setInt(1, pair.getKey());</span>
+<span class="nc" id="L338">					pstmt.setTimestamp(2, pair.getValue());</span>
+<span class="nc" id="L339">					pstmt.setTimestamp(3, endDate);</span>
+<span class="nc" id="L340">					pstmt.setInt(4, pair.getKey());</span>
+<span class="nc" id="L341">					rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L342" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L343">						commissionBean = new GovCommBean();</span>
+<span class="nc" id="L344">						commissionBean.setGovAmount(rs.getString(&quot;total&quot;));</span>
+<span class="nc" id="L345">						commissionBean.setGameNbr(rs.getInt(&quot;gameNbr&quot;));</span>
+<span class="nc" id="L346">						commissionBean.setGameId(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L347">						commissionBean.setGameName(rs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L348">						commissionBean.setStartDate(new Date(pair.getValue().getTime()).toString());</span>
+<span class="nc" id="L349">						commissionBean.setEndDate(new Date(endDate.getTime() - 24 * 60 * 60 * 1000).toString());</span>
+<span class="nc" id="L350">						commissionMap.put(rs.getInt(&quot;gameId&quot;), commissionBean);</span>
+					}
+
+					//	For Sale Refund
+<span class="nc" id="L354">					pstmt = connection.prepareStatement(&quot;SELECT total, game_name, game_nbr AS gameNbr, top.game_id gameId FROM (SELECT SUM(good_cause_amt) AS total, rs.game_id FROM st_dg_ret_sale_refund_? rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE transaction_date&gt;=? AND transaction_date&lt;? AND transaction_type IN ('DG_REFUND_CANCEL','DG_REFUND_FAILED') AND rs.game_id=? GROUP BY rs.game_id)AS main, (SELECT game_nbr, game_id, game_name FROM st_dg_game_master)AS top WHERE main.game_id=top.game_id;&quot;);</span>
+<span class="nc" id="L355">					pstmt.setInt(1, pair.getKey());</span>
+<span class="nc" id="L356">					pstmt.setTimestamp(2, pair.getValue());</span>
+<span class="nc" id="L357">					pstmt.setTimestamp(3, endDate);</span>
+<span class="nc" id="L358">					pstmt.setInt(4, pair.getKey());</span>
+<span class="nc" id="L359">					rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L361">						commissionBean = commissionMap.get(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc bnc" id="L362" title="All 2 branches missed.">						if(commissionBean == null) {</span>
+<span class="nc" id="L363">							commissionBean = new GovCommBean();</span>
+<span class="nc" id="L364">							commissionBean.setGovAmount(String.valueOf(-rs.getDouble(&quot;total&quot;)));</span>
+<span class="nc" id="L365">							commissionBean.setGameNbr(rs.getInt(&quot;gameNbr&quot;));</span>
+<span class="nc" id="L366">							commissionBean.setGameId(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L367">							commissionBean.setGameName(rs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L368">							commissionBean.setStartDate(new Date(pair.getValue().getTime()).toString());</span>
+<span class="nc" id="L369">							commissionBean.setEndDate(new Date(endDate.getTime() - 24 * 60 * 60 * 1000).toString());</span>
+<span class="nc" id="L370">							commissionMap.put(rs.getInt(&quot;gameId&quot;), commissionBean);</span>
+						} else {
+<span class="nc" id="L372">							commissionBean.setGovAmount(String.valueOf(Double.parseDouble(commissionBean.getGovAmount()) - rs.getDouble(&quot;total&quot;)));</span>
+						}
+					}
+				}
+
+<span class="nc bnc" id="L377" title="All 4 branches missed.">				if(&quot;ALL&quot;.equals(type) || &quot;PWT&quot;.equals(type)) {</span>
+					//	For PWT
+<span class="nc" id="L379">					pstmt = connection.prepareStatement(&quot;SELECT total, game_name, game_nbr AS gameNbr, top.game_id gameId FROM (SELECT SUM(total) AS total, game_id FROM (SELECT SUM(govt_claim_comm) AS total, rp.game_id FROM st_dg_ret_pwt_? rp INNER JOIN st_lms_retailer_transaction_master rtm ON rp.transaction_id=rtm.transaction_id WHERE transaction_date&gt;=? AND transaction_date&lt;? AND transaction_type IN ('DG_PWT_AUTO','PWT_PLR','PWT','PWT_AUTO','DG_PWT_PLR','DG_PWT') AND rp.game_id=? GROUP BY rp.game_id UNION ALL SELECT SUM(tax_amt) AS total, game_id FROM st_dg_bo_direct_plr_pwt bs INNER JOIN st_lms_bo_transaction_master btm ON bs.transaction_id=btm.transaction_id WHERE btm.transaction_date&gt;=? AND btm.transaction_date&lt;? AND transaction_type IN ('DG_PWT_AUTO','PWT_PLR','PWT','PWT_AUTO','DG_PWT_PLR','DG_PWT') AND game_id=? GROUP BY game_id UNION ALL SELECT SUM(tax_amt) AS total, game_id FROM st_dg_agt_direct_plr_pwt adp INNER JOIN st_lms_agent_transaction_master atm ON adp.transaction_id=atm.transaction_id WHERE atm.transaction_date&gt;=? AND atm.transaction_date&lt;? AND transaction_type IN ('DG_PWT_AUTO','PWT_PLR','PWT','PWT_AUTO','DG_PWT_PLR','DG_PWT') AND game_id=? GROUP BY game_id)aa)AS main, (SELECT game_nbr, game_id, game_name FROM st_dg_game_master)AS top WHERE main.game_id=top.game_id;&quot;);</span>
+<span class="nc" id="L380">					pstmt.setInt(1, pair.getKey());</span>
+<span class="nc" id="L381">					pstmt.setTimestamp(2, pair.getValue());</span>
+<span class="nc" id="L382">					pstmt.setTimestamp(3, endDate);</span>
+<span class="nc" id="L383">					pstmt.setInt(4, pair.getKey());</span>
+<span class="nc" id="L384">					pstmt.setTimestamp(5, pair.getValue());</span>
+<span class="nc" id="L385">					pstmt.setTimestamp(6, endDate);</span>
+<span class="nc" id="L386">					pstmt.setInt(7, pair.getKey());</span>
+<span class="nc" id="L387">					pstmt.setTimestamp(8, pair.getValue());</span>
+<span class="nc" id="L388">					pstmt.setTimestamp(9, endDate);</span>
+<span class="nc" id="L389">					pstmt.setInt(10, pair.getKey());</span>
+<span class="nc" id="L390">					rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L391" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L392">						commissionBean = commissionMap.get(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc bnc" id="L393" title="All 2 branches missed.">						if(commissionBean == null) {</span>
+<span class="nc" id="L394">							commissionBean = new GovCommBean();</span>
+<span class="nc" id="L395">							commissionBean.setGovAmount(&quot;0.00&quot;);</span>
+<span class="nc" id="L396">							commissionBean.setGameNbr(rs.getInt(&quot;gameNbr&quot;));</span>
+<span class="nc" id="L397">							commissionBean.setGameId(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L398">							commissionBean.setGameName(rs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L399">							commissionBean.setStartDate(new Date(pair.getValue().getTime()).toString());</span>
+<span class="nc" id="L400">							commissionBean.setEndDate(new Date(endDate.getTime() - 24 * 60 * 60 * 1000).toString());</span>
+<span class="nc" id="L401">							commissionMap.put(rs.getInt(&quot;gameId&quot;), commissionBean);</span>
+						}
+<span class="nc" id="L403">						commissionBean.setGovPwtAmount(rs.getDouble(&quot;total&quot;));</span>
+					}
+				}
+<span class="nc" id="L406">			}</span>
+<span class="nc" id="L407">		} catch (Exception e) {</span>
+<span class="nc" id="L408">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L409">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L411">			DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L412">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L413">			DBConnect.closeRs(dateRs);</span>
+<span class="nc" id="L414">		}</span>
+
+<span class="nc" id="L416">		return commissionMap;</span>
+	}
+
+	public Map&lt;Integer, GovCommBean&gt; getGovCommAmtDetailToApproveForSLE(Timestamp startDate, Timestamp endDate, String serviceCode, String type, Connection connection) {
+<span class="nc" id="L420">		ResultSet rs = null;</span>
+<span class="nc" id="L421">		ResultSet dateRs = null;</span>
+<span class="nc" id="L422">		Map&lt;Integer, Timestamp&gt; startDateMap = new TreeMap&lt;Integer, Timestamp&gt;();</span>
+<span class="nc" id="L423">		Map&lt;Integer, GovCommBean&gt; commissionMap = new TreeMap&lt;Integer, GovCommBean&gt;();</span>
+<span class="nc" id="L424">		GovCommBean commissionBean = null;</span>
+		try {
+<span class="nc" id="L426">			pstmt = connection.prepareStatement(&quot;SELECT game_id, game_type_id FROM st_sle_game_type_master;&quot;);</span>
+<span class="nc" id="L427">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L428">			Timestamp localStartDate = null;</span>
+<span class="nc bnc" id="L429" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc bnc" id="L430" title="All 4 branches missed.">				pstmt = connection.prepareStatement(&quot;SELECT MAX(end_date) AS start_date FROM st_lms_bo_tasks WHERE &quot;+(&quot;ALL&quot;.equalsIgnoreCase(type) ? &quot;&quot; : (&quot;SALE&quot;.equalsIgnoreCase(type) ? &quot;transaction_type='GOVT_COMM' AND &quot; : &quot;transaction_type='GOVT_COMM_PWT' AND &quot; ))+&quot;  service_code=? AND game_id=?;&quot;);</span>
+<span class="nc" id="L431">				pstmt.setString(1, serviceCode);</span>
+<span class="nc" id="L432">				pstmt.setInt(2, rs.getInt(&quot;game_type_id&quot;));</span>
+<span class="nc" id="L433">				dateRs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">				if (dateRs.next()) {</span>
+<span class="nc bnc" id="L435" title="All 2 branches missed.">					if (dateRs.getTimestamp(&quot;start_date&quot;) != null) {</span>
+<span class="nc" id="L436">						localStartDate = new Timestamp(add(new Date(dateRs.getTimestamp(&quot;start_date&quot;).getTime()), 1).getTime());</span>
+					} else {
+<span class="nc" id="L438">						localStartDate = startDate;</span>
+					}
+				}
+<span class="nc" id="L441">				startDateMap.put(rs.getInt(&quot;game_type_id&quot;), localStartDate);</span>
+			}
+
+<span class="nc" id="L444">			Iterator&lt;Map.Entry&lt;Integer, Timestamp&gt;&gt; itr = startDateMap.entrySet().iterator();</span>
+<span class="nc bnc" id="L445" title="All 2 branches missed.">			while (itr.hasNext()) {</span>
+<span class="nc" id="L446">				Map.Entry&lt;Integer, Timestamp&gt; pair = itr.next();</span>
+
+<span class="nc bnc" id="L448" title="All 4 branches missed.">				if(&quot;ALL&quot;.equals(type) || &quot;SALE&quot;.equals(type)) {</span>
+					//	For Sale
+<span class="nc" id="L450">					pstmt = connection.prepareStatement(&quot;SELECT total, type_disp_name, top.game_id AS gameNbr, top.game_type_id gameId FROM (SELECT SUM(good_cause_amt) AS total, game_type_id FROM st_sle_ret_sale rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE rtm.transaction_date&gt;=? AND rtm.transaction_date&lt;? AND transaction_type='SLE_SALE' AND game_type_id=? GROUP BY game_type_id)AS main, (SELECT game_id, game_type_id, type_disp_name FROM st_sle_game_type_master)AS top WHERE main.game_type_id=top.game_type_id;&quot;);</span>
+<span class="nc" id="L451">					pstmt.setTimestamp(1, pair.getValue());</span>
+<span class="nc" id="L452">					pstmt.setTimestamp(2, endDate);</span>
+<span class="nc" id="L453">					pstmt.setInt(3, pair.getKey());</span>
+<span class="nc" id="L454">					rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L455" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L456">						commissionBean = new GovCommBean();</span>
+<span class="nc" id="L457">						commissionBean.setGovAmount(rs.getString(&quot;total&quot;));</span>
+<span class="nc" id="L458">						commissionBean.setGameNbr(rs.getInt(&quot;gameNbr&quot;));</span>
+<span class="nc" id="L459">						commissionBean.setGameId(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L460">						commissionBean.setGameName(rs.getString(&quot;type_disp_name&quot;));</span>
+<span class="nc" id="L461">						commissionBean.setStartDate(new Date(pair.getValue().getTime()).toString());</span>
+<span class="nc" id="L462">						commissionBean.setEndDate(new Date(endDate.getTime() - 24 * 60 * 60 * 1000).toString());</span>
+<span class="nc" id="L463">						commissionMap.put(rs.getInt(&quot;gameId&quot;), commissionBean);</span>
+					}
+
+					//	For Sale Refund
+<span class="nc" id="L467">					pstmt = connection.prepareStatement(&quot;SELECT total, type_disp_name, top.game_id AS gameNbr, top.game_type_id gameId FROM (SELECT SUM(good_cause_amt) AS total, game_type_id FROM st_sle_ret_sale_refund rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE rtm.transaction_date&gt;=? AND rtm.transaction_date&lt;? AND transaction_type IN ('SLE_REFUND_CANCEL','SLE_REFUND_FAILED') AND game_type_id=? GROUP BY game_type_id)AS main, (SELECT game_id, game_type_id, type_disp_name FROM st_sle_game_type_master)AS top WHERE main.game_type_id=top.game_type_id;&quot;);</span>
+<span class="nc" id="L468">					pstmt.setTimestamp(1, pair.getValue());</span>
+<span class="nc" id="L469">					pstmt.setTimestamp(2, endDate);</span>
+<span class="nc" id="L470">					pstmt.setInt(3, pair.getKey());</span>
+<span class="nc" id="L471">					rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L472" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L473">						commissionBean = commissionMap.get(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc bnc" id="L474" title="All 2 branches missed.">						if(commissionBean == null) {</span>
+<span class="nc" id="L475">							commissionBean = new GovCommBean();</span>
+<span class="nc" id="L476">							commissionBean.setGovAmount(String.valueOf(-rs.getDouble(&quot;total&quot;)));</span>
+<span class="nc" id="L477">							commissionBean.setGameNbr(rs.getInt(&quot;gameNbr&quot;));</span>
+<span class="nc" id="L478">							commissionBean.setGameId(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L479">							commissionBean.setGameName(rs.getString(&quot;type_disp_name&quot;));</span>
+<span class="nc" id="L480">							commissionBean.setStartDate(new Date(pair.getValue().getTime()).toString());</span>
+<span class="nc" id="L481">							commissionBean.setEndDate(new Date(endDate.getTime() - 24 * 60 * 60 * 1000).toString());</span>
+<span class="nc" id="L482">							commissionMap.put(rs.getInt(&quot;gameId&quot;), commissionBean);</span>
+						} else {
+<span class="nc" id="L484">							commissionBean.setGovAmount(String.valueOf(Double.parseDouble(commissionBean.getGovAmount()) - rs.getDouble(&quot;total&quot;)));</span>
+						}
+					}
+				}
+
+<span class="nc bnc" id="L489" title="All 4 branches missed.">				if(&quot;ALL&quot;.equals(type) || &quot;PWT&quot;.equals(type)) {</span>
+					//	For PWT
+<span class="nc" id="L491">					pstmt = connection.prepareStatement(&quot;SELECT SUM(total) total, type_disp_name, top.game_id AS gameNbr, top.game_type_id gameId FROM (SELECT SUM(govt_claim_comm) AS total, game_type_id FROM st_sle_ret_pwt rs INNER JOIN st_lms_retailer_transaction_master rtm ON rs.transaction_id=rtm.transaction_id WHERE rtm.transaction_date&gt;=? AND rtm.transaction_date&lt;? AND transaction_type IN ('SLE_PWT') AND game_type_id=? GROUP BY game_type_id UNION ALL SELECT SUM(tax_amt) AS total, game_type_id FROM st_sle_bo_direct_plr_pwt bs INNER JOIN st_lms_bo_transaction_master btm ON bs.transaction_id=btm.transaction_id WHERE btm.transaction_date&gt;=? AND btm.transaction_date&lt;? AND transaction_type IN ('SLE_PWT_AUTO','SLE_PWT_PLR') AND game_type_id=? GROUP BY game_type_id UNION ALL SELECT SUM(tax_amt) AS total, game_type_id FROM st_sle_agent_direct_plr_pwt adp INNER JOIN st_lms_agent_transaction_master atm ON adp.transaction_id=atm.transaction_id WHERE atm.transaction_date&gt;=? AND atm.transaction_date&lt;? AND transaction_type IN ('SLE_PWT') AND game_type_id=? GROUP BY game_type_id)AS main, (SELECT game_id, game_type_id, type_disp_name FROM st_sle_game_type_master)AS top WHERE main.game_type_id=top.game_type_id;&quot;);</span>
+<span class="nc" id="L492">					pstmt.setTimestamp(1, pair.getValue());</span>
+<span class="nc" id="L493">					pstmt.setTimestamp(2, endDate);</span>
+<span class="nc" id="L494">					pstmt.setInt(3, pair.getKey());</span>
+<span class="nc" id="L495">					pstmt.setTimestamp(4, pair.getValue());</span>
+<span class="nc" id="L496">					pstmt.setTimestamp(5, endDate);</span>
+<span class="nc" id="L497">					pstmt.setInt(6, pair.getKey());</span>
+<span class="nc" id="L498">					pstmt.setTimestamp(7, pair.getValue());</span>
+<span class="nc" id="L499">					pstmt.setTimestamp(8, endDate);</span>
+<span class="nc" id="L500">					pstmt.setInt(9, pair.getKey());</span>
+<span class="nc" id="L501">					rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L502" title="All 2 branches missed.">					while (rs.next()) {</span>
+<span class="nc" id="L503">						commissionBean = commissionMap.get(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc bnc" id="L504" title="All 2 branches missed.">						if(commissionBean == null) {</span>
+<span class="nc" id="L505">							commissionBean = new GovCommBean();</span>
+<span class="nc" id="L506">							commissionBean.setGovAmount(&quot;0.00&quot;);</span>
+<span class="nc" id="L507">							commissionBean.setGameNbr(rs.getInt(&quot;gameNbr&quot;));</span>
+<span class="nc" id="L508">							commissionBean.setGameId(rs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L509">							commissionBean.setGameName(rs.getString(&quot;type_disp_name&quot;));</span>
+<span class="nc" id="L510">							commissionBean.setStartDate(new Date(pair.getValue().getTime()).toString());</span>
+<span class="nc" id="L511">							commissionBean.setEndDate(new Date(endDate.getTime() - 24 * 60 * 60 * 1000).toString());</span>
+<span class="nc" id="L512">							commissionMap.put(rs.getInt(&quot;gameId&quot;), commissionBean);</span>
+						}
+<span class="nc" id="L514">						commissionBean.setGovPwtAmount(rs.getDouble(&quot;total&quot;));</span>
+					}
+				}
+<span class="nc" id="L517">			}</span>
+<span class="nc" id="L518">		} catch (Exception e) {</span>
+<span class="nc" id="L519">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L520">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L522">			DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L523">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L524">			DBConnect.closeRs(dateRs);</span>
+<span class="nc" id="L525">		}</span>
+
+<span class="nc" id="L527">		return commissionMap;</span>
+	}
+
+	public Map&lt;Integer, GovCommBean&gt; getCommissionDetailsToApprove(Timestamp startDate, Timestamp endDate, String serviceCode, String type) {
+<span class="nc" id="L531">		Connection connection = null;</span>
+<span class="nc" id="L532">		Statement stmt = null;</span>
+<span class="nc" id="L533">		ResultSet rs = null;</span>
+<span class="nc" id="L534">		SimpleDateFormat dateFormat = null;</span>
+<span class="nc" id="L535">		Map&lt;Integer, GovCommBean&gt; commissionMap = new TreeMap&lt;Integer, GovCommBean&gt;();</span>
+<span class="nc" id="L536">		GovCommBean commissionBean = null;</span>
+		try {
+<span class="nc" id="L538">			String query = null;</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">			String transactionType = &quot;SALE&quot;.equals(type) ? &quot;GOVT_COMM&quot; : &quot;GOVT_COMM_PWT&quot;;</span>
+<span class="nc bnc" id="L540" title="All 2 branches missed.">			if(&quot;DG&quot;.equals(serviceCode))</span>
+<span class="nc" id="L541">				query = &quot;SELECT task_id, bt.game_id, game_name, start_date, end_date, amount FROM st_lms_bo_tasks bt INNER JOIN st_dg_game_master gm ON bt.game_id=gm.game_id WHERE STATUS='UNAPPROVED' AND end_date&gt;='&quot;+startDate+&quot;' AND end_date&lt;='&quot;+endDate+&quot;' AND service_code='DG' AND transaction_type='&quot;+transactionType+&quot;';&quot;;</span>
+<span class="nc bnc" id="L542" title="All 2 branches missed.">			else if(&quot;SLE&quot;.equals(serviceCode))</span>
+<span class="nc" id="L543">				query = &quot;SELECT task_id, bt.game_id, type_disp_name game_name, start_date, end_date, amount FROM st_lms_bo_tasks bt INNER JOIN st_sle_game_type_master gm ON bt.game_id=gm.game_type_id WHERE STATUS='UNAPPROVED' AND end_date&gt;='&quot;+startDate+&quot;' AND end_date&lt;='&quot;+endDate+&quot;' AND service_code='SLE' AND transaction_type='&quot;+transactionType+&quot;';&quot;;</span>
+<span class="nc" id="L544">			logger.info(&quot;getCommissionDetailsToApprove - &quot;+query);</span>
+
+<span class="nc" id="L546">			dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L547">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L548">			stmt = connection.createStatement();</span>
+<span class="nc" id="L549">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L550" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L551">				commissionBean = new GovCommBean();</span>
+<span class="nc" id="L552">				commissionBean.setTaskId(rs.getLong(&quot;task_id&quot;));</span>
+<span class="nc" id="L553">				commissionBean.setGameId(rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L554">				commissionBean.setGameName(rs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L555">				commissionBean.setStartDate(dateFormat.format(rs.getTimestamp(&quot;start_date&quot;)));</span>
+<span class="nc" id="L556">				commissionBean.setEndDate(dateFormat.format(rs.getTimestamp(&quot;end_date&quot;)));</span>
+<span class="nc" id="L557">				commissionBean.setGovAmount(rs.getString(&quot;amount&quot;));</span>
+<span class="nc" id="L558">				commissionMap.put(rs.getInt(&quot;task_id&quot;), commissionBean);</span>
+
+<span class="nc" id="L560">				totalGovCommAmt += rs.getDouble(&quot;amount&quot;);</span>
+			}
+<span class="nc" id="L562">		} catch (Exception e) {</span>
+<span class="nc" id="L563">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L564">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L566">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L567">			DBConnect.closeStmt(stmt);</span>
+<span class="nc" id="L568">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L569">		}</span>
+
+<span class="nc" id="L571">		return commissionMap;</span>
+	}
+	
+	public Map&lt;Integer, GovCommBean&gt; getGovCommAmtDetailToApproveForIW(Timestamp startDate, Timestamp endDate, String serviceCode) {
+<span class="nc" id="L575">		Map&lt;Integer, GovCommBean&gt; map = new TreeMap&lt;Integer, GovCommBean&gt;();</span>
+<span class="nc" id="L576">		Map&lt;Integer, Timestamp&gt; startDateMap = new TreeMap&lt;Integer, Timestamp&gt;();</span>
+<span class="nc" id="L577">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L578">		GovCommBean GovBean = null;</span>
+<span class="nc" id="L579">		ResultSet mainRs = null;</span>
+		//ResultSet mainRsRef = null;
+<span class="nc" id="L581">		String queryMain = &quot;select total, game_disp_name as game_name, game_no as gameNbr,top.game_id gameId from (select sum(govt_comm)as total, game_id from st_iw_bo_sale where transaction_id in (select transaction_id from st_lms_bo_transaction_master where (transaction_date &gt;=? and transaction_date&lt;?) and transaction_type='DG_SALE') and game_id = ? group by game_id )as myn, (select game_no, game_id, game_disp_name from st_iw_game_master)as top where myn.game_id = top.game_id&quot;;</span>
+		//String queryMainRef = &quot;select total, game_name, game_nbr as gameNbr,top.game_id gameId from (select sum(govt_comm)as total, game_id from st_dg_bo_sale_refund where transaction_id in (select transaction_id from st_lms_bo_transaction_master where (transaction_date &gt;=? and transaction_date&lt;?) and transaction_type in ('DG_REFUND_CANCEL','DG_REFUND_FAILED')) and game_id = ? group by game_id )as myn, (select game_nbr, game_id, game_name from st_dg_game_master)as top where myn.game_id = top.game_id&quot;;
+		try {
+<span class="nc" id="L584">			pstmt = con</span>
+					.prepareStatement(&quot;select game_id from st_iw_game_master&quot;);
+<span class="nc" id="L586">			logger.debug(&quot;******Query for game master*******&quot; + pstmt);</span>
+<span class="nc" id="L587">			ResultSet st = pstmt.executeQuery();</span>
+<span class="nc" id="L588">			Timestamp localStartDate = null;</span>
+<span class="nc bnc" id="L589" title="All 2 branches missed.">			while (st.next()) {</span>
+<span class="nc" id="L590">				pstmt = con</span>
+						.prepareStatement(&quot;select max(end_date) as start_date from st_lms_bo_tasks where transaction_type='GOVT_COMM' and (status='APPROVED' or status='DONE') and service_code = ? and game_id = ?&quot;);
+<span class="nc" id="L592">				pstmt.setString(1, serviceCode);</span>
+<span class="nc" id="L593">				pstmt.setInt(2, st.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L594">				logger.debug(&quot;******Query for start date game_wise******&quot;</span>
+						+ pstmt);
+<span class="nc" id="L596">				ResultSet resultSet = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L597" title="All 2 branches missed.">				if (resultSet.next()) {</span>
+<span class="nc bnc" id="L598" title="All 2 branches missed.">					if (resultSet.getTimestamp(&quot;start_date&quot;) != null) {</span>
+<span class="nc" id="L599">						localStartDate = new Timestamp(add(</span>
+								new Date(resultSet.getTimestamp(&quot;start_date&quot;)
+										.getTime()), 1).getTime());
+					} else {
+<span class="nc" id="L603">						localStartDate = startDate;</span>
+					}
+				}
+<span class="nc" id="L606">				startDateMap.put(st.getInt(&quot;game_id&quot;), localStartDate);</span>
+<span class="nc" id="L607">			}</span>
+<span class="nc" id="L608">			Iterator&lt;Map.Entry&lt;Integer, Timestamp&gt;&gt; itr = startDateMap</span>
+					.entrySet().iterator();
+<span class="nc bnc" id="L610" title="All 2 branches missed.">			while (itr.hasNext()) {</span>
+<span class="nc" id="L611">				Map.Entry&lt;Integer, Timestamp&gt; pair = itr.next();</span>
+<span class="nc" id="L612">				pstmt = con.prepareStatement(queryMain);</span>
+<span class="nc" id="L613">				logger.debug(&quot;******startDate for gameid&quot; + pair.getKey()</span>
+						+ &quot;is&quot; + pair.getValue());
+<span class="nc" id="L615">				pstmt.setTimestamp(1, pair.getValue());</span>
+<span class="nc" id="L616">				pstmt.setTimestamp(2, endDate);</span>
+<span class="nc" id="L617">				pstmt.setInt(3, pair.getKey());</span>
+<span class="nc" id="L618">				logger.debug(&quot;*******QueryMain****&quot; + pstmt);</span>
+<span class="nc" id="L619">				mainRs = pstmt.executeQuery();</span>
+
+				/*pstmt = con.prepareStatement(queryMainRef);
+				logger.debug(&quot;******startDate for gameid&quot; + pair.getKey()
+						+ &quot;is&quot; + pair.getValue());
+				pstmt.setTimestamp(1, pair.getValue());
+				pstmt.setTimestamp(2, endDate);
+				pstmt.setInt(3, pair.getKey());
+				logger.debug(&quot;*******QueryMainRef****&quot; + pstmt);
+				mainRsRef = pstmt.executeQuery();
+*/
+<span class="nc bnc" id="L630" title="All 2 branches missed.">				while (mainRs.next()) {</span>
+<span class="nc" id="L631">					GovBean = new GovCommBean();</span>
+					
+<span class="nc" id="L633">					GovBean.setGovAmount(mainRs.getString(&quot;total&quot;));</span>
+<span class="nc" id="L634">					totalGovCommAmt += mainRs.getDouble(&quot;total&quot;);</span>
+					
+<span class="nc" id="L636">					GovBean.setGameNbr(mainRs.getInt(&quot;gameNbr&quot;));</span>
+<span class="nc" id="L637">					GovBean.setGameId(mainRs.getInt(&quot;gameId&quot;));</span>
+<span class="nc" id="L638">					GovBean.setGameName(mainRs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L639">					GovBean.setStartDate(new Date(pair.getValue().getTime())</span>
+							.toString());
+<span class="nc" id="L641">					GovBean.setEndDate(new Date(endDate.getTime() - 24 * 60</span>
+							* 60 * 1000).toString());
+<span class="nc" id="L643">					map.put(mainRs.getInt(&quot;gameId&quot;), GovBean);</span>
+				}
+<span class="nc" id="L645">			}</span>
+			// insert the entry for this approval in st_lms_bo_tasks
+<span class="nc" id="L647">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L648">		} catch (Exception e) {</span>
+<span class="nc" id="L649">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L650">			e.printStackTrace();</span>
+<span class="nc" id="L651">		}</span>
+<span class="nc" id="L652">		return map;</span>
+	}
+
+	public Map&lt;String, String&gt; getServiceList() {
+<span class="nc" id="L656">		Map&lt;String, String&gt; serviceNameMap = new TreeMap&lt;String, String&gt;();</span>
+<span class="nc" id="L657">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L658">		ResultSet rs = null;</span>
+		try {
+<span class="nc" id="L660">			pstmt = con</span>
+					.prepareStatement(&quot;Select * from st_lms_service_master where service_code &lt;&gt;'MGMT' and status='ACTIVE'&quot;);
+<span class="nc" id="L662">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L663" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L664">				serviceNameMap.put(rs.getString(&quot;service_code&quot;), rs</span>
+						.getString(&quot;service_display_name&quot;));
+			}
+<span class="nc" id="L667">			rs.close();</span>
+<span class="nc" id="L668">		} catch (SQLException e) {</span>
+<span class="nc" id="L669">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L670">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L672">			try {</span>
+<span class="nc bnc" id="L673" title="All 6 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L674">					pstmt.close();</span>
+				}
+<span class="nc bnc" id="L676" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L677">					con.close();</span>
+				}
+<span class="nc" id="L679">			} catch (SQLException e) {</span>
+<span class="nc" id="L680">				logger.error(&quot;Exception: &quot; + e);</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L682">				e.printStackTrace();</span>
+<span class="nc" id="L683">			}</span>
+<span class="nc" id="L684">		}</span>
+
+<span class="nc" id="L686">		logger.debug(&quot;service Name map  ===== &quot; + serviceNameMap);</span>
+<span class="nc" id="L687">		return serviceNameMap;</span>
+	}
+
+	public Map&lt;String, String&gt; getcommissionTypeList() {
+<span class="nc" id="L691">		Map&lt;String, String&gt; serviceTypeMap = new TreeMap&lt;String, String&gt;();</span>
+		try {
+<span class="nc" id="L693">				serviceTypeMap.put(&quot;GOVT_COMM&quot;,&quot;GOVT_COMM&quot;);</span>
+<span class="nc" id="L694">				serviceTypeMap.put(&quot;VAT&quot;, &quot;VAT&quot;);</span>
+			}
+<span class="nc" id="L696">		 catch (Exception e) {</span>
+<span class="nc" id="L697">			logger.error(&quot;Exception: &quot; + e);</span>
+<span class="nc" id="L698">			e.printStackTrace();</span>
+<span class="nc" id="L699">		}</span>
+
+<span class="nc" id="L701">		logger.debug(&quot;service Name map  ===== &quot; + serviceTypeMap);</span>
+<span class="nc" id="L702">		return serviceTypeMap;</span>
+	}
+
+	public double getTotalGovCommAmt() {
+<span class="nc" id="L706">		return totalGovCommAmt;</span>
+	}
+
+	public String getYesterdayDate() {
+<span class="nc" id="L710">		Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L711">		cal.add(Calendar.DAY_OF_MONTH, -1);</span>
+<span class="nc" id="L712">		Date endDate = new Date(cal.getTime().getTime());</span>
+<span class="nc" id="L713">		logger.debug(&quot;Gov Comm End date 1 == &quot; + endDate);</span>
+<span class="nc" id="L714">		return endDate.toString();</span>
+	}
+
+	public void setTotalGovCommAmt(double totalGovCommAmt) {
+<span class="nc" id="L718">		this.totalGovCommAmt = totalGovCommAmt;</span>
+<span class="nc" id="L719">	}</span>
+
+	public List&lt;TaskBean&gt; taskGovtCommSearch(String serviceCode, String type) {
+<span class="nc" id="L722">		Connection connection = null;</span>
+<span class="nc" id="L723">		Statement stmt = null;</span>
+<span class="nc" id="L724">		ResultSet rs = null;</span>
+<span class="nc" id="L725">		SimpleDateFormat dateFormat = null;</span>
+<span class="nc" id="L726">		List&lt;TaskBean&gt; taskList = new ArrayList&lt;TaskBean&gt;();</span>
+<span class="nc" id="L727">		TaskBean taskBean = null;</span>
+		try {
+<span class="nc" id="L729">			String query = null;</span>
+<span class="nc bnc" id="L730" title="All 2 branches missed.">			String transactionType= &quot;SALE&quot;.equals(type) ? &quot;GOVT_COMM&quot; : &quot;GOVT_COMM_PWT&quot;;</span>
+<span class="nc bnc" id="L731" title="All 2 branches missed.">			if(serviceCode.equalsIgnoreCase(&quot;SE&quot;)) {</span>
+<span class="nc" id="L732">				query = QueryManager.getST3GovtCommApprovedSE();</span>
+<span class="nc bnc" id="L733" title="All 2 branches missed.">			} else if(serviceCode.equalsIgnoreCase(&quot;DG&quot;)) {</span>
+<span class="nc" id="L734">				query = &quot;SELECT task_id, bt.game_id, game_nbr, game_name, start_date, end_date, amount, transaction_type, status FROM st_lms_bo_tasks bt INNER JOIN st_dg_game_master gm ON bt.game_id=gm.game_id WHERE transaction_type='&quot;+transactionType+&quot;' AND bt.service_code='DG' AND bt.status='APPROVED';&quot;;</span>
+<span class="nc bnc" id="L735" title="All 2 branches missed.">			} else if(serviceCode.equalsIgnoreCase(&quot;SLE&quot;)) {</span>
+<span class="nc" id="L736">				query = &quot;SELECT task_id, bt.game_id, bt.game_id game_nbr, type_disp_name game_name, start_date, end_date, amount, transaction_type, status FROM st_lms_bo_tasks bt INNER JOIN st_sle_game_type_master gm ON bt.game_id=gm.game_type_id WHERE transaction_type='&quot;+transactionType+&quot;' AND bt.service_code='SLE' AND bt.status='APPROVED';&quot;;</span>
+			}
+<span class="nc" id="L738">			logger.info(&quot;taskGovtCommSearch - &quot;+query);</span>
+
+<span class="nc" id="L740">			dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L741">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L742">			stmt = connection.createStatement();</span>
+<span class="nc" id="L743">			rs = stmt.executeQuery(query);</span>
+<span class="nc bnc" id="L744" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L745">				taskBean = new TaskBean();</span>
+<span class="nc" id="L746">				taskBean.setTaskId(rs.getInt(&quot;task_id&quot;));</span>
+<span class="nc" id="L747">				taskBean.setGameId(rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L748">				taskBean.setGameNbr(rs.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L749">				taskBean.setGameName(rs.getString(&quot;game_name&quot;));</span>
+<span class="nc" id="L750">				taskBean.setStartDate(dateFormat.format(rs.getTimestamp(&quot;start_date&quot;)));</span>
+<span class="nc" id="L751">				taskBean.setEndDate(dateFormat.format(rs.getTimestamp(&quot;end_date&quot;)));</span>
+<span class="nc" id="L752">				taskBean.setAmount(rs.getDouble(&quot;amount&quot;));</span>
+<span class="nc" id="L753">				taskBean.setTransactionType(rs.getString(&quot;transaction_type&quot;));</span>
+<span class="nc" id="L754">				taskBean.setStatus(rs.getString(&quot;status&quot;));</span>
+<span class="nc" id="L755">				taskList.add(taskBean);</span>
+			}
+<span class="nc" id="L757">		} catch (Exception ex) {</span>
+<span class="nc" id="L758">			ex.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L760">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L761">			DBConnect.closeStmt(stmt);</span>
+<span class="nc" id="L762">			DBConnect.closeRs(rs);</span>
+<span class="nc" id="L763">		}</span>
+
+<span class="nc" id="L765">		return taskList;</span>
+	}
+
+	public List&lt;TaskBean&gt; taskGovtCommAndVatCommSearch(String serviceCode,String startDate,String endDate,String commissionType) {
+
+<span class="nc" id="L770">		con = DBConnect.getConnection();</span>
+<span class="nc" id="L771">		List&lt;TaskBean&gt; GovtCommSearchResults = new ArrayList&lt;TaskBean&gt;();</span>
+		try {
+
+<span class="nc" id="L774">			PreparedStatement stmt = con.prepareStatement(&quot;&quot;);</span>
+<span class="nc" id="L775">			TaskBean taskBean = null;</span>
+<span class="nc" id="L776">			ResultSet rs = null;</span>
+<span class="nc" id="L777">			String queryForGovtCommSearch = null;</span>
+<span class="nc" id="L778">			Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L779">			SimpleDateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L780">			java.util.Date date = (java.util.Date) dateFormat.parse(endDate);</span>
+<span class="nc" id="L781">			cal.setTime(date);</span>
+<span class="nc" id="L782">			cal.add(Calendar.DAY_OF_MONTH, 1);</span>
+<span class="nc" id="L783">			String devEndDate = dateFormat.format(cal.getTime());</span>
+<span class="nc bnc" id="L784" title="All 2 branches missed.">			if(commissionType.equalsIgnoreCase(&quot;GOVT_COMM&quot;))</span>
+			{
+<span class="nc bnc" id="L786" title="All 2 branches missed.">				if (serviceCode.equalsIgnoreCase(&quot;DG&quot;)) {</span>
+<span class="nc" id="L787">					queryForGovtCommSearch = &quot;select * from st_lms_bo_govt_transaction task,st_dg_game_master game,st_lms_bo_transaction_master trans where task.transaction_type='&quot;+commissionType+&quot;' and  task.service_code='&quot;+serviceCode+&quot;' and trans.transaction_date&gt;='&quot;+startDate+&quot;' and trans.transaction_date&lt;'&quot;+devEndDate+&quot;' and task.game_id=game.game_id and trans.transaction_id=task.transaction_id and trans.transaction_type='&quot;+commissionType+&quot;'&quot;;</span>
+				} else {
+<span class="nc bnc" id="L789" title="All 2 branches missed.">					if (serviceCode.equalsIgnoreCase(&quot;SE&quot;)) {</span>
+<span class="nc" id="L790">						queryForGovtCommSearch = &quot;select * from st_lms_bo_govt_transaction task,st_se_game_master game,st_lms_bo_transaction_master trans where task.transaction_type='&quot;+commissionType+&quot;' and  task.service_code='&quot;+serviceCode+&quot;' and trans.transaction_date&gt;='&quot;+startDate+&quot;' and trans.transaction_date&lt;'&quot;+devEndDate+&quot;' and task.game_id=game.game_id and trans.transaction_id=task.transaction_id and trans.transaction_type='&quot;+commissionType+&quot;'&quot;;</span>
+					}
+				}
+			}
+			else
+			{
+<span class="nc" id="L796">					queryForGovtCommSearch = &quot;select * from st_lms_bo_govt_transaction task,st_lms_bo_transaction_master trans where task.transaction_type='&quot;+commissionType+&quot;' and  task.service_code='&quot;+serviceCode+&quot;' and trans.transaction_date&gt;='&quot;+startDate+&quot;' and trans.transaction_date&lt;'&quot;+devEndDate+&quot;' and  trans.transaction_id=task.transaction_id and trans.transaction_type='&quot;+commissionType+&quot;'&quot;;</span>
+<span class="nc" id="L797">					System.out.println(queryForGovtCommSearch);</span>
+			}
+<span class="nc" id="L799">			rs = stmt.executeQuery(queryForGovtCommSearch);</span>
+<span class="nc" id="L800">			logger.debug(&quot;query to search approved Gov Comm  == &quot;</span>
+					+ queryForGovtCommSearch);
+<span class="nc bnc" id="L802" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L803">				taskBean = new TaskBean();</span>
+<span class="nc" id="L804">				taskBean.setAmount(rs.getDouble(&quot;amount&quot;));</span>
+				// taskBean.setMonth(rs.getString(TableConstants.MONTH_TASK));
+<span class="nc" id="L806">				taskBean.setTransactionType(rs.getString(&quot;transaction_type&quot;));</span>
+<span class="nc" id="L807">				taskBean.setGameId(rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L808">				taskBean.setStatus(&quot;Submitted&quot;);</span>
+<span class="nc" id="L809">				taskBean.setSubmitDate(rs.getDate(&quot;transaction_date&quot;).toString());</span>
+<span class="nc bnc" id="L810" title="All 2 branches missed.">				if(commissionType.equalsIgnoreCase(&quot;VAT&quot;))</span>
+				{
+<span class="nc" id="L812">				taskBean.setGameNbr(0);</span>
+<span class="nc" id="L813">				taskBean.setGameName(&quot;N/A&quot;);</span>
+				}
+				else
+				{
+<span class="nc" id="L817">					taskBean.setGameNbr(rs.getInt(&quot;game_nbr&quot;));</span>
+<span class="nc" id="L818">					taskBean.setGameName(rs.getString(&quot;game_name&quot;));</span>
+				}
+<span class="nc" id="L820">				taskBean.setStartDate(rs.getDate(&quot;start_date&quot;).toString());</span>
+<span class="nc" id="L821">				taskBean.setEndDate(rs.getDate(&quot;end_date&quot;).toString());</span>
+<span class="nc" id="L822">				GovtCommSearchResults.add(taskBean);</span>
+			}
+<span class="nc" id="L824">			return GovtCommSearchResults;</span>
+
+<span class="nc" id="L826">		} catch (SQLException e) {</span>
+<span class="nc" id="L827">			logger.error(&quot;Exception: &quot; + e);</span>
+
+<span class="nc" id="L829">			e.printStackTrace();</span>
+<span class="nc" id="L830">		} catch (ParseException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L832">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L834">			try {</span>
+<span class="nc bnc" id="L835" title="All 8 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L836">					con.close();</span>
+				}
+<span class="nc" id="L838">			} catch (SQLException se) {</span>
+<span class="nc" id="L839">				logger.error(&quot;Exception: &quot; + se);</span>
+<span class="nc" id="L840">				se.printStackTrace();</span>
+<span class="nc" id="L841">			}</span>
+<span class="nc" id="L842">		}</span>
+<span class="nc" id="L843">		return GovtCommSearchResults;</span>
+	}
+	
+	public void insertGovCommDetails(Map&lt;Integer, GovCommBean&gt; approvedMap, String serviceCode, Connection connection) {
+<span class="nc" id="L847">		SimpleDateFormat endDateFormat = null;</span>
+		try {
+<span class="nc" id="L849">			endDateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+<span class="nc" id="L850">			pstmt = connection.prepareStatement(&quot;INSERT INTO st_lms_bo_tasks (amount, game_id, transaction_type, status, approve_date, start_date, end_date, service_code) VALUES (?,?,?,?,?,?,?,?);&quot;);</span>
+
+<span class="nc" id="L852">			int gameId = 0;</span>
+<span class="nc" id="L853">			GovCommBean commissionBean = null;</span>
+<span class="nc bnc" id="L854" title="All 2 branches missed.">			for (Map.Entry&lt;Integer, GovCommBean&gt; entry : approvedMap.entrySet()) {</span>
+<span class="nc" id="L855">				gameId = entry.getKey();</span>
+<span class="nc" id="L856">				commissionBean = entry.getValue();</span>
+
+<span class="nc" id="L858">				pstmt.setDouble(1, Double.parseDouble(commissionBean.getGovAmount()));</span>
+<span class="nc" id="L859">				pstmt.setInt(2, gameId);</span>
+<span class="nc" id="L860">				pstmt.setString(3, &quot;GOVT_COMM&quot;);</span>
+<span class="nc" id="L861">				pstmt.setString(4, &quot;UNAPPROVED&quot;);</span>
+<span class="nc" id="L862">				pstmt.setDate(5, new Date(Util.getCurrentTimeStamp().getTime()));</span>
+<span class="nc" id="L863">				pstmt.setDate(6, new java.sql.Date(sqlDateFormatter.parse(commissionBean.getStartDate()).getTime()));</span>
+<span class="nc" id="L864">				pstmt.setTimestamp(7, new Timestamp(endDateFormat.parse(commissionBean.getEndDate() + &quot; 23:59:59&quot;).getTime()));</span>
+<span class="nc" id="L865">				pstmt.setString(8, serviceCode);</span>
+<span class="nc" id="L866">				pstmt.addBatch();</span>
+
+<span class="nc" id="L868">				pstmt.clearParameters();</span>
+
+<span class="nc" id="L870">				pstmt.setDouble(1, commissionBean.getGovPwtAmount());</span>
+<span class="nc" id="L871">				pstmt.setInt(2, gameId);</span>
+<span class="nc" id="L872">				pstmt.setString(3, &quot;GOVT_COMM_PWT&quot;);</span>
+<span class="nc" id="L873">				pstmt.setString(4, &quot;UNAPPROVED&quot;);</span>
+<span class="nc" id="L874">				pstmt.setDate(5, new Date(Util.getCurrentTimeStamp().getTime()));</span>
+<span class="nc" id="L875">				pstmt.setDate(6, new java.sql.Date(sqlDateFormatter.parse(commissionBean.getStartDate()).getTime()));</span>
+<span class="nc" id="L876">				pstmt.setTimestamp(7, new Timestamp(endDateFormat.parse(commissionBean.getEndDate() + &quot; 23:59:59&quot;).getTime()));</span>
+<span class="nc" id="L877">				pstmt.setString(8, serviceCode);</span>
+<span class="nc" id="L878">				pstmt.addBatch();</span>
+<span class="nc" id="L879">			}</span>
+<span class="nc" id="L880">			pstmt.executeBatch();</span>
+<span class="nc" id="L881">		} catch (Exception e) {</span>
+<span class="nc" id="L882">			logger.error(&quot;Exception - &quot; + e);</span>
+<span class="nc" id="L883">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L885">			DBConnect.closePstmt(pstmt);</span>
+<span class="nc" id="L886">		}</span>
+<span class="nc" id="L887">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

@@ -1,0 +1,2212 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OLAUtility.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.ola.common</a> &gt; <span class="el_source">OLAUtility.java</span></div><h1>OLAUtility.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.ola.common;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
+
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import net.sf.json.JSONObject;
+
+
+
+
+import org.apache.commons.digester.Digester;
+import org.apache.commons.digester.ExtendedBaseRules;
+import org.apache.commons.digester.Rule;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
+
+
+
+import com.skilrock.lms.api.ola.beans.OlaRummyNGDepositRepBean;
+import com.skilrock.lms.api.ola.beans.OlaRummyNGPlrTxnRepBean;
+import com.skilrock.lms.api.ola.beans.OlaRummyNGTxnRepBean;
+import com.skilrock.lms.api.ola.beans.OlaWalletIntegrationBean;
+import com.skilrock.lms.beans.OlaGetCancelWithdrawalDetailsBean;
+import com.skilrock.lms.beans.OlaGetPendingWithdrawalDetailsBean;
+import com.skilrock.lms.beans.OlaGetPlayerBindingInfoBean;
+import com.skilrock.lms.beans.OlaGetPlayerInfoBean;
+import com.skilrock.lms.beans.OlaNetGamingRetailerData;
+import com.skilrock.lms.beans.OlaNetGamingRowList;
+import com.skilrock.lms.beans.OlaNetGamingXMLReader;
+import com.skilrock.lms.beans.OlaPTResponseBean;
+import com.skilrock.lms.beans.OlaPendingWithdrawalBean;
+import com.skilrock.lms.beans.OlaPendingWithdrawalDataBean;
+import com.skilrock.lms.beans.OlaPlayerDetailsBean;
+import com.skilrock.lms.beans.OlaWalletBean;
+import com.skilrock.lms.beans.RetailerRegistrationBean;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.ola.userMgmt.javaBeans.OlaPlayerRegistrationRequestBean;
+
+<span class="nc" id="L88">public class OLAUtility {</span>
+	
+<span class="nc" id="L90">	private static Map&lt;Integer,String&gt; olaWalletMap =null;</span>
+<span class="nc" id="L91">	static Log  logger = LogFactory.getLog(OLAUtility.class);</span>
+<span class="nc" id="L92">	public static Map&lt;Integer, OlaWalletBean&gt; olaWalletDataMap=null;</span>
+<span class="nc" id="L93">	public static Map&lt;String,OlaWalletIntegrationBean&gt;  walletIntBeanMap =null;</span>
+	
+	//Need to set while server startup
+	static{
+<span class="nc" id="L97">		setWalletInfoMap(); // Wallet Details and Integration Details</span>
+<span class="nc" id="L98">	}</span>
+	
+	public static void setWalletInfoMap() {
+<span class="nc" id="L101">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L102">		Statement pstmt = null;</span>
+<span class="nc" id="L103">		ResultSet rs = null;</span>
+<span class="nc" id="L104">		olaWalletDataMap = new HashMap&lt;Integer, OlaWalletBean&gt;();</span>
+<span class="nc" id="L105">		walletIntBeanMap =new HashMap&lt;String, OlaWalletIntegrationBean&gt;();</span>
+<span class="nc" id="L106">		OlaWalletBean olaWalletBean=null;</span>
+		try {
+	
+<span class="nc" id="L109">				logger.info(&quot;setting wallet  Bean&quot;);</span>
+<span class="nc" id="L110">				String walletQuery = &quot;select wallet_id,wallet_name,wallet_category,wallet_display_name,wallet_status from st_ola_wallet_master&quot;;</span>
+<span class="nc" id="L111">				pstmt = con.createStatement();</span>
+<span class="nc" id="L112">				rs = pstmt.executeQuery(walletQuery);</span>
+<span class="nc bnc" id="L113" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L114">					olaWalletBean=new OlaWalletBean();</span>
+<span class="nc" id="L115">					olaWalletBean.setWalletId(rs.getInt(&quot;wallet_id&quot;));</span>
+<span class="nc" id="L116">					olaWalletBean.setWalletDevName(rs.getString(&quot;wallet_name&quot;));</span>
+<span class="nc" id="L117">					olaWalletBean.setWalletDispName(rs.getString(&quot;wallet_display_name&quot;));</span>
+<span class="nc" id="L118">					olaWalletBean.setWalletCategory(rs.getString(&quot;wallet_category&quot;));</span>
+<span class="nc" id="L119">					olaWalletBean.setWalletStatus(rs.getString(&quot;wallet_status&quot;));</span>
+					
+<span class="nc" id="L121">					olaWalletDataMap.put(rs.getInt(&quot;wallet_id&quot;), olaWalletBean);</span>
+
+				}
+			
+<span class="nc" id="L125">				logger.info(&quot;setting wallet Integration Bean&quot;);</span>
+<span class="nc" id="L126">				walletIntBeanMap=new HashMap&lt;String,OlaWalletIntegrationBean&gt; ();</span>
+<span class="nc" id="L127">				String walletIntQuery = &quot;select wallet_id,int_ip,int_walletCode,int_userName,int_password from st_ola_wallet_integration_master&quot;;</span>
+<span class="nc" id="L128">				pstmt = con.createStatement();</span>
+<span class="nc" id="L129">				rs = pstmt.executeQuery(walletIntQuery);</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">			while(rs.next()){</span>
+<span class="nc" id="L131">					OlaWalletIntegrationBean  walletIntBean = new OlaWalletIntegrationBean();</span>
+<span class="nc" id="L132">					walletIntBean.setTpIp(rs.getString(&quot;int_ip&quot;));</span>
+<span class="nc" id="L133">					walletIntBean.setTpPassword(rs.getString(&quot;int_password&quot;));</span>
+<span class="nc" id="L134">					walletIntBean.setTpUserName(rs.getString(&quot;int_userName&quot;));</span>
+<span class="nc" id="L135">					walletIntBean.setWalletId(rs.getInt(&quot;wallet_id&quot;));</span>
+<span class="nc" id="L136">					walletIntBean.setTpWalletCode(rs.getString(&quot;int_walletCode&quot;	));</span>
+<span class="nc" id="L137">					walletIntBeanMap.put(rs.getInt(&quot;wallet_id&quot;)+&quot;&quot;, walletIntBean);</span>
+<span class="nc" id="L138">					walletIntBeanMap.put(rs.getString(&quot;int_walletCode&quot;), walletIntBean);// added to get Wallet Integration Bean from wallet Integration Code</span>
+<span class="nc" id="L139">				}</span>
+<span class="nc" id="L140">				logger.info(&quot;setting wallet Integration Bean done&quot;+walletIntBeanMap.size());</span>
+		
+
+<span class="nc" id="L143">		}catch(SQLException e){</span>
+<span class="nc" id="L144">			logger.error(&quot;SQL Exception &quot;,e);</span>
+<span class="nc" id="L145">		}catch (Exception e) {</span>
+<span class="nc" id="L146">			logger.error(&quot; Exception &quot;,e);</span>
+			//e.printStackTrace();
+		} finally {
+<span class="nc" id="L149">			try {</span>
+<span class="nc bnc" id="L150" title="All 8 branches missed.">				if (rs != null) {</span>
+<span class="nc" id="L151">					rs.close();</span>
+				}
+
+<span class="nc bnc" id="L154" title="All 8 branches missed.">				if (pstmt != null) {</span>
+<span class="nc" id="L155">					pstmt.close();</span>
+				}
+
+<span class="nc bnc" id="L158" title="All 8 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L159">					con.close();</span>
+				}
+
+<span class="nc" id="L162">			} catch (Exception e) {</span>
+<span class="nc" id="L163">				logger.error(&quot; Exception &quot;,e);</span>
+<span class="nc" id="L164">			}</span>
+
+<span class="nc" id="L166">		}</span>
+<span class="nc" id="L167">	}</span>
+	public static boolean checkWalletStatus(String walletDevName){
+<span class="nc bnc" id="L169" title="All 2 branches missed.">		for(java.util.Map.Entry&lt;Integer, OlaWalletBean&gt; entry:olaWalletDataMap.entrySet()){</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">			if(walletDevName.equalsIgnoreCase(entry.getValue().getWalletDevName())){</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">				if(&quot;ACTIVE&quot;.equals(entry.getValue().getWalletStatus())){</span>
+<span class="nc" id="L172">					return true;</span>
+				}
+			}
+<span class="nc" id="L175">		}</span>
+<span class="nc" id="L176">		return false;</span>
+	}
+	public static void main(String[] args) {
+	
+<span class="nc" id="L180">		getPlayerInfo2Response(&quot;SAURABH&quot;, &quot;/home/gauravk/yogesh/&quot;);</span>
+		
+<span class="nc" id="L182">	}</span>
+	
+	public static boolean createAffiliate(RetailerRegistrationBean orgUserData,
+			Map&lt;String, String&gt; errorMap,String rootPath) {
+
+<span class="nc" id="L187">		Map&lt;String, String&gt; createAffilateParamMap = new HashMap&lt;String, String&gt;();</span>
+
+		try {
+<span class="nc" id="L190">			createAffilateParamMap.put(&quot;address&quot;, URLEncoder.encode(orgUserData</span>
+					.getAddrLine1()
+					+ &quot; &quot; + orgUserData.getAddrLine2(), &quot;UTF-8&quot;));// address
+<span class="nc" id="L193">			createAffilateParamMap.put(&quot;city&quot;, URLEncoder.encode(orgUserData</span>
+					.getCity(), &quot;UTF-8&quot;));// city
+<span class="nc" id="L195">			createAffilateParamMap.put(&quot;company&quot;, URLEncoder.encode(orgUserData</span>
+					.getOrgName(), &quot;UTF-8&quot;));// campany
+<span class="nc" id="L197">			createAffilateParamMap.put(&quot;country&quot;, URLEncoder.encode(&quot;IN&quot;,</span>
+					&quot;UTF-8&quot;));// country code //has to be changed
+<span class="nc" id="L199">			createAffilateParamMap.put(&quot;email&quot;, URLEncoder.encode(orgUserData</span>
+					.getEmail(), &quot;UTF-8&quot;));// email
+<span class="nc" id="L201">			createAffilateParamMap.put(&quot;emailconfirm&quot;, URLEncoder.encode(</span>
+					orgUserData.getEmail(), &quot;UTF-8&quot;));// emailconfirm
+<span class="nc" id="L203">			createAffilateParamMap.put(&quot;firstname&quot;, URLEncoder.encode(</span>
+					orgUserData.getFirstName(), &quot;UTF-8&quot;));// firstname
+<span class="nc" id="L205">			createAffilateParamMap.put(&quot;lastname&quot;, URLEncoder.encode(</span>
+					orgUserData.getLastName(), &quot;UTF-8&quot;));// lastName
+<span class="nc" id="L207">			createAffilateParamMap.put(&quot;mobile&quot;, URLEncoder.encode(orgUserData</span>
+					.getPhone()
+					+ &quot;&quot;, &quot;UTF-8&quot;));// mobile
+<span class="nc" id="L210">			createAffilateParamMap.put(&quot;occupation&quot;, URLEncoder.encode(</span>
+					&quot;Lottery&quot;, &quot;UTF-8&quot;));// occuption
+<span class="nc" id="L212">			createAffilateParamMap.put(&quot;password1&quot;, URLEncoder.encode(&quot;12345&quot;,</span>
+					&quot;UTF-8&quot;));// password1
+<span class="nc" id="L214">			createAffilateParamMap.put(&quot;password2&quot;, URLEncoder.encode(&quot;12345&quot;,</span>
+					&quot;UTF-8&quot;));// password2
+<span class="nc" id="L216">			createAffilateParamMap.put(&quot;paymentmethod&quot;, URLEncoder.encode(</span>
+					&quot;BD&quot;, &quot;UTF-8&quot;));// paymentmethod
+<span class="nc" id="L218">			createAffilateParamMap.put(&quot;phone&quot;, URLEncoder.encode(orgUserData</span>
+					.getPhone()
+					+ &quot;&quot;, &quot;UTF-8&quot;));// phone
+		
+<span class="nc" id="L222">			createAffilateParamMap.put(&quot;salesman&quot;, URLEncoder.encode(&quot;15256&quot;,</span>
+					&quot;UTF-8&quot;));// salesman //has to be updated by parent
+								// affiliate user id
+<span class="nc" id="L225">			createAffilateParamMap.put(&quot;state&quot;, URLEncoder.encode(orgUserData</span>
+					.getState(), &quot;UTF-8&quot;));// state
+<span class="nc" id="L227">			createAffilateParamMap.put(&quot;zip&quot;, URLEncoder.encode(orgUserData</span>
+					.getPin()
+					+ &quot;&quot;, &quot;UTF-8&quot;));// zip
+<span class="nc" id="L230">			createAffilateParamMap.put(&quot;username&quot;, URLEncoder.encode(</span>
+					orgUserData.getUserName(), &quot;UTF-8&quot;));// username
+<span class="nc" id="L232">			createAffilateParamMap.put(&quot;bname&quot;, URLEncoder.encode(&quot;OLAMS&quot;,</span>
+					&quot;UTF-8&quot;));
+<span class="nc" id="L234">			createAffilateParamMap.put(&quot;bstate&quot;, URLEncoder.encode(</span>
+					&quot;GANGTOK&quot;, &quot;UTF-8&quot;));
+<span class="nc" id="L236">			createAffilateParamMap.put(&quot;baddress&quot;, URLEncoder.encode(</span>
+					&quot;SIKKIM&quot;, &quot;UTF-8&quot;));
+<span class="nc" id="L238">			createAffilateParamMap.put(&quot;bcity&quot;, URLEncoder.encode(&quot;SIKKIM&quot;,</span>
+					&quot;UTF-8&quot;));
+			
+<span class="nc" id="L241">			createAffilateParamMap.put(&quot;bzip&quot;, URLEncoder.encode(&quot;1234567&quot;,</span>
+					&quot;UTF-8&quot;));
+		
+<span class="nc" id="L244">			DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory</span>
+					.newInstance();
+<span class="nc" id="L246">			DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();</span>
+<span class="nc" id="L247">			InputStream iStream = OLAClient.callPlaytechForNewAffiliate(OLAConstants.CREATE_AFFILIATE_PHP, createAffilateParamMap,OLAConstants.CREATE_AFFILIATE_URL,rootPath);</span>
+			
+<span class="nc bnc" id="L249" title="All 2 branches missed.">			if (iStream == null) {</span>
+				// some internal error has occured may be at the time of
+				// communication with playtech system
+<span class="nc" id="L252">				errorMap.put(&quot;returnTypeError&quot;, &quot;input&quot;);</span>
+<span class="nc" id="L253">				errorMap.put(&quot;orgError&quot;,&quot; some Internal error has occured during communication with playTech&quot;);</span>
+<span class="nc" id="L254">				return false;</span>
+			} else {
+<span class="nc" id="L256">				Document doc = docBuilder.parse(iStream);</span>
+				// here parse the xml and read the messages
+<span class="nc" id="L258">				NodeList nl = doc.getElementsByTagName(&quot;newaffiliate&quot;);</span>
+<span class="nc" id="L259">				Element newaffiliate = (Element) nl.item(0);</span>
+<span class="nc" id="L260">				NodeList traList = newaffiliate</span>
+						.getElementsByTagName(&quot;transaction&quot;);
+<span class="nc" id="L262">				Element tran = (Element) traList.item(0);</span>
+<span class="nc" id="L263">				String result = tran.getAttribute(&quot;result&quot;);</span>
+				// String result = &quot;ERROR&quot;;
+<span class="nc bnc" id="L265" title="All 2 branches missed.">				if (&quot;OK&quot;.equalsIgnoreCase(result)) {</span>
+					// communication successful affilaite id created at
+<span class="nc" id="L267">					return true;</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">				} else if (&quot;ERROR&quot;.equalsIgnoreCase(result)) {</span>
+
+<span class="nc" id="L270">					NodeList errList = newaffiliate</span>
+							.getElementsByTagName(&quot;error&quot;);
+<span class="nc" id="L272">					Element err = (Element) errList.item(0);</span>
+<span class="nc" id="L273">					String errorCode = err.getAttribute(&quot;nr&quot;);</span>
+
+<span class="nc" id="L275">					Element errorElement = (Element) errList.item(0);</span>
+<span class="nc" id="L276">					NodeList textErrorList = errorElement.getChildNodes();</span>
+<span class="nc" id="L277">					String errorMessage = ((Node) textErrorList.item(0))</span>
+							.getNodeValue().trim();
+<span class="nc" id="L279">					System.out.println(&quot;error is &quot; + errorMessage);</span>
+<span class="nc" id="L280">					System.out.println(&quot;error is:&quot; + errorCode);</span>
+<span class="nc" id="L281">					System.out.println(&quot;ERROR return form playtech&quot;);</span>
+<span class="nc" id="L282">					errorMap.put(&quot;returnTypeError&quot;, &quot;input&quot;);</span>
+<span class="nc" id="L283">					errorMap.put(&quot;orgError&quot;, errorMessage</span>
+							+ &quot; during communication with playTech&quot;); // customize
+																		// error
+<span class="nc" id="L286">					return false;</span>
+				} else {
+<span class="nc" id="L288">					errorMap.put(&quot;returnTypeError&quot;, &quot;input&quot;);</span>
+<span class="nc" id="L289">					errorMap.put(&quot;orgError&quot;,</span>
+							&quot;Undefined Error type from PlayTech System&quot;);
+<span class="nc" id="L291">					System.out</span>
+							.println(&quot;Undefined Error type from PlayTech System&quot;);
+<span class="nc" id="L293">					return false;</span>
+				}
+
+			}
+		
+
+<span class="nc" id="L299">		} catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L300">			e.printStackTrace();</span>
+<span class="nc" id="L301">			return false;</span>
+<span class="nc" id="L302">		} catch (ParserConfigurationException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L304">			e.printStackTrace();</span>
+<span class="nc" id="L305">			return false;</span>
+<span class="nc" id="L306">		} catch (SAXException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L308">			e.printStackTrace();</span>
+<span class="nc" id="L309">			return false;</span>
+<span class="nc" id="L310">		} catch (IOException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L312">			e.printStackTrace();</span>
+		}
+<span class="nc" id="L314">		return true;</span>
+	}
+
+	/**
+	 * This method is used to create binding between player and affiliate
+	 * 
+	 * @param depositAnyWhere
+	 *            , can player deposit money any where
+	 * @return boolean whether eligible to make transaction or not
+	 * @throws LMSException
+	 * @throws SQLException
+	 */
+
+	/*public static boolean affiliatePlrBinding(String depositAnyWhere,
+			String plrId, String affiliateId, Connection con)
+			throws LMSException {
+
+		// first check whether player axists in the player affiliate mapping
+		// tablr or not
+		String refAffiliateId = CommonFunctionsHelper.checkPlrAffiliateMapping(
+				con, plrId);
+		System.out.println(&quot;refAffiliateId&quot; + refAffiliateId);
+		boolean PlrExist = false;
+		if (refAffiliateId == null) {
+			// player in not registered in OLA
+			PlrExist = false;
+		} else {
+			// player is mapped with some affiliate
+			PlrExist = true;
+		}
+
+		if (PlrExist) {
+			if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {
+				return true;
+			} else {
+				// check mapping
+				boolean isMapped = affiliateId.equalsIgnoreCase(refAffiliateId);
+				if (isMapped) {
+					return true;
+				} else {
+					return false;
+				}
+			}
+		} else {// means player does not exists in OLA System
+			// here send the request to PlayTech to get the Player Info with the
+			// Affiliate details
+			// call function to communicate with PT to get the player Info
+			String affiliateIdFrmPT = &quot;default&quot;; // possible values are
+													// default,NOT_IN_OLA,IN_OLA
+			if (&quot;default&quot;.equalsIgnoreCase(affiliateIdFrmPT)) {
+				// in this case again send the request to PT for player
+				// affiliate binding
+				// call function to communicate PT to binding with parameter
+				// plrId and ref_user_id(affiliate id)
+				String isBindFromPT = &quot;SUCCESS&quot;; // success or error
+				if (&quot;SUCCESS&quot;.equalsIgnoreCase(isBindFromPT)) {
+					// here bind the player in OLA DB
+					CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,
+							affiliateId);
+					return true;
+				} else {
+					System.out
+							.println(&quot;ERROR returned from playtech system during player affiliate binding&quot;);
+					return false;
+				}
+			} else {
+				// player is registered in Playtech but not registered in OLA
+				// system
+				// now we need to check affiliate id in OLA system
+
+			}
+			if (&quot;NOT_IN_OLA&quot;.equalsIgnoreCase(affiliateIdFrmPT)) {
+				// means player is bind with some online affiliate so no neeed
+				// to bind in LMS
+				// transaction can not be done in offline affiliate
+				// if deposit anyehere is true then only we can make transaction
+				// through offline affiliate
+				if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {
+					return true;
+				} else {
+					return false;
+				}
+
+			} else if (&quot;IN_OLA&quot;.equalsIgnoreCase(affiliateIdFrmPT)) {
+				// means data is not in synch with playtech system
+				// as per the response from playtech this player should be bind
+				// in OLA system(LMS)
+				System.out
+						.println(&quot;Data conflict between playtech and OLA, during player INFO&quot;);
+				// need to take some action send mail to admin to get it correct
+				return false;
+			} else {
+				System.out
+						.println(&quot;some undefined status from Play tech system &quot;
+								+ affiliateIdFrmPT);
+				return false;
+			}
+		}
+	}*/
+	public static String affiliatePlrBinding(String depositAnyWhere,
+			String plrId, String affiliateId,int affiliateOrgId,Connection con,String rootPath,int walletId)
+			throws LMSException {
+
+		// first check whether player axists in the player affiliate mapping
+		// tablr or not
+<span class="nc" id="L419">		PreparedStatement pStatement = null;</span>
+		try
+		{
+<span class="nc" id="L422">		String refAffiliateId = CommonFunctionsHelper.checkPlrAffiliateMapping(</span>
+				con, plrId,walletId);
+<span class="nc" id="L424">		System.out.println(&quot;refAffiliateId&quot; + refAffiliateId);</span>
+<span class="nc" id="L425">		boolean PlrExist = false;</span>
+<span class="nc bnc" id="L426" title="All 2 branches missed.">		if (refAffiliateId == null) {</span>
+			// player in not registered in OLA
+<span class="nc" id="L428">			PlrExist = false;</span>
+		} else {
+			// player is mapped with some affiliate
+<span class="nc" id="L431">			PlrExist = true;</span>
+		}
+
+<span class="nc bnc" id="L434" title="All 2 branches missed.">		if (PlrExist) {</span>
+<span class="nc bnc" id="L435" title="All 2 branches missed.">			if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L436">				return &quot;OK&quot;;</span>
+			} else {
+				// check mapping
+<span class="nc" id="L439">				boolean isMapped = affiliateId.equalsIgnoreCase(refAffiliateId);</span>
+<span class="nc bnc" id="L440" title="All 2 branches missed.">				if (isMapped) {</span>
+<span class="nc" id="L441">					return &quot;OK&quot;;</span>
+				} else {
+<span class="nc" id="L443">					return &quot;Player is not mapped With this Affiliate&quot;;</span>
+				}
+			}
+		} else {// means player does not exists in OLA System
+			// here send the request to PlayTech to get the Player Info with the
+			// Affiliate details
+			// call function to communicate with PT to get the player Info
+<span class="nc" id="L450">			OlaGetPlayerInfoBean respBean = new OlaGetPlayerInfoBean();</span>
+<span class="nc" id="L451">			respBean = callGetPlayerInfoApi(plrId,respBean,rootPath);</span>
+<span class="nc bnc" id="L452" title="All 2 branches missed.">			if(respBean!=null)</span>
+			{
+<span class="nc bnc" id="L454" title="All 2 branches missed.">				if(respBean.getErrorCode().equalsIgnoreCase(&quot;0&quot;))</span>
+				{
+<span class="nc bnc" id="L456" title="All 2 branches missed.">					if(respBean.getPlayerDataMap()!=null)</span>
+					{
+<span class="nc bnc" id="L458" title="All 2 branches missed.">						if(!(respBean.getPlayerDataMap().get(0).getValue()).equalsIgnoreCase(&quot;default03&quot;))</span>
+						{
+<span class="nc" id="L460">							pStatement = con.prepareStatement(&quot;select ref_user_id from st_ola_org_affiliate_mapping where ref_user_id='&quot;+respBean.getPlayerDataMap().get(0).getValue()+&quot;'&quot;);</span>
+<span class="nc" id="L461">							ResultSet rs = pStatement.executeQuery();</span>
+<span class="nc bnc" id="L462" title="All 2 branches missed.">							if(rs.next())</span>
+							{
+								// here bind the player in OLA DB
+								//CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,respBean.getPlayerDataMap().get(1).getValue());
+<span class="nc" id="L466">								return &quot;OK&quot;;</span>
+							}
+							else
+							{
+<span class="nc" id="L470">								System.out.println(&quot;affiliates does not  exist in the LMS Database but exists in Playetech&quot;);</span>
+<span class="nc" id="L471">								return &quot;Some Internal ERROR&quot;;</span>
+							}
+						}
+<span class="nc bnc" id="L474" title="All 2 branches missed.">						else if((respBean.getPlayerDataMap().get(0).getValue()).equalsIgnoreCase(&quot;default03&quot;))</span>
+						{
+
+<span class="nc" id="L477">							boolean resp = callChangePlayerApi(affiliateId,plrId,rootPath);</span>
+<span class="nc bnc" id="L478" title="All 2 branches missed.">							if(resp)</span>
+							{
+								// here bind the player in OLA DB
+<span class="nc" id="L481">								CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,</span>
+										affiliateId,affiliateOrgId,walletId);
+<span class="nc" id="L483">								return &quot;OK&quot;;</span>
+							}
+							else
+							{
+<span class="nc" id="L487">								System.out.println(&quot;ERROR returned from playtech system during player affiliate binding&quot;);</span>
+<span class="nc" id="L488">								return &quot;Some Internal ERROR&quot;;</span>
+							}
+						}
+<span class="nc bnc" id="L491" title="All 2 branches missed.">						else if((respBean.getPlayerDataMap().get(0).getValue()).equalsIgnoreCase(&quot;ONLINE&quot;))</span>
+						{
+<span class="nc bnc" id="L493" title="All 2 branches missed.">							if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L494">								return &quot;OK&quot;;</span>
+							} else {
+<span class="nc" id="L496">								return &quot;Player is already mapped with some ONLINE Affiliate&quot;;</span>
+							}
+						}
+						else
+						{
+<span class="nc" id="L501">							return &quot;Problem in Player Mapping&quot;;</span>
+						}
+					}
+					else
+					{
+<span class="nc" id="L506">						System.out.println(&quot;Error Occured&quot;+respBean.getErrorText());</span>
+<span class="nc" id="L507">						return respBean.getErrorText();</span>
+					}
+				}
+				else{
+<span class="nc" id="L511">					System.out.println(&quot;error Occured&quot;+respBean.getErrorText());</span>
+<span class="nc" id="L512">					return respBean.getErrorText();</span>
+				}
+				
+			/*String affiliateIdFrmPT = &quot;default&quot;; // possible values are
+													// default,NOT_IN_OLA,IN_OLA
+			if (&quot;default10&quot;.equalsIgnoreCase(respBean.getAffiliateName())) {
+				boolean resp = callChangePlayerApi(affiliateId,plrId,password);
+				if(resp)
+				{
+					// here bind the player in OLA DB
+					CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,
+							affiliateId);
+			Digester  digester = new Digester();
+					return true;
+				}
+				else
+				{
+					System.out.println(&quot;ERROR returned from playtech system during player affiliate binding&quot;);
+					return false;
+				}
+				// in this case again send the request to PT for player
+				// affiliate binding
+				// call function to communicate PT to binding with parameter
+				// plrId and ref_user_id(affiliate id)
+				String isBindFromPT = &quot;SUCCESS&quot;; // success or error
+				if (&quot;SUCCESS&quot;.equalsIgnoreCase(isBindFromPT)) {
+					// here bind the player in OLA DB
+					CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,
+							affiliateId);
+					return true;
+				} else {
+					System.out
+							.println(&quot;ERROR returned from playtech system during player affiliate binding&quot;);
+					return false;
+				}
+			} else if (&quot;offline&quot;.equalsIgnoreCase(affiliateIdFrmPT)) {
+				// player is registered in Playtech but not registered in OLA
+				// system
+				// now we need to check affiliate id in OLA system
+				pStatement = con.prepareStatement(&quot;select ref_user_id from st_ola_org_affiliate_mapping where ref_user_id='&quot;+respBean.getAffiliateName()+&quot;'&quot;);
+				ResultSet rs = pStatement.executeQuery();
+				if(rs.next())
+				{
+					// here bind the player in OLA DB
+					CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,respBean.getAffiliateName());
+					return true;
+				}
+				else
+				{
+					System.out.println(&quot;affiliates is not exit in the LMS and &quot;);
+				}
+			}
+			else if (&quot;online&quot;.equalsIgnoreCase(respBean.getPlayerStatus())) {
+				// means player is bind with some online affiliate so no neeed
+				// to bind in LMS
+				// transaction can not be done in offline affiliate
+				// if deposit anyehere is true then only we can make transaction
+				// through offline affiliate
+				if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {
+					return true;
+				} else {
+					return false;
+				}
+
+			} else if (&quot;IN_OLA&quot;.equalsIgnoreCase(affiliateIdFrmPT)) {
+				// means data is not in synch with playtech system
+				// as per the response from playtech this player should be bind
+				// in OLA system(LMS)
+				System.out
+						.println(&quot;Data conflict between playtech and OLA, during player INFO&quot;);
+				// need to take some action send mail to admin to get it correct
+				return false;
+			} else {
+				System.out
+						.println(&quot;some undefined status from Play tech system &quot;
+								+ affiliateIdFrmPT);
+				return false;
+			}
+		}
+			else{
+				System.out.println(&quot;internal error occurs during communication with playtech&quot;);
+				return false;
+			}
+		}*/
+		}
+			else{
+<span class="nc" id="L598">				System.out.println(&quot;Some Internal Error Occured&quot;);</span>
+<span class="nc" id="L599">				return &quot;Some Internal error occured&quot;;</span>
+			}
+		}
+		}
+<span class="nc" id="L603">		catch(Exception e)</span>
+		{
+<span class="nc" id="L605">			e.printStackTrace();</span>
+<span class="nc" id="L606">			return &quot;Some Internal error occured&quot;;</span>
+		}
+	}
+
+	public static boolean affiliatePlrBindingForWithdrawl(String withdrawlAnyWhere,String plrId, String affiliateId, Connection con,int walletId)
+			throws LMSException {
+
+		// first check whether player axists in the player affiliate mapping
+		// tablr or not
+<span class="nc" id="L615">		String refAffiliateId = CommonFunctionsHelper.checkPlrAffiliateMapping(</span>
+				con, plrId,walletId);
+<span class="nc" id="L617">		System.out.println(&quot;refAffiliateId&quot; + refAffiliateId);</span>
+<span class="nc" id="L618">		boolean PlrExist = false;</span>
+<span class="nc bnc" id="L619" title="All 2 branches missed.">		if (refAffiliateId == null) {</span>
+			// player in not registered in OLA
+<span class="nc" id="L621">			PlrExist = false;</span>
+		} else {
+			// player is mapped with some affiliate
+<span class="nc" id="L624">			PlrExist = true;</span>
+		}
+
+<span class="nc bnc" id="L627" title="All 2 branches missed.">		if (PlrExist) {</span>
+<span class="nc bnc" id="L628" title="All 2 branches missed.">			if (withdrawlAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L629">				return true;</span>
+			} else {
+				// check mapping
+<span class="nc" id="L632">				boolean isMapped = affiliateId.equalsIgnoreCase(refAffiliateId);</span>
+<span class="nc bnc" id="L633" title="All 2 branches missed.">				if (isMapped) {</span>
+<span class="nc" id="L634">					return true;</span>
+				} else {
+<span class="nc" id="L636">					return false;</span>
+				}
+			}
+		} else {
+			
+			//check withdrawl any where  parameter if yes then ok 
+<span class="nc bnc" id="L642" title="All 2 branches missed.">			if (withdrawlAnyWhere.equalsIgnoreCase(&quot;NO&quot;)) {</span>
+				//Exit or show message
+<span class="nc" id="L644">				return false;</span>
+<span class="nc bnc" id="L645" title="All 2 branches missed.">			}else if (withdrawlAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L646">				return true;				</span>
+			}								
+			
+		}
+<span class="nc" id="L650">		return true;</span>
+	}
+
+	
+	 public static List&lt;OlaNetGamingRowList&gt; getPlrsCommissionOfRetailer(String refUserId,String startDate,String endDate,String rootPath) throws ParserConfigurationException, SAXException, IOException{
+<span class="nc" id="L655">		 Map&lt;String,String&gt; getPlrCommParamMap = new HashMap&lt;String,String&gt;();</span>
+<span class="nc" id="L656">		 Digester digester = null;</span>
+<span class="nc" id="L657">		 OlaNetGamingXMLReader netGamingXMLReader = new OlaNetGamingXMLReader(); </span>
+	  try {
+<span class="nc" id="L659">	  getPlrCommParamMap.put(&quot;advertiser&quot;, URLEncoder.encode(refUserId,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L660">	 getPlrCommParamMap.put(&quot;startdate&quot;, URLEncoder.encode(startDate,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L661">	 getPlrCommParamMap.put(&quot;enddate&quot;,  URLEncoder.encode(endDate,&quot;UTF-8&quot;)); </span>
+<span class="nc" id="L662">	  DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L663">	  DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();</span>
+<span class="nc" id="L664">	  InputStream iStream = getNetGamingResponseXML(OLAConstants.NETGAMING_PHP, getPlrCommParamMap,OLAConstants.NETGAMING_URL,rootPath);</span>
+<span class="nc bnc" id="L665" title="All 2 branches missed.">	  if(iStream != null)</span>
+	  {
+<span class="nc" id="L667">		  File file1 = new File(&quot;netGaming.xml&quot;);</span>
+<span class="nc" id="L668">			file1.createNewFile();</span>
+<span class="nc" id="L669">			FileWriter file = new FileWriter(file1);</span>
+<span class="nc" id="L670">			BufferedReader reader = new BufferedReader(new InputStreamReader(iStream)); </span>
+<span class="nc" id="L671">			 PrintWriter outputFile = null;</span>
+<span class="nc" id="L672">			 outputFile = new PrintWriter(file);</span>
+			 String result ;
+<span class="nc bnc" id="L674" title="All 2 branches missed.">			while((result=reader.readLine())!=null)</span>
+			{
+<span class="nc" id="L676">				System.out.println(result);</span>
+<span class="nc" id="L677">				outputFile.println(result);</span>
+			}
+<span class="nc" id="L679">			outputFile.flush();</span>
+		
+<span class="nc" id="L681">	  Document document = docBuilder.parse(&quot;netGaming.xml&quot;);</span>
+<span class="nc" id="L682">	  NodeList list = document.getElementsByTagName(&quot;AdvertiserStatsResponse&quot;);</span>
+<span class="nc" id="L683">	  Node node = list.item(0);</span>
+<span class="nc bnc" id="L684" title="All 2 branches missed.">	  if(node == null)</span>
+	  {
+<span class="nc" id="L686">		 digester = new Digester();</span>
+<span class="nc" id="L687">	 	digester.addObjectCreate(&quot;AdvertiserStats&quot;, OlaNetGamingXMLReader.class);</span>
+<span class="nc" id="L688">		digester.addObjectCreate(&quot;AdvertiserStats/row&quot;, OlaNetGamingRowList.class);</span>
+<span class="nc" id="L689">		digester.addSetNext(&quot;AdvertiserStats/row/&quot;,&quot;setRowList&quot;);</span>
+		
+<span class="nc" id="L691">		digester.addObjectCreate(&quot;AdvertiserStats/row/column&quot;, OlaNetGamingRetailerData.class);</span>
+<span class="nc" id="L692">		digester.addSetNext(&quot;AdvertiserStats/row/column&quot;,&quot;setColumnList&quot;);</span>
+		
+<span class="nc" id="L694">		digester.addSetProperties(&quot;AdvertiserStats/row/column/&quot;, &quot;name&quot;, &quot;name&quot;);</span>
+<span class="nc" id="L695">		digester.addBeanPropertySetter(&quot;AdvertiserStats/row/column/&quot;);</span>
+<span class="nc" id="L696">		netGamingXMLReader = (OlaNetGamingXMLReader) digester.parse(&quot;netGaming.xml&quot;);</span>
+<span class="nc" id="L697">		file1.deleteOnExit();</span>
+<span class="nc" id="L698">		return netGamingXMLReader.getRowList();</span>
+		 
+	  }
+	  else
+	  {
+<span class="nc" id="L703">		  file1.deleteOnExit();</span>
+<span class="nc bnc" id="L704" title="All 2 branches missed.">		  if((node.toString().split(&quot;:&quot;)[0]).equals(&quot;[AdvertiserStatsResponse&quot;))</span>
+		  {
+<span class="nc" id="L706">			  System.out.println(&quot;error occurs&quot;);</span>
+<span class="nc" id="L707">			  return null;</span>
+		  }
+		  else
+		  {
+<span class="nc" id="L711">			  System.out.println(&quot;no XML returned from playtech&quot;);</span>
+<span class="nc" id="L712">			  return null;</span>
+		  }
+		  
+	  }
+	
+	  }
+	  else
+	  {
+<span class="nc" id="L720">		  System.out.println(&quot;error occurs during communication with the playtech&quot;);</span>
+<span class="nc" id="L721">		  return null;</span>
+	  }
+	  
+	  }
+<span class="nc" id="L725">	  catch(UnsupportedEncodingException e)</span>
+	  { 
+<span class="nc" id="L727">		  e.printStackTrace();</span>
+	  }
+<span class="nc" id="L729">	  return netGamingXMLReader.getRowList();</span>
+	  }
+	  
+
+	public static OlaPTResponseBean callDepositApi(long transactionId,double amount,String userName,OlaPTResponseBean bean) {
+<span class="nc" id="L734">		Map&lt;String, String&gt; DepositParamMap = new HashMap&lt;String, String&gt;();</span>
+		try {
+
+	
+<span class="nc" id="L738">			DepositParamMap.put(&quot;casino&quot;, URLEncoder.encode(OLAConstants.CASINO_NAME,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L739">			DepositParamMap.put(&quot;username&quot;, URLEncoder.encode(userName.toUpperCase(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L740">			DepositParamMap.put(&quot;amount&quot;, URLEncoder.encode(Double.toString(amount),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L741">			DepositParamMap.put(&quot;currency&quot;, URLEncoder.encode(OLAConstants.currency,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L742">			DepositParamMap.put(&quot;externaltranid&quot;, URLEncoder.encode(Long.toString(transactionId),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L743">			DepositParamMap.put(&quot;secretkey&quot;, URLEncoder.encode(OLAConstants.Depositsecretkey,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L744">			DepositParamMap.put(&quot;casinosecret&quot;, URLEncoder.encode(OLAConstants.casinosecret,&quot;UTF-8&quot;));</span>
+		
+<span class="nc" id="L746">			InputStream iStream = OLAClient.callPlaytech(OLAConstants.DEPOSIT_PHP, DepositParamMap,OLAConstants.DEPOSIT_URL);</span>
+<span class="nc bnc" id="L747" title="All 2 branches missed.">			if (iStream != null) {</span>
+<span class="nc" id="L748">				Digester digester = new Digester();</span>
+<span class="nc" id="L749">				digester.addObjectCreate(&quot;fundtransfer&quot;, OlaPTResponseBean.class);</span>
+<span class="nc" id="L750">				digester.addBeanPropertySetter(&quot;fundtransfer/status&quot;, &quot;depositStatus&quot;);</span>
+<span class="nc" id="L751">				digester.addBeanPropertySetter(&quot;fundtransfer/tranid&quot;, &quot;imsDepositTransactionId&quot;);</span>
+<span class="nc" id="L752">				digester.addBeanPropertySetter(&quot;fundtransfer/error&quot;, &quot;depositError&quot;);</span>
+<span class="nc" id="L753">				bean = (OlaPTResponseBean) digester.parse(iStream);</span>
+<span class="nc" id="L754">				return bean;</span>
+				} else {
+<span class="nc" id="L756">				bean.setImsDepositTransactionId(0);</span>
+<span class="nc" id="L757">				bean.setDepositStatus(&quot;null&quot;);</span>
+				//error number 4141 -  network error occur during communication with playtech
+<span class="nc" id="L759">				bean.setDepositError(&quot;4141&quot;);</span>
+<span class="nc" id="L760">				return bean;</span>
+			}
+<span class="nc" id="L762">		} catch (Exception e) {</span>
+<span class="nc" id="L763">			e.printStackTrace();</span>
+<span class="nc" id="L764">			bean.setDepositStatus(&quot;null&quot;);</span>
+<span class="nc" id="L765">			bean.setDepositError(&quot;4141&quot;);</span>
+<span class="nc" id="L766">			return bean;</span>
+		}
+		
+	}
+	
+	public static OlaGetPlayerInfoBean callGetPlayerInfoApi(String userName,OlaGetPlayerInfoBean bean,String rootPath) {
+<span class="nc" id="L772">		 Digester digester = null;</span>
+			try
+			{
+<span class="nc" id="L775">				DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L776">				DocumentBuilder builder = builderFactory.newDocumentBuilder();</span>
+				
+<span class="nc" id="L778">				InputStream stream = getPlayerInfo2Response(userName,rootPath);</span>
+<span class="nc bnc" id="L779" title="All 2 branches missed.">				if(stream!=null)</span>
+				{
+<span class="nc" id="L781">				File file1 = new File(&quot;getPlayerInfo.xml&quot;);</span>
+<span class="nc" id="L782">				file1.createNewFile();</span>
+<span class="nc" id="L783">				FileWriter file = new FileWriter(file1);</span>
+<span class="nc" id="L784">				BufferedReader reader = new BufferedReader(new InputStreamReader(stream)); </span>
+<span class="nc" id="L785">				 PrintWriter outputFile = null;</span>
+<span class="nc" id="L786">				 outputFile = new PrintWriter(file);</span>
+				 String result ;
+<span class="nc bnc" id="L788" title="All 2 branches missed.">				while((result=reader.readLine())!=null)</span>
+				{
+<span class="nc" id="L790">					System.out.println(result);</span>
+<span class="nc" id="L791">					outputFile.println(result);</span>
+				}
+<span class="nc" id="L793">				outputFile.flush();</span>
+<span class="nc" id="L794">				Document d = builder.parse(&quot;getPlayerInfo.xml&quot;);</span>
+<span class="nc" id="L795">				NodeList nl = d.getElementsByTagName(&quot;*&quot;);</span>
+<span class="nc" id="L796">				String errorElementTagName = null;</span>
+<span class="nc" id="L797">				String messageElementTagName = null;</span>
+<span class="nc" id="L798">				String errorTextElementTagName = null;</span>
+<span class="nc bnc" id="L799" title="All 2 branches missed.">				for(int i=0;i&lt;nl.getLength();i++)</span>
+				{
+<span class="nc" id="L801">					Element element = (Element)nl.item(i);</span>
+<span class="nc" id="L802">					String getElementName  = element.toString().split(&quot;:&quot;)[1];</span>
+<span class="nc bnc" id="L803" title="All 2 branches missed.">					if(getElementName.equalsIgnoreCase(&quot;errorCode&quot;))</span>
+					{
+<span class="nc" id="L805">						errorElementTagName = element.getNodeName();</span>
+<span class="nc" id="L806">						System.out.println(&quot;error&quot;+errorElementTagName);</span>
+					}
+<span class="nc bnc" id="L808" title="All 2 branches missed.">					if(getElementName.equalsIgnoreCase(&quot;messageId&quot;))</span>
+					{
+<span class="nc" id="L810">						messageElementTagName = element.getNodeName();</span>
+<span class="nc" id="L811">						System.out.println(&quot;message&quot;+messageElementTagName);</span>
+					}
+<span class="nc bnc" id="L813" title="All 2 branches missed.">					if(getElementName.equalsIgnoreCase(&quot;errorText&quot;))</span>
+					{
+<span class="nc" id="L815">						errorTextElementTagName = element.getNodeName();</span>
+<span class="nc" id="L816">						System.out.println(&quot;message&quot;+errorTextElementTagName);</span>
+					}
+				}
+<span class="nc" id="L819">				digester = new Digester();</span>
+<span class="nc" id="L820">				 digester.addObjectCreate(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2&quot;, OlaGetPlayerInfoBean.class);</span>
+<span class="nc" id="L821">				 digester.setValidating( false );</span>
+					
+<span class="nc" id="L823">				digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/&quot;+messageElementTagName,&quot;messageId&quot;);</span>
+<span class="nc" id="L824">				digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/&quot;+errorElementTagName,&quot;errorCode&quot;);</span>
+<span class="nc" id="L825">				digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/&quot;+errorTextElementTagName,&quot;errorText&quot;);</span>
+			
+<span class="nc" id="L827">				digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/ns3:playerDataMap&quot;, &quot;playerDataMap&quot;);</span>
+				
+<span class="nc" id="L829">				digester.addObjectCreate(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/ns3:playerDataMap/&quot;, OlaGetPlayerBindingInfoBean.class);</span>
+<span class="nc" id="L830">				digester.addSetNext(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/ns3:playerDataMap&quot;,&quot;setPlayerDataMap&quot;);</span>
+				
+<span class="nc" id="L832">				digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/ns3:playerDataMap/ns1:key&quot;, &quot;key&quot;);</span>
+<span class="nc" id="L833">				digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns3:GetPlayerInfoResponse2/ns3:playerDataMap/ns1:value&quot;, &quot;value&quot;);</span>
+<span class="nc" id="L834">				 bean = (OlaGetPlayerInfoBean)digester.parse(&quot;getPlayerInfo.xml&quot;);</span>
+<span class="nc" id="L835">				System.out.println(&quot;error1&quot;+bean.getErrorCode());</span>
+<span class="nc" id="L836">				System.out.println(&quot;message1&quot;+bean.getMessageId());</span>
+<span class="nc" id="L837">				System.out.println(bean.getErrorText());</span>
+				
+<span class="nc" id="L839">				file1.deleteOnExit();</span>
+<span class="nc" id="L840">				return bean;</span>
+			}
+				else
+				{
+<span class="nc" id="L844">					return null;</span>
+				}
+			}
+			
+<span class="nc" id="L848">			catch(Exception e)</span>
+			{
+<span class="nc" id="L850">				e.printStackTrace();</span>
+			}
+<span class="nc" id="L852">			return bean;</span>
+	}
+	public static boolean callChangePlayerApi(String affiliateId,String userName,String rootPath) {
+	
+<span class="nc" id="L856">		Map&lt;String, String&gt; plrBindingMap = new HashMap&lt;String, String&gt;();</span>
+		try {
+
+<span class="nc" id="L859">			plrBindingMap.put(&quot;casino&quot;, URLEncoder.encode(OLAConstants.CASINO_NAME,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L860">			plrBindingMap.put(&quot;sync_username&quot;, URLEncoder.encode(userName.toUpperCase(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L861">			plrBindingMap.put(&quot;secretkey&quot;, URLEncoder.encode(OLAConstants.secretkey,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L862">			plrBindingMap.put(&quot;responsetype&quot;, URLEncoder.encode(&quot;xml&quot;,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L863">			plrBindingMap.put(&quot;advertiser&quot;, URLEncoder.encode(affiliateId,&quot;UTF-8&quot;));</span>
+			
+<span class="nc" id="L865">			DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L866">			DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();</span>
+<span class="nc" id="L867">			InputStream iStream = OLAClient.callPlaytechForChangePlayer(OLAConstants.cahngePlayer_PHP, plrBindingMap,OLAConstants.PLAYERINFO_URL,rootPath);</span>
+
+<span class="nc bnc" id="L869" title="All 2 branches missed.">			if (iStream == null) {</span>
+<span class="nc" id="L870">				System.out.println(&quot;some internal error has occured may be at the time of communication with playtech system&quot;);</span>
+<span class="nc" id="L871">				return false;</span>
+			} else {
+<span class="nc" id="L873">				Document doc = docBuilder.parse(iStream);</span>
+				// here parse the xml and read the messages
+<span class="nc" id="L875">				NodeList nl = doc.getElementsByTagName(&quot;changeplayer&quot;);</span>
+<span class="nc" id="L876">				Element newaffiliate = (Element) nl.item(0);</span>
+<span class="nc" id="L877">				NodeList traList = newaffiliate</span>
+						.getElementsByTagName(&quot;transaction&quot;);
+<span class="nc" id="L879">				Element tran = (Element) traList.item(0);</span>
+<span class="nc" id="L880">				String result = tran.getAttribute(&quot;result&quot;);</span>
+				// String result = &quot;ERROR&quot;;
+<span class="nc bnc" id="L882" title="All 2 branches missed.">				if (&quot;OK&quot;.equalsIgnoreCase(result)) {</span>
+					// communication successful affilaite id created at
+<span class="nc" id="L884">					return true;</span>
+<span class="nc bnc" id="L885" title="All 2 branches missed.">				} else if (&quot;ERROR&quot;.equalsIgnoreCase(result)) {</span>
+
+<span class="nc" id="L887">					NodeList errList = newaffiliate</span>
+							.getElementsByTagName(&quot;error&quot;);
+<span class="nc" id="L889">					Element err = (Element) errList.item(0);</span>
+<span class="nc" id="L890">					String errorCode = err.getAttribute(&quot;nr&quot;);</span>
+
+<span class="nc" id="L892">					Element errorElement = (Element) errList.item(0);</span>
+<span class="nc" id="L893">					NodeList textErrorList = errorElement.getChildNodes();</span>
+<span class="nc" id="L894">					String errorMessage = ((Node) textErrorList.item(0))</span>
+							.getNodeValue().trim();
+<span class="nc" id="L896">					System.out.println(&quot;error is &quot; + errorMessage);</span>
+<span class="nc" id="L897">					System.out.println(&quot;error is:&quot; + errorCode);</span>
+<span class="nc" id="L898">					System.out.println(&quot;ERROR return form playtech during player binding&quot;);</span>
+<span class="nc" id="L899">					return false;</span>
+				} else {
+<span class="nc" id="L901">					System.out</span>
+							.println(&quot;Undefined Error type from PlayTech System&quot;);
+<span class="nc" id="L903">					return false;</span>
+				}
+
+			}
+<span class="nc" id="L907">		} catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L908">			e.printStackTrace();</span>
+			
+<span class="nc" id="L910">		} catch (ParserConfigurationException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L912">			e.printStackTrace();</span>
+			
+<span class="nc" id="L914">		} catch (SAXException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L916">			e.printStackTrace();</span>
+			
+<span class="nc" id="L918">		} catch (IOException e) {</span>
+			// TODO Auto-generated catch block
+<span class="nc" id="L920">			e.printStackTrace();</span>
+<span class="nc" id="L921">		}</span>
+<span class="nc" id="L922">		return true;</span>
+	}
+
+	public static OlaPTResponseBean callWithdrawlApi(long transactionId,double amount,OlaPTResponseBean bean,String aunthticationCode) {
+<span class="nc" id="L926">		Map&lt;String, String&gt; WithdrawlParamMap = new HashMap&lt;String, String&gt;();</span>
+	
+		try {
+<span class="nc" id="L929">			WithdrawlParamMap.put(&quot;casino&quot;, URLEncoder.encode(OLAConstants.CASINO_CODE,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L930">			WithdrawlParamMap.put(&quot;currency&quot;, URLEncoder.encode(OLAConstants.currency,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L931">			WithdrawlParamMap.put(&quot;amount&quot;, URLEncoder.encode(String.format(&quot;%.2f&quot;, amount),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L932">			WithdrawlParamMap.put(&quot;secretkey&quot;, URLEncoder.encode(OLAConstants.secretkey,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L933">			WithdrawlParamMap.put(&quot;referencecode&quot;, URLEncoder.encode(aunthticationCode,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L934">			WithdrawlParamMap.put(&quot;externaltranid&quot;, URLEncoder.encode(Long.toString(transactionId),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L935">			WithdrawlParamMap.put(&quot;olakey&quot;, URLEncoder.encode(OLAConstants.olakey,&quot;UTF-8&quot;));</span>
+			
+<span class="nc" id="L937">			InputStream iStream = OLAClient.callPlaytech(OLAConstants.WITHDRAWAL_PHP, WithdrawlParamMap,OLAConstants.WITHDRAWL_URL);</span>
+<span class="nc bnc" id="L938" title="All 2 branches missed.">			if (iStream != null) {</span>
+				
+<span class="nc" id="L940">				Digester digester = new Digester();</span>
+<span class="nc" id="L941">				digester.addObjectCreate(&quot;olawithdraw&quot;, OlaPTResponseBean.class);</span>
+<span class="nc" id="L942">				digester.addBeanPropertySetter(&quot;olawithdraw/status&quot;,&quot;withdrawalStatus&quot;);</span>
+<span class="nc" id="L943">				digester.addBeanPropertySetter(&quot;olawithdraw/transactionid&quot;,&quot;imsWithdrawalTransactionId&quot;);</span>
+<span class="nc" id="L944">				digester.addBeanPropertySetter(&quot;olawithdraw/error&quot;,&quot;withdrawalError&quot;);</span>
+<span class="nc" id="L945">				bean = (OlaPTResponseBean) digester.parse(iStream);</span>
+<span class="nc" id="L946">				return bean;</span>
+			} else {
+<span class="nc" id="L948">				bean.setImsWithdrawalTransactionId(0);</span>
+<span class="nc" id="L949">				bean.setWithdrawalStatus(&quot;null&quot;);</span>
+<span class="nc" id="L950">				bean.setWithdrawalError(&quot;4141&quot;);</span>
+<span class="nc" id="L951">				return bean;</span>
+			}
+<span class="nc" id="L953">		} catch (Exception e) {</span>
+<span class="nc" id="L954">			e.printStackTrace();</span>
+<span class="nc" id="L955">			bean.setDepositStatus(&quot;null&quot;);</span>
+<span class="nc" id="L956">			bean.setDepositError(&quot;4141&quot;);</span>
+<span class="nc" id="L957">			return bean;</span>
+			
+		}
+	}
+
+	public static OlaGetPendingWithdrawalDetailsBean parsePendingWithdrawalXML(String userName,OlaGetPendingWithdrawalDetailsBean bean,String rootPath){
+<span class="nc" id="L963">		 Digester digester = null;</span>
+		try
+		{
+<span class="nc" id="L966">			DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L967">			DocumentBuilder builder = builderFactory.newDocumentBuilder();</span>
+			
+<span class="nc" id="L969">			InputStream stream = getPendingWithdrawalResponse(userName,rootPath);</span>
+<span class="nc bnc" id="L970" title="All 2 branches missed.">			if(stream!=null)</span>
+			{
+<span class="nc" id="L972">			File file1 = new File(&quot;pending.xml&quot;);</span>
+<span class="nc" id="L973">			file1.createNewFile();</span>
+<span class="nc" id="L974">			FileWriter file = new FileWriter(file1);</span>
+<span class="nc" id="L975">			BufferedReader reader = new BufferedReader(new InputStreamReader(stream)); </span>
+<span class="nc" id="L976">			 PrintWriter outputFile = null;</span>
+<span class="nc" id="L977">			 outputFile = new PrintWriter(file);</span>
+			 String result ;
+<span class="nc bnc" id="L979" title="All 2 branches missed.">			while((result=reader.readLine())!=null)</span>
+			{
+<span class="nc" id="L981">				System.out.println(result);</span>
+<span class="nc" id="L982">				outputFile.println(result);</span>
+			}
+<span class="nc" id="L984">			outputFile.flush();</span>
+<span class="nc" id="L985">			Document d = builder.parse(&quot;pending.xml&quot;);</span>
+<span class="nc" id="L986">			NodeList nl = d.getElementsByTagName(&quot;*&quot;);</span>
+<span class="nc" id="L987">			String errorElementTagName = null;</span>
+<span class="nc" id="L988">			String messageElementTagName = null;</span>
+<span class="nc" id="L989">			String errorTextElementTagName = null;</span>
+<span class="nc bnc" id="L990" title="All 2 branches missed.">			for(int i=0;i&lt;nl.getLength();i++)</span>
+			{
+<span class="nc" id="L992">				Element element = (Element)nl.item(i);</span>
+<span class="nc" id="L993">				String getElementName  = element.toString().split(&quot;:&quot;)[1];</span>
+<span class="nc bnc" id="L994" title="All 2 branches missed.">				if(getElementName.equalsIgnoreCase(&quot;errorCode&quot;))</span>
+				{
+<span class="nc" id="L996">					errorElementTagName = element.getNodeName();</span>
+<span class="nc" id="L997">					System.out.println(&quot;error&quot;+errorElementTagName);</span>
+				}
+<span class="nc bnc" id="L999" title="All 2 branches missed.">				if(getElementName.equalsIgnoreCase(&quot;messageId&quot;))</span>
+				{
+<span class="nc" id="L1001">					messageElementTagName = element.getNodeName();</span>
+<span class="nc" id="L1002">					System.out.println(&quot;message&quot;+messageElementTagName);</span>
+				}
+<span class="nc bnc" id="L1004" title="All 2 branches missed.">				if(getElementName.equalsIgnoreCase(&quot;errorText&quot;))</span>
+				{
+<span class="nc" id="L1006">					errorTextElementTagName = element.getNodeName();</span>
+<span class="nc" id="L1007">					System.out.println(&quot;message&quot;+errorTextElementTagName);</span>
+				}
+			}
+<span class="nc" id="L1010">			digester = new Digester();</span>
+<span class="nc" id="L1011">			 digester.addObjectCreate(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse&quot;, OlaGetPendingWithdrawalDetailsBean.class);</span>
+<span class="nc" id="L1012">			 digester.setValidating( false );</span>
+				
+<span class="nc" id="L1014">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/&quot;+messageElementTagName,&quot;messageId&quot;);</span>
+<span class="nc" id="L1015">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/&quot;+errorElementTagName,&quot;errorCode&quot;);</span>
+<span class="nc" id="L1016">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/&quot;+errorTextElementTagName,&quot;errorText&quot;);</span>
+		
+<span class="nc" id="L1018">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals&quot;, &quot;pendingWithdrawalList&quot;);</span>
+			
+<span class="nc" id="L1020">			digester.addObjectCreate(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals&quot;, OlaPendingWithdrawalDataBean.class);</span>
+<span class="nc" id="L1021">			digester.addSetNext(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals&quot;,&quot;setPendingWithdrawalList&quot;);</span>
+<span class="nc" id="L1022">			digester.addSetNext(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals/ns9:pendingWithdrawalCode&quot;,&quot;setPendingWithdrawalCodeList&quot;);</span>
+			
+<span class="nc" id="L1024">			digester.addSetNext(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals/ns9:amount/amount/number&quot;,&quot;setAmountList&quot;);</span>
+<span class="nc" id="L1025">			digester.addSetNext(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals/ns9:withdrawRequestDate/ns1:date&quot;,&quot;setDateList&quot;);</span>
+<span class="nc" id="L1026">			digester.addObjectCreate(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals&quot;, OlaPendingWithdrawalBean.class);</span>
+<span class="nc" id="L1027">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals/ns9:pendingWithdrawalCode&quot;, &quot;pendingWithdrawalCode&quot;);</span>
+<span class="nc" id="L1028">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals/ns9:amount/amount/number&quot;, &quot;amount&quot;);</span>
+<span class="nc" id="L1029">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:GetPendingWithdrawalsResponse/ns9:pendingWithdrawals/ns9:withdrawRequestDate/ns1:date&quot;,&quot;withdrawRequestDate&quot;);</span>
+			
+<span class="nc" id="L1031">			 bean = (OlaGetPendingWithdrawalDetailsBean)digester.parse(&quot;pending.xml&quot;);</span>
+<span class="nc" id="L1032">			System.out.println(&quot;error1&quot;+bean.getErrorCode());</span>
+<span class="nc" id="L1033">			System.out.println(&quot;message1&quot;+bean.getMessageId());</span>
+<span class="nc" id="L1034">			System.out.println(bean.getErrorText());</span>
+<span class="nc" id="L1035">			file1.deleteOnExit();</span>
+<span class="nc" id="L1036">			return bean;</span>
+			}
+			else
+			{
+<span class="nc" id="L1040">				bean.setErrorCode(&quot;null&quot;);</span>
+<span class="nc" id="L1041">				return bean;</span>
+			}
+		}
+		
+<span class="nc" id="L1045">		catch(Exception e)</span>
+		{
+<span class="nc" id="L1047">			e.printStackTrace();</span>
+<span class="nc" id="L1048">			bean.setErrorCode(&quot;null&quot;);</span>
+<span class="nc" id="L1049">			return bean;</span>
+		}
+		
+	}
+	public static InputStream getPendingWithdrawalResponse(String userName,String rootPath)
+	{
+<span class="nc" id="L1055">		String address = null;</span>
+		try{
+<span class="nc" id="L1057">			rootPath = rootPath.replace(&quot;\\&quot;, &quot;/&quot;);</span>
+<span class="nc" id="L1058">			 address =&quot;https://umsgateway.sugal:4915/axis2/services/PlayerPaymentService&quot;;</span>
+<span class="nc" id="L1059">			 URL url = new URL(address);		</span>
+<span class="nc" id="L1060">			HttpURLConnection con = (HttpURLConnection)url.openConnection();</span>
+<span class="nc" id="L1061">			 File keyFile = new File(rootPath+&quot;certificate_sha1.pfx&quot;);</span>
+<span class="nc" id="L1062">		      ((HttpsURLConnection) con).setSSLSocketFactory(getFactory(keyFile, &quot;SkilRock@123&quot;));</span>
+<span class="nc" id="L1063">			con.setRequestProperty(&quot;SOAPAction&quot;, &quot;getPendingWithdrawals&quot;);</span>
+<span class="nc" id="L1064">			con.setRequestProperty(&quot;Content-Type&quot;, &quot;text/xml&quot;);</span>
+<span class="nc" id="L1065">			con.setDoOutput(true);</span>
+<span class="nc" id="L1066">			con.setRequestMethod(&quot;POST&quot;);</span>
+			
+<span class="nc" id="L1068">			OutputStreamWriter wr = new OutputStreamWriter(con</span>
+					.getOutputStream());
+			
+<span class="nc" id="L1071">			wr.write(&quot;&lt;?xml version='1.0' encoding='UTF-8'?&gt;&lt;soapenv:Envelope xmlns:soapenv=\&quot;http://schemas.xmlsoap.org/soap/envelope/\&quot;&gt;&lt;soapenv:Body&gt;&lt;ns9:GetPendingWithdrawalsRequest xmlns:ns9=\&quot;http://www.playtech.com/Services/PlayerPaymentMessages\&quot; xmlns:xsi=\&quot;http://www.w3.org/2001/XMLSchema-instance\&quot; xsi:type=\&quot;ns9:GetPendingWithdrawalsRequestType\&quot;&gt;&lt;s1:messageId xmlns:s1=\&quot;http://www.playtech.com/Services/CommonTypes\&quot;&gt;&quot;+OLAConstants.messageId+&quot;&lt;/s1:messageId&gt;&lt;authentication xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xsi:type=\&quot;AuthenticationByTrustedConnectionType\&quot;&gt;&lt;systemId&gt;&quot;+OLAConstants.systemId+&quot;&lt;/systemId&gt;&lt;/authentication&gt;&lt;objectIdentity xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xmlns:ns2=\&quot;http://www.playtech.com/Services/PlayerCommonTypes\&quot; xsi:type=\&quot;ns2:PlayerIdentityByCasinoAndUsernameType\&quot;&gt;&lt;ns2:casinoname&gt;&lt;casinoName&gt;&quot;+OLAConstants.CASINO_NAME+&quot;&lt;/casinoName&gt;&lt;/ns2:casinoname&gt;&lt;ns2:username&gt;&lt;username&gt;&quot;+userName.toUpperCase()+&quot;&lt;/username&gt;&lt;/ns2:username&gt;&lt;/objectIdentity&gt;&lt;/ns9:GetPendingWithdrawalsRequest&gt;&lt;/soapenv:Body&gt;&lt;/soapenv:Envelope&gt; &quot;);</span>
+<span class="nc" id="L1072">			wr.flush();</span>
+			
+<span class="nc" id="L1074">			return con.getInputStream();</span>
+<span class="nc" id="L1075">		}catch(Exception e){</span>
+<span class="nc" id="L1076">			e.printStackTrace();</span>
+<span class="nc" id="L1077">			return null;</span>
+		}
+		
+	}
+	public static InputStream getPlayerInfo2Response(String userName,String rootPath)
+	{
+<span class="nc" id="L1083">		String address = null;</span>
+		try{
+<span class="nc" id="L1085">			rootPath = rootPath.replace(&quot;\\&quot;, &quot;/&quot;);</span>
+<span class="nc" id="L1086">			 address =&quot;https://umsgateway.sugal:4915/axis2/services/ExternalAccountService&quot;;</span>
+<span class="nc" id="L1087">			 URL url = new URL(address);		</span>
+<span class="nc" id="L1088">			HttpURLConnection con = (HttpURLConnection)url.openConnection();</span>
+<span class="nc" id="L1089">			 File keyFile = new File(rootPath+&quot;certificate_sha1.pfx&quot;);</span>
+<span class="nc" id="L1090">		      ((HttpsURLConnection) con).setSSLSocketFactory(getFactory(keyFile, &quot;SkilRock@123&quot;));</span>
+<span class="nc" id="L1091">			con.setRequestProperty(&quot;SOAPAction&quot;, &quot;getPlayerInfo2&quot;);</span>
+<span class="nc" id="L1092">			con.setRequestProperty(&quot;Content-Type&quot;, &quot;text/xml&quot;);</span>
+<span class="nc" id="L1093">			con.setDoOutput(true);</span>
+<span class="nc" id="L1094">			con.setRequestMethod(&quot;POST&quot;);</span>
+			
+<span class="nc" id="L1096">			OutputStreamWriter wr = new OutputStreamWriter(con</span>
+					.getOutputStream());
+			
+<span class="nc" id="L1099">		wr.write(&quot;&lt;?xml version='1.0' encoding='UTF-8'?&gt;&lt;soapenv:Envelope xmlns:soapenv=\&quot;http://schemas.xmlsoap.org/soap/envelope/\&quot;&gt;&lt;soapenv:Body&gt;&lt;ns3:GetPlayerInfoRequest2 xmlns:ns3=\&quot;http://www.playtech.com/Services/ExternalAccountMessages\&quot; xmlns:xsi=\&quot;http://www.w3.org/2001/XMLSchema-instance\&quot; xsi:type=\&quot;ns3:GetPlayerInfoRequestType2\&quot;&gt;&lt;s1:messageId xmlns:s1=\&quot;http://www.playtech.com/Services/CommonTypes\&quot;&gt;&quot;+OLAConstants.messageId+&quot;&lt;/s1:messageId&gt;&lt;authentication xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xsi:type=\&quot;AuthenticationByTrustedConnectionType\&quot;&gt;&lt;systemId&gt;&quot;+OLAConstants.systemId+&quot;&lt;/systemId&gt;&lt;/authentication&gt;&lt;objectIdentity xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xmlns:ns2=\&quot;http://www.playtech.com/Services/PlayerCommonTypes\&quot; xsi:type=\&quot;ns2:PlayerIdentityByCasinoAndUsernameType\&quot;&gt;&lt;ns2:casinoname&gt;&lt;casinoName&gt;&quot;+OLAConstants.CASINO_NAME+&quot;&lt;/casinoName&gt;&lt;/ns2:casinoname&gt;&lt;ns2:username&gt;&lt;username&gt;&quot;+userName.toUpperCase()+&quot;&lt;/username&gt;&lt;/ns2:username&gt;&lt;/objectIdentity&gt;&lt;ns3:requestType&gt;marked&lt;/ns3:requestType&gt;&lt;ns3:requestedPlayerData&gt;11&lt;/ns3:requestedPlayerData&gt;&lt;ns3:requestedPlayerData&gt;35&lt;/ns3:requestedPlayerData&gt;&lt;ns3:requestedPlayerData&gt;2&lt;/ns3:requestedPlayerData&gt;&lt;/ns3:GetPlayerInfoRequest2&gt;&lt;/soapenv:Body&gt;&lt;/soapenv:Envelope&gt;&quot;);</span>
+<span class="nc" id="L1100">		System.out.println(&quot;&lt;?xml version='1.0' encoding='UTF-8'?&gt;&lt;soapenv:Envelope xmlns:soapenv=\&quot;http://schemas.xmlsoap.org/soap/envelope/\&quot;&gt;&lt;soapenv:Body&gt;&lt;ns3:GetPlayerInfoRequest2 xmlns:ns3=\&quot;http://www.playtech.com/Services/ExternalAccountMessages\&quot; xmlns:xsi=\&quot;http://www.w3.org/2001/XMLSchema-instance\&quot; xsi:type=\&quot;ns3:GetPlayerInfoRequestType2\&quot;&gt;&lt;s1:messageId xmlns:s1=\&quot;http://www.playtech.com/Services/CommonTypes\&quot;&gt;&quot;+OLAConstants.messageId+&quot;&lt;/s1:messageId&gt;&lt;authentication xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xsi:type=\&quot;AuthenticationByTrustedConnectionType\&quot;&gt;&lt;systemId&gt;&quot;+OLAConstants.systemId+&quot;&lt;/systemId&gt;&lt;/authentication&gt;&lt;objectIdentity xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xmlns:ns2=\&quot;http://www.playtech.com/Services/PlayerCommonTypes\&quot; xsi:type=\&quot;ns2:PlayerIdentityByCasinoAndUsernameType\&quot;&gt;&lt;ns2:casinoname&gt;&lt;casinoName&gt;&quot;+OLAConstants.CASINO_NAME+&quot;&lt;/casinoName&gt;&lt;/ns2:casinoname&gt;&lt;ns2:username&gt;&lt;username&gt;&quot;+userName.toUpperCase()+&quot;&lt;/username&gt;&lt;/ns2:username&gt;&lt;/objectIdentity&gt;&lt;ns3:requestType&gt;marked&lt;/ns3:requestType&gt;&lt;ns3:requestedPlayerData&gt;11&lt;/ns3:requestedPlayerData&gt;&lt;ns3:requestedPlayerData&gt;35&lt;/ns3:requestedPlayerData&gt;&lt;ns3:requestedPlayerData&gt;2&lt;/ns3:requestedPlayerData&gt;&lt;/ns3:GetPlayerInfoRequest2&gt;&lt;/soapenv:Body&gt;&lt;/soapenv:Envelope&gt;&quot;);</span>
+<span class="nc" id="L1101">			wr.flush();</span>
+			
+<span class="nc" id="L1103">			return con.getInputStream();</span>
+<span class="nc" id="L1104">		}catch(Exception e){</span>
+<span class="nc" id="L1105">			e.printStackTrace();</span>
+<span class="nc" id="L1106">			return null;</span>
+		}
+		
+	}
+	
+	public static InputStream getNetGamingResponseXML(String phpName,Map&lt;String,String&gt; paramMap,String addr,String rootPath)
+	{
+		  try
+	        {
+<span class="nc" id="L1115">		    rootPath = rootPath.replace(&quot;\\&quot;, &quot;/&quot;);</span>
+<span class="nc" id="L1116">			StringBuilder urlStr = new StringBuilder(&quot;&quot;);</span>
+<span class="nc" id="L1117">			Set&lt;String&gt; paramSet = paramMap.keySet();</span>
+<span class="nc bnc" id="L1118" title="All 2 branches missed.">			for (String paramName : paramSet) {</span>
+<span class="nc" id="L1119">				urlStr.append(paramName + &quot;=&quot; + paramMap.get(paramName) + &quot;&amp;&quot;);</span>
+<span class="nc" id="L1120">			}</span>
+<span class="nc" id="L1121">			urlStr.deleteCharAt(urlStr.length() - 1);</span>
+<span class="nc" id="L1122">			System.out.println(urlStr);</span>
+
+<span class="nc" id="L1124">			String address = null;</span>
+<span class="nc" id="L1125">			address = addr + phpName;</span>
+<span class="nc" id="L1126">			System.out.println(address);</span>
+<span class="nc" id="L1127">			URL url = new URL(address);	</span>
+<span class="nc" id="L1128">	        HttpsURLConnection con = (HttpsURLConnection) url.openConnection();</span>
+<span class="nc" id="L1129">	        con.setDoOutput(true);</span>
+<span class="nc" id="L1130">	        System.out.println(&quot;rootPath&quot;+rootPath);</span>
+<span class="nc" id="L1131">	        File keyFile = new File(rootPath+&quot;advapi.sugal-prod.4601.p12&quot;);</span>
+<span class="nc" id="L1132">	        con.setSSLSocketFactory(getFactory(keyFile, &quot;TZefDhG1Cv&quot;));</span>
+<span class="nc" id="L1133">	        OutputStreamWriter wr = new OutputStreamWriter(con</span>
+					.getOutputStream());
+<span class="nc" id="L1135">			wr.write(urlStr.toString());</span>
+<span class="nc" id="L1136">			wr.flush();</span>
+<span class="nc" id="L1137">			return con.getInputStream();</span>
+	        }
+<span class="nc" id="L1139">	        catch(Exception e)</span>
+	        {
+<span class="nc" id="L1141">	        	e.printStackTrace();</span>
+<span class="nc" id="L1142">	        	return null;</span>
+	        }
+	}
+	 public static SSLSocketFactory getFactory( File pKeyFile, String pKeyPassword ) throws Exception
+	 {
+<span class="nc" id="L1147">	        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(&quot;SunX509&quot;);</span>
+<span class="nc" id="L1148">	        KeyStore keyStore = KeyStore.getInstance(&quot;PKCS12&quot;);</span>
+
+<span class="nc" id="L1150">	        InputStream keyInput = new FileInputStream(pKeyFile);</span>
+<span class="nc" id="L1151">	        keyStore.load(keyInput, pKeyPassword.toCharArray());</span>
+<span class="nc" id="L1152">	        keyInput.close();</span>
+
+<span class="nc" id="L1154">	        keyManagerFactory.init(keyStore, pKeyPassword.toCharArray());</span>
+
+<span class="nc" id="L1156">	        SSLContext context = SSLContext.getInstance(&quot;TLS&quot;);</span>
+<span class="nc" id="L1157">	        context.init(keyManagerFactory.getKeyManagers(), null, new SecureRandom());</span>
+
+<span class="nc" id="L1159">	        return context.getSocketFactory();</span>
+	    }
+	 
+	 
+	 public static  OlaGetCancelWithdrawalDetailsBean parseCancelWithdrawalXML(String withdrawalCode,OlaGetCancelWithdrawalDetailsBean bean1,String userName,String rootPath){
+<span class="nc" id="L1164">		 Digester digester = null;</span>
+		try
+		{
+<span class="nc" id="L1167">			DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L1168">			DocumentBuilder builder = builderFactory.newDocumentBuilder();</span>
+			
+<span class="nc" id="L1170">			InputStream stream = getCancelWithdrawalResponse(withdrawalCode,userName,rootPath);</span>
+<span class="nc bnc" id="L1171" title="All 2 branches missed.">			if(stream!=null)</span>
+			{
+<span class="nc" id="L1173">			File file1 = new File(&quot;cancel.xml&quot;);</span>
+<span class="nc" id="L1174">			file1.createNewFile();</span>
+<span class="nc" id="L1175">			FileWriter file = new FileWriter(file1);</span>
+<span class="nc" id="L1176">			BufferedReader reader = new BufferedReader(new InputStreamReader(stream)); </span>
+<span class="nc" id="L1177">			 PrintWriter outputFile = null;</span>
+<span class="nc" id="L1178">			 outputFile = new PrintWriter(file);</span>
+			 String result ;
+<span class="nc bnc" id="L1180" title="All 2 branches missed.">			while((result=reader.readLine())!=null)</span>
+			{
+<span class="nc" id="L1182">				System.out.println(result);</span>
+<span class="nc" id="L1183">				outputFile.println(result);</span>
+			}
+<span class="nc" id="L1185">			outputFile.flush();</span>
+			
+<span class="nc" id="L1187">			Document d = builder.parse(&quot;cancel.xml&quot;);</span>
+			
+<span class="nc" id="L1189">			NodeList nl = d.getElementsByTagName(&quot;*&quot;);</span>
+<span class="nc" id="L1190">			String errorElementTagName = null;</span>
+<span class="nc" id="L1191">			String messageElementTagName = null;</span>
+<span class="nc" id="L1192">			String errorTextElementTagName = null;</span>
+<span class="nc bnc" id="L1193" title="All 2 branches missed.">			for(int i=0;i&lt;nl.getLength();i++)</span>
+			{
+<span class="nc" id="L1195">				Element element = (Element)nl.item(i);</span>
+<span class="nc" id="L1196">				String getElementName  = element.toString().split(&quot;:&quot;)[1];</span>
+<span class="nc bnc" id="L1197" title="All 2 branches missed.">				if(getElementName.equalsIgnoreCase(&quot;errorCode&quot;))</span>
+				{
+<span class="nc" id="L1199">					errorElementTagName = element.getNodeName();</span>
+<span class="nc" id="L1200">					System.out.println(&quot;error&quot;+errorElementTagName);</span>
+				}
+<span class="nc bnc" id="L1202" title="All 2 branches missed.">				if(getElementName.equalsIgnoreCase(&quot;messageId&quot;))</span>
+				{
+<span class="nc" id="L1204">					messageElementTagName = element.getNodeName();</span>
+<span class="nc" id="L1205">					System.out.println(&quot;message&quot;+messageElementTagName);</span>
+				}
+<span class="nc bnc" id="L1207" title="All 2 branches missed.">				if(getElementName.equalsIgnoreCase(&quot;errorText&quot;))</span>
+				{
+<span class="nc" id="L1209">					errorTextElementTagName = element.getNodeName();</span>
+<span class="nc" id="L1210">					System.out.println(&quot;Error message&quot;+errorTextElementTagName);</span>
+				}
+			}
+<span class="nc" id="L1213">			digester = new Digester();</span>
+<span class="nc" id="L1214">			digester.addObjectCreate(&quot;soapenv:Envelope/soapenv:Body/ns9:CancelPendingWithdrawalResponse&quot;, OlaGetCancelWithdrawalDetailsBean.class);</span>
+<span class="nc" id="L1215">			 digester.setValidating( false );</span>
+			
+<span class="nc" id="L1217">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:CancelPendingWithdrawalResponse/&quot;+messageElementTagName,&quot;messageId&quot;);</span>
+<span class="nc" id="L1218">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:CancelPendingWithdrawalResponse/&quot;+errorElementTagName,&quot;errorCode&quot;);</span>
+<span class="nc" id="L1219">			digester.addBeanPropertySetter(&quot;soapenv:Envelope/soapenv:Body/ns9:CancelPendingWithdrawalResponse/&quot;+errorTextElementTagName,&quot;errorText&quot;);</span>
+			
+<span class="nc" id="L1221">			bean1 = (OlaGetCancelWithdrawalDetailsBean)digester.parse(&quot;cancel.xml&quot;);</span>
+<span class="nc" id="L1222">			System.out.println(&quot;error1&quot;+bean1.getErrorCode());</span>
+<span class="nc" id="L1223">			System.out.println(&quot;message1&quot;+bean1.getMessageId());</span>
+<span class="nc" id="L1224">			System.out.println(bean1.getErrorText());</span>
+<span class="nc" id="L1225">			file1.deleteOnExit();</span>
+<span class="nc" id="L1226">			return bean1;</span>
+		}
+			else
+			{
+<span class="nc" id="L1230">				return null;</span>
+			}
+		}
+		
+<span class="nc" id="L1234">		catch(Exception e)</span>
+		{
+<span class="nc" id="L1236">			e.printStackTrace();</span>
+<span class="nc" id="L1237">			return null;</span>
+		}
+	}
+	 public static InputStream getCancelWithdrawalResponse(String withdrawalCode,String userName,String rootPath)
+		{
+<span class="nc" id="L1242">			String address = null;</span>
+	
+			try{
+<span class="nc" id="L1245">				rootPath = rootPath.replace(&quot;\\&quot;, &quot;/&quot;);</span>
+<span class="nc" id="L1246">				 address =&quot;https://umsgateway.sugal:4915/axis2/services/PlayerPaymentService&quot;;</span>
+<span class="nc" id="L1247">				 URL url = new URL(address);		</span>
+<span class="nc" id="L1248">				HttpURLConnection conn = (HttpURLConnection)url.openConnection();</span>
+<span class="nc" id="L1249">				 File keyFile = new File(rootPath+&quot;certificate_sha1.pfx&quot;);</span>
+<span class="nc" id="L1250">			      ((HttpsURLConnection) conn).setSSLSocketFactory(getFactory(keyFile, &quot;SkilRock@123&quot;));</span>
+<span class="nc" id="L1251">				conn.setRequestProperty(&quot;SOAPAction&quot;, &quot;cancelPendingWithdrawal&quot;);</span>
+<span class="nc" id="L1252">				conn.setRequestProperty(&quot;Content-Type&quot;, &quot;text/xml&quot;);</span>
+<span class="nc" id="L1253">				conn.setDoOutput(true);</span>
+<span class="nc" id="L1254">				conn.setRequestMethod(&quot;POST&quot;);</span>
+				
+<span class="nc" id="L1256">				OutputStreamWriter wr = new OutputStreamWriter(conn</span>
+						.getOutputStream());
+				
+<span class="nc" id="L1259">				wr.write(&quot;&lt;?xml version='1.0' encoding='UTF-8'?&gt;&lt;soapenv:Envelope xmlns:soapenv=\&quot;http://schemas.xmlsoap.org/soap/envelope/\&quot;&gt;&lt;soapenv:Body&gt;&lt;ns9:CancelPendingWithdrawalRequest xmlns:ns9=\&quot;http://www.playtech.com/Services/PlayerPaymentMessages\&quot; xmlns:xsi=\&quot;http://www.w3.org/2001/XMLSchema-instance\&quot; xsi:type=\&quot;ns9:CancelPendingWithdrawalRequestType\&quot;&gt;&lt;s2:messageId xmlns:s2=\&quot;http://www.playtech.com/Services/CommonTypes\&quot;&gt;&quot;+OLAConstants.messageId+&quot;&lt;/s2:messageId&gt;&lt;authentication xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xsi:type=\&quot;AuthenticationByTrustedConnectionType\&quot;&gt;&lt;systemId&gt;&quot;+OLAConstants.CancelWithdrawalsystemId+&quot;&lt;/systemId&gt;&lt;/authentication&gt;&lt;objectIdentity xmlns=\&quot;http://www.playtech.com/Services/CommonTypes\&quot; xmlns:ns2=\&quot;http://www.playtech.com/Services/PlayerCommonTypes\&quot; xsi:type=\&quot;ns2:PlayerIdentityByCasinoAndUsernameType\&quot;&gt;&lt;ns2:casinoname&gt;&lt;casinoName&gt;&quot;+OLAConstants.CASINO_NAME+&quot;&lt;/casinoName&gt;&lt;/ns2:casinoname&gt;&lt;ns2:username&gt;&lt;username&gt;&quot;+userName.toUpperCase()+&quot;&lt;/username&gt;&lt;/ns2:username&gt;&lt;/objectIdentity&gt;&lt;ns9:pendingWithdrawalCode&gt;&quot;+withdrawalCode+&quot;&lt;/ns9:pendingWithdrawalCode&gt;&lt;/ns9:CancelPendingWithdrawalRequest&gt;&lt;/soapenv:Body&gt;&lt;/soapenv:Envelope&gt;&quot;);</span>
+<span class="nc" id="L1260">				wr.flush();</span>
+				
+<span class="nc" id="L1262">				return conn.getInputStream();</span>
+<span class="nc" id="L1263">			}catch(Exception e){</span>
+<span class="nc" id="L1264">				e.printStackTrace();</span>
+<span class="nc" id="L1265">				return null;</span>
+			}
+			
+		}
+		public static String newPlayerRegistration(OlaPlayerDetailsBean playerBean,String countryCode) {
+<span class="nc" id="L1270">			Map&lt;String, String&gt; plrMap = new HashMap&lt;String, String&gt;();</span>
+				try{	
+<span class="nc" id="L1272">					plrMap.put(&quot;birthdate&quot;, URLEncoder.encode(playerBean.getDateOfBirth(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1273">					plrMap.put(&quot;firstname&quot;, URLEncoder.encode(playerBean.getFirstName(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1274">					plrMap.put(&quot;lastname&quot;, URLEncoder.encode(playerBean.getLastName(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1275">					plrMap.put(&quot;password1&quot;, URLEncoder.encode(playerBean.getPassword(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1276">					plrMap.put(&quot;password2&quot;, URLEncoder.encode(playerBean.getPassword(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1277">					plrMap.put(&quot;email&quot;, URLEncoder.encode(playerBean.getEmail(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1278">					plrMap.put(&quot;countrycode&quot;, URLEncoder.encode(countryCode,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1279">					plrMap.put(&quot;address&quot;, URLEncoder.encode(playerBean.getAddress(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1280">					plrMap.put(&quot;city&quot;, URLEncoder.encode(playerBean.getCity(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1281">					plrMap.put(&quot;language&quot;, URLEncoder.encode(&quot;English&quot;,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1282">					plrMap.put(&quot;phone&quot;, URLEncoder.encode(playerBean.getPhone(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1283">					plrMap.put(&quot;gender&quot;, URLEncoder.encode(playerBean.getGender(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1284">					plrMap.put(&quot;state&quot;, URLEncoder.encode(playerBean.getState(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1285">					plrMap.put(&quot;username&quot;, URLEncoder.encode(playerBean.getUsername().toUpperCase(),&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1286">					plrMap.put(&quot;zip&quot;, URLEncoder.encode(&quot;0&quot;,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1287">					plrMap.put(&quot;remotecreate&quot;, URLEncoder.encode(&quot;1&quot;,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1288">					plrMap.put(&quot;casino&quot;, URLEncoder.encode(OLAConstants.CASINO_NAME,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1289">					plrMap.put(&quot;responsetype&quot;, URLEncoder.encode(&quot;xml&quot;,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1290">					plrMap.put(&quot;currency&quot;, URLEncoder.encode(OLAConstants.currency,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1291">					plrMap.put(&quot;custom01&quot;, URLEncoder.encode(&quot;OFFLINE&quot;,&quot;UTF-8&quot;));</span>
+<span class="nc" id="L1292">				DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L1293">				DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();</span>
+<span class="nc" id="L1294">				InputStream iStream = OLAClient.callPlaytech(OLAConstants.NEW_PLAYER_PHP, plrMap,OLAConstants.NEW_PLAYER_URL);</span>
+
+<span class="nc bnc" id="L1296" title="All 2 branches missed.">				if (iStream == null) {</span>
+<span class="nc" id="L1297">					System.out.println(&quot;some internal error has occured may be at the time of communication with playtech system&quot;);</span>
+<span class="nc" id="L1298">					return &quot;some internal error has occured may be at the time of communication with playtech system&quot;;</span>
+				} else {
+<span class="nc" id="L1300">					Document doc = docBuilder.parse(iStream);</span>
+					// here parse the xml and read the messages
+<span class="nc" id="L1302">					NodeList nl = doc.getElementsByTagName(&quot;newplayer&quot;);</span>
+<span class="nc" id="L1303">					Element newaffiliate = (Element) nl.item(0);</span>
+<span class="nc" id="L1304">					NodeList traList = newaffiliate</span>
+							.getElementsByTagName(&quot;transaction&quot;);
+<span class="nc" id="L1306">					Element tran = (Element) traList.item(0);</span>
+<span class="nc" id="L1307">					String result = tran.getAttribute(&quot;result&quot;);</span>
+<span class="nc bnc" id="L1308" title="All 2 branches missed.">					if (&quot;OK&quot;.equalsIgnoreCase(result)) {</span>
+<span class="nc" id="L1309">						return &quot;OK&quot;;</span>
+<span class="nc bnc" id="L1310" title="All 2 branches missed.">					} else if (&quot;ERROR&quot;.equalsIgnoreCase(result)) {</span>
+
+<span class="nc" id="L1312">						NodeList errList = newaffiliate</span>
+								.getElementsByTagName(&quot;error&quot;);
+<span class="nc" id="L1314">						Element err = (Element) errList.item(0);</span>
+<span class="nc" id="L1315">						String errorCode = err.getAttribute(&quot;nr&quot;);</span>
+
+<span class="nc" id="L1317">						Element errorElement = (Element) errList.item(0);</span>
+<span class="nc" id="L1318">						NodeList textErrorList = errorElement.getChildNodes();</span>
+<span class="nc" id="L1319">						String errorMessage = ((Node) textErrorList.item(0))</span>
+								.getNodeValue().trim();
+<span class="nc" id="L1321">						System.out.println(&quot;error is &quot; + errorMessage);</span>
+<span class="nc" id="L1322">						System.out.println(&quot;error is:&quot; + errorCode);</span>
+<span class="nc" id="L1323">						System.out.println(&quot;ERROR return form playtech during player binding&quot;);</span>
+<span class="nc" id="L1324">						return errorMessage;</span>
+					} else {
+<span class="nc" id="L1326">						System.out</span>
+								.println(&quot;Undefined Error type from PlayTech System&quot;);
+<span class="nc" id="L1328">						return &quot;Undefined Error type from PlayTech System&quot;;</span>
+					}
+
+				}
+			}
+<span class="nc" id="L1333">			catch (UnsupportedEncodingException e) {</span>
+<span class="nc" id="L1334">				e.printStackTrace();</span>
+				
+<span class="nc" id="L1336">			} catch (ParserConfigurationException e) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L1338">				e.printStackTrace();</span>
+				
+<span class="nc" id="L1340">			} catch (SAXException e) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L1342">				e.printStackTrace();</span>
+				
+<span class="nc" id="L1344">			} catch (IOException e) {</span>
+				// TODO Auto-generated catch block
+<span class="nc" id="L1346">				e.printStackTrace();</span>
+<span class="nc" id="L1347">			}</span>
+<span class="nc" id="L1348">			return &quot;OK&quot;;</span>
+		}
+		public static InputStream  parseCheckUserNameAvailabilityApi(String userName)
+		{
+			try
+			{ 
+<span class="nc" id="L1354">				URL url = new URL(&quot;http://27.251.125.195:6380/services/check_username.php&quot;);</span>
+<span class="nc" id="L1355">				HttpURLConnection conn = (HttpURLConnection) url.openConnection();</span>
+<span class="nc" id="L1356">				conn.setInstanceFollowRedirects(true);</span>
+<span class="nc" id="L1357">				conn.setDoOutput(true);</span>
+<span class="nc" id="L1358">				OutputStreamWriter wr = new OutputStreamWriter(conn</span>
+						.getOutputStream());
+<span class="nc" id="L1360">				String urlStr =&quot;alias=&quot;+userName+&quot;&amp;PF=JSON&quot;; </span>
+<span class="nc" id="L1361">				wr.write(urlStr);</span>
+<span class="nc" id="L1362">				System.out.println(url+&quot;?&quot;+urlStr);</span>
+<span class="nc" id="L1363">				wr.flush();</span>
+<span class="nc" id="L1364">				return conn.getInputStream();</span>
+				
+			}
+<span class="nc" id="L1367">			catch(Exception e)</span>
+			{
+<span class="nc" id="L1369">				e.printStackTrace();</span>
+			}
+<span class="nc" id="L1371">			return null;</span>
+		}
+		public static InputStream  checkUserNameAvailabilityAtKhelPlayApi(String userName)
+		{
+			try
+			{ 
+<span class="nc" id="L1377">				URL url = new URL(&quot;https://www.khelplayrummy.com/services/check_username_khelplay.php&quot;);</span>
+<span class="nc" id="L1378">				HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();</span>
+<span class="nc" id="L1379">				conn.setInstanceFollowRedirects(true);</span>
+<span class="nc" id="L1380">				conn.setDoOutput(true);</span>
+<span class="nc" id="L1381">				OutputStreamWriter wr = new OutputStreamWriter(conn</span>
+						.getOutputStream());
+<span class="nc" id="L1383">				String urlStr =&quot;alias=&quot;+userName; </span>
+<span class="nc" id="L1384">				wr.write(urlStr);</span>
+<span class="nc" id="L1385">				System.out.println(url+&quot;?&quot;+urlStr);</span>
+<span class="nc" id="L1386">				wr.flush();</span>
+<span class="nc" id="L1387">				return conn.getInputStream();</span>
+				
+			}
+<span class="nc" id="L1390">			catch(Exception e)</span>
+			{
+<span class="nc" id="L1392">				e.printStackTrace();</span>
+			}
+<span class="nc" id="L1394">			return null;</span>
+		}
+		public static OlaPTResponseBean callCheckTransactionIdForDeposit(OlaPTResponseBean bean,long LmsTransactionId)
+		{
+<span class="nc" id="L1398">			Map&lt;String,String&gt; checkTransactionMap = new HashMap&lt;String, String&gt;();</span>
+			
+			try{
+<span class="nc" id="L1401">				checkTransactionMap.put(&quot;casino&quot;, URLEncoder.encode(OLAConstants.CASINO_NAME, &quot;UTF-8&quot;));</span>
+<span class="nc" id="L1402">				checkTransactionMap.put(&quot;secretkey&quot;, URLEncoder.encode(OLAConstants.secretkey, &quot;UTF-8&quot;));</span>
+<span class="nc" id="L1403">				checkTransactionMap.put(&quot;externaltranid&quot;, URLEncoder.encode(Long.toString(LmsTransactionId), &quot;UTF-8&quot;));</span>
+<span class="nc" id="L1404">				InputStream istream = OLAClient.callPlaytech(OLAConstants.CHECK_TRANSACTION_PHP, checkTransactionMap, OLAConstants.CHECK_TRANSACTION_URL);</span>
+<span class="nc bnc" id="L1405" title="All 2 branches missed.">				if(istream!=null)</span>
+				{
+<span class="nc" id="L1407">				Digester digester = new Digester();</span>
+<span class="nc" id="L1408">				digester.addObjectCreate(&quot;checktransaction&quot;, OlaPTResponseBean.class);</span>
+<span class="nc" id="L1409">				digester.addBeanPropertySetter(&quot;checktransaction/status&quot;, &quot;status&quot;);</span>
+<span class="nc" id="L1410">				digester.addBeanPropertySetter(&quot;checktransaction/id&quot;, &quot;imsDepositTransactionId&quot;);</span>
+<span class="nc" id="L1411">				bean = (OlaPTResponseBean) digester.parse(istream);</span>
+<span class="nc" id="L1412">				return bean;</span>
+				}
+				else
+				{
+<span class="nc" id="L1416">					bean.setStatus(&quot;null&quot;);</span>
+<span class="nc" id="L1417">					return bean;</span>
+				}
+			}
+<span class="nc" id="L1420">			catch(Exception e)</span>
+			{
+<span class="nc" id="L1422">				e.printStackTrace();</span>
+<span class="nc" id="L1423">				bean.setStatus(&quot;null&quot;);</span>
+<span class="nc" id="L1424">				return bean;</span>
+			}
+		}
+		public static OlaPTResponseBean callCheckTransactionIdForWithdrawal(OlaPTResponseBean bean,long LmsTransactionId)
+		{
+<span class="nc" id="L1429">			Map&lt;String,String&gt; checkTransactionMap = new HashMap&lt;String, String&gt;();</span>
+			
+			try{
+<span class="nc" id="L1432">				checkTransactionMap.put(&quot;casino&quot;, URLEncoder.encode(OLAConstants.CASINO_NAME, &quot;UTF-8&quot;));</span>
+<span class="nc" id="L1433">				checkTransactionMap.put(&quot;secretkey&quot;, URLEncoder.encode(OLAConstants.secretkey, &quot;UTF-8&quot;));</span>
+<span class="nc" id="L1434">				checkTransactionMap.put(&quot;externaltranid&quot;, URLEncoder.encode(Long.toString(LmsTransactionId), &quot;UTF-8&quot;));</span>
+<span class="nc" id="L1435">				InputStream istream = OLAClient.callPlaytech(OLAConstants.CHECK_TRANSACTION_PHP, checkTransactionMap, OLAConstants.CHECK_TRANSACTION_URL);</span>
+<span class="nc bnc" id="L1436" title="All 2 branches missed.">				if(istream!=null)</span>
+				{
+<span class="nc" id="L1438">				Digester digester = new Digester();</span>
+<span class="nc" id="L1439">				digester.addObjectCreate(&quot;checktransaction&quot;, OlaPTResponseBean.class);</span>
+<span class="nc" id="L1440">				digester.addBeanPropertySetter(&quot;checktransaction/status&quot;, &quot;status&quot;);</span>
+<span class="nc" id="L1441">				digester.addBeanPropertySetter(&quot;checktransaction/id&quot;, &quot;imsWithdrawalTransactionId&quot;);</span>
+<span class="nc" id="L1442">				bean = (OlaPTResponseBean) digester.parse(istream);</span>
+<span class="nc" id="L1443">				return bean;</span>
+				}
+				else
+				{
+<span class="nc" id="L1447">					bean.setStatus(&quot;null&quot;);</span>
+<span class="nc" id="L1448">					return bean;</span>
+				}
+			}
+<span class="nc" id="L1451">			catch(Exception e)</span>
+			{
+<span class="nc" id="L1453">				e.printStackTrace();</span>
+<span class="nc" id="L1454">				bean.setStatus(&quot;null&quot;);</span>
+<span class="nc" id="L1455">				return bean;</span>
+			}
+		}
+		public static String affiliatePlrBindingRummy(String depositAnyWhere,
+				String plrId,String affiliateId,int affiliateOrgId,int walletId,Connection con)
+				throws LMSException {
+			//	Connection con =DBConnect.getConnection();
+			// first check whether player exists in the player affiliate mapping
+			// table or not
+		
+			try
+			{
+				//con.setAutoCommit(false);
+<span class="nc" id="L1468">			String refAffiliateId = CommonFunctionsHelper.checkPlrAffiliateMapping(</span>
+					con, plrId,walletId);
+<span class="nc" id="L1470">			System.out.println(&quot;refAffiliateId&quot; + refAffiliateId);</span>
+<span class="nc" id="L1471">			boolean PlrExist = false;</span>
+<span class="nc bnc" id="L1472" title="All 2 branches missed.">			if (refAffiliateId == null) {</span>
+				// player in not registered in OLA
+<span class="nc" id="L1474">				PlrExist = false;</span>
+			} else {
+				// player is mapped with some affiliate
+<span class="nc" id="L1477">				PlrExist = true;</span>
+			}
+
+<span class="nc bnc" id="L1480" title="All 2 branches missed.">			if (PlrExist) {</span>
+<span class="nc bnc" id="L1481" title="All 2 branches missed.">				if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L1482">					return &quot;OK&quot;;</span>
+				} else {
+					// check mapping
+<span class="nc" id="L1485">					boolean isMapped = affiliateId.equalsIgnoreCase(refAffiliateId);</span>
+<span class="nc bnc" id="L1486" title="All 2 branches missed.">					if (isMapped) {</span>
+<span class="nc" id="L1487">						return &quot;OK&quot;;</span>
+					} else {
+<span class="nc" id="L1489">						return &quot;Player not mapped with this Affiliate in OLA&quot;;</span>
+					}
+				}
+			} else {// means player does not exists in OLA System
+				// hence Bind player with affiliate in OLA DB
+<span class="nc" id="L1494">				CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,</span>
+						affiliateId,affiliateOrgId,walletId);
+				//con.commit();
+<span class="nc" id="L1497">				return &quot;OK&quot;;</span>
+			
+									
+			}
+			}
+<span class="nc" id="L1502">			catch(Exception e)</span>
+			{
+<span class="nc" id="L1504">				e.printStackTrace();</span>
+<span class="nc" id="L1505">				return &quot;Some Internal error occured&quot;;</span>
+			}
+		}
+		
+		public static OlaPlayerDetailsBean newRummyPlayerRegistration(OlaPlayerDetailsBean playerBean) {
+			try
+			{ 
+				//URL url = new URL(&quot;https://www.khelplayrummy.com//services/register.php&quot;);
+<span class="nc" id="L1513">				URL url = new URL(&quot;http://27.251.125.195:6380//services/register.php&quot;);</span>
+<span class="nc" id="L1514">				HttpURLConnection conn = (HttpURLConnection) url.openConnection();</span>
+<span class="nc" id="L1515">				conn.setDoOutput(true);</span>
+<span class="nc" id="L1516">				OutputStreamWriter wr = new OutputStreamWriter(conn</span>
+						.getOutputStream());
+<span class="nc" id="L1518">				String urlStr =&quot;login=&quot;+playerBean.getUsername()+&quot;&amp;email=&quot;+playerBean.getEmail()+&quot;&amp;passwd=&quot;+playerBean.getPassword()+&quot;&amp;link_name= &amp;buddy= &amp;uid= &amp;toc=on &amp;state=&quot;+playerBean.getState()+&quot;&amp;type=quick&amp;PF=JSON&amp;confirm_passwd=&quot;+playerBean.getPassword(); </span>
+<span class="nc" id="L1519">				wr.write(urlStr);</span>
+<span class="nc" id="L1520">				System.out.println(&quot;URL:&quot;+url+&quot;Parameters:&quot;+urlStr+&quot;Request:&quot;+wr.toString());</span>
+<span class="nc" id="L1521">				wr.flush();</span>
+				
+<span class="nc" id="L1523">				InputStream iStream =conn.getInputStream();</span>
+<span class="nc" id="L1524">				BufferedReader reader = new BufferedReader(new InputStreamReader(iStream ));</span>
+<span class="nc" id="L1525">				StringBuilder sb =new StringBuilder();</span>
+<span class="nc" id="L1526">				String line =null;</span>
+<span class="nc bnc" id="L1527" title="All 2 branches missed.">						while ((line = reader.readLine()) != null) {</span>
+<span class="nc" id="L1528">								sb.append(line);</span>
+								}
+						
+<span class="nc" id="L1531">				  String msg = sb.toString();</span>
+<span class="nc" id="L1532">				  System.out.println(&quot;Player Registration :&quot;+msg);</span>
+<span class="nc" id="L1533">				  String []msgParse= msg.split(&quot;,&quot;);</span>
+<span class="nc" id="L1534">				  int length = msgParse.length;</span>
+<span class="nc" id="L1535">				  String success_flag = msgParse[0].split(&quot;:&quot;)[1];</span>
+				  
+<span class="nc bnc" id="L1537" title="All 2 branches missed.">				if(success_flag.equalsIgnoreCase(&quot;false&quot;)){</span>
+<span class="nc" id="L1538">					 String error_msg =msgParse[1].split(&quot;:&quot;)[1].split(&quot;}&quot;)[0];</span>
+<span class="nc" id="L1539">					 playerBean.setMsg(error_msg);</span>
+<span class="nc" id="L1540">					 playerBean.setSuccess(false);</span>
+<span class="nc" id="L1541">					System.out.println(&quot; Already exits at Khel Play!!&quot;);</span>
+<span class="nc" id="L1542">					return  playerBean;</span>
+								
+				}
+				else {
+<span class="nc" id="L1546">					System.out.println(&quot;success_flag&quot;+msgParse[length-1].split(&quot;:&quot;)[1].split(&quot;}&quot;)[0]);</span>
+<span class="nc bnc" id="L1547" title="All 2 branches missed.">					if(msgParse[length-1].split(&quot;:&quot;)[1].split(&quot;}&quot;)[0].equalsIgnoreCase(&quot;true&quot;)){</span>
+<span class="nc" id="L1548">						String  verified = msgParse[1].split(&quot;:&quot;)[1].replace(&quot;\&quot;&quot;, &quot;&quot;);</span>
+<span class="nc" id="L1549">						String account_id = msgParse[2].split(&quot;:&quot;)[1].replace(&quot;\&quot;&quot;,&quot;&quot;);</span>
+<span class="nc" id="L1550">						playerBean.setSuccess(true);</span>
+<span class="nc" id="L1551">						playerBean.setMsg(success_flag);</span>
+<span class="nc" id="L1552">						playerBean.setAccountId(account_id);</span>
+<span class="nc" id="L1553">						System.out.println(&quot;verified :&quot;+verified+&quot; account_id : &quot;+account_id);</span>
+<span class="nc" id="L1554">						return  playerBean;</span>
+						
+						
+					}
+					else {
+<span class="nc" id="L1559">						playerBean.setSuccess(false);</span>
+<span class="nc" id="L1560">						playerBean.setMsg(&quot;Some Error&quot;);</span>
+					}
+					
+					
+				}
+				
+<span class="nc" id="L1566">				return  playerBean;</span>
+				
+			}
+<span class="nc" id="L1569">			catch(Exception e)</span>
+			{
+<span class="nc" id="L1571">				playerBean.setSuccess(false);</span>
+<span class="nc" id="L1572">				playerBean.setMsg(&quot;Some Error&quot;);</span>
+<span class="nc" id="L1573">				e.printStackTrace();</span>
+			
+				
+			}
+<span class="nc" id="L1577">			return  playerBean;</span>
+				
+		}
+		
+		public static InputStream  parseCheckEmailAvailabilityApi(String email)
+		{
+			try
+			{ 
+<span class="nc" id="L1585">				URL url = new URL(&quot;http://27.251.125.195:6380/services/check_email.php&quot;);</span>
+<span class="nc" id="L1586">				HttpURLConnection conn = (HttpURLConnection) url.openConnection();</span>
+<span class="nc" id="L1587">				conn.setDoOutput(true);</span>
+<span class="nc" id="L1588">				OutputStreamWriter wr = new OutputStreamWriter(conn</span>
+						.getOutputStream());
+<span class="nc" id="L1590">				String urlStr =&quot;email=&quot;+email+&quot;&amp;PF=JSON&quot;; </span>
+<span class="nc" id="L1591">				wr.write(urlStr);</span>
+<span class="nc" id="L1592">				wr.flush();</span>
+<span class="nc" id="L1593">				return conn.getInputStream();</span>
+				
+			}
+<span class="nc" id="L1596">			catch(Exception e)</span>
+			{
+<span class="nc" id="L1598">				e.printStackTrace();</span>
+			}
+<span class="nc" id="L1600">			return null;</span>
+		}		
+	public static 	OlaPlayerDetailsBean newPMSPlayerRegistration(OlaPlayerDetailsBean playerBean){
+		// Call Player Mgmt Api 
+<span class="nc" id="L1604">		String method = &quot;playerRegistrationAction&quot;;</span>
+<span class="nc" id="L1605">		JSONObject params = new JSONObject();</span>
+<span class="nc" id="L1606">        params.put(&quot;firstName&quot;,playerBean.getFirstName());</span>
+<span class="nc" id="L1607">        params.put(&quot;lastName&quot;, playerBean.getLastName());</span>
+<span class="nc bnc" id="L1608" title="All 2 branches missed.">        if(playerBean.getGender().equalsIgnoreCase(&quot;M&quot;)){</span>
+<span class="nc" id="L1609">        	 params.put(&quot;gender&quot;,&quot;MALE&quot;);</span>
+        }else{
+<span class="nc" id="L1611">        	 params.put(&quot;gender&quot;,&quot;FEMALE&quot;);</span>
+        }
+<span class="nc" id="L1613">        SimpleDateFormat sf = new SimpleDateFormat(&quot;yyyy-dd-MM&quot;);	</span>
+<span class="nc" id="L1614">		SimpleDateFormat sf1 = new SimpleDateFormat(&quot;dd-MM-yyyy&quot;);</span>
+		try{
+<span class="nc" id="L1616">			String birthdate=sf1.format(sf.parse(playerBean.getDateOfBirth()));</span>
+<span class="nc" id="L1617">			  params.put(&quot;dateOfBirth&quot;,birthdate);</span>
+<span class="nc" id="L1618">		}catch(Exception e){</span>
+<span class="nc" id="L1619">			e.printStackTrace();</span>
+<span class="nc" id="L1620">		}</span>
+		
+      
+<span class="nc" id="L1623">        params.put(&quot;userName&quot;,playerBean.getUsername());</span>
+<span class="nc" id="L1624">        params.put(&quot;emailId&quot;,playerBean.getEmail());</span>
+<span class="nc" id="L1625">        params.put(&quot;mobileNum&quot;,playerBean.getPhone());</span>
+<span class="nc" id="L1626">        params.put(&quot;address&quot;,playerBean.getAddress());</span>
+<span class="nc" id="L1627">        params.put(&quot;city&quot;,playerBean.getCity());</span>
+<span class="nc" id="L1628">        JSONObject responseObj =Utility.sendCallApi(method, params, &quot;7&quot;);</span>
+<span class="nc bnc" id="L1629" title="All 2 branches missed.">        if(responseObj==null){</span>
+<span class="nc" id="L1630">        	playerBean.setSuccess(false);</span>
+<span class="nc" id="L1631">    		playerBean.setMsg(&quot;Registration Error From Player Lottery&quot;);</span>
+<span class="nc" id="L1632">    		return playerBean;</span>
+        }
+<span class="nc" id="L1634">        boolean isSuccess=false;</span>
+        try{
+<span class="nc" id="L1636">        	isSuccess= responseObj.getBoolean(&quot;isSuccess&quot;);</span>
+<span class="nc" id="L1637">		   }catch(Exception e){</span>
+<span class="nc" id="L1638">        	e.printStackTrace();</span>
+<span class="nc" id="L1639">        	playerBean.setSuccess(false);</span>
+<span class="nc" id="L1640">    		playerBean.setMsg(&quot;Registration Error From Player Lottery&quot;);</span>
+<span class="nc" id="L1641">    		return playerBean;</span>
+	        	
+<span class="nc" id="L1643">        }</span>
+       
+<span class="nc" id="L1645">       System.out.println(&quot;call API Deposit Done&quot;);</span>
+<span class="nc bnc" id="L1646" title="All 2 branches missed.">       if(isSuccess){</span>
+<span class="nc" id="L1647">    		playerBean.setAccountId(responseObj.getInt(&quot;playerId&quot;)+&quot;&quot;);</span>
+<span class="nc" id="L1648">    		playerBean.setSuccess(true);</span>
+<span class="nc" id="L1649">    		playerBean.setMsg(&quot;Player Registered At Player Lottery&quot;);</span>
+<span class="nc" id="L1650">    		return playerBean;</span>
+    	 											    	
+    	   
+       }else{
+<span class="nc" id="L1654">    		playerBean.setSuccess(false);</span>
+<span class="nc" id="L1655">    		playerBean.setMsg(responseObj.getString(&quot;errorMsg&quot;));</span>
+       }
+	
+<span class="nc" id="L1658">		return playerBean;</span>
+	}
+	
+	
+	
+	
+public static void setWalletDataMap(){
+<span class="nc" id="L1665">	Connection con =DBConnect.getConnection();</span>
+<span class="nc" id="L1666">	PreparedStatement pstmt=null;</span>
+<span class="nc" id="L1667">	ResultSet rs = null;</span>
+<span class="nc" id="L1668">	olaWalletMap=new  HashMap&lt;Integer, String&gt;();</span>
+	try{
+<span class="nc" id="L1670">		String walletQuery =&quot;select wallet_id,wallet_display_name from  st_ola_wallet_master where wallet_status='ACTIVE'&quot;; 	</span>
+<span class="nc" id="L1671">		pstmt = con.prepareStatement(walletQuery);</span>
+<span class="nc" id="L1672">		rs=pstmt.executeQuery();</span>
+<span class="nc bnc" id="L1673" title="All 2 branches missed.">		while(rs.next()){</span>
+<span class="nc" id="L1674">			olaWalletMap.put(rs.getInt(&quot;wallet_id&quot;), rs.getString(&quot;wallet_display_name&quot;));</span>
+			
+		}
+		
+<span class="nc" id="L1678">	}catch(Exception e){</span>
+<span class="nc" id="L1679">		e.printStackTrace();</span>
+	}finally{
+<span class="nc" id="L1681">		try{	</span>
+<span class="nc bnc" id="L1682" title="All 6 branches missed.">			if(con!=null){</span>
+<span class="nc" id="L1683">					con.close();</span>
+					}
+<span class="nc bnc" id="L1685" title="All 6 branches missed.">			if(pstmt!=null){</span>
+<span class="nc" id="L1686">				pstmt.close();</span>
+				
+			}
+<span class="nc bnc" id="L1689" title="All 6 branches missed.">			if(rs!=null){</span>
+<span class="nc" id="L1690">				rs.close();</span>
+			}
+<span class="nc" id="L1692">		}catch(Exception e){</span>
+<span class="nc" id="L1693">			e.printStackTrace();</span>
+<span class="nc" id="L1694">		}</span>
+	
+		
+<span class="nc" id="L1697">	}</span>
+<span class="nc" id="L1698">}</span>
+public static String affiliatePlrBindingKpRummy(String depositAnyWhere,
+		String plrId,UserInfoBean userBean,int walletId,Connection con)
+		throws LMSException {
+	//	Connection con =DBConnect.getConnection();
+	// first check whether player exists in the player affiliate mapping
+	// table or not
+
+	try
+	{
+		//con.setAutoCommit(false);
+<span class="nc" id="L1709">	String refAffiliateId = CommonFunctionsHelper.checkPlrAffiliateMapping(con, plrId,walletId);</span>
+<span class="nc" id="L1710">	logger.info(&quot;refAffiliateId&quot; + refAffiliateId);</span>
+<span class="nc" id="L1711">	boolean PlrExist = false;</span>
+<span class="nc bnc" id="L1712" title="All 2 branches missed.">	if (refAffiliateId == null) {</span>
+		// player in not registered in OLA
+<span class="nc" id="L1714">		PlrExist = false;</span>
+	} else {
+		// player is mapped with some affiliate
+<span class="nc" id="L1717">		PlrExist = true;</span>
+	}
+
+<span class="nc bnc" id="L1720" title="All 2 branches missed.">	if (PlrExist) {</span>
+<span class="nc bnc" id="L1721" title="All 2 branches missed.">		if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L1722">			return &quot;OK&quot;;</span>
+		} else {
+			// check mapping
+<span class="nc" id="L1725">			boolean isMapped = (userBean.getUserName()).equalsIgnoreCase(refAffiliateId);</span>
+<span class="nc bnc" id="L1726" title="All 2 branches missed.">			if (isMapped) {</span>
+<span class="nc" id="L1727">				return &quot;OK&quot;;</span>
+			} else {
+<span class="nc" id="L1729">				return &quot;Player not mapped with this Affiliate in OLA&quot;;</span>
+			}
+		}
+	} else {// means player does not exists in OLA System
+		// hence Bind player with affiliate in OLA DB
+<span class="nc" id="L1734">		boolean isBind =bindPlrAtKpRummy(plrId,userBean.getUserOrgId(),walletId);</span>
+<span class="nc bnc" id="L1735" title="All 2 branches missed.">		if(!isBind){</span>
+<span class="nc" id="L1736">			logger.info(&quot;Error In Player Binding at KP Rummy&quot;);</span>
+<span class="nc" id="L1737">			return &quot;Error In Player Binding Try After Some Time&quot;;</span>
+		}
+<span class="nc" id="L1739">		CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,</span>
+				userBean,walletId);
+		//con.commit();
+<span class="nc" id="L1742">		return &quot;OK&quot;;</span>
+	
+							
+	}
+	}
+<span class="nc" id="L1747">	catch(Exception e)</span>
+	{
+<span class="nc" id="L1749">		e.printStackTrace();</span>
+<span class="nc" id="L1750">		return &quot;Some Internal error occured&quot;;</span>
+	}
+}	
+/*public static String affiliatePlrBindingKpRummy(String depositAnyWhere,
+		String plrId,String affiliateId,int affiliateOrgId,int walletId,Connection con,String walletName)
+		throws LMSException {
+	//	Connection con =DBConnect.getConnection();
+	// first check whether player exists in the player affiliate mappisng
+	// table or not
+
+	try
+	{
+		//con.setAutoCommit(false);
+	String refAffiliateId = CommonFunctionsHelper.checkPlrAffiliateMapping(
+			con, plrId,walletId);
+	System.out.println(&quot;refAffiliateId&quot; + refAffiliateId);
+	boolean PlrExist = false;
+	if (refAffiliateId == null) {
+		// player in not registered in OLA
+		PlrExist = false;
+	} else {
+		// player is mapped with some affiliate
+		PlrExist = true;
+	}
+
+	if (PlrExist) {
+		if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {
+			return &quot;OK&quot;;
+		} else {
+			// check mapping
+			boolean isMapped = affiliateId.equalsIgnoreCase(refAffiliateId);
+			if (isMapped) {
+				return &quot;OK&quot;;
+			} else {
+				return &quot;Player not mapped with this Affiliate in OLA&quot;;
+			}
+		}
+	} else {// means player does not exists in OLA System
+		// hence Bind player with affiliate in OLA DB
+		boolean isBind =bindPlrAtKpRummy(plrId,affiliateOrgId,walletId);
+		if(!isBind){
+			logger.info(&quot;Error In Player Binding at KP Rummy&quot;);
+			return &quot;Error In Player Binding Try After Some Time&quot;;
+		}
+		CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,
+				affiliateId,affiliateOrgId,walletId);
+		//con.commit();
+		return &quot;OK&quot;;
+	
+							
+	}
+	}
+	catch(Exception e)
+	{
+		e.printStackTrace();
+		return &quot;Some Internal error occured&quot;;
+	}
+}*/
+
+
+
+public static Map&lt;Integer, String&gt; getOlaWalletDataMap(){
+<span class="nc bnc" id="L1812" title="All 2 branches missed.">	if(olaWalletMap==null){</span>
+<span class="nc" id="L1813">		setWalletDataMap();</span>
+	}
+<span class="nc" id="L1815">	return olaWalletMap;</span>
+	
+}
+
+
+
+
+public static String prepareXMLFromData(Map&lt;String,String&gt; argMap){
+	
+	try{
+
+<span class="nc" id="L1826">		DocumentBuilderFactory  docFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L1827">		DocumentBuilder docBuilder = docFactory.newDocumentBuilder();</span>
+<span class="nc" id="L1828">		Document doc = docBuilder.newDocument();</span>
+		// Create Root Element 
+<span class="nc" id="L1830">		Element root = doc.createElement(&quot;weaverServiceRequest&quot;);</span>
+<span class="nc" id="L1831">		doc.appendChild(root);</span>
+		// add child nodes 
+<span class="nc bnc" id="L1833" title="All 2 branches missed.">		for (Map.Entry&lt;String,String&gt; entry : argMap.entrySet()) {</span>
+<span class="nc" id="L1834">			Element plrUserName =doc.createElement( entry.getKey());</span>
+<span class="nc" id="L1835">			plrUserName.appendChild(doc.createTextNode(entry.getValue()));</span>
+<span class="nc" id="L1836">			root.appendChild(plrUserName);</span>
+<span class="nc" id="L1837">		}</span>
+<span class="nc" id="L1838">		TransformerFactory transFact = TransformerFactory.newInstance();</span>
+<span class="nc" id="L1839">		Transformer transformer=transFact.newTransformer();</span>
+<span class="nc" id="L1840">		DOMSource source = new DOMSource(doc);</span>
+<span class="nc" id="L1841">		StringWriter stringWriter = new StringWriter();</span>
+<span class="nc" id="L1842">		transformer.transform(source,new StreamResult(stringWriter));</span>
+		
+<span class="nc" id="L1844">		return stringWriter.toString();</span>
+<span class="nc" id="L1845">	}catch(Exception e){</span>
+<span class="nc" id="L1846">		e.printStackTrace();</span>
+	}
+<span class="nc" id="L1848">	return null;</span>
+}	
+/**
+ * This Method Prepare XML only for KP Rummy Registration 
+ * @param plrDetails
+ * @return
+ */
+	public static String prepareXMLForKPRegistration(OlaPlayerRegistrationRequestBean plrDetails,String walletId){
+		
+		try{
+			
+			
+<span class="nc" id="L1860">			DocumentBuilderFactory  docFactory = DocumentBuilderFactory.newInstance();</span>
+<span class="nc" id="L1861">			DocumentBuilder docBuilder = docFactory.newDocumentBuilder();</span>
+<span class="nc" id="L1862">			Document doc = docBuilder.newDocument();</span>
+			//Create Rool Element For Request Data
+<span class="nc" id="L1864">			Element root = doc.createElement(&quot;weaverServiceRequest&quot;);</span>
+<span class="nc" id="L1865">			doc.appendChild(root);</span>
+<span class="nc" id="L1866">			Element element =doc.createElement(&quot;requestType&quot;);</span>
+<span class="nc" id="L1867">			element.appendChild(doc.createTextNode(&quot;REGISTRATION&quot;));</span>
+<span class="nc" id="L1868">			root.appendChild(element);</span>
+<span class="nc" id="L1869">			element =doc.createElement(&quot;domainName&quot;);</span>
+<span class="nc" id="L1870">			element.appendChild(doc.createTextNode(OLAUtility.getWalletIntBean(walletId).getTpWalletCode()));</span>
+<span class="nc" id="L1871">			root.appendChild(element);</span>
+			// Create Root Element for Player Reg Data 
+<span class="nc" id="L1873">			Element subroot = doc.createElement(&quot;playerRegistrationData&quot;);</span>
+<span class="nc" id="L1874">			root.appendChild(subroot);</span>
+			// add child nodes 
+			/*element =doc.createElement(&quot;firstName&quot;);
+			element.appendChild(doc.createTextNode(plrDetails.getFirstName()==null?&quot;&quot;:plrDetails.getFirstName()));
+			subroot.appendChild(element);
+			element =doc.createElement(&quot;lastName&quot;);
+			element.appendChild(doc.createTextNode(plrDetails.getLastName()==null?&quot;&quot;:plrDetails.getLastName()));
+			subroot.appendChild(element);*/
+<span class="nc bnc" id="L1882" title="All 6 branches missed.">			if(&quot;KhelPlayRummy&quot;.equalsIgnoreCase(plrDetails.getWalletName()) || &quot;GroupRummy&quot;.equalsIgnoreCase(plrDetails.getWalletName()) ||&quot;ALA_WALLET&quot;.equalsIgnoreCase(plrDetails.getWalletName())){</span>
+<span class="nc" id="L1883">				element =doc.createElement(&quot;userName&quot;);</span>
+<span class="nc bnc" id="L1884" title="All 2 branches missed.">				element.appendChild(doc.createTextNode(plrDetails.getUsername()==null?&quot;&quot;:plrDetails.getUsername()));</span>
+<span class="nc" id="L1885">				subroot.appendChild(element);</span>
+<span class="nc bnc" id="L1886" title="All 2 branches missed.">				if(!&quot;ALA_WALLET&quot;.equalsIgnoreCase(plrDetails.getWalletName())){</span>
+<span class="nc" id="L1887">					element =doc.createElement(&quot;emailId&quot;);</span>
+<span class="nc bnc" id="L1888" title="All 2 branches missed.">					element.appendChild(doc.createTextNode(plrDetails.getEmail()==null?&quot;&quot;:plrDetails.getEmail()));</span>
+<span class="nc" id="L1889">					subroot.appendChild(element);</span>
+				}
+			}
+<span class="nc" id="L1892">			element =doc.createElement(&quot;mobileNo&quot;);</span>
+<span class="nc" id="L1893">			element.appendChild(doc.createTextNode(plrDetails.getPhone()));</span>
+<span class="nc" id="L1894">			subroot.appendChild(element);</span>
+		/*	element =doc.createElement(&quot;dob&quot;);
+			SimpleDateFormat sf = new SimpleDateFormat(&quot;yyyy-dd-MM&quot;);	
+			SimpleDateFormat sf1 = new SimpleDateFormat(&quot;dd/MM/yyyy&quot;);
+			String birthdate =&quot;&quot;;
+				try{
+					 birthdate=sf1.format(sf.parse(plrDetails.getDateOfBirth()));
+					
+				}catch(Exception e){
+					e.printStackTrace();
+				}
+			element.appendChild(doc.createTextNode(birthdate));
+			subroot.appendChild(element);
+<span class="nc" id="L1907">*/			element =doc.createElement(&quot;countryCode&quot;);</span>
+<span class="nc" id="L1908">			element.appendChild(doc.createTextNode(plrDetails.getCountry()));</span>
+<span class="nc" id="L1909">			subroot.appendChild(element);</span>
+<span class="nc" id="L1910">			element =doc.createElement(&quot;requestIp&quot;);</span>
+<span class="nc" id="L1911">			element.appendChild(doc.createTextNode(plrDetails.getRequestIp()));</span>
+<span class="nc" id="L1912">			subroot.appendChild(element);</span>
+<span class="nc" id="L1913">			TransformerFactory transFact = TransformerFactory.newInstance();</span>
+<span class="nc" id="L1914">			Transformer transformer=transFact.newTransformer();</span>
+<span class="nc" id="L1915">			DOMSource source = new DOMSource(doc);</span>
+<span class="nc" id="L1916">			StringWriter stringWriter = new StringWriter();</span>
+<span class="nc" id="L1917">			transformer.transform(source,new StreamResult(stringWriter));</span>
+			
+<span class="nc" id="L1919">			return stringWriter.toString();</span>
+<span class="nc" id="L1920">		}catch(Exception e){</span>
+<span class="nc" id="L1921">			e.printStackTrace();</span>
+		}	
+	
+
+	
+	
+	
+	
+<span class="nc" id="L1929">	return null;</span>
+}
+@SuppressWarnings(&quot;unchecked&quot;)
+public static Map&lt;String,String&gt; prepareDataFromXml(InputStream xmlData){
+	
+	try{
+
+<span class="nc" id="L1936">		Digester digester = new Digester();</span>
+<span class="nc" id="L1937">		   digester.setRules(new ExtendedBaseRules());</span>
+<span class="nc" id="L1938">	        digester.addObjectCreate(&quot;weaverServiceResponse&quot;, HashMap.class);</span>
+<span class="nc" id="L1939">	         digester.addRule(&quot;*&quot;, new Rule() {</span>
+	          
+				@Override public void body(String nspace, String name, String text) {
+<span class="nc" id="L1942">	                ((HashMap&lt;String,String&gt;)getDigester().peek()).put(name, text);</span>
+<span class="nc" id="L1943">	            }</span>
+	        });
+<span class="nc" id="L1945">	         Map&lt;String,String&gt; map = (Map&lt;String,String&gt;) digester.parse(xmlData);</span>
+<span class="nc" id="L1946">		return map;</span>
+<span class="nc" id="L1947">	}catch(Exception e){</span>
+<span class="nc" id="L1948">		e.printStackTrace();</span>
+	}
+	
+<span class="nc" id="L1951">	return null;</span>
+}
+
+public static boolean bindPlrAtKpRummy(String plrName,int affiliateOrgId,int walletId) {
+	try{
+<span class="nc" id="L1956">		Map&lt;String,String&gt; bindReqMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc" id="L1957">		bindReqMap.put(&quot;requestType&quot;,&quot;PLAYER_AFFILIATE_BINDING&quot;);</span>
+<span class="nc" id="L1958">		bindReqMap.put(&quot;domainName&quot;,OLAUtility.getWalletIntBean(walletId+&quot;&quot;).getTpWalletCode());</span>
+<span class="nc" id="L1959">		bindReqMap.put(&quot;userName&quot;,plrName);</span>
+<span class="nc" id="L1960">		bindReqMap.put(&quot;affiliateReference&quot;,affiliateOrgId+&quot;&quot;);</span>
+<span class="nc" id="L1961">		InputStream bindResponse =OLAClient.callKhelPlayRummy(OLAUtility.prepareXMLFromData(bindReqMap),walletId,OLAConstants.depReq);</span>
+<span class="nc" id="L1962">		Map&lt;String,String&gt; bindRespMap = null;</span>
+<span class="nc" id="L1963">		bindRespMap=OLAUtility.prepareDataFromXml(bindResponse);</span>
+<span class="nc" id="L1964">		logger.info(bindRespMap);</span>
+<span class="nc bnc" id="L1965" title="All 2 branches missed.">		if(bindRespMap==null){</span>
+<span class="nc" id="L1966">			logger.info(&quot;player binding msg:&quot;+bindRespMap);</span>
+<span class="nc" id="L1967">			return false;</span>
+<span class="nc bnc" id="L1968" title="All 4 branches missed.">		}else if(bindRespMap.get(&quot;errorCode&quot;)!=null || bindRespMap.get(&quot;errorMsg&quot;)!=null){</span>
+<span class="nc" id="L1969">			logger.info(&quot;player binding msg:&quot;+bindRespMap.get(&quot;errorMsg&quot;)+&quot;Code:&quot;+bindRespMap.get(&quot;errorCode&quot;));</span>
+<span class="nc" id="L1970">			return false;</span>
+			
+<span class="nc bnc" id="L1972" title="All 2 branches missed.">		}else if(bindRespMap.get(&quot;respMsg&quot;)!=null){</span>
+<span class="nc" id="L1973">			logger.info(&quot;player binding msg:&quot;+bindRespMap.get(&quot;respMsg&quot;));</span>
+<span class="nc" id="L1974">			return true;</span>
+		}
+<span class="nc" id="L1976">	}catch(Exception e){</span>
+<span class="nc" id="L1977">		e.printStackTrace();</span>
+<span class="nc" id="L1978">	}</span>
+<span class="nc" id="L1979">return false;</span>
+}
+
+public static OlaPlayerRegistrationRequestBean newKpRummyPlayerRegistration(OlaPlayerRegistrationRequestBean playerBean,int walletId) {
+	try
+	{ 
+		//URL url = new URL(&quot;https://www.khelplayrummy.com//services/register.php&quot;);
+		
+<span class="nc" id="L1987">		InputStream plrRegResponse =OLAClient.callKhelPlayRummy(prepareXMLForKPRegistration(playerBean,walletId+&quot;&quot;),walletId,OLAConstants.depReq);</span>
+<span class="nc" id="L1988">		Map&lt;String,String&gt; plrRegRespMap = null;</span>
+<span class="nc" id="L1989">		plrRegRespMap=OLAUtility.prepareDataFromXml(plrRegResponse);</span>
+<span class="nc" id="L1990">		logger.info(&quot;Registration Response&quot;+plrRegRespMap);</span>
+<span class="nc bnc" id="L1991" title="All 2 branches missed.">		if(plrRegRespMap==null){</span>
+		
+<span class="nc" id="L1993">			playerBean.setMsg(&quot;Error In Player Registration Plesae Try After Some Time&quot;);</span>
+<span class="nc" id="L1994">			playerBean.setSuccess(false);</span>
+			
+<span class="nc bnc" id="L1996" title="All 4 branches missed.">		}else if(plrRegRespMap.get(&quot;errorCode&quot;)!=null||plrRegRespMap.get(&quot;errorMsg&quot;)!=null){</span>
+		
+<span class="nc" id="L1998">			playerBean.setMsg(plrRegRespMap.get(&quot;errorMsg&quot;));</span>
+<span class="nc" id="L1999">			playerBean.setSuccess(false);</span>
+<span class="nc" id="L2000">			return  playerBean;</span>
+		
+			
+<span class="nc bnc" id="L2003" title="All 2 branches missed.">		}else if(plrRegRespMap.get(&quot;respMsg&quot;)!=null){</span>
+		
+<span class="nc" id="L2005">			playerBean.setSuccess(true);</span>
+<span class="nc" id="L2006">			playerBean.setMsg(plrRegRespMap.get(&quot;respMsg&quot;));</span>
+<span class="nc" id="L2007">			playerBean.setAccountId(plrRegRespMap.get(&quot;accountId&quot;));</span>
+<span class="nc bnc" id="L2008" title="All 2 branches missed.">			if(plrRegRespMap.containsKey(&quot;password&quot;)){</span>
+<span class="nc" id="L2009">				playerBean.setPassword(plrRegRespMap.get(&quot;password&quot;));</span>
+			}else{
+<span class="nc" id="L2011">				playerBean.setPassword(&quot;&quot;);</span>
+			}
+			
+			
+<span class="nc" id="L2015">			return  playerBean;</span>
+		
+		}
+
+<span class="nc" id="L2019">	}catch(Exception e){</span>
+<span class="nc" id="L2020">		playerBean.setSuccess(false);</span>
+<span class="nc" id="L2021">		playerBean.setMsg(&quot;Some Error&quot;);</span>
+<span class="nc" id="L2022">		e.printStackTrace();</span>
+<span class="nc" id="L2023">	}</span>
+<span class="nc" id="L2024">	return  playerBean;</span>
+		
+}
+public static OlaRummyNGDepositRepBean prepareBeanDataFromXml(InputStream xmlData){
+	
+	try{
+		//URL rules=new Digester().getClass().getResource(&quot;/home/gauravk/neeraj/rules.xml&quot;);  
+		//Digester digester=DigesterLoader.createDigester(rules); 
+
+<span class="nc" id="L2033">			Digester  digester = new Digester();</span>
+<span class="nc" id="L2034">		 	digester.addObjectCreate(&quot;weaverServiceResponse&quot;, OlaRummyNGDepositRepBean.class);</span>
+<span class="nc" id="L2035">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/requestType&quot;,&quot;requestType&quot;);</span>
+<span class="nc" id="L2036">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/fromDate&quot;,&quot;fromDate&quot;);</span>
+<span class="nc" id="L2037">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/toDate&quot;,&quot;toDate&quot;);</span>
+<span class="nc" id="L2038">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/errorCode&quot;,&quot;errorCode&quot;);</span>
+<span class="nc" id="L2039">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/errorMsg&quot;,&quot;errorMsg&quot;);</span>
+<span class="nc" id="L2040">		 	digester.addObjectCreate(&quot;weaverServiceResponse/netGamingTxnReport&quot;, OlaRummyNGTxnRepBean.class);</span>
+<span class="nc" id="L2041">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/domainName&quot;,&quot;domainName&quot;);</span>
+<span class="nc" id="L2042">			digester.addSetNext(&quot;weaverServiceResponse/netGamingTxnReport/&quot;,&quot;setRummyngTxnList&quot;);</span>
+<span class="nc" id="L2043">		 	digester.addObjectCreate(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction&quot;, OlaRummyNGPlrTxnRepBean.class);</span>
+<span class="nc" id="L2044">		 	digester.addSetNext(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction&quot;,&quot;setRummyngplrTxnList&quot;);</span>
+<span class="nc" id="L2045">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/accountId&quot;,&quot;accountId&quot;);</span>
+<span class="nc" id="L2046">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/userName&quot;,&quot;userName&quot;);</span>
+<span class="nc" id="L2047">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/amount&quot;,&quot;amount&quot;);</span>
+<span class="nc" id="L2048">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/paymentType&quot;,&quot;paymentType&quot;);</span>
+<span class="nc" id="L2049">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/providerName&quot;,&quot;providerName&quot;);</span>
+<span class="nc" id="L2050">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/txnTime&quot;,&quot;txnTime&quot;);</span>
+<span class="nc" id="L2051">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/txnId&quot;,&quot;txnId&quot;);</span>
+<span class="nc" id="L2052">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction/gameType&quot;,&quot;gameType&quot;);</span>
+			
+		//	digester.addSetProperties(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction&quot;, &quot;name&quot;, &quot;name&quot;);
+			//digester.addBeanPropertySetter(&quot;weaverServiceResponse/netGamingTxnReport/playerTransaction&quot;);
+			
+			/*digester.addObjectCreate(&quot;AdvertiserStats&quot;, OlaNetGamingXMLReader.class);
+			digester.addObjectCreate(&quot;AdvertiserStats/row&quot;, OlaNetGamingRowList.class);
+			digester.addSetNext(&quot;AdvertiserStats/row/&quot;,&quot;setRowList&quot;);
+			
+			digester.addObjectCreate(&quot;AdvertiserStats/row/column&quot;, OlaNetGamingRetailerData.class);
+			digester.addSetNext(&quot;AdvertiserStats/row/column&quot;,&quot;setColumnList&quot;);
+			
+			digester.addSetProperties(&quot;AdvertiserStats/row/column/&quot;, &quot;name&quot;, &quot;name&quot;);
+			digester.addBeanPropertySetter(&quot;AdvertiserStats/row/column/&quot;);*/
+		 
+<span class="nc" id="L2067">	         OlaRummyNGDepositRepBean map = (OlaRummyNGDepositRepBean) digester.parse(xmlData);</span>
+<span class="nc" id="L2068">		return map;</span>
+<span class="nc" id="L2069">	}catch(Exception e){</span>
+<span class="nc" id="L2070">		e.printStackTrace();</span>
+	}
+	
+<span class="nc" id="L2073">	return null;</span>
+}
+
+
+public static OlaPlayerRegistrationRequestBean preparePlayerInfoBeanDataFromXml(InputStream xmlData){
+	
+	try{
+<span class="nc" id="L2080">			Digester  digester = new Digester();</span>
+<span class="nc" id="L2081">		 	digester.addObjectCreate(&quot;weaverServiceResponse&quot;, OlaPlayerRegistrationRequestBean.class);</span>
+<span class="nc" id="L2082">		 	digester.addBeanPropertySetter(&quot;weaverServiceResponse/mobileNo&quot;,&quot;phone&quot;);</span>
+<span class="nc" id="L2083">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/userName&quot;,&quot;username&quot;);</span>
+<span class="nc" id="L2084">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/accountId&quot;,&quot;accountId&quot;);</span>
+<span class="nc" id="L2085">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/emailId&quot;,&quot;email&quot;);</span>
+<span class="nc" id="L2086">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/registrationDate&quot;,&quot;plrRegDate&quot;);</span>
+<span class="nc" id="L2087">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/errorCode&quot;,&quot;errorCode&quot;);</span>
+<span class="nc" id="L2088">			digester.addBeanPropertySetter(&quot;weaverServiceResponse/errorMsg&quot;,&quot;errorMsg&quot;);</span>
+		 	
+			//OlaPlayerRegistrationRequestBean playerRegInfoBean = (OlaPlayerRegistrationRequestBean) digester.parse(new StringReader(xmlData));
+<span class="nc" id="L2091">		 	OlaPlayerRegistrationRequestBean playerRegInfoBean = (OlaPlayerRegistrationRequestBean) digester.parse(xmlData);</span>
+<span class="nc" id="L2092">		return playerRegInfoBean;</span>
+<span class="nc" id="L2093">	}catch(Exception e){</span>
+<span class="nc" id="L2094">		e.printStackTrace();</span>
+	}
+	
+<span class="nc" id="L2097">	return null;</span>
+}
+
+
+public static String getWalletName(int walletId){
+<span class="nc bnc" id="L2102" title="All 2 branches missed.">	if(olaWalletMap==null){</span>
+<span class="nc" id="L2103">		setWalletDataMap();</span>
+	}
+<span class="nc" id="L2105">	return olaWalletMap.get(walletId);</span>
+}
+/**
+ * get Wallet Integration bean from wallet Id or wallet Integration Code
+ * @param wallet
+ * @return
+ */
+public static OlaWalletIntegrationBean getWalletIntBean(String wallet){
+	
+<span class="nc bnc" id="L2114" title="All 2 branches missed.">	if(walletIntBeanMap!=null){</span>
+<span class="nc" id="L2115">		return walletIntBeanMap.get(wallet);</span>
+	}
+<span class="nc" id="L2117">	return null;</span>
+}
+public static String affiliatePlrBinding(String depositAnyWhere,String plrId,UserInfoBean userBean,int walletId,Connection con)throws LMSException {
+	//	Connection con =DBConnect.getConnection();
+	// first check whether player exists in the player affiliate mapping
+	// table or not
+
+	try
+	{
+		//con.setAutoCommit(false);
+<span class="nc" id="L2127">	String refAffiliateId = CommonFunctionsHelper.checkPlrAffiliateMapping(con, plrId,walletId);</span>
+<span class="nc" id="L2128">	logger.info(&quot;refAffiliateId&quot; + refAffiliateId);</span>
+<span class="nc" id="L2129">	boolean PlrExist = false;</span>
+<span class="nc bnc" id="L2130" title="All 2 branches missed.">	if (refAffiliateId == null) {</span>
+		// player in not registered in OLA
+<span class="nc" id="L2132">		PlrExist = false;</span>
+	} else {
+		// player is mapped with some affiliate
+<span class="nc" id="L2135">		PlrExist = true;</span>
+	}
+
+<span class="nc bnc" id="L2138" title="All 2 branches missed.">	if (PlrExist) {</span>
+<span class="nc bnc" id="L2139" title="All 2 branches missed.">		if (depositAnyWhere.equalsIgnoreCase(&quot;YES&quot;)) {</span>
+<span class="nc" id="L2140">			return &quot;OK&quot;;</span>
+		} else {
+			// check mapping
+<span class="nc" id="L2143">			boolean isMapped = (userBean.getUserName()).equalsIgnoreCase(refAffiliateId);</span>
+<span class="nc bnc" id="L2144" title="All 2 branches missed.">			if (isMapped) {</span>
+<span class="nc" id="L2145">				return &quot;OK&quot;;</span>
+			} else {
+<span class="nc" id="L2147">				return &quot;Player not mapped with this Affiliate in OLA&quot;;</span>
+			}
+		}
+	} else {// means player does not exists in OLA System
+		// hence Bind player with affiliate in OLA DB
+<span class="nc" id="L2152">		CommonFunctionsHelper.bindPlrNAffiliate(con, plrId,</span>
+				userBean,walletId);
+		//con.commit();
+<span class="nc" id="L2155">		return &quot;OK&quot;;</span>
+	
+							
+	}
+	}
+<span class="nc" id="L2160">	catch(Exception e)</span>
+	{
+<span class="nc" id="L2162">		logger.error(&quot;Exception &quot;, e);</span>
+<span class="nc" id="L2163">		return &quot;Some Internal error occured&quot;;</span>
+	}
+}	
+public static int getPlrId(Connection con,String plrName){
+<span class="nc" id="L2167">	PreparedStatement pstmt =null;</span>
+<span class="nc" id="L2168">	ResultSet rs =null;</span>
+<span class="nc" id="L2169">	int lms_plr_id= 0;</span>
+	try{
+<span class="nc" id="L2171">		String query =&quot;select lms_plr_id  from st_ola_player_master where username =?&quot;;</span>
+<span class="nc" id="L2172">		pstmt =con.prepareStatement(query);</span>
+<span class="nc" id="L2173">		pstmt.setString(1,plrName);</span>
+<span class="nc" id="L2174">		rs = pstmt.executeQuery();</span>
+	
+<span class="nc bnc" id="L2176" title="All 2 branches missed.">		if(rs.next()){</span>
+<span class="nc" id="L2177">			lms_plr_id = rs.getInt(&quot;lms_plr_id&quot;);</span>
+		}else {
+<span class="nc" id="L2179">			pstmt =con.prepareStatement(query);</span>
+<span class="nc" id="L2180">			pstmt.setString(1,&quot;ANO@NYMOUS&quot;);</span>
+<span class="nc" id="L2181">			rs = pstmt.executeQuery();</span>
+<span class="nc bnc" id="L2182" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L2183">				lms_plr_id = rs.getInt(&quot;lms_plr_id&quot;);</span>
+			}
+			
+		}
+<span class="nc" id="L2187">	}catch(Exception e){</span>
+<span class="nc" id="L2188">		e.printStackTrace();</span>
+	}finally{
+<span class="nc" id="L2190">		try{</span>
+<span class="nc bnc" id="L2191" title="All 6 branches missed.">			if(pstmt!=null){</span>
+<span class="nc" id="L2192">				pstmt.close();</span>
+			}
+<span class="nc bnc" id="L2194" title="All 6 branches missed.">			if(rs!=null){</span>
+<span class="nc" id="L2195">				rs.close();</span>
+			}
+<span class="nc" id="L2197">		}catch(Exception e){</span>
+<span class="nc" id="L2198">			e.printStackTrace();</span>
+<span class="nc" id="L2199">		}</span>
+<span class="nc" id="L2200">	}</span>
+	
+<span class="nc" id="L2202">	return lms_plr_id;</span>
+	
+}
+public static OlaWalletBean getWalletBean(int walletId){
+<span class="nc" id="L2206">	return olaWalletDataMap.get(walletId);</span>
+	
+}
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

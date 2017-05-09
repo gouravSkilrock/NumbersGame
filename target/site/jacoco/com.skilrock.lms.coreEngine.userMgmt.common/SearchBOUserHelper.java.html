@@ -1,0 +1,590 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SearchBOUserHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.userMgmt.common</a> &gt; <span class="el_source">SearchBOUserHelper.java</span></div><h1>SearchBOUserHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.userMgmt.common;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+
+import com.skilrock.lms.beans.HistoryBean;
+import com.skilrock.lms.beans.UserDetailsBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.MD5Encoder;
+import com.skilrock.lms.common.utility.MailSend;
+
+<span class="nc" id="L28">public class SearchBOUserHelper {</span>
+<span class="nc" id="L29">	private Log logger = LogFactory.getLog(SearchBOUserHelper.class);</span>
+
+	public Map dispSearchBoUser() throws LMSException {
+<span class="nc" id="L32">		Map roleMap = new TreeMap();</span>
+
+<span class="nc" id="L34">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L35">		Statement stmt = null;</span>
+		try {
+
+<span class="nc" id="L38">			stmt = con.createStatement();</span>
+<span class="nc" id="L39">			ResultSet rs = stmt</span>
+					.executeQuery(&quot;select role_id,role_description from st_lms_role_master where&quot;
+							+ &quot; tier_id = (select tier_id from st_lms_tier_master where tier_code='BO') order by role_name&quot;);
+<span class="nc bnc" id="L42" title="All 2 branches missed.">			while (rs.next()) {</span>
+
+<span class="nc" id="L44">				roleMap.put(rs.getInt(&quot;role_id&quot;), rs</span>
+						.getString(&quot;role_description&quot;));
+			}
+<span class="nc" id="L47">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L48">		} catch (Exception e) {</span>
+<span class="nc" id="L49">			throw new LMSException(e);</span>
+<span class="nc" id="L50">		}</span>
+<span class="nc" id="L51">		return roleMap;</span>
+	}
+
+	public void editBOUserDetails(int user_id, String emailId, String phoneNbr,
+			String status, String type, int doneByUserId, String comments, String requestIp) throws LMSException {
+
+<span class="nc" id="L57">		Connection con = DBConnect.getConnection();</span>
+		Statement stmt;
+		ResultSet rs;
+<span class="nc" id="L60">		String prevEmailId = null;</span>
+<span class="nc" id="L61">		String prevPhoneNbr = null;</span>
+<span class="nc" id="L62">		String prevStatus = null;</span>
+<span class="nc" id="L63">		HistoryBean historyBean = null;</span>
+		try {
+<span class="nc" id="L65">			con.setAutoCommit(false);</span>
+<span class="nc" id="L66">			stmt = con.createStatement();</span>
+<span class="nc" id="L67">			logger.info(&quot;Type - &quot;+type+&quot; | Mailing User - &quot;+type.equals(&quot;Mailing Users&quot;));</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			if (!type.equals(&quot;Mailing Users&quot;)) {</span>
+<span class="nc" id="L69">				String selectDetailsQuery = &quot;SELECT email_id, phone_nbr, status FROM st_lms_user_master um INNER JOIN st_lms_user_contact_details ucd ON um.user_id=ucd.user_id WHERE um.user_id=&quot;+user_id+&quot;;&quot;;</span>
+<span class="nc" id="L70">				logger.info(&quot;Select Details Query - &quot;+selectDetailsQuery);</span>
+<span class="nc" id="L71">				rs = stmt.executeQuery(selectDetailsQuery);</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">				if(rs.next()) {</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">					prevEmailId = (rs.getString(&quot;email_id&quot;)==null)?&quot;&quot;:rs.getString(&quot;email_id&quot;).trim();</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">					prevPhoneNbr = (rs.getString(&quot;phone_nbr&quot;)==null)?&quot;&quot;:rs.getString(&quot;phone_nbr&quot;).trim();</span>
+<span class="nc" id="L75">					prevStatus = rs.getString(&quot;status&quot;);</span>
+				}
+
+<span class="nc" id="L78">				historyBean = new HistoryBean(user_id, doneByUserId, comments, requestIp);</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">				if(!prevEmailId.equals(emailId)) {</span>
+<span class="nc" id="L80">					historyBean.setChangeType(&quot;EMAIL_ID&quot;);</span>
+<span class="nc" id="L81">					historyBean.setChangeValue(prevEmailId);</span>
+<span class="nc" id="L82">					historyBean.setUpdatedValue(emailId);</span>
+<span class="nc" id="L83">					CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+				}
+<span class="nc bnc" id="L85" title="All 2 branches missed.">				if(!prevPhoneNbr.equals(phoneNbr)) {</span>
+<span class="nc" id="L86">					historyBean.setChangeType(&quot;PHONE_NUMBER&quot;);</span>
+<span class="nc" id="L87">					historyBean.setChangeValue(prevPhoneNbr);</span>
+<span class="nc" id="L88">					historyBean.setUpdatedValue(phoneNbr);</span>
+<span class="nc" id="L89">					CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+				}
+<span class="nc bnc" id="L91" title="All 2 branches missed.">				if(!prevStatus.equals(status)) {</span>
+<span class="nc" id="L92">					historyBean.setChangeType(&quot;USER_STATUS&quot;);</span>
+<span class="nc" id="L93">					historyBean.setChangeValue(prevStatus);</span>
+<span class="nc" id="L94">					historyBean.setUpdatedValue(status);</span>
+<span class="nc" id="L95">					CommonMethods.insertUpdateUserHistory(historyBean, con);</span>
+				}
+
+<span class="nc" id="L98">				String updateEmailReport = &quot;update st_lms_report_email_user_master set email_id='&quot;</span>
+						+ emailId
+						+ &quot;',mob_no='&quot;
+						+ phoneNbr
+						+ &quot;',status='&quot;
+						+ status + &quot;' where ref_user_id=&quot; + user_id;
+<span class="nc" id="L104">				logger.info(&quot;update query for report table - &quot; + updateEmailReport);</span>
+<span class="nc" id="L105">				stmt.executeUpdate(updateEmailReport);</span>
+<span class="nc" id="L106">			} else {</span>
+<span class="nc" id="L107">				String updateContactDetailsQuery = &quot;update st_lms_report_email_user_master set email_id='&quot;</span>
+						+ emailId
+						+ &quot;',mob_no='&quot;
+						+ phoneNbr
+						+ &quot;',status='&quot;
+						+ status + &quot;' where user_id=&quot; + user_id;
+<span class="nc" id="L113">				logger.info(&quot;update query for report table - &quot; + updateContactDetailsQuery);</span>
+<span class="nc" id="L114">				stmt.executeUpdate(updateContactDetailsQuery);</span>
+			}
+<span class="nc" id="L116">			con.commit();</span>
+<span class="nc" id="L117">		} catch (SQLException se) {</span>
+<span class="nc" id="L118">			se.printStackTrace();</span>
+<span class="nc" id="L119">			throw new LMSException(&quot;sql Exception&quot;, se);</span>
+		} finally {
+<span class="nc" id="L121">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L122">		}</span>
+<span class="nc" id="L123">	}</span>
+
+	public void resetPassBO(int userid, String autoPass, String email,
+			String userName, String firstName, String lastName)
+			throws LMSException {
+<span class="nc" id="L128">		String projectName = ServletActionContext.getServletContext()</span>
+				.getContextPath();
+<span class="nc" id="L130">		Connection con = DBConnect.getConnection();</span>
+		try {
+<span class="nc" id="L132">			System.out.println(&quot;inside helper usr pass&quot;);</span>
+<span class="nc" id="L133">			con.setAutoCommit(false);</span>
+<span class="nc" id="L134">			Statement stmt = con.createStatement();</span>
+<span class="nc" id="L135">			String updatePass = QueryManager.updateST3UserPass()</span>
+					+ &quot; auto_password='1', password='&quot;
+					+ MD5Encoder.encode(autoPass) + &quot;'where user_id='&quot; + userid
+					+ &quot;'&quot;;
+<span class="nc" id="L139">			stmt.executeUpdate(updatePass);</span>
+<span class="nc" id="L140">			System.out.println(&quot;query ::&quot; + updatePass);</span>
+			// reset password
+<span class="nc" id="L142">			PreparedStatement pstmt = con.prepareStatement(QueryManager</span>
+					.insertST3PasswordHistory());
+<span class="nc" id="L144">			pstmt.setInt(1, userid);</span>
+<span class="nc" id="L145">			pstmt.setString(2, MD5Encoder.encode(autoPass));</span>
+<span class="nc" id="L146">			pstmt.setTimestamp(3, new java.sql.Timestamp(new java.util.Date()</span>
+					.getTime()));
+<span class="nc" id="L148">			pstmt.setString(4, &quot;1&quot;);</span>
+<span class="nc" id="L149">			pstmt.execute();</span>
+<span class="nc" id="L150">			System.out.println(&quot;query 2 :: &quot; + pstmt);</span>
+<span class="nc" id="L151">			con.commit();</span>
+<span class="nc" id="L152">			String msgFor = &quot;Welcome to our gaming system Your password has been reset your login details are&quot;;</span>
+			// MailSend.sendMailToUser(email, autoPass, userName);
+<span class="nc" id="L154">			String emailMsgTxt = &quot;&lt;html&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;Hi &quot; + firstName + &quot; &quot;</span>
+					+ lastName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&quot; + msgFor
+					+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;table&gt;&lt;tr&gt;&lt;td&gt;User Name :: &lt;/td&gt;&lt;td&gt;&quot;
+					+ userName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;password :: &lt;/td&gt;&lt;td&gt;&quot;
+					+ autoPass.toString()
+					+ &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;log on &lt;/td&gt;&lt;td&gt;&quot;
+					+ LMSFilterDispatcher.webLink + &quot;/&quot;
+					+ LMSFilterDispatcher.mailProjName
+					+ &quot;/&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/html&gt;&quot;;
+<span class="nc" id="L163">			MailSend mailSend = new MailSend(email, emailMsgTxt);</span>
+<span class="nc" id="L164">			mailSend.setDaemon(true);</span>
+<span class="nc" id="L165">			mailSend.start();</span>
+			// MailSend.sendMailToUser(email,
+			// autoPass,userName,firstName,lastName,msgFor);
+
+<span class="nc" id="L169">		} catch (SQLException e) {</span>
+<span class="nc" id="L170">			e.printStackTrace();</span>
+			// throw new LMSException(e);
+
+		} finally {
+<span class="nc" id="L174">			try {</span>
+<span class="nc bnc" id="L175" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L176">					con.close();</span>
+				}
+
+<span class="nc" id="L179">			} catch (SQLException se) {</span>
+<span class="nc" id="L180">				se.printStackTrace();</span>
+<span class="nc" id="L181">				throw new LMSException(&quot;Error During closing connection&quot;, se);</span>
+<span class="nc" id="L182">			}</span>
+		}
+
+<span class="nc" id="L185">	}</span>
+	
+	public boolean resetLoginAttemptsForBOUser(int userId){
+<span class="nc" id="L188">		boolean status = false;</span>
+<span class="nc" id="L189">		Connection con = DBConnect.getConnection();</span>
+<span class="nc" id="L190">		int rows = 0;</span>
+		try {
+<span class="nc" id="L192">			PreparedStatement pstmt = null;</span>
+<span class="nc" id="L193">			pstmt = con.prepareStatement(&quot;update st_lms_user_master set login_attempts = 0 where user_id = ? and organization_type='BO'&quot;);</span>
+<span class="nc" id="L194">			pstmt.setInt(1,userId);</span>
+<span class="nc" id="L195">			rows = pstmt.executeUpdate();</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">			if(rows != 0){</span>
+<span class="nc" id="L197">				status = true;</span>
+			}
+<span class="nc" id="L199">		} catch (SQLException ex) {</span>
+<span class="nc" id="L200">			ex.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L202">			try {</span>
+<span class="nc" id="L203">				con.close();</span>
+<span class="nc" id="L204">			} catch (SQLException e) {</span>
+<span class="nc" id="L205">				e.printStackTrace();</span>
+<span class="nc" id="L206">			}</span>
+<span class="nc" id="L207">		}</span>
+<span class="nc" id="L208">		return status;</span>
+	}
+
+	public List&lt;UserDetailsBean&gt; searchBousers(String userName, int roleId,
+			String type, String status) throws LMSException {
+		 
+<span class="nc" id="L214">		Connection con = DBConnect.getConnection();</span>
+		Statement stmt;
+		Statement emailStmt;
+<span class="nc" id="L217">		List&lt;UserDetailsBean&gt; userList = new ArrayList&lt;UserDetailsBean&gt;();</span>
+<span class="nc" id="L218">		SimpleDateFormat df = new SimpleDateFormat(&quot;yyyy-MM-dd hh:mm:ss&quot;);</span>
+
+		try {
+<span class="nc" id="L221">			stmt = con.createStatement();</span>
+<span class="nc" id="L222">			emailStmt = con.createStatement();</span>
+<span class="nc bnc" id="L223" title="All 6 branches missed.">			if (type != null &amp;&amp; !&quot;&quot;.equals(type)</span>
+					&amp;&amp; type.equals(&quot;Mailing Users&quot;)) {
+
+<span class="nc" id="L226">				StringBuilder searchQuery = new StringBuilder(</span>
+						&quot;SELECT eum.registration_date, c.user_name register_by_name, eum.first_name, eum.last_name, eum.status, eum.user_id FROM st_lms_report_email_user_master eum INNER JOIN st_lms_user_master um ON eum.ref_user_id = um.user_id inner join st_lms_user_master c on um.register_by_id = c.user_id WHERE 1=1 AND ref_user_id IS NULL &quot;);
+<span class="nc bnc" id="L228" title="All 4 branches missed.">				if (userName != null &amp;&amp; !&quot;&quot;.equals(userName)) {</span>
+<span class="nc" id="L229">					searchQuery.append(&quot; and  eum.first_name like '&quot; + userName</span>
+							+ &quot;%'&quot;);
+				}
+
+<span class="nc bnc" id="L233" title="All 4 branches missed.">				if (status != null &amp;&amp; !&quot;&quot;.equals(status)) {</span>
+<span class="nc" id="L234">					searchQuery.append(&quot; and  eum.status='&quot; + status + &quot;'&quot;);</span>
+				}
+
+<span class="nc" id="L237">				searchQuery.append(&quot; order by eum.first_name&quot;);</span>
+
+<span class="nc" id="L239">				System.out.println(&quot;Query :: &quot; + searchQuery);</span>
+
+<span class="nc" id="L241">				ResultSet rs = stmt.executeQuery(searchQuery.toString());</span>
+				UserDetailsBean userBean;
+
+<span class="nc bnc" id="L244" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L245">					userBean = new UserDetailsBean();</span>
+<span class="nc" id="L246">					userBean.setFirstName(rs.getString(&quot;first_name&quot;));</span>
+<span class="nc" id="L247">					userBean.setLastName(rs.getString(&quot;last_name&quot;));</span>
+					// userBean.setEmailId(rs.getString(&quot;email_id&quot;));
+					// userBean.setPhoneNbr(rs.getLong(&quot;mob_no&quot;));
+<span class="nc" id="L250">					userBean.setStatus(rs.getString(&quot;status&quot;));</span>
+<span class="nc" id="L251">					userBean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+					// userBean.setUserName(&quot;NA&quot;);
+<span class="nc" id="L253">					userBean.setDepartment(&quot;Report Email&quot;);</span>
+<span class="nc" id="L254">					userBean.setBoUserType(&quot;Mailing Users&quot;);</span>
+<span class="nc" id="L255">					userBean.setMailingStatus(&quot;Y&quot;);</span>
+<span class="nc" id="L256">					userBean.setRegisterByUserName(rs.getString(&quot;register_by_name&quot;));</span>
+<span class="nc" id="L257">					userBean.setRegistrationDate(df.format(df.parse(rs.getString(&quot;registration_date&quot;))));</span>
+
+					/*
+					 * userBean.setUserName(rs.getString(&quot;user_name&quot;));
+					 * userBean.setUserId(rs.getInt(&quot;user_id&quot;)); String
+					 * isroleHead=rs.getString(&quot;isrolehead&quot;);
+					 * 
+					 * if(isroleHead.equals(&quot;Y&quot;))
+					 * userBean.setBoUserType(&quot;Head&quot;); else
+					 * if(isroleHead.equals(&quot;N&quot;)) userBean.setBoUserType(&quot;Not
+					 * Head&quot;);
+					 * 
+					 * userBean.setDepartment(rs.getString(&quot;role_name&quot;));
+					 */
+
+<span class="nc" id="L272">					userList.add(userBean);</span>
+				}
+
+<span class="nc" id="L275">			} else {</span>
+<span class="nc" id="L276">				StringBuilder searchQuery = new StringBuilder(</span>
+						&quot;select a.registration_date, um.user_name register_by_name, a.user_name,a.user_id,a.isrolehead,a.status,b.first_name,b.last_name,b.email_id,b.phone_nbr,c.role_name,c.role_description from st_lms_user_master a INNER JOIN st_lms_user_master um ON a.register_by_id = um.user_id,st_lms_user_contact_details b,st_lms_role_master c where 1=1 and a.user_id= b.user_id and a.role_id=c.role_id and a.organization_type='BO' &quot;);
+
+<span class="nc bnc" id="L279" title="All 4 branches missed.">				if (userName != null &amp;&amp; !&quot;&quot;.equals(userName.trim())) {</span>
+<span class="nc" id="L280">					String nameArr[] = userName.trim().split(&quot; &quot;);</span>
+<span class="nc" id="L281">					boolean flag = true;</span>
+<span class="nc" id="L282">					int count = 0;</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">					for (int i = 1; i &lt; nameArr.length; i++) {</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">						if (!&quot;&quot;.equals(nameArr[i].trim())) {</span>
+<span class="nc" id="L285">							count += 1;</span>
+						}
+<span class="nc bnc" id="L287" title="All 2 branches missed.">						if (count &gt; 1) {</span>
+<span class="nc" id="L288">							flag = false;</span>
+<span class="nc" id="L289">							searchQuery.append(&quot; and b.first_name ='' &quot;);</span>
+
+						}
+					}
+<span class="nc bnc" id="L293" title="All 2 branches missed.">					if (flag) {</span>
+<span class="nc" id="L294">						searchQuery.append(&quot; and (b.first_name like '%&quot;)</span>
+								.append(nameArr[0].trim()).append(&quot;%' &quot;);
+<span class="nc bnc" id="L296" title="All 2 branches missed.">						for (int i = 1; i &lt; nameArr.length; i++) {</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">							if (!&quot;&quot;.equals(nameArr[i].trim())) {</span>
+<span class="nc" id="L298">								searchQuery.append(&quot; and b.last_name like '%&quot;)</span>
+										.append(nameArr[i].trim())
+										.append(&quot;%' &quot;);
+
+							}
+						}
+<span class="nc" id="L304">						searchQuery.append(&quot; )&quot;);</span>
+					}
+
+					/*
+					 * + &quot;%' or b.last_name like '%&quot; + userName + &quot;%')&quot;);
+					 */
+<span class="nc" id="L310">					System.out.println(&quot; first11111111111111 name is &quot;</span>
+							+ userName + &quot; :: &quot; + searchQuery);
+				}
+<span class="nc bnc" id="L313" title="All 2 branches missed.">				if (roleId != -1) {</span>
+<span class="nc" id="L314">					searchQuery.append(&quot; and a.role_id=&quot; + roleId + &quot;&quot;);</span>
+				}
+
+<span class="nc bnc" id="L317" title="All 4 branches missed.">				if (type != null &amp;&amp; !&quot;&quot;.equals(type)) {</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">					if (type.equals(&quot;Head&quot;)) {</span>
+<span class="nc" id="L319">						searchQuery.append(&quot; and  a.isrolehead='Y'&quot;);</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">					} else if (type.equals(&quot;Sub Users&quot;)) {</span>
+<span class="nc" id="L321">						searchQuery.append(&quot; and  a.isrolehead='N'&quot;);</span>
+					}
+				}
+
+<span class="nc bnc" id="L325" title="All 4 branches missed.">				if (status != null &amp;&amp; !&quot;&quot;.equals(status)) {</span>
+<span class="nc" id="L326">					searchQuery.append(&quot; and  a.status='&quot; + status + &quot;'&quot;);</span>
+				}
+<span class="nc" id="L328">				searchQuery.append(&quot; order by first_name&quot;);</span>
+<span class="nc" id="L329">				System.out.println(&quot;Query :: &quot; + searchQuery);</span>
+
+<span class="nc" id="L331">				ResultSet rs = stmt.executeQuery(searchQuery.toString());</span>
+				UserDetailsBean userBean;
+				String mailingStatus;
+				String userDepartment;
+<span class="nc bnc" id="L335" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L336">					mailingStatus = &quot;N&quot;;</span>
+<span class="nc" id="L337">					userBean = new UserDetailsBean();</span>
+<span class="nc" id="L338">					userBean.setFirstName(rs.getString(&quot;first_name&quot;));</span>
+<span class="nc" id="L339">					userBean.setLastName(rs.getString(&quot;last_name&quot;));</span>
+					// userBean.setEmailId(rs.getString(&quot;email_id&quot;));
+					// userBean.setPhoneNbr(rs.getLong(&quot;phone_nbr&quot;));
+					// userBean.setUserName(rs.getString(&quot;user_name&quot;));
+<span class="nc" id="L343">					userBean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+
+					// get reeport mailing status from reprt email table
+<span class="nc" id="L346">					ResultSet rsMailStatus = emailStmt</span>
+							.executeQuery(&quot;select ref_user_id from st_lms_report_email_user_master where ref_user_id=&quot;
+									+ rs.getInt(&quot;user_id&quot;));
+<span class="nc bnc" id="L349" title="All 2 branches missed.">					if (rsMailStatus.next()) {</span>
+						// System.out.println(&quot;inside &quot; +
+						// rsMailStatus.getInt(&quot;ref_user_id&quot;));
+<span class="nc" id="L352">						mailingStatus = &quot;Y&quot;;</span>
+					}
+<span class="nc" id="L354">					userBean.setMailingStatus(mailingStatus);</span>
+<span class="nc" id="L355">					userBean.setStatus(rs.getString(&quot;status&quot;));</span>
+<span class="nc" id="L356">					String isroleHead = rs.getString(&quot;isrolehead&quot;);</span>
+
+<span class="nc bnc" id="L358" title="All 2 branches missed.">					if (isroleHead.equals(&quot;Y&quot;)) {</span>
+<span class="nc" id="L359">						userBean.setBoUserType(&quot;Head&quot;);</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">					} else if (isroleHead.equals(&quot;N&quot;)) {</span>
+<span class="nc" id="L361">						userBean.setBoUserType(&quot;Not Head&quot;);</span>
+					}
+<span class="nc" id="L363">					userDepartment = rs.getString(&quot;role_description&quot;);</span>
+
+<span class="nc" id="L365">					userBean.setDepartment(userDepartment);</span>
+<span class="nc" id="L366">					userBean.setRegistrationDate(df.format(df.parse(rs.getString(&quot;registration_date&quot;))));</span>
+<span class="nc" id="L367">					userBean.setRegisterByUserName(rs.getString(&quot;register_by_name&quot;));</span>
+<span class="nc" id="L368">					userList.add(userBean);</span>
+<span class="nc" id="L369">				}</span>
+
+				// to search mailing users also if type All is selected
+<span class="nc bnc" id="L372" title="All 6 branches missed.">				if (type != null &amp;&amp; !&quot;&quot;.equals(type) &amp;&amp; type.equals(&quot;All&quot;)) {</span>
+
+<span class="nc" id="L374">					StringBuilder searchMailingUsersQuery = new StringBuilder(</span>
+							&quot;SELECT eum.registration_date, c.user_name register_by_name, eum.first_name, eum.last_name, eum.status, eum.user_id FROM st_lms_report_email_user_master eum INNER JOIN st_lms_user_master um ON eum.ref_user_id = um.user_id INNER JOIN st_lms_user_master c ON um.register_by_id = c.user_id WHERE 1=1 AND ref_user_id IS NULL &quot;);
+<span class="nc bnc" id="L376" title="All 4 branches missed.">					if (userName != null &amp;&amp; !&quot;&quot;.equals(userName)) {</span>
+<span class="nc" id="L377">						searchMailingUsersQuery</span>
+								.append(&quot; and  first_name like '&quot; + userName
+										+ &quot;%'&quot;);
+					}
+
+<span class="nc bnc" id="L382" title="All 4 branches missed.">					if (status != null &amp;&amp; !&quot;&quot;.equals(status)) {</span>
+<span class="nc" id="L383">						searchMailingUsersQuery.append(&quot; and  eum.status='&quot;</span>
+								+ status + &quot;'&quot;);
+					}
+
+<span class="nc" id="L387">					searchMailingUsersQuery.append(&quot; order by first_name&quot;);</span>
+
+<span class="nc" id="L389">					System.out.println(&quot;Query for mailing users also :: &quot;</span>
+							+ searchMailingUsersQuery);
+
+<span class="nc" id="L392">					ResultSet rsmailingUsers = stmt</span>
+							.executeQuery(searchMailingUsersQuery.toString());
+					// UserDetailsBean userBean;
+
+<span class="nc bnc" id="L396" title="All 2 branches missed.">					while (rsmailingUsers.next()) {</span>
+<span class="nc" id="L397">						userBean = new UserDetailsBean();</span>
+<span class="nc" id="L398">						userBean.setFirstName(rsmailingUsers</span>
+								.getString(&quot;first_name&quot;));
+<span class="nc" id="L400">						userBean.setLastName(rsmailingUsers</span>
+								.getString(&quot;last_name&quot;));
+						// userBean.setEmailId(rs.getString(&quot;email_id&quot;));
+						// userBean.setPhoneNbr(rs.getLong(&quot;mob_no&quot;));
+<span class="nc" id="L404">						userBean.setStatus(rsmailingUsers.getString(&quot;status&quot;));</span>
+<span class="nc" id="L405">						userBean.setUserId(rsmailingUsers.getInt(&quot;user_id&quot;));</span>
+						// userBean.setUserName(&quot;NA&quot;);
+<span class="nc" id="L407">						userBean.setDepartment(&quot;Report Email&quot;);</span>
+<span class="nc" id="L408">						userBean.setBoUserType(&quot;Mailing Users&quot;);</span>
+<span class="nc" id="L409">						userBean.setMailingStatus(&quot;Y&quot;);</span>
+<span class="nc" id="L410">						userBean.setRegisterByUserName(rs.getString(&quot;register_by_name&quot;));</span>
+<span class="nc" id="L411">						userBean.setRegistrationDate(df.format(df.parse(rs.getString(&quot;registration_date&quot;))));</span>
+
+						/*
+						 * userBean.setUserName(rs.getString(&quot;user_name&quot;));
+						 * userBean.setUserId(rs.getInt(&quot;user_id&quot;)); String
+						 * isroleHead=rs.getString(&quot;isrolehead&quot;);
+						 * 
+						 * if(isroleHead.equals(&quot;Y&quot;))
+						 * userBean.setBoUserType(&quot;Head&quot;); else
+						 * if(isroleHead.equals(&quot;N&quot;))
+						 * userBean.setBoUserType(&quot;Not Head&quot;);
+						 * 
+						 * userBean.setDepartment(rs.getString(&quot;role_name&quot;));
+						 */
+
+<span class="nc" id="L426">						userList.add(userBean);</span>
+					}
+
+				}
+
+			}
+<span class="nc" id="L432">			System.out.println(userList.size());</span>
+<span class="nc" id="L433">			return userList;</span>
+
+<span class="nc" id="L435">		} catch (Exception se) {</span>
+<span class="nc" id="L436">			se.printStackTrace();</span>
+<span class="nc" id="L437">			throw new LMSException(&quot;sql Exception&quot;, se);</span>
+		} finally {
+<span class="nc" id="L439">			try {</span>
+<span class="nc bnc" id="L440" title="All 4 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L441">					con.close();</span>
+				}
+<span class="nc" id="L443">			} catch (SQLException see) {</span>
+<span class="nc" id="L444">				see.printStackTrace();</span>
+<span class="nc" id="L445">				throw new LMSException(&quot;sql Exception&quot;, see);</span>
+<span class="nc" id="L446">			}</span>
+		}
+		// return null;
+	}
+
+	public UserDetailsBean showBOUserDetails(int user_id, String userType)
+			throws LMSException {
+		 
+<span class="nc" id="L454">		Connection con = DBConnect.getConnection();</span>
+		Statement stmt;
+		Statement emailStmt;
+<span class="nc" id="L457">		UserDetailsBean userBean = null;</span>
+		try {
+<span class="nc" id="L459">			stmt = con.createStatement();</span>
+<span class="nc" id="L460">			emailStmt = con.createStatement();</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">			if (!userType.equals(&quot;Mailing Users&quot;)) {</span>
+<span class="nc" id="L462">				String detailsQuery = &quot;select a.user_name,a.user_id,a.isrolehead,a.status,b.first_name,b.last_name,b.email_id,b.phone_nbr,c.role_name,c.role_description from st_lms_user_master a,st_lms_user_contact_details b,st_lms_role_master c where 1=1 and a.user_id= b.user_id and a.role_id=c.role_id and a.user_id=&quot;</span>
+						+ user_id;
+<span class="nc" id="L464">				ResultSet rs = stmt.executeQuery(detailsQuery);</span>
+				String userDepartment;
+<span class="nc" id="L466">				String mailingStatus = &quot;N&quot;;</span>
+<span class="nc bnc" id="L467" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L468">					userBean = new UserDetailsBean();</span>
+
+<span class="nc" id="L470">					userBean.setFirstName(rs.getString(&quot;first_name&quot;));</span>
+<span class="nc" id="L471">					userBean.setLastName(rs.getString(&quot;last_name&quot;));</span>
+<span class="nc" id="L472">					userBean.setEmailId(rs.getString(&quot;email_id&quot;));</span>
+<span class="nc" id="L473">					userBean.setPhoneNbr(rs.getLong(&quot;phone_nbr&quot;));</span>
+<span class="nc" id="L474">					userBean.setUserName(rs.getString(&quot;user_name&quot;));</span>
+<span class="nc" id="L475">					userBean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+
+					// get reeport mailing status from reprt email table
+<span class="nc" id="L478">					ResultSet rsMailStatus = emailStmt</span>
+							.executeQuery(&quot;select ref_user_id from st_lms_report_email_user_master where ref_user_id=&quot;
+									+ rs.getInt(&quot;user_id&quot;));
+<span class="nc bnc" id="L481" title="All 2 branches missed.">					if (rsMailStatus.next()) {</span>
+<span class="nc" id="L482">						mailingStatus = &quot;Y&quot;;</span>
+					}
+
+<span class="nc" id="L485">					userBean.setMailingStatus(mailingStatus);</span>
+<span class="nc" id="L486">					userBean.setStatus(rs.getString(&quot;status&quot;));</span>
+<span class="nc" id="L487">					String isroleHead = rs.getString(&quot;isrolehead&quot;);</span>
+
+<span class="nc bnc" id="L489" title="All 2 branches missed.">					if (isroleHead.equals(&quot;Y&quot;)) {</span>
+<span class="nc" id="L490">						userBean.setBoUserType(&quot;Head&quot;);</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">					} else if (isroleHead.equals(&quot;N&quot;)) {</span>
+<span class="nc" id="L492">						userBean.setBoUserType(&quot;Not Head&quot;);</span>
+					}
+
+<span class="nc" id="L495">					userDepartment = rs.getString(&quot;role_description&quot;);</span>
+
+					/*
+					 * if(userDepartment.equals(&quot;BO_ADM&quot;))
+					 * userDepartment=&quot;Admin&quot;; else
+					 * if(userDepartment.equals(&quot;BO_ACT&quot;))
+					 * userDepartment=&quot;Account&quot;; else
+					 * if(userDepartment.equals(&quot;BO_INV&quot;))
+					 * userDepartment=&quot;Inventory&quot;; else
+					 * if(userDepartment.equals(&quot;BO_MAS&quot;))
+					 * userDepartment=&quot;Master&quot;;
+					 */
+
+<span class="nc" id="L508">					userBean.setDepartment(userDepartment);</span>
+
+<span class="nc" id="L510">				}</span>
+<span class="nc" id="L511">			} else {</span>
+<span class="nc" id="L512">				String detailsQuery = &quot;select a.first_name,a.user_id,a.last_name,a.email_id,a.mob_no,a.status from  st_lms_report_email_user_master a where a.user_id=&quot;</span>
+						+ user_id;
+<span class="nc" id="L514">				ResultSet rs = stmt.executeQuery(detailsQuery);</span>
+<span class="nc bnc" id="L515" title="All 2 branches missed.">				while (rs.next()) {</span>
+<span class="nc" id="L516">					userBean = new UserDetailsBean();</span>
+
+<span class="nc" id="L518">					userBean.setFirstName(rs.getString(&quot;first_name&quot;));</span>
+<span class="nc" id="L519">					userBean.setLastName(rs.getString(&quot;last_name&quot;));</span>
+<span class="nc" id="L520">					userBean.setEmailId(rs.getString(&quot;email_id&quot;));</span>
+<span class="nc" id="L521">					userBean.setPhoneNbr(rs.getLong(&quot;mob_no&quot;));</span>
+					// userBean.setUserName(rs.getString(&quot;user_name&quot;));
+<span class="nc" id="L523">					userBean.setUserId(rs.getInt(&quot;user_id&quot;));</span>
+<span class="nc" id="L524">					userBean.setStatus(rs.getString(&quot;status&quot;));</span>
+					// String isroleHead=rs.getString(&quot;isrolehead&quot;);
+<span class="nc" id="L526">					userBean.setMailingStatus(&quot;Y&quot;);</span>
+<span class="nc" id="L527">					userBean.setBoUserType(userType);</span>
+<span class="nc" id="L528">					userBean.setDepartment(&quot;Report Email&quot;);</span>
+
+				}
+
+			}
+<span class="nc" id="L533">			return userBean;</span>
+
+<span class="nc" id="L535">		} catch (SQLException se) {</span>
+<span class="nc" id="L536">			se.printStackTrace();</span>
+<span class="nc" id="L537">			throw new LMSException(&quot;sql Exception&quot;, se);</span>
+		} finally {
+<span class="nc" id="L539">			try {</span>
+<span class="nc bnc" id="L540" title="All 4 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L541">					con.close();</span>
+				}
+<span class="nc" id="L543">			} catch (SQLException see) {</span>
+<span class="nc" id="L544">				see.printStackTrace();</span>
+<span class="nc" id="L545">				throw new LMSException(&quot;sql Exception&quot;, see);</span>
+<span class="nc" id="L546">			}</span>
+		}
+
+		// return null;
+
+	}
+
+	public boolean verifyEmail(String emailId, int user_id) throws LMSException {
+		 
+<span class="nc" id="L555">		Connection con = DBConnect.getConnection();</span>
+		Statement stmt;
+
+<span class="nc bnc" id="L558" title="All 4 branches missed.">		if (emailId == null || &quot;&quot;.equals(emailId)) {</span>
+<span class="nc" id="L559">			return false;</span>
+		}
+
+		try {
+<span class="nc" id="L563">			stmt = con.createStatement();</span>
+<span class="nc" id="L564">			ResultSet rs = stmt</span>
+					.executeQuery(&quot;select email_id from st_lms_report_email_user_master where ref_user_id is null and user_id !=&quot;
+							+ user_id + &quot; and email_id='&quot; + emailId + &quot;'&quot;);
+<span class="nc bnc" id="L567" title="All 2 branches missed.">			if (rs.next()) {</span>
+<span class="nc" id="L568">				return false;</span>
+			} else {
+<span class="nc" id="L570">				return true;</span>
+			}
+
+<span class="nc" id="L573">		} catch (SQLException se) {</span>
+<span class="nc" id="L574">			se.printStackTrace();</span>
+<span class="nc" id="L575">			throw new LMSException(&quot;sql Exception&quot;, se);</span>
+
+		} finally {
+<span class="nc" id="L578">			try {</span>
+<span class="nc bnc" id="L579" title="All 6 branches missed.">				if (con != null) {</span>
+<span class="nc" id="L580">					con.close();</span>
+				}
+<span class="nc" id="L582">			} catch (SQLException see) {</span>
+<span class="nc" id="L583">				see.printStackTrace();</span>
+<span class="nc" id="L584">				throw new LMSException(&quot;sql Exception&quot;, see);</span>
+<span class="nc" id="L585">			}</span>
+		}
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

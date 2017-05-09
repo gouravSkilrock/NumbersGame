@@ -1,0 +1,516 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Unzip.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common</a> &gt; <span class="el_source">Unzip.java</span></div><h1>Unzip.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.scratchService.inventoryMgmt.common;
+
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import sun.misc.BASE64Encoder;
+
+import com.skilrock.lms.beans.GameTicketFormatBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.db.QueryManager;
+import com.skilrock.lms.common.exception.LMSException;
+
+public class Unzip {
+<span class="nc" id="L42">	static Log logger = LogFactory.getLog(Unzip.class);</span>
+
+	public static final void copyInputStream(InputStream in, OutputStream out)
+			throws IOException {
+<span class="nc" id="L46">		byte[] buffer = new byte[1024];</span>
+		int len;
+
+<span class="nc bnc" id="L49" title="All 2 branches missed.">		while ((len = in.read(buffer)) &gt;= 0) {</span>
+<span class="nc" id="L50">			out.write(buffer, 0, len);</span>
+		}
+
+<span class="nc" id="L53">		in.close();</span>
+<span class="nc" id="L54">		out.close();</span>
+<span class="nc" id="L55">	}</span>
+
+	public static boolean insertVirnInDB(int gameNo) {
+<span class="nc" id="L58">		boolean complete = false;</span>
+<span class="nc" id="L59">		logger.debug(new Date() + &quot;*****Start******&quot; + (new Date()).getTime());</span>
+		try {
+<span class="nc" id="L61">			Connection conn = DBConnect.getConnection();</span>
+<span class="nc" id="L62">			conn.setAutoCommit(false);</span>
+<span class="nc" id="L63">			Statement stmt = conn.createStatement();</span>
+<span class="nc" id="L64">			String rankQuery = &quot;select rm.game_id,rm.rank_nbr,rm.prize_amt,rm.prize_level,if(rm.prize_amt=0,'NO_PRIZE_PWT','UNCLM_PWT') as status from st_se_rank_master rm,st_se_game_master gm where rm.game_id=gm.game_id and gm.game_nbr=&quot;</span>
+					+ gameNo;
+<span class="nc" id="L66">			ResultSet rs = stmt.executeQuery(rankQuery);</span>
+<span class="nc" id="L67">			Map&lt;Integer, String&gt; rankPrizeMap = new HashMap&lt;Integer, String&gt;();</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L69">				rankPrizeMap.put(rs.getInt(&quot;rank_nbr&quot;), rs.getString(&quot;game_id&quot;)</span>
+						+ &quot;,&quot; + rs.getString(&quot;prize_amt&quot;) + &quot;,'&quot;
+						+ rs.getString(&quot;prize_level&quot;) + &quot;','&quot;
+						+ rs.getString(&quot;status&quot;) + &quot;'&quot;);
+			}
+<span class="nc" id="L74">			logger.debug(&quot;*********rankPrizeMap*::&quot; + rankPrizeMap);</span>
+<span class="nc" id="L75">			Unzip unzip = new Unzip();</span>
+<span class="nc" id="L76">			String folderName = null;</span>
+			// String newFolderName = null;
+<span class="nc" id="L78">			folderName = &quot;C:\\&quot; + unzip.unZipFile(&quot;C:\\CashIt.zip&quot;, &quot;C:\\&quot;); // give</span>
+			// filepath
+			// newFolderName = folderName.replace(&quot;/&quot;, &quot;&quot;) + &quot;_encoded&quot;;
+			// (new File(newFolderName)).mkdir();
+<span class="nc" id="L82">			File myDir = new File(folderName);</span>
+<span class="nc bnc" id="L83" title="All 4 branches missed.">			if (myDir.exists() &amp;&amp; myDir.isDirectory()) {</span>
+<span class="nc" id="L84">				File[] files = myDir.listFiles();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">				for (int i = 0; i &lt; files.length; i++) {</span>
+<span class="nc" id="L86">					ArrayList&lt;String&gt; value = null;// unzip.readFile(files[i].toString(),</span>
+					// rankPrizeMap);
+<span class="nc" id="L88">					ArrayList&lt;String&gt; list = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L89">					String crTable = &quot;CREATE TABLE `st_se_pwt_inv_&quot;</span>
+							+ gameNo
+							+ &quot;_&quot;
+							+ i
+							+ &quot;` (`virn_code` varchar(24),`id1` varchar(24) ,`id2` varchar(24) ,`game_id` int(10) ,  `pwt_amt` decimal(20,2) ,     `prize_level` varchar(10) ,    `status` varchar(25)  ) ENGINE=InnoDB DEFAULT CHARSET=utf8 CHECKSUM=1 DELAY_KEY_WRITE=1 ROW_FORMAT=DYNAMIC &quot;;
+<span class="nc" id="L94">					stmt = conn.createStatement();</span>
+<span class="nc" id="L95">					stmt.execute(crTable);</span>
+<span class="nc" id="L96">					logger.debug(new Date() + &quot;**Inserting*Data**Start******&quot;</span>
+							+ (new Date()).getTime());
+<span class="nc bnc" id="L98" title="All 2 branches missed.">					for (String string : value) {</span>
+<span class="nc" id="L99">						StringBuilder str = new StringBuilder(</span>
+								&quot;insert into st_se_pwt_inv_&quot; + gameNo + &quot;_&quot; + i
+										+ &quot; values (&quot;);
+<span class="nc" id="L102">						str.append(string + &quot;)&quot;);</span>
+<span class="nc" id="L103">						list.add(str.toString());</span>
+<span class="nc" id="L104">					}</span>
+<span class="nc" id="L105">					logger.debug(new Date() + &quot;**Inserting*Data*Qry*******&quot;</span>
+							+ (new Date()).getTime());
+<span class="nc" id="L107">					unzip.performBatch(conn, list);</span>
+<span class="nc" id="L108">					logger.debug(new Date() + &quot;**Inserting*Data**End******&quot;</span>
+							+ (new Date()).getTime());
+<span class="nc" id="L110">					String insTable = &quot;insert into st_se_pwt_inv_&quot; + gameNo</span>
+							+ &quot; select * from st_se_pwt_inv_&quot; + gameNo + &quot;_&quot;
+							+ i;
+<span class="nc" id="L113">					stmt = conn.createStatement();</span>
+<span class="nc" id="L114">					stmt.executeUpdate(insTable);</span>
+<span class="nc" id="L115">					String delTable = &quot;drop table st_se_pwt_inv_&quot; + gameNo</span>
+							+ &quot;_&quot; + i;
+<span class="nc" id="L117">					stmt = conn.createStatement();</span>
+<span class="nc" id="L118">					stmt.execute(delTable);</span>
+				}
+			}
+
+<span class="nc" id="L122">			conn.commit();</span>
+<span class="nc" id="L123">			conn.setAutoCommit(true);</span>
+<span class="nc" id="L124">			conn.close();</span>
+<span class="nc" id="L125">			logger</span>
+					.debug(new Date() + &quot;*****End******&quot;
+							+ (new Date()).getTime());
+<span class="nc" id="L128">			complete = true;</span>
+<span class="nc" id="L129">		} catch (Exception e) {</span>
+<span class="nc" id="L130">			e.printStackTrace();</span>
+<span class="nc" id="L131">		}</span>
+<span class="nc" id="L132">		return complete;</span>
+	}
+
+	public static final void main(String[] args) {
+<span class="nc" id="L136">		insertVirnInDB(101);</span>
+<span class="nc" id="L137">	}</span>
+
+	MessageDigest md5;
+
+<span class="nc" id="L141">	public Unzip() {</span>
+		try {
+<span class="nc" id="L143">			md5 = MessageDigest.getInstance(&quot;MD5&quot;);</span>
+<span class="nc" id="L144">		} catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L145">			e.printStackTrace();</span>
+<span class="nc" id="L146">		}</span>
+<span class="nc" id="L147">	}</span>
+
+	public void getEnCodedStr(String decStr, StringBuilder str,
+			int gameNbrDigits, int maxRankDigits, Map&lt;String, Map&lt;Integer, Integer&gt;&gt; bookRankMap)
+			throws NoSuchAlgorithmException {
+		// StringBuilder encStr = new StringBuilder(&quot;&quot;);
+<span class="nc" id="L153">		str.append(&quot;(&quot;);</span>
+		// int rank = Integer.parseInt(decStr.charAt(3) + &quot;&quot;);
+		// logger.debug(&quot;****rank&quot;+rank);
+<span class="nc" id="L156">		String decStrArr[] = decStr.split(&quot;\t&quot;);</span>
+<span class="nc" id="L157">		decStrArr[0] = decStrArr[0].trim(); // virn_code</span>
+<span class="nc" id="L158">		decStrArr[1] = decStrArr[1].trim(); // ticket_nbr</span>
+
+<span class="nc" id="L160">		String bookNumber = decStrArr[1].substring(0, decStrArr[1].lastIndexOf(&quot;-&quot;));</span>
+<span class="nc" id="L161">		Map&lt;Integer, Integer&gt; rankMap = bookRankMap.get(bookNumber);</span>
+<span class="nc bnc" id="L162" title="All 2 branches missed.">		if(rankMap == null) {</span>
+<span class="nc" id="L163">			rankMap = new HashMap&lt;Integer, Integer&gt;();</span>
+<span class="nc" id="L164">			bookRankMap.put(bookNumber, rankMap);</span>
+		}
+<span class="nc" id="L166">		Integer rank = Integer.valueOf(decStrArr[0].substring(gameNbrDigits, gameNbrDigits + maxRankDigits));</span>
+<span class="nc bnc" id="L167" title="All 2 branches missed.">		if(rankMap.get(rank) == null)</span>
+<span class="nc" id="L168">			rankMap.put(rank, 1);</span>
+		else
+<span class="nc" id="L170">			rankMap.put(rank, rankMap.get(rank)+1);</span>
+
+		// for (int i = 0; i &lt; decStrArr.length; i++) {
+		// if(i==0){
+		// decStrArr[i].substring(gameNbrDigits+maxRankDigits);
+		// }
+		// str.append(&quot;'&quot;
+		// + (new BASE64Encoder()).encode(md5.digest(decStrArr[i]
+		// .getBytes())) + &quot;',&quot;);
+		// }
+
+<span class="nc" id="L181">		String virn_code = decStrArr[0]</span>
+				.substring(gameNbrDigits + maxRankDigits);
+<span class="nc" id="L183">		str.append(&quot;'&quot;</span>
+				+ (new BASE64Encoder())
+						.encode(md5.digest(virn_code.getBytes()))
+				+ &quot;','&quot;
+				+ (new BASE64Encoder()).encode(md5.digest(decStrArr[1]
+						.getBytes()))
+				+ &quot;','&quot;
+				+ (new BASE64Encoder()).encode(md5.digest(&quot;1234&quot;.getBytes()))
+				+ &quot;',&quot;
+				+ decStrArr[0].substring(gameNbrDigits, gameNbrDigits
+						+ maxRankDigits) + &quot;),&quot;);
+
+		// str.append(decStrArr[0].substring(gameNbrDigits, gameNbrDigits
+		// + maxRankDigits)
+		// + &quot;),&quot;);
+		// System.out.println(str);
+<span class="nc" id="L199">		decStrArr = null;</span>
+		try {
+			// logger.info(&quot;--encFun Call--&quot;);
+			// System.gc();
+			// finalize();
+		} catch (Throwable e) {
+			e.printStackTrace();
+<span class="nc" id="L206">		}</span>
+<span class="nc" id="L207">	}</span>
+
+	private GameTicketFormatBean getGameDetails(Connection con, int gameNbr,
+			String gameName) {
+<span class="nc" id="L211">		GameTicketFormatBean gameTicketFmtBean = new GameTicketFormatBean();</span>
+<span class="nc" id="L212">		Connection conn = con;</span>
+		try {
+<span class="nc" id="L214">			Statement stmt = conn.createStatement();</span>
+<span class="nc" id="L215">			ResultSet rs = stmt</span>
+					.executeQuery(&quot;select game_id, game_nbr_digits, game_rank_digits from st_se_game_ticket_nbr_format where game_id =(select game_id from st_se_game_master where game_name='&quot;
+							+ gameName + &quot;' and game_nbr = &quot; + gameNbr + &quot;)&quot;);
+<span class="nc bnc" id="L218" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L219">				gameTicketFmtBean.setGameId(rs.getInt(&quot;game_id&quot;));</span>
+<span class="nc" id="L220">				gameTicketFmtBean</span>
+						.setGameNbrDigits(rs.getInt(&quot;game_nbr_digits&quot;));
+<span class="nc" id="L222">				gameTicketFmtBean.setMaxRankDigits(rs</span>
+						.getInt(&quot;game_rank_digits&quot;));
+			}
+<span class="nc" id="L225">			rs.close();</span>
+<span class="nc" id="L226">			stmt.close();</span>
+<span class="nc" id="L227">		} catch (SQLException e) {</span>
+<span class="nc" id="L228">			e.printStackTrace();</span>
+<span class="nc" id="L229">		}</span>
+<span class="nc" id="L230">		return gameTicketFmtBean;</span>
+
+	}
+
+	public void performBatch(Connection conn, ArrayList&lt;String&gt; list) {
+		Statement stmt;
+		try {
+<span class="nc" id="L237">			int n = 0;</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">			for (int i = 0; i &lt; list.size(); i += 50000) {</span>
+<span class="nc" id="L239">				stmt = conn.createStatement();</span>
+<span class="nc" id="L240">				n = n + 50000;</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">				for (int j = i; j &lt; n; j++) {</span>
+<span class="nc" id="L242">					stmt.addBatch(list.get(j));</span>
+<span class="nc" id="L243">					logger.debug(list.get(j));</span>
+				}
+<span class="nc" id="L245">				stmt.executeBatch();</span>
+			}
+<span class="nc" id="L247">		} catch (Exception e) {</span>
+<span class="nc" id="L248">			e.printStackTrace();</span>
+<span class="nc" id="L249">		}</span>
+<span class="nc" id="L250">	}</span>
+
+	public void readFile(Connection conn, String fileName, int gameNo,
+			int gameNbrDigits, int maxRankDigits, Map&lt;String, Map&lt;Integer, Integer&gt;&gt; bookRankMap) throws SQLException,
+			FileNotFoundException, NoSuchAlgorithmException, IOException {
+		// ArrayList&lt;String&gt; fileData = new ArrayList&lt;String&gt;();
+
+<span class="nc" id="L257">		FileInputStream fstream = new FileInputStream(fileName);</span>
+<span class="nc" id="L258">		DataInputStream in = new DataInputStream(fstream);</span>
+<span class="nc" id="L259">		BufferedReader br = new BufferedReader(new InputStreamReader(in));</span>
+		String strLine;
+<span class="nc" id="L261">		logger.debug(new Date() + &quot;**Reading***Start******&quot;</span>
+				+ (new Date()).getTime());
+<span class="nc" id="L263">		StringBuilder str = new StringBuilder(&quot;insert into st_se_pwt_inv_&quot;</span>
+				+ gameNo + &quot;_1 (virn_code,id1,id2,game_id) values &quot;);
+		// str.append(&quot;str&quot; + &quot;)&quot;);
+<span class="nc" id="L266">		int startQry = 0, EndQry = 5000;</span>
+<span class="nc" id="L267">		boolean execQry = false;</span>
+<span class="nc" id="L268">		Statement stmt = conn.createStatement();</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">		while ((strLine = br.readLine()) != null) {</span>
+<span class="nc" id="L270">			execQry = true;</span>
+<span class="nc" id="L271">			getEnCodedStr(strLine, str, gameNbrDigits, maxRankDigits, bookRankMap);</span>
+<span class="nc" id="L272">			startQry++;</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">			if (startQry == EndQry) {</span>
+<span class="nc" id="L274">				str.deleteCharAt(str.length() - 1);</span>
+
+				// PreparedStatement
+				// pstmt=conn.prepareStatement(str.toString());
+<span class="nc" id="L278">				stmt.addBatch(str.toString());</span>
+				// logger.debug(&quot;***str&quot;+str);
+<span class="nc" id="L280">				logger.debug(new Date() + &quot;*******ins*****************&quot;</span>
+						+ new Date().getTime());
+				// pstmt.setInt(1, gameNo);
+				// logger.debug(&quot;******str\n&quot;+pstmt);
+				// int i=pstmt.executeUpdate();
+				// logger.debug(&quot;insert &quot;+i+&quot; records&quot;);
+<span class="nc" id="L286">				str = new StringBuilder(&quot;insert into st_se_pwt_inv_&quot; + gameNo</span>
+						+ &quot;_1 (virn_code,id1,id2,game_id) values &quot;);
+<span class="nc" id="L288">				startQry = 0;</span>
+<span class="nc" id="L289">				execQry = false;</span>
+<span class="nc" id="L290">				System.gc();</span>
+			}
+
+			// logger.debug(strLine);
+			// fileData.add(strLine);
+		}
+<span class="nc bnc" id="L296" title="All 2 branches missed.">		if (execQry) {</span>
+<span class="nc" id="L297">			str.deleteCharAt(str.length() - 1);</span>
+<span class="nc" id="L298">			stmt.addBatch(str.toString());</span>
+			// PreparedStatement
+			// pstmt=conn.prepareStatement(str.toString());
+			// pstmt.setInt(1, gameNo);
+			// int i=pstmt.executeUpdate();
+			// logger.debug(&quot;insert &quot;+i+&quot; records&quot;);
+		}
+<span class="nc" id="L305">		int i[] = stmt.executeBatch();</span>
+<span class="nc" id="L306">		logger.debug(&quot;insert &quot; + i.length + &quot; records&quot;);</span>
+<span class="nc" id="L307">		logger.debug(new Date() + &quot;***Reading**End******&quot;</span>
+				+ (new Date()).getTime());
+<span class="nc" id="L309">		in.close();</span>
+		// return fileData;
+<span class="nc" id="L311">	}</span>
+
+	public Map&lt;String, String&gt; readRankForUploadedVirn(Connection conn,
+			int gameNo) throws LMSException {
+<span class="nc" id="L315">		Map&lt;String, String&gt; rankPrizeMap = null;</span>
+		try {
+<span class="nc" id="L317">			Statement stmt = conn.createStatement();</span>
+<span class="nc" id="L318">			String rankQuery = &quot;select rm.game_id,rm.rank_nbr,rm.prize_amt,rm.prize_level,if(rm.prize_amt=0,'NO_PRIZE_PWT','UNCLM_PWT') as status from st_se_rank_master rm,st_se_game_master gm where rm.game_id=gm.game_id and gm.game_nbr=&quot;</span>
+					+ gameNo;
+<span class="nc" id="L320">			ResultSet rs = stmt.executeQuery(rankQuery);</span>
+<span class="nc" id="L321">			rankPrizeMap = new HashMap&lt;String, String&gt;();</span>
+<span class="nc bnc" id="L322" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L323">				rankPrizeMap.put(rs.getString(&quot;rank_nbr&quot;), rs</span>
+						.getString(&quot;game_id&quot;)
+						+ &quot;,&quot;
+						+ rs.getString(&quot;prize_amt&quot;)
+						+ &quot;,'&quot;
+						+ rs.getString(&quot;prize_level&quot;)
+						+ &quot;','&quot;
+						+ rs.getString(&quot;status&quot;) + &quot;'&quot;);
+			}
+<span class="nc" id="L332">			logger.debug(&quot;*********rankPrizeMap::&quot; + rankPrizeMap);</span>
+<span class="nc" id="L333">		} catch (SQLException e) {</span>
+<span class="nc" id="L334">			e.printStackTrace();</span>
+<span class="nc" id="L335">		}</span>
+<span class="nc" id="L336">		return rankPrizeMap;</span>
+
+	}
+
+	public String unZipFile(String filePath, String destPath) {
+		Enumeration&lt;? extends ZipEntry&gt; entries;
+		ZipFile zipFile;
+<span class="nc" id="L343">		String folderName = null;</span>
+		try {
+<span class="nc" id="L345">			zipFile = new ZipFile(filePath);</span>
+
+<span class="nc" id="L347">			entries = zipFile.entries();</span>
+
+<span class="nc bnc" id="L349" title="All 2 branches missed.">			while (entries.hasMoreElements()) {</span>
+<span class="nc" id="L350">				ZipEntry entry = (ZipEntry) entries.nextElement();</span>
+
+<span class="nc bnc" id="L352" title="All 2 branches missed.">				if (entry.isDirectory()) {</span>
+<span class="nc" id="L353">					(new File(destPath + entry.getName())).mkdir();</span>
+<span class="nc" id="L354">					folderName = entry.getName();</span>
+<span class="nc" id="L355">					continue;</span>
+				}
+<span class="nc" id="L357">				copyInputStream(zipFile.getInputStream(entry),</span>
+						new BufferedOutputStream(new FileOutputStream(destPath
+								+ entry.getName())));
+<span class="nc" id="L360">			}</span>
+
+<span class="nc" id="L362">			zipFile.close();</span>
+<span class="nc" id="L363">		} catch (IOException ioe) {</span>
+<span class="nc" id="L364">			logger.debug(&quot;Unhandled exception:&quot;);</span>
+<span class="nc" id="L365">			ioe.printStackTrace();</span>
+<span class="nc" id="L366">			return null;</span>
+<span class="nc" id="L367">		}</span>
+<span class="nc" id="L368">		return folderName;</span>
+	}
+
+	public String virnFileUpload(int gameNo, String gameName, String details,
+			String startDate, String saleendDate, String pwtendDate,
+			String encSchemeType) {
+<span class="nc" id="L374">		logger.debug(&quot;gameNbr::&quot; + gameNo + &quot;  gameName::&quot; + gameName</span>
+				+ &quot;  startDate::&quot; + startDate + &quot;  saleendDate::&quot; + saleendDate
+				+ &quot;  pwtendDate::&quot; + pwtendDate);
+<span class="nc" id="L377">		logger.debug(new Date() + &quot;*****Start******&quot; + (new Date()).getTime());</span>
+		try {
+<span class="nc" id="L379">			Connection conn = DBConnect.getConnection();</span>
+<span class="nc" id="L380">			conn.setAutoCommit(false);</span>
+
+			// get the game details from database
+<span class="nc" id="L383">			GameTicketFormatBean ticketFmtBean = getGameDetails(conn, gameNo,</span>
+					gameName);
+<span class="nc" id="L385">			int gameNbrDigits = ticketFmtBean.getGameNbrDigits();</span>
+<span class="nc" id="L386">			int maxRankDigits = ticketFmtBean.getMaxRankDigits();</span>
+<span class="nc" id="L387">			int game_id = ticketFmtBean.getGameId();</span>
+<span class="nc bnc" id="L388" title="All 6 branches missed.">			if (gameNbrDigits == 0 || game_id == 0 || maxRankDigits == 0) {</span>
+<span class="nc" id="L389">				return &quot;error&quot;;</span>
+			}
+
+			// Map&lt;String, String&gt; rankPrizeMap =
+			// readRankForUploadedVirn(conn,gameNo);
+<span class="nc" id="L394">			String delTable = &quot;drop table if exists  st_se_pwt_inv_&quot; + gameNo</span>
+					+ &quot;_1&quot;;
+<span class="nc" id="L396">			Statement stmt = conn.createStatement();</span>
+<span class="nc" id="L397">			stmt.execute(delTable);</span>
+
+<span class="nc" id="L399">			String crTable = &quot;CREATE TABLE `st_se_pwt_inv_&quot;</span>
+					+ gameNo
+					+ &quot;_1` (`virn_code` varchar(24),`id1` varchar(24) ,`id2` varchar(24) ,`game_id` int(10) ,  `pwt_amt` decimal(20,2) ,     `prize_level` varchar(10) ,    `status` varchar(25), ticket_status enum('ACTIVE','MISSING','INACTIVE','SOLD') DEFAULT 'INACTIVE') ENGINE=InnoDB DEFAULT CHARSET=utf8 CHECKSUM=1 DELAY_KEY_WRITE=1 ROW_FORMAT=DYNAMIC &quot;;
+<span class="nc" id="L402">			stmt = conn.createStatement();</span>
+<span class="nc" id="L403">			stmt.execute(crTable);</span>
+<span class="nc" id="L404">			Map&lt;String, Map&lt;Integer, Integer&gt;&gt; bookRankMap = new HashMap&lt;String, Map&lt;Integer,Integer&gt;&gt;();</span>
+<span class="nc" id="L405">			readFile(conn, details, gameNo, gameNbrDigits, maxRankDigits, bookRankMap);</span>
+
+			/*	Update Low Winning Tier Tickets Start	*/
+<span class="nc" id="L408">			stmt = conn.createStatement();</span>
+<span class="nc" id="L409">			Map&lt;Integer, String&gt; prizeMap = new HashMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L410">			ResultSet rs = stmt.executeQuery(&quot;SELECT rank_nbr, prize_level FROM st_se_rank_master WHERE game_id = &quot; + game_id + &quot;;&quot;);</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">			while(rs.next())</span>
+<span class="nc" id="L412">				prizeMap.put(rs.getInt(&quot;rank_nbr&quot;), rs.getString(&quot;prize_level&quot;));</span>
+
+<span class="nc" id="L414">			stmt = conn.createStatement();</span>
+<span class="nc bnc" id="L415" title="All 2 branches missed.">			for(Map.Entry&lt;String, Map&lt;Integer, Integer&gt;&gt; bookEntry : bookRankMap.entrySet()) {</span>
+<span class="nc" id="L416">				int lowCount = 0;</span>
+<span class="nc" id="L417">				String bookNumber = bookEntry.getKey();</span>
+<span class="nc bnc" id="L418" title="All 2 branches missed.">				for(Map.Entry&lt;Integer, Integer&gt; rankEntry : bookEntry.getValue().entrySet()) {</span>
+<span class="nc" id="L419">					Integer rank = rankEntry.getKey();</span>
+<span class="nc" id="L420">					Integer count = rankEntry.getValue();</span>
+
+<span class="nc bnc" id="L422" title="All 2 branches missed.">					if(&quot;LOW&quot;.equals(prizeMap.get(rank)))</span>
+<span class="nc" id="L423">						lowCount += count;</span>
+<span class="nc" id="L424">				}</span>
+<span class="nc" id="L425">				stmt.addBatch(&quot;UPDATE st_se_game_inv_status SET total_low_win_tier_tickets=&quot;+lowCount+&quot; WHERE book_nbr='&quot;+bookNumber+&quot;';&quot;);</span>
+<span class="nc" id="L426">			}</span>
+<span class="nc" id="L427">			stmt.executeBatch();</span>
+			/*	Update Low Winning Tier Tickets End		*/
+
+<span class="nc" id="L430">			String updateTlb = &quot;update st_se_pwt_inv_&quot;</span>
+					+ gameNo
+					+ &quot;_1 spi,st_se_rank_master rm set spi.game_id=&quot;
+					+ game_id
+					+ &quot;,spi.pwt_amt=rm.prize_amt,  spi.prize_level=rm.prize_level,spi.status=if(rm.prize_amt=0.00,'NO_PRIZE_PWT','UNCLM_PWT'), ticket_status='ACTIVE' where spi.game_id=rm.rank_nbr and rm.game_id=&quot;
+					+ game_id;
+<span class="nc" id="L436">			stmt = conn.createStatement();</span>
+<span class="nc" id="L437">			logger.debug(new Date() + &quot;*****UPD Tmp Table******&quot;</span>
+					+ (new Date()).getTime());
+<span class="nc" id="L439">			stmt.executeUpdate(updateTlb);</span>
+<span class="nc" id="L440">			logger.debug(new Date() + &quot;*****UPD Tmp Table  End******&quot;</span>
+					+ (new Date()).getTime());
+<span class="nc" id="L442">			String insTable = &quot;insert into st_se_pwt_inv_&quot; + gameNo</span>
+					+ &quot; select * from st_se_pwt_inv_&quot; + gameNo + &quot;_1&quot;;
+<span class="nc" id="L444">			stmt = conn.createStatement();</span>
+<span class="nc" id="L445">			stmt.executeUpdate(insTable);</span>
+<span class="nc" id="L446">			logger.debug(new Date() + &quot;*****Ins Main Table End******&quot;</span>
+					+ (new Date()).getTime());
+<span class="nc" id="L448">			delTable = &quot;drop table st_se_pwt_inv_&quot; + gameNo + &quot;_1&quot;;</span>
+<span class="nc" id="L449">			stmt = conn.createStatement();</span>
+<span class="nc" id="L450">			stmt.execute(delTable);</span>
+
+			// date formatted in the MySQL form
+<span class="nc" id="L453">			DateFormat dateFormat = new SimpleDateFormat(&quot;yyyy-MM-dd&quot;);</span>
+<span class="nc" id="L454">			dateFormat.setCalendar(Calendar.getInstance());</span>
+<span class="nc" id="L455">			java.sql.Date stDate = new java.sql.Date(dateFormat</span>
+					.parse(startDate).getTime());
+<span class="nc" id="L457">			java.sql.Date saleEndDate = new java.sql.Date(dateFormat.parse(</span>
+					saleendDate).getTime());
+<span class="nc" id="L459">			java.sql.Date pwtEndDate = new java.sql.Date(dateFormat.parse(</span>
+					pwtendDate).getTime());
+
+			// update st_se_game_master
+<span class="nc" id="L463">			Statement stmt1 = conn.createStatement();</span>
+<span class="nc" id="L464">			String querytoInsertDate = QueryManager.insertGameDates() + &quot;'&quot;</span>
+					+ stDate + &quot;',sale_end_date='&quot; + saleEndDate
+					+ &quot;',pwt_end_date='&quot; + pwtEndDate
+					+ &quot;',add_inv_status='F'  where game_id=&quot; + game_id + &quot;&quot;;
+<span class="nc" id="L468">			stmt1.executeUpdate(querytoInsertDate);</span>
+<span class="nc" id="L469">			logger.debug(new Date() + &quot;*****update Rank Table Start******&quot;</span>
+					+ (new Date()).getTime());
+<span class="nc" id="L471">			Statement updateRankMaster = conn.createStatement();</span>
+<span class="nc" id="L472">			String totalPrize = &quot;update st_se_rank_master b,(select aa.game_id, aa.pwt_amt, count(aa.pwt_amt) 'total_no_of_prize' from st_se_pwt_inv_&quot;</span>
+					+ gameNo
+					+ &quot; aa  where aa.game_id=&quot;
+					+ game_id
+					+ &quot; group by aa.game_id, aa.pwt_amt)a set b.total_no_of_prize = a.total_no_of_prize where a.game_id = b.game_id and a.pwt_amt = b.prize_amt and  a.game_id=&quot;
+					+ game_id;
+<span class="nc" id="L478">			updateRankMaster.executeUpdate(totalPrize);</span>
+<span class="nc" id="L479">			logger.debug(new Date() + &quot;*****update Rank Table End******&quot;</span>
+					+ (new Date()).getTime());
+<span class="nc" id="L481">			conn.commit();</span>
+<span class="nc" id="L482">			logger.debug(new Date() + &quot;*****After Commit******&quot;</span>
+					+ (new Date()).getTime());
+<span class="nc" id="L484">			conn.close();</span>
+<span class="nc" id="L485">		} catch (Exception e) {</span>
+<span class="nc" id="L486">			e.printStackTrace();</span>
+<span class="nc" id="L487">		}</span>
+
+<span class="nc" id="L489">		logger.debug(new Date() + &quot;*****End******&quot; + (new Date()).getTime());</span>
+<span class="nc" id="L490">		return &quot;success&quot;;</span>
+
+	}
+
+	public void writeFile(String filePath, ArrayList&lt;String&gt; value) {
+		try {
+<span class="nc" id="L496">			logger.debug(filePath);</span>
+<span class="nc" id="L497">			File f = new File(filePath);</span>
+<span class="nc" id="L498">			FileOutputStream fop = new FileOutputStream(f);</span>
+
+<span class="nc bnc" id="L500" title="All 2 branches missed.">			if (f.exists()) {</span>
+<span class="nc bnc" id="L501" title="All 2 branches missed.">				for (String str : value) {</span>
+<span class="nc" id="L502">					logger.debug(str);</span>
+<span class="nc" id="L503">					fop.write((str + &quot;\n&quot;).getBytes());</span>
+<span class="nc" id="L504">				}</span>
+<span class="nc" id="L505">				fop.flush();</span>
+<span class="nc" id="L506">				fop.close();</span>
+			} else {
+<span class="nc" id="L508">				logger.debug(&quot;This file is not exist&quot;);</span>
+			}
+
+<span class="nc" id="L511">		} catch (IOException e) {</span>
+<span class="nc" id="L512">			e.printStackTrace();</span>
+<span class="nc" id="L513">		}</span>
+<span class="nc" id="L514">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

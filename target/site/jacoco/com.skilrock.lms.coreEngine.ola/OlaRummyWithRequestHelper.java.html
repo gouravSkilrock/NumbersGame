@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OlaRummyWithRequestHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.ola</a> &gt; <span class="el_source">OlaRummyWithRequestHelper.java</span></div><h1>OlaRummyWithRequestHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.ola;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Calendar;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import rng.RNGUtilities;
+
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+/**
+ * Fill ola bind players' data in RMS DB and sms reference code for withdrawal 
+ * @author Neeraj Jain
+ *
+ */
+<span class="nc" id="L22">public class OlaRummyWithRequestHelper {</span>
+<span class="nc" id="L23">static Log logger = LogFactory.getLog(OlaRummyWithRequestHelper.class);</span>
+/**
+ * Process all withdrawal request data and sms reference code for withdrawal 
+ * @throws LMSException
+ */
+public static synchronized void processWithRequest() throws LMSException{
+<span class="nc" id="L29">	logger.info(&quot;Processing With Request&quot;);</span>
+<span class="nc" id="L30">	Connection con = null;	</span>
+<span class="nc" id="L31">	PreparedStatement ps = null;</span>
+<span class="nc" id="L32">	PreparedStatement ps1 =null;</span>
+<span class="nc" id="L33">	PreparedStatement ps2 =null;</span>
+<span class="nc" id="L34">	PreparedStatement ps3 =null;</span>
+<span class="nc" id="L35">	String query =null;</span>
+<span class="nc" id="L36">	ResultSet rs = null;</span>
+<span class="nc" id="L37">	Calendar cal = Calendar.getInstance();</span>
+<span class="nc" id="L38">	Date currentDt = null;</span>
+<span class="nc" id="L39">	currentDt = new Date(cal.getTime().getTime());</span>
+	try {
+<span class="nc" id="L41">		con=DBConnect.getConnection();</span>
+<span class="nc" id="L42">		con.setAutoCommit(false);	</span>
+<span class="nc" id="L43">		query =&quot;select wallet_status,wallet_name from st_ola_wallet_master where (wallet_name ='Rummy' or  wallet_name='KhelPlayRummy')&quot;;</span>
+<span class="nc" id="L44">		ps3=con.prepareStatement(query);</span>
+<span class="nc" id="L45">		rs=ps3.executeQuery();</span>
+<span class="nc" id="L46">		String wallet_status =&quot;INACTIVE&quot;;</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">			while (rs.next()) {</span>
+
+<span class="nc" id="L49">				wallet_status = rs.getString(&quot;wallet_status&quot;);</span>
+
+<span class="nc bnc" id="L51" title="All 2 branches missed.">				if (wallet_status.equals(&quot;ACTIVE&quot;)) {</span>
+					// Select Bind and Pending withdrawal request
+<span class="nc" id="L53">					query = &quot;select task_id,user_id,plr_phone,amount,request_date,approval_date  from st_ola_rummy_withdrawal_rep where isBind='YES' and rms_process_status='PENDING' and wallet_name=?&quot;;</span>
+<span class="nc" id="L54">					ps = con.prepareStatement(query);</span>
+<span class="nc" id="L55">					ps.setString(1, rs.getString(&quot;wallet_name&quot;));</span>
+<span class="nc" id="L56">					rs = ps.executeQuery();</span>
+<span class="nc" id="L57">					query = &quot;insert into st_ola_withdrawal_request(task_id,plr_id,phone_nbr,amount,request_date,approve_date,ref_code,status) values(?,?,?,?,?,?,?,?)&quot;;</span>
+<span class="nc" id="L58">					int count = 0;</span>
+<span class="nc" id="L59">					ps1 = con.prepareStatement(query);</span>
+<span class="nc" id="L60">					ArrayList&lt;String&gt; msgList = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L61">					ArrayList&lt;String&gt; phNbrList = new ArrayList&lt;String&gt;();</span>
+					// insert ola bind data
+<span class="nc bnc" id="L63" title="All 2 branches missed.">					while (rs.next()) {</span>
+
+<span class="nc" id="L65">						String phoneNbr = rs.getString(&quot;plr_phone&quot;);</span>
+<span class="nc" id="L66">						String userId = rs.getString(&quot;user_id&quot;);</span>
+<span class="nc" id="L67">						String msg = null;</span>
+<span class="nc" id="L68">						double amount = rs.getDouble(&quot;amount&quot;);</span>
+<span class="nc" id="L69">						count++;</span>
+<span class="nc" id="L70">						ps1.setInt(1, rs.getInt(&quot;task_id&quot;));</span>
+<span class="nc" id="L71">						ps1.setString(2, userId);</span>
+<span class="nc" id="L72">						ps1.setString(3, phoneNbr);</span>
+<span class="nc" id="L73">						ps1.setDouble(4, amount);</span>
+<span class="nc" id="L74">						ps1.setDate(5, rs.getDate(&quot;request_date&quot;));</span>
+<span class="nc" id="L75">						ps1.setDate(6, rs.getDate(&quot;approval_date&quot;));</span>
+<span class="nc" id="L76">						Long rnumber = RNGUtilities.generateRandomNumber(</span>
+								100000l, 999999l);// Generate six digit random
+													// number
+<span class="nc" id="L79">						ps1.setString(7, rnumber.toString());</span>
+<span class="nc" id="L80">						ps1.setString(8, &quot;PENDING&quot;);</span>
+<span class="nc" id="L81">						ps1.addBatch();</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">						if (count % 100 == 0) {</span>
+<span class="nc" id="L83">							ps1.executeBatch();</span>
+						}
+<span class="nc" id="L85">						msg = &quot;Dear User &quot;</span>
+								+ userId
+								+ &quot; Your withdrawal request at khelplayrummy.com of amount &quot;
+								+ amount
+								+ &quot; has been approved, your withdrawal Authentication code is &quot;
+								+ rnumber
+								+ &quot; Please contact your affiliate to withdraw money&quot;;
+<span class="nc" id="L92">						msgList.add(msg);</span>
+<span class="nc" id="L93">						phNbrList.add(phoneNbr);</span>
+
+<span class="nc" id="L95">					}</span>
+
+<span class="nc" id="L97">					ps1.executeBatch();</span>
+					// update rms_process_status in st_ola_rummy_withdrawal_rep
+<span class="nc" id="L99">					ps2 = con.prepareStatement(&quot;update st_ola_rummy_withdrawal_rep set  rms_process_status='DONE',rms_process_date=? where isBind='YES' and rms_process_status='PENDING'&quot;);</span>
+<span class="nc" id="L100">					ps2.setDate(1, currentDt);</span>
+<span class="nc" id="L101">					int update = ps2.executeUpdate();</span>
+<span class="nc" id="L102">					logger.info(&quot;Selected Requests: &quot;+count+&quot; Updated Requests :&quot; + update);</span>
+
+<span class="nc bnc" id="L104" title="All 2 branches missed.">					if (count == update) {</span>
+<span class="nc" id="L105">						con.commit();</span>
+					} else {
+<span class="nc" id="L107">						throw new LMSException(&quot;Cannot Update Incorrect Data&quot;);</span>
+					}
+					// Send SMS to players
+<span class="nc" id="L110">					SendSMS smsSend = new SendSMS(msgList, phNbrList);</span>
+<span class="nc" id="L111">					smsSend.setDaemon(true);</span>
+<span class="nc" id="L112">					smsSend.start();</span>
+<span class="nc" id="L113">					logger.info(&quot;SMS Sent&quot;);</span>
+<span class="nc" id="L114">				}</span>
+			}
+<span class="nc" id="L116">}catch(Exception e){</span>
+<span class="nc" id="L117">		e.printStackTrace();</span>
+<span class="nc" id="L118">		throw new LMSException(&quot;Some Error&quot;);</span>
+	}finally{
+<span class="nc" id="L120">		try {</span>
+<span class="nc bnc" id="L121" title="All 4 branches missed.">			if(con!=null){</span>
+<span class="nc" id="L122">				con.close();</span>
+				
+			}
+<span class="nc bnc" id="L125" title="All 4 branches missed.">			if(rs!=null){</span>
+<span class="nc" id="L126">				rs.close();</span>
+				
+			}
+<span class="nc bnc" id="L129" title="All 4 branches missed.">			if(ps!=null){</span>
+<span class="nc" id="L130">				ps.close();</span>
+				
+			}
+<span class="nc bnc" id="L133" title="All 4 branches missed.">			if(ps1!=null){</span>
+<span class="nc" id="L134">				ps1.close();</span>
+				
+			}
+<span class="nc bnc" id="L137" title="All 4 branches missed.">			if(ps2!=null){</span>
+<span class="nc" id="L138">				ps2.close();</span>
+				
+			}
+<span class="nc bnc" id="L141" title="All 4 branches missed.">			if(ps3!=null){</span>
+<span class="nc" id="L142">				ps3.close();</span>
+				
+			}
+		}			
+<span class="nc" id="L146">		catch(Exception e){</span>
+<span class="nc" id="L147">			e.printStackTrace();</span>
+<span class="nc" id="L148">			throw new LMSException(e);</span>
+<span class="nc" id="L149">		}</span>
+	}
+
+<span class="nc" id="L152">}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

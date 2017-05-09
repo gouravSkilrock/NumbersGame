@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BingoService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.embedded.drawGames.Bingo.Service</a> &gt; <span class="el_source">BingoService.java</span></div><h1>BingoService.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.embedded.drawGames.Bingo.Service;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.google.gson.Gson;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.Utility;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.common.utility.orgOnLineSaleCreditUpdation;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.embedded.drawGames.Bingo.Beans.BingoSeventyFive;
+import com.skilrock.lms.embedded.drawGames.Bingo.Beans.BingoSeventyFiveResponse;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class BingoService {
+<span class="nc" id="L35">	DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+<span class="nc" id="L36">	static Log logger = LogFactory.getLog(BingoService.class);</span>
+
+<span class="nc" id="L38">	IServiceDelegate delegate = null;</span>
+	AjaxRequestHelper ajaxHelper;
+
+<span class="nc" id="L41">	public BingoService() {</span>
+<span class="nc" id="L42">		delegate = ServiceDelegate.getInstance();</span>
+<span class="nc" id="L43">		this.ajaxHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L44">	}</span>
+
+<span class="nc" id="L46">	public BingoService(IServiceDelegate iServiceDelegate, AjaxRequestHelper ajaxHelper) {</span>
+<span class="nc" id="L47">		delegate = iServiceDelegate;</span>
+<span class="nc" id="L48">		this.ajaxHelper = ajaxHelper;</span>
+<span class="nc" id="L49">	}</span>
+
+	public BingoSeventyFive commonPurchseProcessBingoSeventyFive(UserInfoBean userBean,
+			BingoSeventyFive bingoSeventyFive) throws LMSException {
+		try {
+<span class="nc" id="L54">			bingoSeventyFivePurchaseTicket(userBean, bingoSeventyFive);</span>
+<span class="nc" id="L55">		} catch (Exception e) {</span>
+<span class="nc" id="L56">			e.printStackTrace();</span>
+<span class="nc" id="L57">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L58">		}</span>
+
+<span class="nc" id="L60">		return bingoSeventyFive;</span>
+	}
+
+	/* BingoSeventyFive - Mukesh Sharma */
+	private BingoSeventyFive bingoSeventyFivePurchaseTicket(UserInfoBean userBean, BingoSeventyFive bingoSeventyFive)
+			throws LMSException {
+<span class="nc" id="L66">		String status = null;</span>
+<span class="nc" id="L67">		double dgeTicketPrice = 0.0;</span>
+<span class="nc" id="L68">		double lmsTicketPrice = 0.0;</span>
+<span class="nc" id="L69">		long transId = 0;</span>
+<span class="nc" id="L70">		Connection connection = null;</span>
+		try {
+<span class="nc" id="L72">			connection = DBConnect.getConnection();</span>
+<span class="nc" id="L73">			connection.setAutoCommit(false);</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">			if (checkDrawAvailability(bingoSeventyFive.getGameId())) {</span>
+<span class="nc" id="L75">				bingoSeventyFive.setSaleStatus(&quot;NO_DRAWS&quot;);</span>
+<span class="nc" id="L76">				return bingoSeventyFive;</span>
+			}
+<span class="nc" id="L78">			bingoSeventyFive.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L79">			dgeTicketPrice = prepareUnitPriceArrayAndCalculateBingoSeventyFiveTicketPrice(bingoSeventyFive);</span>
+<span class="nc bnc" id="L80" title="All 2 branches missed.">			if (dgeTicketPrice &lt;= 0) {</span>
+<span class="nc" id="L81">				bingoSeventyFive.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L82">				return bingoSeventyFive;</span>
+			}
+<span class="nc" id="L84">			bingoSeventyFive.setTotalPurchaseAmt(dgeTicketPrice);</span>
+<span class="nc" id="L85">			lmsTicketPrice = CommonMethods.fmtToTwoDecimal(dgeTicketPrice);</span>
+<span class="nc" id="L86">			checkLastPrintedTicketForTerminalOfBingoSeventyFive(userBean, bingoSeventyFive, connection);</span>
+<span class="nc" id="L87">			boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;DG_SALE&quot;, String.valueOf(lmsTicketPrice),</span>
+					connection);
+<span class="nc bnc" id="L89" title="All 2 branches missed.">			if (!isFraud) {</span>
+<span class="nc" id="L90">				transId = orgOnLineSaleCreditUpdation.drawTcketSaleBalDeduction(userBean, bingoSeventyFive.getGameId(),lmsTicketPrice, bingoSeventyFive.getPlrMobileNumber(), connection);</span>
+
+<span class="nc bnc" id="L92" title="All 2 branches missed.">				if (transId &lt;= 0) {</span>
+<span class="nc" id="L93">					bingoSeventyFive.setSaleStatus(getStatusIfErrorInTransaction(status, transId));</span>
+<span class="nc" id="L94">					return bingoSeventyFive;</span>
+				}
+<span class="nc" id="L96">				bingoSeventyFive.setRefTransId(transId + &quot;&quot;);</span>
+<span class="nc" id="L97">				connection.commit();</span>
+			} else {
+<span class="nc" id="L99">				bingoSeventyFive.setSaleStatus(&quot;FRAUD&quot;);</span>
+<span class="nc" id="L100">				return bingoSeventyFive;</span>
+			}
+<span class="nc" id="L102">			connection.commit();</span>
+<span class="nc" id="L103">		} catch (Exception e) {</span>
+<span class="nc" id="L104">			logger.error(e);</span>
+<span class="nc" id="L105">			e.printStackTrace();</span>
+<span class="nc" id="L106">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+		} finally {
+<span class="nc" id="L108">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L109">		}</span>
+
+		try {
+<span class="nc" id="L112">			BingoSeventyFiveResponse bingoResponseBean = new Gson().fromJson(</span>
+					prepareBingoSeventyFiveServiceRequestForDGE(bingoSeventyFive), BingoSeventyFiveResponse.class);
+<span class="nc bnc" id="L114" title="All 2 branches missed.">			if (bingoResponseBean.getIsSuccess()) {</span>
+<span class="nc" id="L115">				setBingoSeventyFiveDGEResponseData(bingoSeventyFive, bingoResponseBean);</span>
+<span class="nc" id="L116">				double fromDgeTicketPrice = bingoSeventyFive.getTotalPurchaseAmt();</span>
+<span class="nc" id="L117">				bingoSeventyFive.setTotalPurchaseAmt(lmsTicketPrice);</span>
+<span class="nc" id="L118">				connection = DBConnect.getConnection();</span>
+<span class="nc" id="L119">				connection.setAutoCommit(false);</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">				if (fromDgeTicketPrice != dgeTicketPrice) {</span>
+<span class="nc" id="L121">					fromDgeTicketPrice = CommonMethods.roundDrawTktAmt(fromDgeTicketPrice);</span>
+<span class="nc" id="L122">					bingoSeventyFive.setTotalPurchaseAmt(fromDgeTicketPrice);</span>
+<span class="nc" id="L123">					transId = orgOnLineSaleCreditUpdation.drawTcketSaleBalDedUpdate(userBean,</span>
+							bingoSeventyFive.getGameId(), fromDgeTicketPrice, lmsTicketPrice, transId, connection);
+				}
+<span class="nc" id="L126">				int tickUpd = orgOnLineSaleCreditUpdation.drawTicketSaleTicketUpdate(transId,</span>
+						bingoSeventyFive.getTicket_no(), bingoSeventyFive.getGameId(), userBean,
+						bingoSeventyFive.getPurchaseChannel(), connection);
+<span class="nc bnc" id="L129" title="All 2 branches missed.">				if (tickUpd == 1) {</span>
+<span class="nc" id="L130">					doBingoSeventyFiveSaleAfterSuccesWork(userBean, bingoSeventyFive, connection);</span>
+<span class="nc" id="L131">					connection.commit();</span>
+<span class="nc" id="L132">					return bingoSeventyFive;</span>
+				} else {
+<span class="nc" id="L134">					ifErrorOccurInBingoSeventyFiveTicketUpdation(userBean, bingoSeventyFive);</span>
+<span class="nc" id="L135">					return bingoSeventyFive;</span>
+				}
+			} else {
+<span class="nc" id="L138">				bingoSeventyFive.setSaleStatus(bingoResponseBean.getSaleStatus());</span>
+<span class="nc" id="L139">				failedBingoSeventyFiveTransactionIfFailedAtDGE(userBean, bingoSeventyFive, transId);</span>
+			}
+<span class="nc" id="L141">		} catch (Exception e) {</span>
+<span class="nc" id="L142">			e.printStackTrace();</span>
+<span class="nc" id="L143">			failedBingoSeventyFiveTrasactionIfAnyExceptionOccur(userBean, bingoSeventyFive, transId);</span>
+
+		} finally {
+<span class="nc" id="L146">			DBConnect.closeCon(connection);</span>
+<span class="nc" id="L147">		}</span>
+<span class="nc" id="L148">		return bingoSeventyFive;</span>
+	}
+
+	private boolean checkDrawAvailability(int gameId) {
+<span class="nc bnc" id="L152" title="All 4 branches missed.">		return isDrawAvailable(gameId) || chkFreezeTimeSale(gameId);</span>
+	}
+
+	private boolean isDrawAvailable(int gameNo) {
+<span class="nc" id="L156">		return Util.drawIdTableMap.get(gameNo).isEmpty();</span>
+	}
+
+	// Freeze time is checked for the sale Game only , means sale of other game
+	// is allowed
+	public static boolean chkFreezeTimeSale(int gameNo) {
+<span class="nc bnc" id="L162" title="All 2 branches missed.">		if (!Util.onfreezeSale) {</span>
+<span class="nc" id="L163">			Long curDate = new Date().getTime();</span>
+<span class="nc" id="L164">			TreeMap&lt;Integer, List&lt;List&gt;&gt; gameData = Util.gameData;</span>
+<span class="nc" id="L165">			List&lt;List&gt; gameDataList = gameData.get(gameNo); // can be removed</span>
+<span class="nc" id="L166">			List&lt;Map&lt;String, String&gt;&gt; frzNdrawTimeList = gameDataList.get(3);</span>
+<span class="nc" id="L167">			Map&lt;String, String&gt; frzNdrawTime = frzNdrawTimeList.get(0);</span>
+<span class="nc" id="L168">			Iterator&lt;Map.Entry&lt;String, String&gt;&gt; iter = frzNdrawTime.entrySet().iterator();</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">			while (iter.hasNext()) {</span>
+<span class="nc" id="L170">				Map.Entry&lt;String, String&gt; pair = iter.next();</span>
+<span class="nc bnc" id="L171" title="All 4 branches missed.">				if (Long.parseLong(pair.getKey()) &lt; curDate &amp;&amp; Long.parseLong(pair.getValue()) &gt; curDate) {</span>
+<span class="nc" id="L172">					return true;</span>
+				}
+<span class="nc" id="L174">			}</span>
+		}
+<span class="nc" id="L176">		return false;</span>
+
+	}
+
+	private String getStatusIfErrorInTransaction(String status, long transId) {
+<span class="nc bnc" id="L181" title="All 2 branches missed.">		if (transId == -1) {</span>
+<span class="nc" id="L182">			status = &quot;AGT_INS_BAL&quot;;// Agent has insufficient balance</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">		} else if (transId == -2) {</span>
+<span class="nc" id="L184">			status = &quot;FAILED&quot;;// Error LMS</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">		} else if (transId == 0) {</span>
+<span class="nc" id="L186">			status = &quot;RET_INS_BAL&quot;;// Retailer has insufficient Balance</span>
+		}
+<span class="nc" id="L188">		return status;</span>
+	}
+
+	private double prepareUnitPriceArrayAndCalculateBingoSeventyFiveTicketPrice(BingoSeventyFive bingoSeventyFive) {
+<span class="nc" id="L192">		double dgeTicketPrice = 0.0;</span>
+<span class="nc" id="L193">		int noOfPanel = bingoSeventyFive.getNoOfPanel();</span>
+<span class="nc" id="L194">		int betAmtMulArr[] = bingoSeventyFive.getBetAmountMultiple();</span>
+<span class="nc" id="L195">		double unitPriceArr[] = new double[noOfPanel];</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">		for (int i = 0; i &lt; noOfPanel; i++) {</span>
+//			preapareNoOfLinesArrayOfBingoSeventyFive(bingoSeventyFive, noOfLines, i);
+<span class="nc" id="L198">			unitPriceArr[i] = Util.getUnitPrice(bingoSeventyFive.getGameId(), bingoSeventyFive.getPlayType()[i]);</span>
+<span class="nc" id="L199">			dgeTicketPrice +=  unitPriceArr[i] * bingoSeventyFive.getNoOfDraws() * betAmtMulArr[i];</span>
+		}
+<span class="nc" id="L201">		bingoSeventyFive.setUnitPrice(unitPriceArr);</span>
+//		bingoSeventyFive.setNoOfLines(noOfLines);
+<span class="nc" id="L203">		return dgeTicketPrice;</span>
+	}
+
+	private void checkLastPrintedTicketForTerminalOfBingoSeventyFive(UserInfoBean userBean,
+			BingoSeventyFive bingoSeventyFive, Connection connection) throws LMSException {
+<span class="nc bnc" id="L208" title="All 2 branches missed.">		if (&quot;TERMINAL&quot;.equals(bingoSeventyFive.getDeviceType())) {</span>
+<span class="nc" id="L209">			int autoCancelHoldDays = Integer.parseInt(Utility.getPropertyValue(&quot;AUTO_CANCEL_CLOSER_DAYS&quot;));</span>
+<span class="nc" id="L210">			helper.checkLastPrintedTicketStatusAndUpdate(userBean,</span>
+					Long.parseLong(bingoSeventyFive.getLastSoldTicketNo()), bingoSeventyFive.getDeviceType(),
+					bingoSeventyFive.getRefMerchantId(), autoCancelHoldDays, bingoSeventyFive.getActionName(),
+					bingoSeventyFive.getLastGameId(), connection);
+		}
+<span class="nc" id="L215">	}</span>
+
+	
+	// DG Call
+	private String prepareBingoSeventyFiveServiceRequestForDGE(BingoSeventyFive bingoSeventyFive) {
+		ServiceRequest serviceRequest;
+<span class="nc" id="L221">		serviceRequest = new ServiceRequest();</span>
+<span class="nc" id="L222">		serviceRequest.setServiceName(ServiceName.BINGOSEVENTYFIVE_MGMT);</span>
+<span class="nc" id="L223">		serviceRequest.setServiceMethod(ServiceMethodName.BINGOSEVENTYFIVE_PURCHASE_TICKET);</span>
+<span class="nc" id="L224">		serviceRequest.setServiceData(bingoSeventyFive);</span>
+<span class="nc" id="L225">		String dgeResponseString = delegate.getResponseString(serviceRequest);</span>
+<span class="nc" id="L226">		return dgeResponseString;</span>
+	}
+
+	private void setBingoSeventyFiveDGEResponseData(BingoSeventyFive bingoSeventyFive,
+			BingoSeventyFiveResponse bingoResponseBean) {
+<span class="nc" id="L231">		bingoSeventyFive.setSaleStatus(bingoResponseBean.getSaleStatus());</span>
+<span class="nc" id="L232">		bingoSeventyFive.setTicket_no(bingoResponseBean.getTicketNo());</span>
+<span class="nc" id="L233">		bingoSeventyFive.setBarcodeCount(bingoResponseBean.getBarcodeCount());</span>
+<span class="nc" id="L234">		bingoSeventyFive.setNoOfDraws(bingoResponseBean.getNoOfDraws());</span>
+<span class="nc" id="L235">		bingoSeventyFive.setPurchaseTime(bingoResponseBean.getPurchaseTime());</span>
+<span class="nc" id="L236">		bingoSeventyFive.setReprintCount(bingoResponseBean.getReprintCount());</span>
+<span class="nc" id="L237">		bingoSeventyFive.setPlayerData(bingoResponseBean.getPlayerData());</span>
+<span class="nc" id="L238">		bingoSeventyFive.setTotalPurchaseAmt(bingoResponseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L239">		bingoSeventyFive.setDrawDateTime(bingoResponseBean.getDrawDateTime());</span>
+<span class="nc" id="L240">	}</span>
+
+	private void doBingoSeventyFiveSaleAfterSuccesWork(UserInfoBean userBean, BingoSeventyFive bingoSeventyFive,
+			Connection connection) throws SQLException {
+<span class="nc" id="L244">		ajaxHelper.getAvlblCreditAmt(userBean, connection);</span>
+<span class="nc" id="L245">		bingoSeventyFive.setAdvMsg(Util.getDGSaleAdvMessage(userBean.getUserOrgId(), bingoSeventyFive.getGameId()));</span>
+<span class="nc" id="L246">		bingoSeventyFive.setSaleStatus(&quot;SUCCESS&quot;);</span>
+<span class="nc" id="L247">	}</span>
+
+	private void ifErrorOccurInBingoSeventyFiveTicketUpdation(UserInfoBean userBean, BingoSeventyFive bingoSeventyFive)
+			throws LMSException {
+<span class="nc" id="L251">		bingoSeventyFive.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L252">		helper.cancelTicket(bingoSeventyFive.getTicket_no() + bingoSeventyFive.getReprintCount(),</span>
+				bingoSeventyFive.getPurchaseChannel(), bingoSeventyFive.getDrawIdTableMap(),
+				bingoSeventyFive.getGame_no(), bingoSeventyFive.getPartyId(), bingoSeventyFive.getPartyType(),
+				bingoSeventyFive.getRefMerchantId(), userBean, bingoSeventyFive.getRefTransId());
+<span class="nc" id="L256">	}</span>
+
+	private void failedBingoSeventyFiveTransactionIfFailedAtDGE(UserInfoBean userBean,
+			BingoSeventyFive bingoSeventyFive, long transId) {
+<span class="nc bnc" id="L260" title="All 2 branches missed.">		if (bingoSeventyFive.getSaleStatus() == null) {</span>
+<span class="nc" id="L261">			bingoSeventyFive.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+<span class="nc" id="L262">			orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, bingoSeventyFive.getGameId(), &quot;FAILED&quot;, transId);</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">		} else if (&quot;ERROR_TICKET_LIMIT&quot;.equalsIgnoreCase(bingoSeventyFive.getSaleStatus())) {</span>
+<span class="nc" id="L264">			orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, bingoSeventyFive.getGameId(), &quot;FAILED&quot;, transId);</span>
+		} else {
+<span class="nc" id="L266">			orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, bingoSeventyFive.getGameId(), &quot;FAILED&quot;, transId);</span>
+		}
+<span class="nc" id="L268">	}</span>
+
+	private void failedBingoSeventyFiveTrasactionIfAnyExceptionOccur(UserInfoBean userBean,
+			BingoSeventyFive bingoSeventyFive, long transId) {
+<span class="nc bnc" id="L272" title="All 2 branches missed.">		if (bingoSeventyFive.getSaleStatus() == null) {</span>
+<span class="nc" id="L273">			bingoSeventyFive.setSaleStatus(&quot;FAILED&quot;); // Error</span>
+<span class="nc" id="L274">			orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, bingoSeventyFive.getGameId(), &quot;FAILED&quot;, transId);</span>
+		} else {
+<span class="nc" id="L276">			orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, bingoSeventyFive.getGameId(), &quot;FAILED&quot;, transId);</span>
+		}
+<span class="nc" id="L278">	}</span>
+
+	/* BingoSeventyFive End - Mukesh Sharma */
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

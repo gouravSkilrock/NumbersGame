@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AccMgmtDaoImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.daoImpl</a> &gt; <span class="el_source">AccMgmtDaoImpl.java</span></div><h1>AccMgmtDaoImpl.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.daoImpl;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.coreEngine.instantWin.common.IWErrors;
+import com.skilrock.lms.coreEngine.instantWin.common.IWException;
+import com.skilrock.lms.coreEngine.instantWin.common.IWUtil;
+import com.skilrock.lms.coreEngine.instantWin.playMgmt.daoImpl.InstantWinGamePlayDaoImpl;
+import com.skilrock.lms.coreEngine.sportsBetting.playMgmt.daoImpl.SportsBettingGamePlayDaoImpl;
+import com.skilrock.lms.coreEngine.sportsLottery.common.SLEErrors;
+import com.skilrock.lms.coreEngine.sportsLottery.common.SLEException;
+import com.skilrock.lms.coreEngine.sportsLottery.playMgmt.daoImpl.SportsLotteryGamePlayDaoImpl;
+import com.skilrock.lms.dao.AccMgmtDao;
+import com.skilrock.lms.rest.services.bean.TPResponseBean;
+import com.skilrock.lms.rest.services.bean.TPTxRequestBean;
+import com.skilrock.lms.rest.services.bean.TPTxResponseBean;
+import com.skilrock.lms.rest.services.common.ReqResParser;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public final class AccMgmtDaoImpl implements AccMgmtDao {
+<span class="nc" id="L33">	private static Logger logger = LoggerFactory.getLogger(AccMgmtDaoImpl.class);</span>
+<span class="nc" id="L34">	private volatile static AccMgmtDaoImpl accMgmtDaoImpl = null;</span>
+
+<span class="nc" id="L36">	private AccMgmtDaoImpl(){}</span>
+	public static AccMgmtDaoImpl getInstance() {
+<span class="nc bnc" id="L38" title="All 2 branches missed.">		if (accMgmtDaoImpl == null) {</span>
+<span class="nc" id="L39">			synchronized (AccMgmtDaoImpl.class) {</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">				if (accMgmtDaoImpl == null) {</span>
+<span class="nc" id="L41">					logger.info(&quot;getInstance(): First time getInstance invoked!&quot;);</span>
+<span class="nc" id="L42">					accMgmtDaoImpl = new AccMgmtDaoImpl();</span>
+				}
+<span class="nc" id="L44">			}</span>
+		}
+<span class="nc" id="L46">		return accMgmtDaoImpl;</span>
+	}
+	
+	// Service wise Sale Transactions
+	@Override
+	public TPResponseBean manageAccountsForSale(UserInfoBean userInfoBean , TPTxRequestBean tpTransactionBean) throws LMSException{
+		
+<span class="nc" id="L53">		long lmsTxId=0;</span>
+<span class="nc" id="L54">		int errorCode = 0;</span>
+<span class="nc" id="L55">		String errorMessage = null;</span>
+<span class="nc" id="L56">		TPTxResponseBean tpTxResponseBean = null;</span>
+<span class="nc" id="L57">		TPResponseBean tpResponseBean = null;</span>
+<span class="nc" id="L58">		Connection con = null;</span>
+		try {
+<span class="nc" id="L60">			tpTxResponseBean = new TPTxResponseBean();</span>
+<span class="nc" id="L61">			tpResponseBean = new TPResponseBean();</span>
+<span class="nc" id="L62">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L63">			con.setAutoCommit(false);</span>
+			
+
+<span class="nc bnc" id="L66" title="All 2 branches missed.">			if(tpTransactionBean.getServiceCode().equals(&quot;SLE&quot;)){</span>
+<span class="nc" id="L67">				boolean isFraud = ResponsibleGaming.respGaming(userInfoBean,&quot;SLE_SALE&quot;, tpTransactionBean.getTxAmount() + &quot;&quot;, con);</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">				if (!isFraud) {</span>
+					try{
+<span class="nc" id="L70">						lmsTxId = SportsLotteryGamePlayDaoImpl.sportsLotteryPurchaseTicketDaoImpl(tpTransactionBean,userInfoBean, con);</span>
+					// Update Heart Beat After Sale Completion
+<span class="nc" id="L72">					Util.setHeartBeatAndSaleTime(userInfoBean.getUserOrgId(),&quot;SLE_SALE&quot;,con);</span>
+<span class="nc" id="L73">					con.commit();</span>
+					/// 
+					
+<span class="nc bnc" id="L76" title="All 4 branches missed.">					if(tpTransactionBean.getTokenId()!=null &amp;&amp;!tpTransactionBean.getTokenId().trim().isEmpty()){</span>
+<span class="nc" id="L77">						Util.setEbetSaleRequestStatusDone(tpTransactionBean.getTokenId(), userInfoBean.getUserOrgId(), con) ;</span>
+<span class="nc" id="L78">						con.commit();</span>
+					
+					}
+					
+<span class="nc" id="L82">				}catch (SLEException e) {</span>
+<span class="nc" id="L83">					errorCode = e.getErrorCode();</span>
+<span class="nc" id="L84">					errorMessage = e.getErrorMessage();</span>
+<span class="nc" id="L85">				}catch (Exception e) {</span>
+<span class="nc" id="L86">					errorCode = SLEErrors.GENERAL_EXCEPTION_ERROR_CODE;</span>
+<span class="nc" id="L87">					errorMessage = SLEErrors.GENERAL_EXCEPTION_ERROR_MESSAGE;</span>
+<span class="nc" id="L88">				}</span>
+			}else{
+<span class="nc" id="L90">				errorCode = SLEErrors.PURCHASE_FRAUD_ERROR_CODE;</span>
+<span class="nc" id="L91">				errorMessage = SLEErrors.PURCHASE_FRAUD_ERROR_MESSAGE;</span>
+			}
+<span class="nc bnc" id="L93" title="All 2 branches missed.">		}else if (&quot;IW&quot;.equals(tpTransactionBean.getServiceCode())) {</span>
+//			boolean isFraud = ResponsibleGaming.respGaming(userInfoBean, &quot;IW_SALE&quot;, tpTransactionBean.getTxAmount() + &quot;&quot;, con);
+<span class="nc" id="L95">			boolean isFraud = false;</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">			if (!isFraud) {</span>
+				try {
+<span class="nc" id="L98">					tpTransactionBean.setGameId(IWUtil.getGameId(&quot;INSTANT_WIN&quot;));</span>
+<span class="nc" id="L99">					lmsTxId = InstantWinGamePlayDaoImpl.instantWinPurchaseTicketDaoImpl(tpTransactionBean, userInfoBean, con);</span>
+
+					// Update Heart Beat After Sale Completion
+<span class="nc" id="L102">					Util.setHeartBeatAndSaleTime(userInfoBean.getUserOrgId(), &quot;IW_SALE&quot;, con);</span>
+<span class="nc" id="L103">					con.commit();</span>
+<span class="nc" id="L104">				} catch (IWException e) {</span>
+<span class="nc" id="L105">					errorCode = e.getErrorCode();</span>
+<span class="nc" id="L106">					errorMessage = e.getErrorMessage();</span>
+<span class="nc" id="L107">				} catch (Exception e) {</span>
+<span class="nc" id="L108">					errorCode = IWErrors.GENERAL_EXCEPTION_ERROR_CODE;</span>
+<span class="nc" id="L109">					errorMessage = IWErrors.GENERAL_EXCEPTION_ERROR_MESSAGE;</span>
+<span class="nc" id="L110">				}</span>
+			} else {
+<span class="nc" id="L112">				errorCode = IWErrors.PURCHASE_FRAUD_ERROR_CODE;</span>
+<span class="nc" id="L113">				errorMessage = IWErrors.PURCHASE_FRAUD_ERROR_MESSAGE;</span>
+			}
+<span class="nc bnc" id="L115" title="All 2 branches missed.">		} else if(tpTransactionBean.getServiceCode().equals(&quot;DGE&quot;)){</span>
+			// PERFORM SALES FOR DGE
+<span class="nc bnc" id="L117" title="All 2 branches missed.">		}else if(tpTransactionBean.getServiceCode().equals(&quot;SBS&quot;)){</span>
+<span class="nc" id="L118">			boolean isFraud = false;</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">			if (!isFraud) {</span>
+				try{
+<span class="nc" id="L121">					lmsTxId = SportsBettingGamePlayDaoImpl.sportsBettingPurchaseTicketDaoImpl(tpTransactionBean,userInfoBean, con);</span>
+<span class="nc" id="L122">				Util.setHeartBeatAndSaleTime(userInfoBean.getUserOrgId(),&quot;SBS_SALE&quot;,con);</span>
+<span class="nc" id="L123">				con.commit();</span>
+<span class="nc" id="L124">			}catch (SLEException e) {</span>
+<span class="nc" id="L125">				errorCode = e.getErrorCode();</span>
+<span class="nc" id="L126">				errorMessage = e.getErrorMessage();</span>
+<span class="nc" id="L127">			}catch (Exception e) {</span>
+<span class="nc" id="L128">				errorCode = SLEErrors.GENERAL_EXCEPTION_ERROR_CODE;</span>
+<span class="nc" id="L129">				errorMessage = SLEErrors.GENERAL_EXCEPTION_ERROR_MESSAGE;</span>
+<span class="nc" id="L130">			}</span>
+		}else{
+<span class="nc" id="L132">			errorCode = SLEErrors.PURCHASE_FRAUD_ERROR_CODE;</span>
+<span class="nc" id="L133">			errorMessage = SLEErrors.PURCHASE_FRAUD_ERROR_MESSAGE;</span>
+		}
+<span class="nc" id="L135">	}else{</span>
+<span class="nc" id="L136">			errorCode = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_CODE;</span>
+<span class="nc" id="L137">			errorMessage = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_MESSAGE;</span>
+		}
+<span class="nc bnc" id="L139" title="All 2 branches missed.">				tpTxResponseBean.setMerTxId((lmsTxId&gt;0)?lmsTxId:0);</span>
+<span class="nc" id="L140">				tpTxResponseBean.setResponseMessage(errorMessage);</span>
+<span class="nc" id="L141">				tpResponseBean.setResponseCode(errorCode);</span>
+<span class="nc" id="L142">				tpResponseBean.setResponseMessage(errorMessage);</span>
+<span class="nc" id="L143">				ReqResParser reqResParser = ReqResParser.getInstance();</span>
+<span class="nc" id="L144">				reqResParser.prepareResponseForSale(userInfoBean , tpTransactionBean ,  tpTxResponseBean, tpResponseBean, con);</span>
+			
+<span class="nc" id="L146">		} catch (SQLException se) {</span>
+<span class="nc" id="L147">			se.printStackTrace();</span>
+<span class="nc" id="L148">			throw new LMSException();// TEMP</span>
+<span class="nc" id="L149">		}catch (Exception e) {</span>
+<span class="nc" id="L150">			e.printStackTrace();</span>
+<span class="nc" id="L151">			throw new LMSException();// TEMP</span>
+		}finally{
+<span class="nc" id="L153">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L154">		}</span>
+<span class="nc" id="L155">	return tpResponseBean;</span>
+	}
+
+	// Service wise Sale Refund Transactions
+	@Override
+	public TPResponseBean manageAccountsForCancel(UserInfoBean userInfoBean , TPTxRequestBean tpTransactionBean) throws LMSException {
+
+<span class="nc" id="L162">		long lmsTxId = 0;</span>
+<span class="nc" id="L163">		int errorCode = 0;</span>
+<span class="nc" id="L164">		String errorMessage = &quot;SUCCESS&quot;;</span>
+		
+<span class="nc" id="L166">		Connection con = null;</span>
+<span class="nc" id="L167">		TPTxResponseBean tpTxResponseBean = null;</span>
+<span class="nc" id="L168">		TPResponseBean tpResponseBean = null;</span>
+		try {
+<span class="nc" id="L170">			tpTxResponseBean = new TPTxResponseBean();</span>
+<span class="nc" id="L171">			tpResponseBean = new TPResponseBean();</span>
+
+<span class="nc" id="L173">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L174">			con.setAutoCommit(false);</span>
+			
+			
+<span class="nc bnc" id="L177" title="All 2 branches missed.">			if(tpTransactionBean.getServiceCode().equals(&quot;SLE&quot;)){</span>
+				// CONSIDER AUTO CANCEL FOR RG NO CANCEL LIMIT SHOULD BE INCREASED AND AMOUNT MUST BE DECREASED
+				
+<span class="nc bnc" id="L180" title="All 2 branches missed.">				boolean isFraud = (tpTransactionBean.getTxType().equals(&quot;AUTO_WAGER_REFUND&quot;))?false:ResponsibleGaming.respGaming(userInfoBean, &quot;SLE_CANCEL&quot;, &quot;1&quot;, con);</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">				if(!isFraud){</span>
+					//VALIDATE TICKET FOR USER 
+<span class="nc bnc" id="L183" title="All 2 branches missed.">					if (userInfoBean.getUserId() != getRetailerUserIdFromEngineSaleTxnId(tpTransactionBean,con)) {</span>
+<span class="nc" id="L184">						errorMessage = &quot;Unautorized Retailer for This Ticket&quot;;</span>
+<span class="nc" id="L185">						errorCode = LMSErrors.INVALID_TICKET_ERROR_CODE ;</span>
+					}else{
+						//CANCEL TICKET
+						try {
+<span class="nc" id="L189">							lmsTxId = SportsLotteryGamePlayDaoImpl.refundPurchaseTicket(tpTransactionBean,userInfoBean, con);</span>
+
+							//subtract cancel amount from sale in responsible Gaming
+<span class="nc" id="L192">							ResponsibleGaming.respGaming(userInfoBean, &quot;SLE_CANCEL_AMOUNT&quot;,String.valueOf(tpTransactionBean.getTxAmount()), con);</span>
+
+<span class="nc" id="L194">							con.commit();</span>
+<span class="nc" id="L195">						} catch (SLEException e) {</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">							if(e.getErrorCode() == SLEErrors.CANCEL_INVALID_ERROR_CODE){</span>
+<span class="nc" id="L197">								con.commit();</span>
+							}
+<span class="nc" id="L199">							errorCode = e.getErrorCode();</span>
+<span class="nc" id="L200">							errorMessage = e.getErrorMessage();</span>
+<span class="nc" id="L201">					}</span>
+				}
+			}else{
+<span class="nc bnc" id="L204" title="All 2 branches missed.">				if(userInfoBean.getUserSession() == null){</span>
+<span class="nc" id="L205">					errorCode = SLEErrors.SESSION_TIME_OUT_ERROR_CODE;</span>
+<span class="nc" id="L206">					errorMessage = SLEErrors.SESSION_TIME_OUT_ERROR_MESSAGE;</span>
+				}else{
+<span class="nc" id="L208">					errorCode=LMSErrors.RG_LIMIT_EXCEPTION_ERROR_CODE;</span>
+				}
+			}
+<span class="nc bnc" id="L211" title="All 2 branches missed.">		}else if (&quot;IW&quot;.equals(tpTransactionBean.getServiceCode())) {</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">			boolean isFraud = (&quot;AUTO_WAGER_REFUND&quot;.equals(tpTransactionBean.getTxType())) ? false : ResponsibleGaming.respGaming(userInfoBean, &quot;IW_CANCEL&quot;, &quot;1&quot;, con);</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">			if (!isFraud) {</span>
+				// VALIDATE TICKET FOR USER
+//				if (userInfoBean.getUserId() != Util.getUserIdFromTicket(tpTransactionBean.getTicketNumber())) {
+//					errorMessage = &quot;Unautorized Retailer for This Ticket&quot;;
+//					errorCode = LMSErrors.INVALID_TICKET_ERROR_CODE;
+//				} else {
+					// CANCEL TICKET
+					try {
+						// Hard Coded as single game is used for every game in IW Engine
+<span class="nc" id="L222">						tpTransactionBean.setGameId(IWUtil.getGameId(&quot;INSTANT_WIN&quot;));</span>
+<span class="nc" id="L223">						lmsTxId = InstantWinGamePlayDaoImpl.refundPurchaseTicket(tpTransactionBean, userInfoBean, con);</span>
+
+						// subtract cancel amount from sale in responsible Gaming
+//						ResponsibleGaming.respGaming(userInfoBean, &quot;IW_CANCEL_AMOUNT&quot;, String.valueOf(tpTransactionBean.getTxAmount()), con);
+<span class="nc" id="L227">						con.commit();</span>
+<span class="nc" id="L228">					} catch (IWException e) {</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">						if (e.getErrorCode() == IWErrors.CANCEL_INVALID_ERROR_CODE) {</span>
+<span class="nc" id="L230">							con.commit();</span>
+						}
+<span class="nc" id="L232">						errorCode = e.getErrorCode();</span>
+<span class="nc" id="L233">						errorMessage = e.getErrorMessage();</span>
+<span class="nc" id="L234">					}</span>
+//				}
+			} else {
+<span class="nc bnc" id="L237" title="All 2 branches missed.">				if (userInfoBean.getUserSession() == null) {</span>
+<span class="nc" id="L238">					errorCode = IWErrors.SESSION_TIME_OUT_ERROR_CODE;</span>
+<span class="nc" id="L239">					errorMessage = IWErrors.SESSION_TIME_OUT_ERROR_MESSAGE;</span>
+				} else {
+<span class="nc" id="L241">					errorCode = LMSErrors.RG_LIMIT_EXCEPTION_ERROR_CODE;</span>
+				}
+			}
+<span class="nc bnc" id="L244" title="All 2 branches missed.">		} else if(tpTransactionBean.equals(&quot;DGE&quot;)){</span>
+			// PERFORM SALES REFUND FOR DGE
+		}else{
+<span class="nc" id="L247">			errorCode = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_CODE;</span>
+<span class="nc" id="L248">			errorMessage = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_MESSAGE;</span>
+		}
+			
+<span class="nc bnc" id="L251" title="All 2 branches missed.">			tpTxResponseBean.setMerTxId((lmsTxId&gt;0)?lmsTxId:0);</span>
+<span class="nc" id="L252">			tpTxResponseBean.setResponseMessage(errorMessage);</span>
+<span class="nc" id="L253">			tpResponseBean.setResponseCode(errorCode);</span>
+<span class="nc" id="L254">			ReqResParser reqResParser = ReqResParser.getInstance();</span>
+<span class="nc" id="L255">			reqResParser.prepareResponseForSale(userInfoBean , tpTransactionBean ,  tpTxResponseBean, tpResponseBean, con);</span>
+<span class="nc" id="L256">		} catch (Exception e) {</span>
+<span class="nc" id="L257">			e.printStackTrace();</span>
+<span class="nc" id="L258">			throw new LMSException();// TEMP</span>
+		}finally{
+<span class="nc" id="L260">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L261">		}</span>
+<span class="nc" id="L262">		return tpResponseBean;</span>
+	}
+	
+	
+	public int getRetailerUserIdFromEngineSaleTxnId(TPTxRequestBean tpTxRequestBean,Connection con){
+		String retQry;
+<span class="nc" id="L268">		Statement retstmt=null;</span>
+<span class="nc" id="L269">		ResultSet rs=null;</span>
+<span class="nc" id="L270">		int retUserId=0;</span>
+		try{
+<span class="nc" id="L272">			retstmt=con.createStatement();</span>
+<span class="nc" id="L273">			retQry=&quot;select user_id from st_sle_ret_sale srs inner join st_lms_organization_master lom on srs.retailer_org_id=lom.organization_id  inner join st_lms_user_master lum on lum.organization_id=lom.organization_id   where engine_tx_id=&quot;+tpTxRequestBean.getEngineSaleTxId()+&quot; and game_id=&quot;+tpTxRequestBean.getGameId()+&quot; and game_type_id=&quot;+tpTxRequestBean.getGameTypeId()+&quot;&quot;;</span>
+<span class="nc" id="L274">			logger.info(&quot;retailer Info for Ticket Cancellation&quot;+retQry);</span>
+<span class="nc" id="L275">			rs=retstmt.executeQuery(retQry);</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">			if(rs.next()){</span>
+<span class="nc" id="L277">				retUserId=rs.getInt(&quot;user_id&quot;);</span>
+			}
+<span class="nc" id="L279">		}catch (Exception e) {</span>
+<span class="nc" id="L280">			e.printStackTrace();</span>
+		}
+		finally{
+<span class="nc" id="L283">			DBConnect.closeConnection(retstmt, rs);</span>
+<span class="nc" id="L284">		}</span>
+<span class="nc" id="L285">		return retUserId;</span>
+	}
+	
+	//service wise reprint
+	@Override
+	public TPResponseBean manageRGForReprint(UserInfoBean userInfoBean , TPTxRequestBean tpTransactionBean) throws LMSException {
+
+<span class="nc" id="L292">		int errorCode = 0;</span>
+<span class="nc" id="L293">		Connection con = null;</span>
+<span class="nc" id="L294">		TPResponseBean tpResponseBean = null;</span>
+		try {
+<span class="nc" id="L296">			tpResponseBean = new TPResponseBean();</span>
+<span class="nc" id="L297">			con = DBConnect.getConnection();</span>
+<span class="nc bnc" id="L298" title="All 2 branches missed.">			if(tpTransactionBean.getServiceCode().equals(&quot;SLE&quot;)){</span>
+<span class="nc" id="L299">					errorCode = SportsLotteryGamePlayDaoImpl.updateRgForTicketReprint(userInfoBean , tpTransactionBean ,con);</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">			} else if(tpTransactionBean.equals(&quot;DGE&quot;)){</span>
+				// PERFORM SALES REPRINT FOR DGE
+			} else{
+<span class="nc" id="L303">				errorCode = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_CODE;</span>
+			}
+<span class="nc" id="L305">			tpResponseBean.setResponseCode(errorCode);</span>
+			//get retailer balance and set in bean to get it at sle end
+<span class="nc" id="L307">			String balString = new AjaxRequestHelper().getAvlblCreditAmt(userInfoBean, con);</span>
+<span class="nc" id="L308">			tpResponseBean.setResponseData(Double.parseDouble(balString.split(&quot;\\=&quot;)[3]));</span>
+<span class="nc" id="L309">		} catch (Exception e) {</span>
+<span class="nc" id="L310">			e.printStackTrace();</span>
+<span class="nc" id="L311">			throw new LMSException();// TEMP</span>
+		}finally{
+<span class="nc" id="L313">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L314">		}</span>
+<span class="nc" id="L315">		return tpResponseBean;</span>
+	}
+
+	public TPResponseBean manageRGForInvalidPWT(UserInfoBean userBean , TPTxRequestBean tpTransactionBean) throws LMSException{
+<span class="nc" id="L319">		int errorCode = 0;</span>
+<span class="nc" id="L320">		Connection con = null;</span>
+<span class="nc" id="L321">		TPResponseBean tpResponseBean = null;</span>
+		try {
+<span class="nc" id="L323">			tpResponseBean = new TPResponseBean();</span>
+<span class="nc" id="L324">			con = DBConnect.getConnection();</span>
+<span class="nc bnc" id="L325" title="All 2 branches missed.">			if(tpTransactionBean.getServiceCode().equals(&quot;SLE&quot;)){</span>
+<span class="nc" id="L326">					errorCode = SportsLotteryGamePlayDaoImpl.updateRGForInvalidPWT(userBean , tpTransactionBean ,con);</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">			} else if(tpTransactionBean.equals(&quot;DGE&quot;)){</span>
+				// PERFORM SALES REPRINT FOR DGE
+			} else{
+<span class="nc" id="L330">				errorCode = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_CODE;</span>
+			}
+<span class="nc" id="L332">			tpResponseBean.setResponseCode(errorCode);</span>
+<span class="nc" id="L333">		} catch (Exception e) {</span>
+<span class="nc" id="L334">			e.printStackTrace();</span>
+<span class="nc" id="L335">			throw new LMSException();// TEMP</span>
+		}finally{
+<span class="nc" id="L337">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L338">		}</span>
+<span class="nc" id="L339">		return tpResponseBean;</span>
+	}
+
+	public TPResponseBean manageAccountsForBoCancel(UserInfoBean userInfoBean , TPTxRequestBean tpTransactionBean) throws LMSException {
+<span class="nc" id="L343">		long lmsTxId = 0;</span>
+<span class="nc" id="L344">		int errorCode = 0;</span>
+<span class="nc" id="L345">		String errorMessage = &quot;SUCCESS&quot;;</span>
+		
+<span class="nc" id="L347">		Connection con = null;</span>
+<span class="nc" id="L348">		TPTxResponseBean tpTxResponseBean = null;</span>
+<span class="nc" id="L349">		TPResponseBean tpResponseBean = null;</span>
+		try {
+<span class="nc" id="L351">			tpTxResponseBean = new TPTxResponseBean();</span>
+<span class="nc" id="L352">			tpResponseBean = new TPResponseBean();</span>
+
+<span class="nc" id="L354">			con = DBConnect.getConnection();</span>
+<span class="nc" id="L355">			con.setAutoCommit(false);</span>
+			
+<span class="nc bnc" id="L357" title="All 2 branches missed.">			if(tpTransactionBean.getServiceCode().equals(&quot;SLE&quot;)){</span>
+				// CONSIDER AUTO CANCEL FOR RG NO CANCEL LIMIT SHOULD BE INCREASED AND AMOUNT MUST BE DECREASED
+				
+<span class="nc bnc" id="L360" title="All 2 branches missed.">				boolean isFraud = (tpTransactionBean.getTxType().equals(&quot;AUTO_WAGER_REFUND&quot;))?false:ResponsibleGaming.respGaming(userInfoBean, &quot;SLE_CANCEL&quot;, &quot;1&quot;, con);</span>
+<span class="nc bnc" id="L361" title="All 2 branches missed.">				if(!isFraud){</span>
+						//CANCEL TICKET
+						try {
+<span class="nc" id="L364">							lmsTxId = SportsLotteryGamePlayDaoImpl.refundPurchaseTicket(tpTransactionBean,userInfoBean, con);</span>
+
+							//subtract cancel amount from sale in responsible Gaming
+<span class="nc" id="L367">							ResponsibleGaming.respGaming(userInfoBean, &quot;SLE_CANCEL_AMOUNT&quot;,String.valueOf(tpTransactionBean.getTxAmount()), con);</span>
+
+<span class="nc" id="L369">							con.commit();</span>
+<span class="nc" id="L370">						} catch (SLEException e) {</span>
+<span class="nc bnc" id="L371" title="All 2 branches missed.">							if(e.getErrorCode() == SLEErrors.CANCEL_INVALID_ERROR_CODE){</span>
+<span class="nc" id="L372">								con.commit();</span>
+							}
+<span class="nc" id="L374">							errorCode = e.getErrorCode();</span>
+<span class="nc" id="L375">							errorMessage = e.getErrorMessage();</span>
+					
+<span class="nc" id="L377">				}</span>
+			}else{
+<span class="nc" id="L379">					errorCode = LMSErrors.RG_LIMIT_EXCEPTION_ERROR_CODE;</span>
+			}
+<span class="nc bnc" id="L381" title="All 2 branches missed.">		}else if(tpTransactionBean.equals(&quot;DGE&quot;)){</span>
+			// PERFORM SALES REFUND FOR DGE
+		}else{
+<span class="nc" id="L384">			errorCode = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_CODE;</span>
+<span class="nc" id="L385">			errorMessage = LMSErrors.INVALID_SERVICE_ON_TICKET_ERROR_MESSAGE;</span>
+		}
+			
+<span class="nc bnc" id="L388" title="All 2 branches missed.">			tpTxResponseBean.setMerTxId((lmsTxId&gt;0)?lmsTxId:0);</span>
+<span class="nc" id="L389">			tpTxResponseBean.setResponseMessage(errorMessage);</span>
+<span class="nc" id="L390">			tpResponseBean.setResponseCode(errorCode);</span>
+<span class="nc" id="L391">			ReqResParser reqResParser = ReqResParser.getInstance();</span>
+<span class="nc" id="L392">			reqResParser.prepareResponseForSale(userInfoBean , tpTransactionBean ,  tpTxResponseBean, tpResponseBean, con);</span>
+<span class="nc" id="L393">		} catch (Exception e) {</span>
+<span class="nc" id="L394">			e.printStackTrace();</span>
+<span class="nc" id="L395">			throw new LMSException();// TEMP</span>
+		}finally{
+<span class="nc" id="L397">			DBConnect.closeCon(con);</span>
+<span class="nc" id="L398">		}</span>
+<span class="nc" id="L399">		return tpResponseBean;</span>
+	}
+	
+	public double fetchOrgBalance(long userId, Connection con) throws LMSException {
+<span class="nc" id="L403">		double balance = 0.0;</span>
+<span class="nc" id="L404">		Statement stmt = null;</span>
+<span class="nc" id="L405">		ResultSet rs = null;</span>
+
+		try {
+<span class="nc" id="L408">			stmt = con.createStatement();</span>
+<span class="nc" id="L409">			rs = stmt.executeQuery(&quot;SELECT (available_credit-claimable_bal) AS availbale_sale_bal FROM st_lms_organization_master orgMaster INNER JOIN st_lms_user_master userMaster ON orgMaster.organization_id = userMaster.organization_id WHERE user_id = &quot; + userId);</span>
+<span class="nc bnc" id="L410" title="All 2 branches missed.">			if (rs.next())</span>
+<span class="nc" id="L411">				balance = rs.getDouble(&quot;availbale_sale_bal&quot;);</span>
+<span class="nc" id="L412">		} catch (SQLException e) {</span>
+<span class="nc" id="L413">			e.printStackTrace();</span>
+<span class="nc" id="L414">			throw new LMSException(LMSErrors.SQL_EXCEPTION_ERROR_CODE, LMSErrors.SQL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L415">		} catch (Exception e) {</span>
+<span class="nc" id="L416">			e.printStackTrace();</span>
+<span class="nc" id="L417">			throw new LMSException(LMSErrors.GENERAL_EXCEPTION_ERROR_CODE, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L418">		}</span>
+<span class="nc" id="L419">		return balance;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

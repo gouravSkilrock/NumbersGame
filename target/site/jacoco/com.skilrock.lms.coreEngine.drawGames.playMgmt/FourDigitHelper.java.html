@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FourDigitHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.drawGames.playMgmt</a> &gt; <span class="el_source">FourDigitHelper.java</span></div><h1>FourDigitHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.drawGames.playMgmt;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import com.skilrock.itg.IDBarcode.IDBarcode;
+import com.skilrock.lms.ajax.AjaxRequestHelper;
+import com.skilrock.lms.beans.ServiceRequest;
+import com.skilrock.lms.beans.ServiceResponse;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.utility.ResponsibleGaming;
+import com.skilrock.lms.common.utility.orgOnLineSaleCreditUpdation;
+import com.skilrock.lms.coreEngine.service.IServiceDelegate;
+import com.skilrock.lms.coreEngine.service.ServiceDelegate;
+import com.skilrock.lms.coreEngine.service.dge.ServiceMethodName;
+import com.skilrock.lms.coreEngine.service.dge.ServiceName;
+import com.skilrock.lms.dge.beans.FourDigitPurchaseBean;
+import com.skilrock.lms.dge.gameconstants.FourDigitConstants;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+<span class="nc" id="L30">public class FourDigitHelper {</span>
+	
+<span class="nc" id="L32">Log logger =  LogFactory.getLog(KenoFiveHelper.class);</span>
+
+<span class="nc" id="L34">	Set&lt;String&gt; nonRepeatNumbers = new HashSet&lt;String&gt;();;</span>
+	
+	public FourDigitPurchaseBean commonPurchseProcess(UserInfoBean userBean,FourDigitPurchaseBean fourDigitPurchaseBean) throws LMSException, SQLException {
+				
+<span class="nc" id="L38">			fourDigitPurchaseBean.setPromotkt(false);</span>
+<span class="nc" id="L39">			fourDigitPurchaseBean = fourDigitPurchaseTicket(userBean, fourDigitPurchaseBean);</span>
+<span class="nc" id="L40">			return fourDigitPurchaseBean;</span>
+	}
+	
+	private boolean isDrawAvailable(int gameNo) {
+<span class="nc" id="L44">		return Util.drawIdTableMap.get(gameNo).isEmpty();</span>
+	}	
+	
+	public FourDigitPurchaseBean fourDigitPurchaseTicket(UserInfoBean userBean,FourDigitPurchaseBean fourDigitPurchaseBean) throws LMSException {
+		
+<span class="nc" id="L49">				fourDigitPurchaseBean.setSaleStatus(&quot;FAILED&quot;);</span>
+<span class="nc" id="L50">				Connection con=null;</span>
+<span class="nc" id="L51">				long balDed=0;</span>
+<span class="nc" id="L52">				double oldTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L53">				double modifiedTotalPurchaseAmt = 0.0;</span>
+<span class="nc" id="L54">				String status = &quot;&quot;;</span>
+				
+<span class="nc" id="L56">				ServiceResponse sRes = new ServiceResponse();</span>
+<span class="nc" id="L57">				ServiceRequest sReq = new ServiceRequest();</span>
+<span class="nc" id="L58">				sReq.setServiceName(ServiceName.FOURDIGIT);</span>
+<span class="nc" id="L59">				sReq.setServiceMethod(ServiceMethodName.FOURDIGIT_PURCHASE_TICKET);</span>
+<span class="nc" id="L60">				sReq.setServiceData(fourDigitPurchaseBean);</span>
+<span class="nc" id="L61">				IServiceDelegate delegate = ServiceDelegate.getInstance();</span>
+
+				try {
+<span class="nc" id="L64">						logger.debug(&quot;Game ID = &quot;+fourDigitPurchaseBean.getGameId());</span>
+<span class="nc" id="L65">						logger.debug(isDrawAvailable(fourDigitPurchaseBean.getGameId()));</span>
+<span class="nc" id="L66">						logger.debug(DrawGameRPOSHelper.chkFreezeTimeSale(fourDigitPurchaseBean.getGameId()));</span>
+<span class="nc bnc" id="L67" title="All 4 branches missed.">						if (isDrawAvailable(fourDigitPurchaseBean.getGameId())|| DrawGameRPOSHelper.chkFreezeTimeSale(fourDigitPurchaseBean.getGameId())) {</span>
+<span class="nc" id="L68">									fourDigitPurchaseBean.setSaleStatus(&quot;NO_DRAWS&quot;);</span>
+<span class="nc" id="L69">									return fourDigitPurchaseBean;</span>
+						}
+						//needs to be optimized in case of multiple validations
+<span class="nc bnc" id="L72" title="All 2 branches missed.">						if(!fourDigitValidateData(fourDigitPurchaseBean)){</span>
+<span class="nc" id="L73">								logger.debug(&quot;Data Validation returned false&quot;);</span>
+<span class="nc" id="L74">								return fourDigitPurchaseBean;</span>
+						}
+		
+<span class="nc" id="L77">						double totPurAmt = 0.0;						</span>
+<span class="nc" id="L78">						int noOfPanel = fourDigitPurchaseBean.getNoOfPanel();</span>
+<span class="nc" id="L79">						int noOfLines[] = new int[noOfPanel];</span>
+<span class="nc" id="L80">						int bigForecastArr[] = fourDigitPurchaseBean.getBigForecost();</span>
+<span class="nc" id="L81">						int smallForecastArr[] = fourDigitPurchaseBean.getSmallForecost();</span>
+<span class="nc" id="L82">						double unitPriceArr[] = new double[noOfPanel];</span>
+<span class="nc" id="L83">						String playTypeArr[] = fourDigitPurchaseBean.getPlayType();</span>
+<span class="nc" id="L84">						String[] pickedNumberArr = fourDigitPurchaseBean.getPlayerData();</span>
+						
+<span class="nc bnc" id="L86" title="All 2 branches missed.">						for (int i = 0; i &lt; noOfPanel; i++) {</span>
+<span class="nc" id="L87">									String playType = playTypeArr[i];</span>
+<span class="nc" id="L88">										logger.debug(&quot;PLAY TYPE :&quot;+playType);</span>
+									
+<span class="nc bnc" id="L90" title="All 2 branches missed.">									if (playType.contains(&quot;Straight&quot;)) {</span>
+<span class="nc" id="L91">											noOfLines[i] = 1;</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">									}else if (playType.equalsIgnoreCase(&quot;Permute&quot;)) {</span>
+<span class="nc" id="L93">											permuteNumbersNonRepeat(&quot;&quot;,pickedNumberArr[i].replace(&quot;,&quot;,&quot;&quot;).trim());</span>
+<span class="nc" id="L94">											noOfLines[i] = nonRepeatNumbers.size();</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">									}else if (playType.equalsIgnoreCase(&quot;Roll&quot;)) {</span>
+<span class="nc" id="L96">											noOfLines[i] = FourDigitConstants.DIGIT_RANGE.size();</span>
+									}									
+<span class="nc" id="L98">										logger.debug(&quot;no of lines will be : &quot;+noOfLines[i]);</span>
+
+<span class="nc" id="L100">									unitPriceArr[i] = Util.getUnitPrice(fourDigitPurchaseBean.getGameId(),playTypeArr[i]);</span>
+<span class="nc" id="L101">										logger.debug(&quot;----unitPrice--&quot; + unitPriceArr[i]);</span>
+<span class="nc" id="L102">										logger.debug(&quot;----playTypeArr--&quot; + playTypeArr[i]);</span>
+<span class="nc" id="L103">									totPurAmt += noOfLines[i] * unitPriceArr[i]* fourDigitPurchaseBean.getNoOfDraws() * (bigForecastArr[i] + smallForecastArr[i]);</span>
+<span class="nc" id="L104">										logger.debug(&quot;---TotalAmount--&quot; + totPurAmt);</span>
+						}
+
+<span class="nc" id="L107">						fourDigitPurchaseBean.setUnitPrice(unitPriceArr);</span>
+<span class="nc" id="L108">						fourDigitPurchaseBean.setNoOfLines(noOfLines);</span>
+<span class="nc" id="L109">						logger.debug(&quot;Total Purchase Amount:&quot;	+ totPurAmt);</span>
+
+<span class="nc bnc" id="L111" title="All 2 branches missed.">						if (totPurAmt &lt;= 0) {</span>
+<span class="nc" id="L112">							fourDigitPurchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error Draw</span>
+<span class="nc" id="L113">							return fourDigitPurchaseBean;</span>
+						}
+<span class="nc" id="L115">						fourDigitPurchaseBean.setTotalPurchaseAmt(totPurAmt);</span>
+<span class="nc" id="L116">						con=DBConnect.getConnection();</span>
+<span class="nc" id="L117">						con.setAutoCommit(false);</span>
+			
+						// rg calling
+<span class="nc" id="L120">						boolean isFraud = ResponsibleGaming.respGaming(userBean, &quot;DG_SALE&quot;, totPurAmt + &quot;&quot;,con);</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">						if (!isFraud) {			</span>
+<span class="nc" id="L122">								balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDeduction(userBean, fourDigitPurchaseBean.getGameId(), fourDigitPurchaseBean.getTotalPurchaseAmt(),fourDigitPurchaseBean.getPlrMobileNumber(),con);</span>
+								//check valDed value for  &gt;0 else return error
+<span class="nc" id="L124">								oldTotalPurchaseAmt = fourDigitPurchaseBean.getTotalPurchaseAmt();</span>
+<span class="nc" id="L125">								logger.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper Just Before  getting Success :&quot;+ oldTotalPurchaseAmt);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">								if (balDed &gt; 0) {</span>
+<span class="nc" id="L127">									logger.debug(&quot;in FourDigit if----------------&quot;);</span>
+<span class="nc" id="L128">									fourDigitPurchaseBean.setRefTransId(balDed + &quot;&quot;);</span>
+<span class="nc" id="L129">									con.commit();</span>
+								}else {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">										if (balDed == -1) {</span>
+<span class="nc" id="L132">											status = &quot;AGT_INS_BAL&quot;;// Agent has insufficient Balance</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">										} else if (balDed == -2) {</span>
+<span class="nc" id="L134">											status = &quot;FAILED&quot;;// Error LMS</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">										} else if (balDed == 0) {</span>
+<span class="nc" id="L136">											status = &quot;RET_INS_BAL&quot;;// Retailer has insufficient Balance</span>
+										}
+<span class="nc" id="L138">										fourDigitPurchaseBean.setSaleStatus(status);</span>
+<span class="nc" id="L139">										return fourDigitPurchaseBean;</span>
+								}
+						} else {
+<span class="nc" id="L142">								logger.debug(&quot;Responsing Gaming not allowed to sale&quot;);</span>
+<span class="nc" id="L143">								fourDigitPurchaseBean.setSaleStatus(&quot;FRAUD&quot;);</span>
+<span class="nc" id="L144">								return fourDigitPurchaseBean;</span>
+						}
+<span class="nc" id="L146">			} catch (SQLException se) {</span>
+<span class="nc" id="L147">						se.printStackTrace();</span>
+<span class="nc" id="L148">						throw new LMSException();</span>
+<span class="nc" id="L149">				}catch (Exception e) {</span>
+<span class="nc" id="L150">						e.printStackTrace();</span>
+<span class="nc" id="L151">						throw new LMSException();</span>
+				}finally{
+<span class="nc" id="L153">						DBConnect.closeCon(con);</span>
+<span class="nc" id="L154">			}</span>
+				
+			try{
+<span class="nc" id="L157">						sRes = delegate.getResponse(sReq);</span>
+						
+<span class="nc bnc" id="L159" title="All 2 branches missed.">						if (sRes.getIsSuccess()) {</span>
+<span class="nc" id="L160">							fourDigitPurchaseBean = (FourDigitPurchaseBean) sRes.getResponseData();</span>
+<span class="nc" id="L161">							modifiedTotalPurchaseAmt = fourDigitPurchaseBean.getTotalPurchaseAmt();</span>
+<span class="nc" id="L162">							logger.debug(&quot;Total Purchase Amt inside DrawGameRPOSHelper After getting Success :&quot;+ modifiedTotalPurchaseAmt);</span>
+<span class="nc" id="L163">							con=DBConnect.getConnection();</span>
+<span class="nc" id="L164">							con.setAutoCommit(false);</span>
+						
+<span class="nc bnc" id="L166" title="All 2 branches missed.">							if (oldTotalPurchaseAmt != modifiedTotalPurchaseAmt) {							</span>
+<span class="nc" id="L167">								balDed = orgOnLineSaleCreditUpdation.drawTcketSaleBalDedUpdate(userBean,fourDigitPurchaseBean.getGameId(),modifiedTotalPurchaseAmt,oldTotalPurchaseAmt, balDed,con);</span>
+							}					
+						
+<span class="nc" id="L170">							int tickUpd = orgOnLineSaleCreditUpdation.drawTicketSaleTicketUpdate(balDed,fourDigitPurchaseBean.getTicket_no(),fourDigitPurchaseBean.getGameId(), userBean,fourDigitPurchaseBean.getPurchaseChannel(),con);</span>
+
+<span class="nc bnc" id="L172" title="All 2 branches missed.">							if (tickUpd == 1) {</span>
+<span class="nc" id="L173">								AjaxRequestHelper ajxHelper = new AjaxRequestHelper();</span>
+<span class="nc" id="L174">								ajxHelper.getAvlblCreditAmt(userBean,con);</span>
+<span class="nc" id="L175">								fourDigitPurchaseBean.setAdvMsg(Util.getDGSaleAdvMessage(userBean.getUserOrgId(), fourDigitPurchaseBean.getGameId()));</span>
+<span class="nc" id="L176">								status = &quot;SUCCESS&quot;;</span>
+<span class="nc" id="L177">								fourDigitPurchaseBean.setSaleStatus(status);							</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">								if (!&quot;applet&quot;.equals(fourDigitPurchaseBean.getBarcodeType())) {</span>
+<span class="nc" id="L179">									IDBarcode.getBarcode(fourDigitPurchaseBean.getTicket_no()+ fourDigitPurchaseBean.getReprintCount());</span>
+								}
+<span class="nc" id="L181">								con.commit();							</span>
+<span class="nc" id="L182">								return fourDigitPurchaseBean;</span>
+							} else {
+						
+<span class="nc" id="L185">								status = &quot;FAILED&quot;;</span>
+<span class="nc" id="L186">								fourDigitPurchaseBean.setSaleStatus(status);</span>
+								// Code for cancelling the Ticket to be send to Draw
+								// Game Engine
+<span class="nc" id="L189">								new DrawGameRPOSHelper().cancelTicket(fourDigitPurchaseBean.getTicket_no()</span>
+									+ fourDigitPurchaseBean.getReprintCount(),
+									fourDigitPurchaseBean.getPurchaseChannel(),
+									fourDigitPurchaseBean.getDrawIdTableMap(),
+									fourDigitPurchaseBean.getGame_no(),
+									fourDigitPurchaseBean.getPartyId(),
+									fourDigitPurchaseBean.getPartyType(),
+									fourDigitPurchaseBean.getRefMerchantId(),
+									userBean, fourDigitPurchaseBean.getRefTransId());
+
+<span class="nc" id="L199">								return fourDigitPurchaseBean;</span>
+							}
+						} else {
+<span class="nc" id="L202">							fourDigitPurchaseBean = (FourDigitPurchaseBean) sRes.getResponseData();</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">							if(fourDigitPurchaseBean.getSaleStatus() == null){</span>
+<span class="nc" id="L204">									fourDigitPurchaseBean.setSaleStatus(&quot;FAILED&quot;);// Error</span>
+<span class="nc" id="L205">									orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, fourDigitPurchaseBean.getGame_no(),&quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L206">									return fourDigitPurchaseBean;</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">							}else if(&quot;ERROR_TICKET_LIMIT&quot;.equalsIgnoreCase(fourDigitPurchaseBean.getSaleStatus())){</span>
+<span class="nc" id="L208">									orgOnLineSaleCreditUpdation.drawTicketSaleRefund(</span>
+									userBean, fourDigitPurchaseBean.getGame_no(),&quot;FAILED&quot;, balDed);
+<span class="nc" id="L210">									return fourDigitPurchaseBean;</span>
+							}else{
+<span class="nc" id="L212">									orgOnLineSaleCreditUpdation.drawTicketSaleRefund(userBean, fourDigitPurchaseBean.getGame_no(),&quot;FAILED&quot;, balDed);</span>
+<span class="nc" id="L213">									return fourDigitPurchaseBean;</span>
+							}
+						}
+					
+<span class="nc" id="L217">				}catch (SQLException se) {</span>
+<span class="nc" id="L218">					se.printStackTrace();</span>
+				}finally{
+<span class="nc" id="L220">					DBConnect.closeCon(con);</span>
+<span class="nc" id="L221">				}</span>
+<span class="nc" id="L222">		return fourDigitPurchaseBean;</span>
+	}
+	
+	public void permuteNumbersNonRepeat(String beginningString, String endingString) {
+		
+<span class="nc bnc" id="L227" title="All 2 branches missed.">	    if (endingString.length() &lt;= 1){ </span>
+<span class="nc" id="L228">	    	nonRepeatNumbers.add(beginningString + endingString);</span>
+	    }
+	    else
+<span class="nc bnc" id="L231" title="All 2 branches missed.">	      for (int i = 0; i &lt; endingString.length(); i++) {</span>
+	        try {
+<span class="nc" id="L233">	          String newString = endingString.substring(0, i) + endingString.substring(i + 1);</span>
+
+<span class="nc" id="L235">	          permuteNumbersNonRepeat(beginningString + endingString.charAt(i), newString);</span>
+<span class="nc" id="L236">	        } catch (StringIndexOutOfBoundsException exception) {</span>
+<span class="nc" id="L237">	          exception.printStackTrace();</span>
+<span class="nc" id="L238">	        }</span>
+	      }
+<span class="nc" id="L240">	}</span>
+	
+	
+	public boolean fourDigitValidateData(FourDigitPurchaseBean fourDigitPurchaseBean) {//this method needs to be updated later
+<span class="nc" id="L244">		boolean isValid = true;	</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">		if(fourDigitPurchaseBean != null){</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">					if(fourDigitPurchaseBean.getNoOfDraws()&lt;1){</span>
+<span class="nc" id="L247">								logger.debug(&quot;insufficient no of draws&quot;);</span>
+<span class="nc" id="L248">								return false;</span>
+					}
+<span class="nc bnc" id="L250" title="All 2 branches missed.">					if(fourDigitPurchaseBean.getNoOfPanel()&lt;1){</span>
+<span class="nc" id="L251">							logger.debug(&quot;insufficient no of panels&quot;);</span>
+<span class="nc" id="L252">							return false;</span>
+					}
+<span class="nc" id="L254">					int noOfPanel = fourDigitPurchaseBean.getNoOfPanel();</span>
+<span class="nc" id="L255">					String playTypeArr[] = fourDigitPurchaseBean.getPlayType();</span>
+<span class="nc" id="L256">					int[] qp = fourDigitPurchaseBean.getIsQuickPick();					</span>
+<span class="nc" id="L257">					String[] pickedNumbersArr = fourDigitPurchaseBean.getPlayerData();</span>
+<span class="nc" id="L258">					String[] noPickedArr = fourDigitPurchaseBean.getNoPicked();</span>
+<span class="nc" id="L259">					int[] bigForecastArr = fourDigitPurchaseBean.getBigForecost();</span>
+<span class="nc" id="L260">					int[] smallForecastArr = fourDigitPurchaseBean.getSmallForecost();</span>
+			
+<span class="nc bnc" id="L262" title="All 2 branches missed.">					for (int i = 0; i &lt; noOfPanel; i++) {	</span>
+				
+<span class="nc" id="L264">								String playerData = pickedNumbersArr[i];</span>
+								
+<span class="nc bnc" id="L266" title="All 2 branches missed.">								if (!&quot;QP&quot;.equals(playerData)) {									</span>
+									
+<span class="nc" id="L268">									int pickValue = FourDigitConstants.BET_TYPE_MAP.get(playTypeArr[i]);										</span>
+<span class="nc bnc" id="L269" title="All 6 branches missed.">									if (playTypeArr[i].contains(&quot;Straight&quot;) || &quot;Permute&quot;.equals(playTypeArr[i]) || &quot;Roll&quot;.equals(playTypeArr[i])) {							</span>
+<span class="nc bnc" id="L270" title="All 10 branches missed.">										if(qp[i]!=2 || playerData.length() !=pickValue || Integer.parseInt(noPickedArr[i])!=pickValue || (bigForecastArr[i] == 0 &amp;&amp; smallForecastArr[i] == 0)){</span>
+<span class="nc" id="L271">											isValid=false;</span>
+<span class="nc" id="L272">											break;</span>
+										}
+									}									
+<span class="nc bnc" id="L275" title="All 2 branches missed.">									if(&quot;Roll&quot;.equals(playTypeArr[i])){</span>
+<span class="nc" id="L276">										int count = 0;</span>
+<span class="nc" id="L277">										List&lt;String&gt; splitNumber = Arrays.asList(playerData.split(&quot;&quot;));										</span>
+<span class="nc bnc" id="L278" title="All 2 branches missed.">										for(int j =0; j&lt;splitNumber.size(); j++){</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">											if(splitNumber.get(j).equals(&quot;R&quot;)){count++;}											</span>
+										}
+<span class="nc bnc" id="L281" title="All 2 branches missed.">										if(count!=1){</span>
+<span class="nc" id="L282">											isValid=false;</span>
+<span class="nc" id="L283">											break;</span>
+										}
+									}									
+									//isValid = Util.validateNumber(FourDigitConstants.START_RANGE,FourDigitConstants.END_RANGE, playerData.replace(&quot;,R,&quot;, &quot;,&quot;), true);
+<span class="nc" id="L287">									logger.debug(&quot;-Data---&quot; + playTypeArr[i] + &quot;---&quot;+ noPickedArr[i] + &quot;---&quot; + playerData);</span>
+<span class="nc bnc" id="L288" title="All 2 branches missed.">									if (!isValid) {break;}</span>
+<span class="nc" id="L289">								}else{</span>
+<span class="nc" id="L290">									int pickValue = FourDigitConstants.BET_TYPE_MAP.get(playTypeArr[i]);</span>
+<span class="nc bnc" id="L291" title="All 8 branches missed.">									if(qp[i]!=1 || Integer.parseInt(noPickedArr[i])!=pickValue || (bigForecastArr[i] == 0 &amp;&amp; smallForecastArr[i] == 0)){</span>
+<span class="nc" id="L292">										isValid=false;</span>
+<span class="nc" id="L293">										break;</span>
+									}
+								}
+					}
+<span class="nc bnc" id="L297" title="All 2 branches missed.">								if (!isValid) {</span>
+<span class="nc" id="L298">									fourDigitPurchaseBean.setSaleStatus(&quot;INVALID_INPUT&quot;);// Error Draw</span>
+<span class="nc" id="L299">									logger.error(&quot;-----------Four Digit Validation Error-------------------&quot;+ fourDigitPurchaseBean.getSaleStatus());</span>
+<span class="nc" id="L300">									return false;</span>
+								}
+					
+<span class="nc" id="L303">			}else{</span>
+			//logger.debug(&quot;FourDigit bean null&quot;);
+<span class="nc" id="L305">			return false;</span>
+		}
+<span class="nc" id="L307">		return true;		</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

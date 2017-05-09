@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneToTwelveRouletteAction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.web.drawGames.playMgmt</a> &gt; <span class="el_source">OneToTwelveRouletteAction.java</span></div><h1>OneToTwelveRouletteAction.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.web.drawGames.playMgmt;
+
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletContext;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+import net.sf.json.JSONSerializer;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.struts2.ServletActionContext;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.skilrock.lms.beans.UserInfoBean;
+import com.skilrock.lms.common.BaseAction;
+import com.skilrock.lms.common.ConfigurationVariables;
+import com.skilrock.lms.common.exception.LMSErrors;
+import com.skilrock.lms.common.exception.LMSException;
+import com.skilrock.lms.common.filter.LMSFilterDispatcher;
+import com.skilrock.lms.common.utility.CommonMethods;
+import com.skilrock.lms.coreEngine.drawGames.common.DGErrorMsg;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.DrawGameRPOSHelper;
+import com.skilrock.lms.coreEngine.drawGames.playMgmt.OneToTwelveRouletteHelper;
+import com.skilrock.lms.dge.beans.OneToTwelvePurchaseBean;
+import com.skilrock.lms.dge.beans.OneToTwelveRoulettePurchaseBean;
+import com.skilrock.lms.dge.gameconstants.OneToTwelveRouletteConstants;
+import com.skilrock.lms.rest.services.common.daoImpl.TpEBetMgmtDaoImpl;
+import com.skilrock.lms.web.drawGames.common.CookieMgmtForTicketNumber;
+import com.skilrock.lms.web.drawGames.common.Util;
+
+public class OneToTwelveRouletteAction extends BaseAction{
+
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
+	public OneToTwelveRouletteAction() {
+<span class="nc" id="L45">		super(OneToTwelveRouletteAction.class);</span>
+<span class="nc" id="L46">	}</span>
+	
+	
+<span class="nc" id="L49">	Log logger = LogFactory.getLog(OneToTwelveRouletteAction.class);</span>
+<span class="nc" id="L50">	public static final List numbers = Arrays.asList(&quot;Zero(0)&quot;, &quot;DoubleZero(00)&quot;, &quot;One(1)&quot;,</span>
+			&quot;Two(2)&quot;, &quot;Three(3)&quot;, &quot;Four(4)&quot;, &quot;Five(5)&quot;, &quot;Six(6)&quot;, &quot;Seven(7)&quot;,
+			&quot;Eight(8)&quot;, &quot;Nine(9)&quot;,&quot;Ten(10)&quot;,&quot;Eleven(11)&quot;,&quot;Twelve(12)&quot;);
+	/**
+	 * 
+	 */
+	private String errMsg;
+	private OneToTwelveRoulettePurchaseBean oneToTwelveRouletteBean;
+	//private int gameId = Util.getGameId(&quot;MiniRoulette&quot;);
+	private long LSTktNo;
+	private String json;
+	
+	public void purchaseTicketProcess() {
+<span class="nc" id="L63">		String pickedData[] = null;</span>
+<span class="nc" id="L64">		String[] playType = null;</span>
+<span class="nc" id="L65">		List&lt;String&gt; drawDateTime = new ArrayList&lt;String&gt;();</span>
+<span class="nc" id="L66">		StringBuilder cost = null;</span>
+<span class="nc" id="L67">		StringBuilder ticket = null;</span>
+<span class="nc" id="L68">		logger.info(&quot;className: {} --In One to Twelve Roulette Purchase Purchase Ticket-- &quot;);</span>
+<span class="nc" id="L69">		logger.debug(&quot;Inside purchaseTicketProcess&quot;);</span>
+<span class="nc" id="L70">		PrintWriter out = null;</span>
+<span class="nc" id="L71">		JSONObject jsonResponse = new JSONObject();</span>
+		try {
+<span class="nc" id="L73">			ServletContext sc = ServletActionContext.getServletContext();</span>
+<span class="nc" id="L74">			response.setContentType(&quot;application/json&quot;);</span>
+<span class="nc" id="L75">			out = response.getWriter();</span>
+<span class="nc" id="L76">			Map&lt;Integer, Map&lt;Integer, String&gt;&gt; drawIdTableMap = (Map&lt;Integer, Map&lt;Integer, String&gt;&gt;) sc.getAttribute(&quot;drawIdTableMap&quot;);</span>
+	
+<span class="nc" id="L78">			JSONObject requestData = (JSONObject) JSONSerializer.toJSON(json);</span>
+<span class="nc" id="L79">			JSONObject commonSaleDataReq = (JSONObject) requestData.get(&quot;commonSaleData&quot;);</span>
+<span class="nc" id="L80">			JSONArray betTypeDataReq = (JSONArray) requestData.get(&quot;betTypeData&quot;);</span>
+<span class="nc" id="L81">			String totalPurchaseAmt = (String) requestData.get(&quot;totalPurchaseAmt&quot;);</span>
+			
+<span class="nc" id="L83">			String userName = (String) requestData.get(&quot;userName&quot;);</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">			UserInfoBean userBean = userName == null ? getUserBean() : getUserBean(userName);</span>
+			
+<span class="nc" id="L86">			long lastPrintedTicket = 0;</span>
+<span class="nc" id="L87">			int lstGameId = 0;</span>
+<span class="nc" id="L88">			String actionName = ActionContext.getContext().getName();</span>
+<span class="nc" id="L89">			DrawGameRPOSHelper helper = new DrawGameRPOSHelper();</span>
+			try {
+<span class="nc" id="L91">				LSTktNo = CookieMgmtForTicketNumber.getTicketNumberFromCookie(request, userBean.getUserName());</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">				if (LSTktNo != 0) {</span>
+<span class="nc" id="L93">					lastPrintedTicket = LSTktNo / Util.getDivValueForLastSoldTkt(String.valueOf(LSTktNo).length());</span>
+<span class="nc" id="L94">					lstGameId = Util.getGameIdFromGameNumber(Util.getGamenoFromTktnumber(String.valueOf(LSTktNo)));</span>
+				}
+	
+<span class="nc" id="L97">				helper.insertEntryIntoPrintedTktTableForWeb(lstGameId, userBean.getUserOrgId(), lastPrintedTicket, &quot;WEB&quot;, Util.getCurrentTimeStamp(), actionName);</span>
+<span class="nc" id="L98">			} catch (Exception e) {</span>
+<span class="nc" id="L99">				 e.printStackTrace();</span>
+<span class="nc" id="L100">			}</span>
+	
+<span class="nc" id="L102">			int noOfDraws = Integer.parseInt(commonSaleDataReq.getString(&quot;noOfDraws&quot;).trim());</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">			int isAdvancedPlay = &quot;false&quot;.equals(commonSaleDataReq.getString(&quot;isAdvancePlay&quot;).trim()) ? 0 : 1;</span>
+<span class="nc" id="L104">			String gameName = commonSaleDataReq.getString(&quot;gameName&quot;);</span>
+<span class="nc" id="L105">			int gameId = Util.getGameId(gameName);</span>
+<span class="nc" id="L106">			int panelSize = betTypeDataReq.size();</span>
+<span class="nc" id="L107">			int[] isQuickPick = new int[panelSize];</span>
+<span class="nc" id="L108">			pickedData = new String[panelSize];</span>
+<span class="nc" id="L109">			String noPicked[] = new String[panelSize];</span>
+<span class="nc" id="L110">			playType = new String[panelSize];</span>
+<span class="nc" id="L111">			boolean [] qpPreGenerated = new boolean[panelSize];</span>
+<span class="nc" id="L112">			int[] betAmountMultiple = new int[panelSize];</span>
+<span class="nc" id="L113">			double[] unitPrice = new double[panelSize];</span>
+<span class="nc" id="L114">			int[] noOfLines = new int[panelSize];</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">			for (int i = 0; i &lt; panelSize; i++) {</span>
+<span class="nc" id="L116">				JSONObject panelData = betTypeDataReq.getJSONObject(i);</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">				isQuickPick[i] = panelData.getBoolean(&quot;isQp&quot;) == true ? 1 : 2;</span>
+<span class="nc" id="L118">				pickedData[i] = panelData.getString(&quot;pickedNumbers&quot;);</span>
+<span class="nc" id="L119">				noPicked[i] = panelData.getString(&quot;noPicked&quot;);</span>
+<span class="nc" id="L120">				playType[i] = panelData.getString(&quot;betName&quot;);</span>
+<span class="nc" id="L121">				betAmountMultiple[i] = panelData.getInt(&quot;betAmtMul&quot;);</span>
+<span class="nc" id="L122">				unitPrice[i] = panelData.getDouble(&quot;unitPrice&quot;);</span>
+<span class="nc" id="L123">				noOfLines[i] = panelData.getInt(&quot;noOfLines&quot;);</span>
+			}
+<span class="nc" id="L125">			JSONArray drawDataArr = commonSaleDataReq.getJSONArray(&quot;drawData&quot;);</span>
+<span class="nc" id="L126">			int drawSize = drawDataArr.size();</span>
+<span class="nc" id="L127">			String[] drawIdArr = new String[drawSize];</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">			if(!commonSaleDataReq.getBoolean(&quot;isDrawManual&quot;)){</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">				for (int i = 0; i &lt; drawSize; i++) {</span>
+<span class="nc" id="L130">					JSONObject drawData = drawDataArr.getJSONObject(i);</span>
+<span class="nc" id="L131">					drawIdArr[i] = String.valueOf(drawData.getInt(&quot;drawId&quot;));</span>
+				}
+			}
+	
+<span class="nc" id="L135">			String refMerchantId = (String) sc.getAttribute(&quot;REF_MERCHANT_ID&quot;);</span>
+			
+<span class="nc" id="L137">			OneToTwelveRoulettePurchaseBean drawGamePurchaseBean = new OneToTwelveRoulettePurchaseBean();</span>
+<span class="nc" id="L138">			drawGamePurchaseBean.setGameId(gameId);</span>
+<span class="nc" id="L139">			drawGamePurchaseBean.setGame_no(Util.getGameNumberFromGameId(gameId));</span>
+<span class="nc" id="L140">			drawGamePurchaseBean.setGameDispName(Util.getGameDisplayName(gameId));</span>
+<span class="nc" id="L141">			drawGamePurchaseBean.setGameDevName(Util.getGameName(gameId));</span>
+			
+<span class="nc" id="L143">			drawGamePurchaseBean.setUnitPrice(unitPrice);</span>
+<span class="nc" id="L144">			drawGamePurchaseBean.setNoOfLines(noOfLines);</span>
+			
+<span class="nc" id="L146">			drawGamePurchaseBean.setDrawIdTableMap(drawIdTableMap);</span>
+<span class="nc" id="L147">			drawGamePurchaseBean.setIsQuickPick(isQuickPick);</span>
+<span class="nc" id="L148">			drawGamePurchaseBean.setIsQP(isQuickPick[0]);</span>
+<span class="nc" id="L149">			drawGamePurchaseBean.setPlayerData(pickedData);</span>
+<span class="nc" id="L150">			drawGamePurchaseBean.setNoPicked(noPicked);</span>
+<span class="nc" id="L151">			drawGamePurchaseBean.setPlayType(playType);</span>
+<span class="nc" id="L152">			drawGamePurchaseBean.setBetAmountMultiple(betAmountMultiple);</span>
+<span class="nc" id="L153">			drawGamePurchaseBean.setGame_no(Util.getGameNumberFromGameId(gameId));</span>
+<span class="nc" id="L154">			drawGamePurchaseBean.setNoOfDraws(noOfDraws);</span>
+<span class="nc" id="L155">			drawGamePurchaseBean.setDrawDateTime(Arrays.asList(drawIdArr));</span>
+<span class="nc" id="L156">			drawGamePurchaseBean.setIsAdvancedPlay(isAdvancedPlay);</span>
+<span class="nc" id="L157">			drawGamePurchaseBean.setRefMerchantId(refMerchantId);</span>
+<span class="nc" id="L158">			drawGamePurchaseBean.setPurchaseChannel(&quot;LMS_Web&quot;);</span>
+<span class="nc" id="L159">			drawGamePurchaseBean.setBonus(&quot;N&quot;);</span>
+<span class="nc" id="L160">			drawGamePurchaseBean.setServiceId(Util.getServiceIdFormCode(request.getAttribute(&quot;code&quot;).toString()));</span>
+<span class="nc" id="L161">			drawGamePurchaseBean.setNoOfPanel(panelSize);</span>
+<span class="nc" id="L162">			drawGamePurchaseBean.setTotalNoOfPanels(panelSize);</span>
+<span class="nc" id="L163">			drawGamePurchaseBean.setUserId(userBean.getUserId());</span>
+<span class="nc" id="L164">			drawGamePurchaseBean.setPartyId(userBean.getUserOrgId());</span>
+<span class="nc" id="L165">			drawGamePurchaseBean.setPartyType(userBean.getUserType());</span>
+<span class="nc" id="L166">			drawGamePurchaseBean.setUserMappingId(userBean.getCurrentUserMappingId());</span>
+<span class="nc" id="L167">			drawGamePurchaseBean.setTotalPurchaseAmt(Double.parseDouble(totalPurchaseAmt));</span>
+			//drawGamePurchaseBean.setQPPreGenerated(qpPreGenerated) ;
+<span class="nc bnc" id="L169" title="All 2 branches missed.">			if (panelSize &lt; 1) {</span>
+<span class="nc" id="L170">				drawGamePurchaseBean.setSaleStatus(&quot;ERROR&quot;);</span>
+<span class="nc" id="L171">				setOneToTwelveRouletteBean(drawGamePurchaseBean);</span>
+<span class="nc" id="L172">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE, LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+			
+<span class="nc bnc" id="L175" title="All 4 branches missed.">			if (isAdvancedPlay == 1 &amp;&amp; drawIdArr == null) {</span>
+<span class="nc" id="L176">				setErrMsg(DGErrorMsg.buyErrMsg(&quot;&quot;));</span>
+<span class="nc" id="L177">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE, LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+	
+<span class="nc bnc" id="L180" title="All 2 branches missed.">			if (drawIdArr != null) {</span>
+<span class="nc" id="L181">				drawGamePurchaseBean.setDrawDateTime(Arrays.asList(drawIdArr));</span>
+			}
+	
+<span class="nc" id="L184">			boolean isValid = true;</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">			for (int i = 0; i &lt; panelSize; i++) {</span>
+<span class="nc" id="L186">				String playerData = pickedData[i];</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">				if (!&quot;QP&quot;.equals(playerData)) {</span>
+<span class="nc" id="L188">					isValid = Util.validateNumber(OneToTwelveRouletteConstants.class.getField(gameName.toUpperCase()+&quot;_START_RANGE&quot;).getInt(null), OneToTwelveRouletteConstants.class.getField(gameName.toUpperCase()+&quot;_END_RANGE&quot;).getInt(null), playerData, false);</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">					if (!isValid)</span>
+<span class="nc" id="L190">						break;</span>
+				}
+			}
+	
+<span class="nc bnc" id="L194" title="All 2 branches missed.">			if (!isValid) {</span>
+<span class="nc" id="L195">				drawGamePurchaseBean.setSaleStatus(&quot;INVALID_INPUT&quot;);</span>
+<span class="nc" id="L196">				setOneToTwelveRouletteBean(drawGamePurchaseBean);</span>
+<span class="nc" id="L197">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE, LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}
+			
+<span class="nc bnc" id="L200" title="All 2 branches missed.">			if ((String)requestData.get(&quot;tokenId&quot;) != null) {</span>
+<span class="nc bnc" id="L201" title="All 2 branches missed.">				if (!TpEBetMgmtDaoImpl.getInstance().isBetSlipActive((String)requestData.get(&quot;tokenId&quot;))) {</span>
+<span class="nc" id="L202">					throw new LMSException(LMSErrors.BET_SLIP_EXPIRED_ERROR_CODE, LMSErrors.BET_SLIP_EXPIRED_ERROR_MESSAGE);</span>
+				}
+			}
+			
+	
+<span class="nc" id="L207">			oneToTwelveRouletteBean = new OneToTwelveRouletteHelper().oneToTwelveRoulettePurchaseTicket(userBean, drawGamePurchaseBean);</span>
+<span class="nc" id="L208">			oneToTwelveRouletteBean = getOneToTwelveRouletteBean();</span>
+<span class="nc" id="L209">			String saleStatus = getOneToTwelveRouletteBean().getSaleStatus();</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">			if (!&quot;SUCCESS&quot;.equalsIgnoreCase(saleStatus)) {</span>
+<span class="nc bnc" id="L211" title="All 2 branches missed.">				if (&quot;AGT_INS_BAL&quot;.equalsIgnoreCase(saleStatus))</span>
+<span class="nc" id="L212">					throw new LMSException(LMSErrors.INSUFFICIENT_AGENT_BALANCE_ERROR_CODE, LMSErrors.INSUFFICIENT_AGENT_BALANCE_ERROR_MESSAGE);</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">				else if (&quot;RET_INS_BAL&quot;.equalsIgnoreCase(saleStatus))</span>
+<span class="nc" id="L214">					throw new LMSException(LMSErrors.INSUFFICIENT_RETAILER_BALANCE_ERROR_CODE, LMSErrors.INSUFFICIENT_RETAILER_BALANCE_ERROR_MESSAGE);</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">				else if (&quot;NO_DRAWS&quot;.equalsIgnoreCase(saleStatus))</span>
+<span class="nc" id="L216">					throw new LMSException(LMSErrors.TRANSACTION_FAILED_ERROR_CODE, LMSErrors.TRANSACTION_FAILED_ERROR_MESSAGE);</span>
+<span class="nc bnc" id="L217" title="All 2 branches missed.">				else if (&quot;FRAUD&quot;.endsWith(saleStatus))</span>
+<span class="nc" id="L218">					throw new LMSException(LMSErrors.PURCHASE_FRAUD_ERROR_CODE, LMSErrors.PURCHASE_FRAUD_ERROR_MESSAGE);</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">				else if (&quot;UNAUTHORISED&quot;.endsWith(saleStatus))</span>
+<span class="nc" id="L220">					throw new LMSException(LMSErrors.UNAUTHORIZED_SALE_ERROR_CODE, LMSErrors.UNAUTHORIZED_SALE_ERROR_MESSAGE);</span>
+				
+<span class="nc" id="L222">				throw new LMSException(LMSErrors.INVALID_DATA_ERROR_CODE, LMSErrors.INVALID_DATA_ERROR_MESSAGE);</span>
+			}else {
+<span class="nc" id="L224">				JSONArray betTypeArray = new JSONArray();</span>
+<span class="nc" id="L225">				JSONObject betTypeDataRes = null;</span>
+<span class="nc" id="L226">				boolean isQP = false ;</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">				for (int i=0; i&lt;panelSize; i++) {</span>
+<span class="nc" id="L228">					JSONObject panelData = betTypeDataReq.getJSONObject(i);</span>
+<span class="nc" id="L229">					betTypeDataRes = new JSONObject();</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">					isQP = drawGamePurchaseBean.getIsQuickPick()[i] == 1 ? true : false; </span>
+<span class="nc" id="L231">					betTypeDataRes.put(&quot;isQp&quot;, isQP);</span>
+<span class="nc" id="L232">					betTypeDataRes.put(&quot;betName&quot;, drawGamePurchaseBean.getPlayType()[i]);</span>
+<span class="nc" id="L233">					betTypeDataRes.put(&quot;pickedNumbers&quot;, drawGamePurchaseBean.getPlayerData()[i]);</span>
+<span class="nc" id="L234">					betTypeDataRes.put(&quot;numberPicked&quot;, drawGamePurchaseBean.getNoPicked()[i]);</span>
+<span class="nc" id="L235">					betTypeDataRes.put(&quot;unitPrice&quot;, drawGamePurchaseBean.getUnitPrice()[i]);</span>
+<span class="nc" id="L236">					betTypeDataRes.put(&quot;noOfLines&quot;, oneToTwelveRouletteBean.getNoOfLines()[i]);</span>
+<span class="nc" id="L237">					betTypeDataRes.put(&quot;betAmtMul&quot;, panelData.getInt(&quot;betAmtMul&quot;));</span>
+<span class="nc" id="L238">					double panelPrice = drawGamePurchaseBean.getUnitPrice()[i] * drawGamePurchaseBean.getNoOfDraws();</span>
+<span class="nc" id="L239">					betTypeDataRes.put(&quot;panelPrice&quot;, panelPrice);</span>
+<span class="nc" id="L240">					betTypeArray.add(betTypeDataRes);</span>
+				}
+	
+<span class="nc" id="L243">				int listSize = drawGamePurchaseBean.getDrawDateTime().size();</span>
+<span class="nc" id="L244">				JSONArray drawDataArray = new JSONArray();</span>
+<span class="nc" id="L245">				JSONObject drawData = null;</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">				for (int i=0; i&lt;listSize; i++) {</span>
+<span class="nc" id="L247">					String drawDataString = (String) drawGamePurchaseBean.getDrawDateTime().get(i);</span>
+<span class="nc" id="L248">					drawData = new JSONObject();</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">					if(!commonSaleDataReq.getBoolean(&quot;isDrawManual&quot;)){</span>
+<span class="nc" id="L250">						drawData.put(&quot;drawId&quot;, drawIdArr[i]);</span>
+					}
+					//drawData.put(&quot;drawId&quot;, drawIdArr[i]);
+<span class="nc" id="L253">					drawData.put(&quot;drawDate&quot;, drawDataString.split(&quot; &quot;)[0]);</span>
+<span class="nc" id="L254">					String drawName[] = drawDataString.split(&quot;\\*&quot;);</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">					if(drawName.length &lt; 2) {</span>
+						//drawData.put(&quot;drawName&quot;, &quot;&quot;);
+<span class="nc" id="L257">						drawData.put(&quot;drawTime&quot;, drawDataString.split(&quot;&amp;&quot;)[0].split(&quot; &quot;)[1]);</span>
+<span class="nc" id="L258">						drawDateTime.add(drawDataString.split(&quot; &quot;)[0] + &quot; &quot;+drawDataString.split(&quot;&amp;&quot;)[0].split(&quot; &quot;)[1]);</span>
+					}
+					else {
+<span class="nc bnc" id="L261" title="All 2 branches missed.">						if(!&quot;null&quot;.equalsIgnoreCase(drawDataString.split(&quot;\\*&quot;)[1].split(&quot;&amp;&quot;)[0]))</span>
+<span class="nc" id="L262">							drawData.put(&quot;drawName&quot;, drawDataString.split(&quot;\\*&quot;)[1].split(&quot;&amp;&quot;)[0]);</span>
+<span class="nc" id="L263">						drawData.put(&quot;drawTime&quot;, drawDataString.split(&quot;\\*&quot;)[0].split(&quot; &quot;)[1]);</span>
+<span class="nc" id="L264">						drawDateTime.add(drawDataString.split(&quot; &quot;)[0] + &quot; &quot;+drawDataString.split(&quot;&amp;&quot;)[0].split(&quot; &quot;)[1]);</span>
+					}
+<span class="nc" id="L266">					drawDataArray.add(drawData);</span>
+				}
+<span class="nc" id="L268">				JSONObject commonSaleDataRes = new JSONObject();</span>
+<span class="nc" id="L269">				commonSaleDataRes.put(&quot;ticketNumber&quot;, drawGamePurchaseBean.getTicket_no());</span>
+<span class="nc" id="L270">				ticket = new StringBuilder(drawGamePurchaseBean.getTicket_no()).append(drawGamePurchaseBean.getReprintCount());</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">				commonSaleDataRes.put(&quot;barcodeCount&quot;, drawGamePurchaseBean.getTicket_no() + drawGamePurchaseBean.getReprintCount()+((ConfigurationVariables.currentTktLen == ConfigurationVariables.tktLenB &amp;&amp; LMSFilterDispatcher.isBarCodeRequired)? drawGamePurchaseBean.getBarcodeCount():&quot;&quot;));</span>
+<span class="nc" id="L272">				commonSaleDataRes.put(&quot;gameName&quot;, drawGamePurchaseBean.getGameDispName());</span>
+<span class="nc" id="L273">				commonSaleDataRes.put(&quot;purchaseDate&quot;, drawGamePurchaseBean.getPurchaseTime().split(&quot; &quot;)[0]);</span>
+<span class="nc" id="L274">				commonSaleDataRes.put(&quot;purchaseTime&quot;, drawGamePurchaseBean.getPurchaseTime().split(&quot; &quot;)[1]);</span>
+<span class="nc" id="L275">				commonSaleDataRes.put(&quot;purchaseAmt&quot;, drawGamePurchaseBean.getTotalPurchaseAmt());</span>
+<span class="nc" id="L276">				cost = new StringBuilder(String.valueOf(drawGamePurchaseBean.getTotalPurchaseAmt()));</span>
+<span class="nc" id="L277">				commonSaleDataRes.put(&quot;drawData&quot;, drawDataArray);</span>
+	
+<span class="nc" id="L279">				JSONObject mainData = new JSONObject();</span>
+<span class="nc" id="L280">				mainData.put(&quot;commonSaleData&quot;, commonSaleDataRes);</span>
+<span class="nc" id="L281">				mainData.put(&quot;betTypeData&quot;, betTypeArray);</span>
+<span class="nc" id="L282">				mainData.put(&quot;advMessage&quot;, oneToTwelveRouletteBean.getAdvMsg());</span>
+<span class="nc" id="L283">				mainData.put(&quot;orgName&quot;, userBean.getOrgName());</span>
+<span class="nc" id="L284">				mainData.put(&quot;userName&quot;, userBean.getUserName());</span>
+<span class="nc" id="L285">				mainData.put(&quot;parentOrgName&quot;, userBean.getParentOrgName());</span>
+
+<span class="nc" id="L287">				jsonResponse.put(&quot;isSuccess&quot;, true);</span>
+<span class="nc" id="L288">				jsonResponse.put(&quot;errorMsg&quot;, &quot;&quot;);</span>
+<span class="nc" id="L289">				jsonResponse.put(&quot;mainData&quot;, mainData);</span>
+<span class="nc" id="L290">				jsonResponse.put(&quot;isPromo&quot;, false);</span>
+<span class="nc bnc" id="L291" title="All 4 branches missed.">				if (requestData.get(&quot;tokenId&quot;) != null &amp;&amp; !((String)requestData.get(&quot;tokenId&quot;)).trim().isEmpty()) {</span>
+<span class="nc" id="L292">		    	    Util.setEbetSaleRequestStatusDone((String)requestData.get(&quot;tokenId&quot;), userBean.getUserOrgId());</span>
+				}	
+<span class="nc" id="L294">				CookieMgmtForTicketNumber.checkAndUpdateTicketsDetails(request, response, userBean.getUserName(), getOneToTwelveRouletteBean().getTicket_no() + getOneToTwelveRouletteBean().getReprintCount());</span>
+			}
+<span class="nc" id="L296">		} catch(LMSException e){</span>
+<span class="nc" id="L297">			jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L298">			jsonResponse.put(&quot;errorCode&quot;, e.getErrorCode());</span>
+<span class="nc" id="L299">			jsonResponse.put(&quot;errorMsg&quot;, e.getErrorMessage());</span>
+<span class="nc" id="L300">		}catch(Exception e){</span>
+<span class="nc" id="L301">			e.printStackTrace();</span>
+<span class="nc" id="L302">			jsonResponse.put(&quot;isSuccess&quot;, false);</span>
+<span class="nc" id="L303">			jsonResponse.put(&quot;errorCode&quot;, LMSErrors.GENERAL_EXCEPTION_ERROR_CODE);</span>
+<span class="nc" id="L304">			jsonResponse.put(&quot;errorMsg&quot;, LMSErrors.GENERAL_EXCEPTION_ERROR_MESSAGE);</span>
+<span class="nc" id="L305">		}</span>
+		
+<span class="nc" id="L307">		logger.info(&quot;className: {} One To Twelve Roulette Sale Response Data : {}&quot;+ jsonResponse);</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">		if(&quot;SUCCESS&quot;.equalsIgnoreCase(oneToTwelveRouletteBean.getSaleStatus())){</span>
+<span class="nc" id="L309">			String smsData = CommonMethods.prepareSMSData(pickedData, playType, cost, ticket, drawDateTime);</span>
+<span class="nc" id="L310">			CommonMethods.sendSMS(smsData);</span>
+		}
+<span class="nc" id="L312">		out.print(jsonResponse);</span>
+<span class="nc" id="L313">		out.flush();</span>
+<span class="nc" id="L314">		out.close();</span>
+		
+		
+<span class="nc" id="L317">	}</span>
+	
+	
+	public String getErrMsg() {
+<span class="nc" id="L321">		return errMsg;</span>
+	}
+
+	public void setErrMsg(String errMsg) {
+<span class="nc" id="L325">		this.errMsg = errMsg;</span>
+<span class="nc" id="L326">	}</span>
+
+	
+
+	public long getLSTktNo() {
+<span class="nc" id="L331">		return LSTktNo;</span>
+	}
+
+	public void setLSTktNo(long lSTktNo) {
+<span class="nc" id="L335">		LSTktNo = lSTktNo;</span>
+<span class="nc" id="L336">	}</span>
+
+	public String getJson() {
+<span class="nc" id="L339">		return json;</span>
+	}
+
+	public void setJson(String json) {
+<span class="nc" id="L343">		this.json = json;</span>
+<span class="nc" id="L344">	}</span>
+
+
+	public OneToTwelveRoulettePurchaseBean getOneToTwelveRouletteBean() {
+<span class="nc" id="L348">		return oneToTwelveRouletteBean;</span>
+	}
+
+
+	public void setOneToTwelveRouletteBean(
+			OneToTwelveRoulettePurchaseBean oneToTwelveRouletteBean) {
+<span class="nc" id="L354">		this.oneToTwelveRouletteBean = oneToTwelveRouletteBean;</span>
+<span class="nc" id="L355">	}</span>
+	
+	
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>

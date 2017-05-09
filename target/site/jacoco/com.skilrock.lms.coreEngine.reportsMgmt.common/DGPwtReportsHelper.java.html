@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DGPwtReportsHelper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lms</a> &gt; <a href="index.source.html" class="el_package">com.skilrock.lms.coreEngine.reportsMgmt.common</a> &gt; <span class="el_source">DGPwtReportsHelper.java</span></div><h1>DGPwtReportsHelper.java</h1><pre class="source lang-java linenums">package com.skilrock.lms.coreEngine.reportsMgmt.common;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import com.skilrock.lms.beans.DateBeans;
+import com.skilrock.lms.beans.GameBean;
+import com.skilrock.lms.beans.GameWisePWTBean;
+import com.skilrock.lms.beans.PwtReportBean;
+import com.skilrock.lms.common.db.DBConnect;
+import com.skilrock.lms.common.utility.FormatNumber;
+
+public class DGPwtReportsHelper {
+
+	public static void main(String[] args) {
+
+<span class="nc" id="L25">	}</span>
+
+<span class="nc" id="L27">	private Connection con = null;</span>
+	private Date endDate;
+<span class="nc" id="L29">	private PreparedStatement pstmt = null;</span>
+<span class="nc" id="L30">	private ResultSet rs = null;</span>
+
+	private Date startDate;
+
+<span class="nc" id="L34">	public DGPwtReportsHelper(DateBeans dateBeans) {</span>
+<span class="nc" id="L35">		this.startDate = dateBeans.getFirstdate();</span>
+<span class="nc" id="L36">		this.endDate = dateBeans.getLastdate();</span>
+<span class="nc" id="L37">	}</span>
+
+	private PwtReportBean getPlayerPwtDetail(Connection conn) {
+<span class="nc" id="L40">		PwtReportBean bean = null;</span>
+		try {
+
+<span class="nc" id="L43">			PreparedStatement pst = conn</span>
+					.prepareStatement(&quot;select ifnull(sum(pwt_amt),0) total_pwt_amt from st_dg_bo_direct_plr_pwt where  transaction_date&gt;=? and transaction_date&lt;?&quot;);
+<span class="nc" id="L45">			pst.setDate(1, startDate);</span>
+<span class="nc" id="L46">			pst.setDate(2, endDate);</span>
+<span class="nc" id="L47">			ResultSet rss = pst.executeQuery();</span>
+<span class="nc" id="L48">			System.out.println(&quot;get Player PWT query : == &quot; + pst);</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">			if (rss.next()) {</span>
+<span class="nc" id="L50">				bean = new PwtReportBean();</span>
+<span class="nc" id="L51">				bean.setPartyName(&quot;Player PWT&quot;);</span>
+<span class="nc" id="L52">				bean.setPwtAmt(FormatNumber.formatNumber(rss</span>
+						.getDouble(&quot;total_pwt_amt&quot;)));
+<span class="nc bnc" id="L54" title="All 2 branches missed.">				if (rss.getDouble(&quot;total_pwt_amt&quot;) &gt; 0) {</span>
+<span class="nc" id="L55">					return bean;</span>
+				} else {
+<span class="nc" id="L57">					return null;</span>
+				}
+			}
+<span class="nc" id="L60">		} catch (SQLException e) {</span>
+<span class="nc" id="L61">			e.printStackTrace();</span>
+<span class="nc" id="L62">		}</span>
+<span class="nc" id="L63">		return bean;</span>
+	}
+
+	public List&lt;PwtReportBean&gt; getPwtDetailAGTWise() {
+
+<span class="nc" id="L68">		List&lt;PwtReportBean&gt; list = new ArrayList&lt;PwtReportBean&gt;();</span>
+<span class="nc" id="L69">		PwtReportBean reportbean = null;</span>
+<span class="nc" id="L70">		con = DBConnect.getConnection();</span>
+
+		// used to add a row of total PWT amount Claimed by Players
+<span class="nc bnc" id="L73" title="All 2 branches missed.">		if ((reportbean = getPlayerPwtDetail(con)) != null) {</span>
+<span class="nc" id="L74">			list.add(reportbean);</span>
+		}
+
+		try {
+
+			// pstmt=con.prepareStatement(QueryManager.getST_PWT_REPORT_BO());
+<span class="nc" id="L80">			String getPwtDetailsForBo = &quot;select ifnull(sum(pwt_amt),0) total_pwt_amt, agent_org_id, &quot;</span>
+					+ &quot; name from st_dg_bo_pwt bpwt, st_lms_organization_master  where bpwt.transaction_id&quot;
+					+ &quot; in (select btm.transaction_id from st_lms_bo_transaction_master btm where ( &quot;
+					+ &quot; transaction_type='DG_PWT' or transaction_type='DG_PWT_AUTO')and ( &quot;
+					+ &quot; btm.transaction_date&gt;=? and btm.transaction_date&lt;?)) and organization_id = &quot;
+					+ &quot; agent_org_id group by agent_org_id order by name&quot;;
+<span class="nc" id="L86">			pstmt = con.prepareStatement(getPwtDetailsForBo);</span>
+<span class="nc" id="L87">			pstmt.setDate(1, startDate);</span>
+<span class="nc" id="L88">			pstmt.setDate(2, endDate);</span>
+<span class="nc" id="L89">			rs = pstmt.executeQuery();</span>
+<span class="nc" id="L90">			System.out.println(&quot; get pwt details query- ==== -&quot; + pstmt);</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">			while (rs.next()) {</span>
+<span class="nc" id="L92">				reportbean = new PwtReportBean();</span>
+<span class="nc" id="L93">				reportbean.setPwtAmt(FormatNumber.formatNumber(rs</span>
+						.getDouble(&quot;total_pwt_amt&quot;)));
+<span class="nc" id="L95">				reportbean.setPartyName(rs.getString(&quot;name&quot;));</span>
+<span class="nc" id="L96">				reportbean.setPartyId(rs.getInt(&quot;agent_org_id&quot;));</span>
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">				if (rs.getDouble(&quot;total_pwt_amt&quot;) &gt; 0) {</span>
+<span class="nc" id="L99">					list.add(reportbean);</span>
+				}
+			}
+
+<span class="nc" id="L103">		} catch (SQLException e) {</span>
+<span class="nc" id="L104">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L106">			try {</span>
+
+<span class="nc bnc" id="L108" title="All 12 branches missed.">				if (con != null &amp;&amp; !con.isClosed()) {</span>
+<span class="nc" id="L109">					con.close();</span>
+				}
+<span class="nc" id="L111">			} catch (SQLException e) {</span>
+<span class="nc" id="L112">				e.printStackTrace();</span>
+<span class="nc" id="L113">			}</span>
+<span class="nc" id="L114">		}</span>
+
+<span class="nc" id="L116">		return list;</span>
+	}
+
+	/**
+	 * It is called when BO want to get the PWT details 'Game Wise'
+	 * 
+	 * @param gameStatus
+	 * @return List&lt;GameWisePWTBean&gt;
+	 */
+
+	public List&lt;GameWisePWTBean&gt; getPwtDetailGameWise(String gameStatus) {
+
+<span class="nc" id="L128">		List&lt;GameWisePWTBean&gt; list = new ArrayList&lt;GameWisePWTBean&gt;();</span>
+<span class="nc" id="L129">		Connection conn = DBConnect.getConnection();</span>
+
+		try {
+			// get the details of games based on the game status
+<span class="nc" id="L133">			Map&lt;Integer, GameBean&gt; gameMap = new TreeMap&lt;Integer, GameBean&gt;();</span>
+<span class="nc" id="L134">			Map&lt;Integer, String&gt; totalPwtMap = new TreeMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L135">			String query = &quot;select game_id, game_nbr, game_name from st_dg_game_master &quot;;</span>
+<span class="nc" id="L136">			pstmt = conn.prepareStatement(query);</span>
+<span class="nc" id="L137">			ResultSet rss = pstmt.executeQuery();</span>
+<span class="nc" id="L138">			System.out.println(&quot;get Game id query :  &quot; + pstmt);</span>
+<span class="nc" id="L139">			GameBean gbean = null;</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">			while (rss.next()) {</span>
+<span class="nc" id="L141">				gbean = new GameBean();</span>
+<span class="nc" id="L142">				int id = rss.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L143">				String name = rss.getString(&quot;game_name&quot;);</span>
+<span class="nc" id="L144">				int gameNbr = rss.getInt(&quot;game_nbr&quot;);</span>
+<span class="nc" id="L145">				gbean.setGameId(id);</span>
+<span class="nc" id="L146">				gbean.setGameName(name);</span>
+<span class="nc" id="L147">				gbean.setGameNbr(gameNbr);</span>
+<span class="nc" id="L148">				gameMap.put(id, gbean);</span>
+
+				/*
+				 * //get the details of total pwt of game wise
+				 * query=QueryManager.getST_BO_GAME_WISE_TOTAL_PWT_DETAILS();
+				 * PreparedStatement gstmt=conn.prepareStatement(query);
+				 * gstmt.setInt(1, gameNbr); gstmt.setInt(2, id); ResultSet
+				 * rs=gstmt.executeQuery(); System.out.println(&quot;total pwt
+				 * details query == &quot;+pstmt); while(rs.next()) { String
+				 * playerPwt=FormatNumber.formatNumber(rs.getDouble(&quot;TOTAL_PWT&quot;));
+				 * int gameId=rs.getInt(&quot;game_id&quot;); totalPwtMap.put(gameId,
+				 * playerPwt); } //System.out.println(&quot; Total pwt details
+				 * &quot;+totalPwtMap);
+				 * 
+				 * rs.close(); gstmt.close();
+				 */
+
+<span class="nc" id="L165">			}</span>
+			// System.out.println(&quot;game id details : &quot;+gameMap);
+<span class="nc" id="L167">			rss.close();</span>
+<span class="nc" id="L168">			pstmt.close();</span>
+
+			// get the details of pwt claimed by agent
+<span class="nc" id="L171">			Map&lt;Integer, String&gt; agentMap = new TreeMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L172">			query = &quot;select ifnull(sum(pwt_amt),0) total_pwt_amt, game_id from st_dg_bo_pwt bpwt  where bpwt.transaction_id in (select btm.transaction_id from st_lms_bo_transaction_master btm where (  transaction_type='DG_PWT' or transaction_type='DG_PWT_AUTO')and (  btm.transaction_date&gt;=? and btm.transaction_date&lt;?))  group by game_id &quot;;</span>
+<span class="nc" id="L173">			pstmt = conn.prepareStatement(query);</span>
+<span class="nc" id="L174">			pstmt.setDate(1, this.startDate);</span>
+<span class="nc" id="L175">			pstmt.setDate(2, this.endDate);</span>
+
+<span class="nc" id="L177">			rss = pstmt.executeQuery();</span>
+			// System.out.println(&quot;agent pwt details query == &quot;+pstmt);
+<span class="nc bnc" id="L179" title="All 2 branches missed.">			while (rss.next()) {</span>
+<span class="nc" id="L180">				String agentPwt = FormatNumber.formatNumber(rss</span>
+						.getDouble(&quot;total_pwt_amt&quot;));
+<span class="nc" id="L182">				int gameId = rss.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L183">				agentMap.put(gameId, agentPwt);</span>
+<span class="nc" id="L184">			}</span>
+			// System.out.println(&quot; agent pwt details &quot;+agentMap);
+<span class="nc" id="L186">			rss.close();</span>
+<span class="nc" id="L187">			pstmt.close();</span>
+
+			// get the details of pwt claimed by Player
+<span class="nc" id="L190">			Map&lt;Integer, String&gt; playerMap = new TreeMap&lt;Integer, String&gt;();</span>
+<span class="nc" id="L191">			pstmt = null;</span>
+<span class="nc" id="L192">			rss = null;</span>
+<span class="nc" id="L193">			query = &quot;select ifnull(sum(pwt_amt),0) 'player_pwt', game_id from st_dg_bo_direct_plr_pwt where  transaction_date&gt;=? and transaction_date&lt;? group by game_id&quot;;</span>
+<span class="nc" id="L194">			pstmt = conn.prepareStatement(query);</span>
+<span class="nc" id="L195">			pstmt.setDate(1, this.startDate);</span>
+<span class="nc" id="L196">			pstmt.setDate(2, this.endDate);</span>
+<span class="nc" id="L197">			rss = pstmt.executeQuery();</span>
+			// System.out.println(&quot;Player pwt details query == &quot;+pstmt);
+<span class="nc bnc" id="L199" title="All 2 branches missed.">			while (rss.next()) {</span>
+<span class="nc" id="L200">				String playerPwt = FormatNumber.formatNumber(rss</span>
+						.getDouble(&quot;player_pwt&quot;));
+<span class="nc" id="L202">				int gameId = rss.getInt(&quot;game_id&quot;);</span>
+<span class="nc" id="L203">				playerMap.put(gameId, playerPwt);</span>
+<span class="nc" id="L204">			}</span>
+			// System.out.println(&quot; Player pwt details &quot;+playerMap);
+<span class="nc" id="L206">			rss.close();</span>
+<span class="nc" id="L207">			pstmt.close();</span>
+
+			/*
+			 * //get the details of pwt claimed by Retailer Map&lt;Integer,
+			 * String&gt; retMap= new TreeMap&lt;Integer, String&gt;(); pstmt=null;
+			 * rss=null;
+			 * query=QueryManager.getST_BO_GAME_WISE_PWT_RET_DETAILS();
+			 * pstmt=conn.prepareStatement(query); pstmt.setDate(1,
+			 * this.startDate); pstmt.setDate(2, this.endDate);
+			 * if(!&quot;ALL&quot;.equalsIgnoreCase(gameStatus.trim())) pstmt.setString(3,
+			 * gameStatus.trim()+&quot;%&quot;); else pstmt.setString(3, &quot;%&quot;);
+			 * rss=pstmt.executeQuery(); //System.out.println(&quot;ret pwt details
+			 * query == &quot;+pstmt); while(rss.next()) { String
+			 * retPwt=FormatNumber.formatNumber(rss.getDouble(&quot;ret_pwt&quot;)); int
+			 * gameId=rss.getInt(&quot;game_id&quot;); retMap.put(gameId, retPwt); }
+			 * //System.out.println(&quot; ret pwt details &quot;+retMap); rss.close();
+			 * pstmt.close();
+			 */
+
+<span class="nc" id="L226">			Set&lt;Integer&gt; gameIdSet = gameMap.keySet();</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">			for (Integer id : gameIdSet) {</span>
+				// String agentPWT=(agentMap.get(id)!=null)?;
+<span class="nc" id="L229">				GameBean gameBean = gameMap.get(id);</span>
+<span class="nc" id="L230">				String playerPWT = playerMap.get(id);</span>
+				// String retPWT=retMap.get(id);
+<span class="nc" id="L232">				String agentPWT = agentMap.get(id);</span>
+<span class="nc" id="L233">				String totalPWT = totalPwtMap.get(id);</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">				if (playerPWT == null) {</span>
+<span class="nc" id="L235">					playerPWT = &quot;0.00&quot;;</span>
+				}
+				// if(retPWT==null) retPWT=&quot;0.00&quot;;
+<span class="nc bnc" id="L238" title="All 2 branches missed.">				if (agentPWT == null) {</span>
+<span class="nc" id="L239">					agentPWT = &quot;0.00&quot;;</span>
+				}
+<span class="nc bnc" id="L241" title="All 2 branches missed.">				if (totalPWT == null) {</span>
+<span class="nc" id="L242">					totalPWT = &quot;0.00&quot;;</span>
+				}
+
+				// set the bean to be display on the jsp
+<span class="nc" id="L246">				GameWisePWTBean bean = new GameWisePWTBean();</span>
+<span class="nc" id="L247">				bean.setGameNbr(gameBean.getGameNbr());</span>
+<span class="nc" id="L248">				bean.setGameName(gameBean.getGameName());</span>
+<span class="nc" id="L249">				bean.setAgentPWT(FormatNumber.formatNumberForJSP(agentPWT));</span>
+<span class="nc" id="L250">				bean.setPlayerPWT(FormatNumber.formatNumberForJSP(playerPWT));</span>
+				// bean.setRetPWT(FormatNumber.formatNumberForJSP(retPWT));
+<span class="nc" id="L252">				bean.setTotalPWT(FormatNumber.formatNumberForJSP(totalPWT));</span>
+<span class="nc" id="L253">				double sumpwtAtBo = Double.parseDouble(agentPWT</span>
+						.replace(&quot;,&quot;, &quot;&quot;))
+						+ Double.parseDouble(playerPWT.replace(&quot;,&quot;, &quot;&quot;));
+<span class="nc" id="L256">				bean.setSumPwtAtBo(FormatNumber.formatNumberForJSP(sumpwtAtBo));</span>
+
+<span class="nc" id="L258">				list.add(bean);</span>
+<span class="nc" id="L259">			}</span>
+<span class="nc" id="L260">		} catch (SQLException e) {</span>
+<span class="nc" id="L261">			e.printStackTrace();</span>
+		} finally {
+<span class="nc" id="L263">			try {</span>
+
+<span class="nc bnc" id="L265" title="All 12 branches missed.">				if (conn != null &amp;&amp; !conn.isClosed()) {</span>
+<span class="nc" id="L266">					conn.close();</span>
+				}
+<span class="nc" id="L268">			} catch (SQLException e) {</span>
+<span class="nc" id="L269">				e.printStackTrace();</span>
+<span class="nc" id="L270">			}</span>
+<span class="nc" id="L271">		}</span>
+
+		// System.out.println(list);
+<span class="nc" id="L274">		return list;</span>
+
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.eclemma.org/jacoco">JaCoCo</a> 0.7.7.201606060606</span></div></body></html>
